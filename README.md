@@ -20,8 +20,10 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 
 ## Status
 
-**Design stage. There is no code and no plan yet.**
+**The first build is under way** on the branch `first-build`: the home screen, the side menu,
+the Scratch Pad, encryption and the library index. None of the Sprout apps exist yet.
 
+- [`docs/first-build.md`](docs/first-build.md) — the plan for the first build.
 - [`docs/design.md`](docs/design.md) — the design as decided so far, with the device probes behind it.
 - [`docs/references.md`](docs/references.md) — where the supporting probes and documents live.
 - [`BACKLOG.md`](BACKLOG.md) — ideas deliberately set aside for later.

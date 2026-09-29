@@ -6,10 +6,23 @@ Supernote Nomad and Manta first.
 
 ## Status
 
-**Design stage. No code, no plan.** Do not write a plan, open a phase, or scaffold a build
-until Greg asks for it.
+**First build under way, on the branch `first-build`.** Greg granted it on 2026-09-28. The plan,
+with his decisions and the step order, is `docs/first-build.md`. Work only within that plan: do
+not start anything beyond it, or anything in `BACKLOG.md`, until Greg asks for it. The branch is
+merged when Greg is happy with it, not before.
+
+## Build
+
+- `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
+- Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
+  theme, chrome and ink), `:seam-stranger` (joins the build only where its key exists).
+- Debug installs as `com.symmetricalpalmtree.soil.dev`, release as `com.symmetricalpalmtree.soil`.
+  Both are signed with `~/.android/debug.keystore`.
+- g-paper comes from `mavenLocal()`. Its version is pinned in `paper/build.gradle.kts` only.
 
 ## Read first
+
+- `docs/first-build.md` — the plan for the first build.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the
