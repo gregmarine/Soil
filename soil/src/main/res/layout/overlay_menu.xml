@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The side menu: a panel on the right edge over whatever is in front. The rest of the screen
+     is a scrim that closes the menu on a tap; it is clear, so the app underneath stays readable.
+     The rows are built in code. Nothing scrolls: the apps are in fixed pages. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:id="@+id/scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent" />
+
+    <LinearLayout
+        android:id="@+id/panel"
+        android:layout_width="@dimen/menu_width"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:orientation="vertical"
+        android:background="@drawable/shape_menu_panel"
+        android:clickable="true"
+        android:paddingStart="2dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="4dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/app_name"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="@color/inkBlack" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnClose"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_x"
+                android:contentDescription="@string/cd_menu_close" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <!-- What Soil itself offers: Home and the Scratch Pad. -->
+        <LinearLayout
+            android:id="@+id/ownRows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <!-- The installed apps, one page of them. -->
+        <LinearLayout
+            android:id="@+id/appRows"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/pager"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/inkBlack" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/toolbar_bar_thickness"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPrev"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:src="@drawable/ic_page_prev"
+                    android:contentDescription="@string/cd_page_previous" />
+
+                <TextView
+                    android:id="@+id/pageText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="72dp"
+                    android:gravity="center"
+                    android:textSize="16sp"
+                    android:textColor="@color/inkBlack" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnNext"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:src="@drawable/ic_page_next"
+                    android:contentDescription="@string/cd_page_next" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

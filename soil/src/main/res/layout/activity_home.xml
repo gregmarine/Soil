@@ -91,13 +91,27 @@
         android:paddingEnd="8dp">
 
         <TextView
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="@string/apps_heading"
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/inkBlack" />
+
+        <!-- Said only while the shell is off: with it off the side bars open the firmware's own
+             menu, and this is the one place that explains why. -->
+        <TextView
+            android:id="@+id/shellNote"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="20dp"
+            android:text="@string/shell_off"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="14sp"
+            android:textColor="@color/inkBlack"
+            android:visibility="invisible" />
 
         <LinearLayout
             android:id="@+id/appPager"

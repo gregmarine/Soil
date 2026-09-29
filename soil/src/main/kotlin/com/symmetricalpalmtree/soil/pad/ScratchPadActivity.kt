@@ -30,6 +30,7 @@ import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
+import com.symmetricalpalmtree.soil.shell.MenuSignals
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -326,6 +327,18 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
                 .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
                 .create()
         ).show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The side menu is drawn over this screen, and shows only once the panel is let go.
+        // `opened` says the paper exists and has its page.
+        MenuSignals.beforeMenuShows = { if (opened && !closing && !paper.isPenActive) paper.releaseRender() }
+    }
+
+    override fun onPause() {
+        MenuSignals.beforeMenuShows = null
+        super.onPause()
     }
 
     override fun onScreenDestroyed() {

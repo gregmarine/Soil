@@ -20,6 +20,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.shell.AppList
+import com.symmetricalpalmtree.soil.shell.SoilBarService
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +81,8 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        // INVISIBLE, not GONE: the pager beside it keeps its place either way.
+        binding.shellNote.visibility = if (SoilBarService.running) View.INVISIBLE else View.VISIBLE
         // An app may have been installed or removed while Soil was away.
         lifecycleScope.launch { AppList.refresh(this@HomeActivity) }
     }

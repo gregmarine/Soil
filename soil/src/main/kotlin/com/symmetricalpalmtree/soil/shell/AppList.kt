@@ -73,6 +73,8 @@ object AppList {
 
     /** Start [entry]'s activity, in a task of its own. False when it could not be started. */
     fun launch(context: Context, entry: AppEntry): Boolean = try {
+        // Opened by the person: from now on the firmware's Notes in front is not a boot push.
+        if (entry.packageName == BootTakeBack.FIRMWARE_NOTES) BootTakeBack.personAskedForNotes = true
         context.startActivity(
             Intent(Intent.ACTION_MAIN)
                 .addCategory(Intent.CATEGORY_LAUNCHER)

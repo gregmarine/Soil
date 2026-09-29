@@ -134,4 +134,11 @@
     <string name="encryption_failed_stuck">A file could not be opened with either key. Nothing was deleted, but the change cannot continue on its own.</string>
     <string name="encryption_pad_open_title">Scratch Pad is open</string>
     <string name="encryption_pad_open_body">Close the Scratch Pad first. Its pages cannot be re-keyed or locked while it is open.</string>
+
+    <!-- The shell -->
+    <string name="menu_home">Home</string>
+    <string name="cd_menu_close">Close menu</string>
+    <string name="bar_service_label">Soil side menu</string>
+    <string name="bar_service_description">Lets Soil open its side menu from the side bars in every app. It watches the side bars only and reads nothing that any app shows.</string>
+    <string name="shell_off">The side menu is off.</string>
 </resources>

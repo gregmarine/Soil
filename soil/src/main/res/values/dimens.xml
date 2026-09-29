@@ -6,4 +6,9 @@
     <dimen name="app_cell_height">124dp</dimen>
     <dimen name="app_icon_size">56dp</dimen>
     <dimen name="app_cell_padding">10dp</dimen>
+
+    <!-- The side menu. -->
+    <dimen name="menu_width">280dp</dimen>
+    <dimen name="menu_row_height">60dp</dimen>
+    <dimen name="menu_icon_size">36dp</dimen>
 </resources>

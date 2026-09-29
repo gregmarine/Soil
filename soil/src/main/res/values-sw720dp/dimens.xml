@@ -5,4 +5,8 @@
     <dimen name="app_cell_height">150dp</dimen>
     <dimen name="app_icon_size">72dp</dimen>
     <dimen name="app_cell_padding">12dp</dimen>
+
+    <dimen name="menu_width">340dp</dimen>
+    <dimen name="menu_row_height">76dp</dimen>
+    <dimen name="menu_icon_size">44dp</dimen>
 </resources>
