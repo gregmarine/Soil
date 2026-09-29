@@ -24,12 +24,12 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 
 | Part | State |
 |---|---|
-| Home screen, with the library (empty) and a grid of installed apps | Built, walked on the Nomad |
+| Home screen: the library (empty) and the app drawer, with apps that can be hidden | Built, walked on the Nomad |
 | Encryption: recovery key, unlock, lockout, change passphrase, forget | Built, walked on the Nomad |
 | Library index | Built; holds nothing yet |
-| Scratch Pad | Built; opens on the Nomad. Writing on it is still to be walked by hand |
+| Scratch Pad | Built, walked on the Nomad by hand |
 | Seam, handshake only | Built, walked on the Nomad |
-| Side menu and home screen role | Built; not yet walked on the device |
+| Side menu and home screen role | Built, walked on the Nomad by hand |
 
 - [`docs/first-build.md`](docs/first-build.md) — the plan for the first build, and what was decided.
 - [`docs/building.md`](docs/building.md) — building, installing, turning the shell on and off.

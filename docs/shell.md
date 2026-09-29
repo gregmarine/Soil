@@ -15,6 +15,30 @@ Turning it on and off is in `building.md`.
 | `MenuOverlay` | Soil's menu, drawn over whatever is in front |
 | `AppList` | Every installed app with a launcher entry |
 
+## The home screen
+
+Two views under one top bar, chosen with the two buttons at its start.
+
+| View | Button | Shows |
+|---|---|---|
+| Library | Tabler `books` | The library. The home screen opens on it |
+| App drawer | Tabler `apps` | The installed apps that are not hidden, with their icons, in fixed pages |
+
+The view that is showing wears a border. The drawer's pager is on the bottom bar.
+
+## Hiding apps
+
+Many installed apps have a launcher entry and were never meant to be opened by hand. Which are
+worth seeing is decided one app at a time; nothing is hidden to begin with.
+
+- **Hide:** press and hold an app in the drawer. It asks first.
+- **Show again:** the hidden apps screen, behind the crossed-eye button on the drawer's top bar.
+- A hidden app leaves the drawer and the side menu alike. The app itself is not changed.
+- The list is an ordinary preference, not part of the encrypted library, because the drawer and
+  the menu work while the library is locked.
+- *Proposed:* a hidden app that is uninstalled stays on the list, so it is still hidden if it
+  comes back.
+
 ## Reading the bars
 
 The bars are keys. They carry no position and no direction. Direction comes from the firmware:
@@ -30,7 +54,8 @@ The keys are watched and never consumed, so the firmware still sees every swipe.
 
 ## The menu
 
-- Home and the Scratch Pad, then every installed app, by name, each with its own icon.
+- Home and the Scratch Pad, then every installed app that is not hidden, by name, each with
+  its own icon.
 - Fixed pages with previous and next. Nothing scrolls.
 - A tap outside the panel, or on the cross, closes it.
 
@@ -51,7 +76,7 @@ be that push, and Soil puts its home screen back.
 The home screen does not touch the bars or the firmware's menu. With the service off, Soil is an
 ordinary app beside the firmware's menu, and everything but the side menu works.
 
-*Proposed:* while the service is off, the home screen says "The side menu is off."
+*Proposed:* while the service is off, the library view says "The side menu is off."
 
 ## Risks
 
