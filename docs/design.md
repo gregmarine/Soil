@@ -1,8 +1,8 @@
 # Soil — design
 
-**Status: design, from a brainstorm on 2026-09-27 and 2026-09-28. Nothing here is a plan.**
-No build order, no phases and no schedule have been decided. This document records what was
-decided, what was measured on the device, and what is still open.
+**Status: design, from a brainstorm on 2026-09-27 and 2026-09-28.** This document records what
+was decided, what was measured on the device, and what is still open. The first build was
+granted on 2026-09-28; its plan is `first-build.md`, and each part as built has a page of its own.
 
 Decisions are Greg's. Where a line is a recommendation that was not explicitly confirmed, it is
 marked *proposed*.
@@ -438,9 +438,9 @@ Small enough to settle during planning.
 |---|---|
 | Dangling links | What a link shows when its target has been deleted |
 | Ink into a sketch | Whether converted strokes land as graphite or as ink |
-| The menu | Which entries, in what order, and any direct bar gestures |
+| The menu | For the first build: Home, the Scratch Pad, then every installed app. Still open: the Sprout apps' entries and any direct bar gestures |
 | The library | How notebooks, sketchbooks and documents are told apart at a glance |
 | Conversion | Whether split files are linked to each other |
-| Build order | What is built first, and what the first usable version contains |
+| Build order | Settled for the first build; see `first-build.md`. Open beyond it |
 | Boot | Re-test taking the home screen back after a reboot |
 | Firmware updates | How Soil notices that the menu lock has stopped working |

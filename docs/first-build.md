@@ -1,5 +1,17 @@
 # Soil — first build
 
+**Progress, 2026-09-29.** Steps 0 to 7 and 9 are built and walked on the Nomad. Step 8 is built
+and not yet walked. Steps 10 and 11 follow it. What differs from the plan below:
+
+- There is no `SoilOpenHelper`. `SoilDb` opens a file through `SoilCrypto` and runs the schema
+  steps itself, which gives the same guarantees with nothing underneath that can create or
+  delete a file.
+- The fold of a typed key puts the `SOIL-` prefix back, because the prefix is spelled with the
+  letters the fold rewrites.
+- Steps 4 and 5 were built together, and step 9 before step 8, so that everything which does not
+  change the device's settings was walked first.
+- Unlock and lockout were walked with step 7, which is what can lock the library.
+
 ## Context
 
 Soil has been at design stage: `docs/design.md` records the decisions and the Nomad probes, and

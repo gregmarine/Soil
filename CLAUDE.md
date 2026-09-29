@@ -20,9 +20,21 @@ merged when Greg is happy with it, not before.
   Both are signed with `~/.android/debug.keystore`.
 - g-paper comes from `mavenLocal()`. Its version is pinned in `paper/build.gradle.kts` only.
 
+## Testing on the device
+
+- Ink does not show in a screenshot, and a pen cannot be injected. Writing is walked by Greg.
+- The side bars cannot be injected. Only a real swipe tests the menu.
+- `adb shell input text` is swallowed. Tap the on-screen keys, or use Copy and Paste.
+- Never read a recovery key off the device: not in a screenshot, not in a view dump, not in a
+  log. To move one, use the screen's own Copy and the field's Paste.
+- Ask before changing the device's home screen or accessibility settings. The commands, and the
+  way back, are in `docs/building.md`.
+
 ## Read first
 
 - `docs/first-build.md` — the plan for the first build.
+- `docs/building.md` — building, installing, the shell on and off.
+- `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the
