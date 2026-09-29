@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="inkBlack">#000000</color>
+    <color name="paperWhite">#FFFFFF</color>
+    <!-- Only for text that is not meant to be read at a glance. Never for a border: a grey
+         border is invisible on e-ink. -->
+    <color name="inkLight">#888888</color>
+</resources>
