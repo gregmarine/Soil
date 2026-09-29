@@ -1,29 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The home screen: two views under one top bar. The library is the one it opens on; the app
+     drawer is the other. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/paperWhite">
 
-    <!-- Top bar: the title, then the actions. Action buttons live here; a bottom bar is for a
-         pager only. -->
+    <!-- Top bar: the two views at the start, the actions at the end. Action buttons live here; a
+         bottom bar is for a pager only. -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="@dimen/toolbar_bar_thickness"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="20dp"
+        android:paddingStart="4dp"
         android:paddingEnd="8dp">
 
-        <TextView
+        <!-- The view that is showing wears a border. -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnLibrary"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_books"
+            android:contentDescription="@string/cd_view_library" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnApps"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_apps"
+            android:contentDescription="@string/cd_view_apps" />
+
+        <View
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/app_name"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="@color/inkBlack" />
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- The app drawer's own action; absent on the library. -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnHiddenApps"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_eye_off"
+            android:contentDescription="@string/cd_hidden_apps"
+            android:visibility="gone" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnScratchPad"
@@ -62,73 +81,98 @@
         android:layout_height="1dp"
         android:background="@color/inkBlack" />
 
-    <!-- The library. Empty until a Sprout app can make an item. -->
-    <TextView
-        android:id="@+id/libraryMessage"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingStart="28dp"
-        android:paddingEnd="28dp"
-        android:paddingTop="44dp"
-        android:paddingBottom="44dp"
-        android:lineSpacingMultiplier="1.2"
-        android:textSize="18sp"
-        android:textColor="@color/inkBlack" />
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/inkBlack" />
-
-    <!-- The installed apps: a heading with the grid's own pager, then the grid. -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/toolbar_bar_thickness"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="20dp"
-        android:paddingEnd="8dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/apps_heading"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/inkBlack" />
-
-        <!-- Said only while the shell is off: with it off the side bars open the firmware's own
-             menu, and this is the one place that explains why. -->
-        <TextView
-            android:id="@+id/shellNote"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="20dp"
-            android:text="@string/shell_off"
-            android:singleLine="true"
-            android:ellipsize="end"
-            android:textSize="14sp"
-            android:textColor="@color/inkBlack"
-            android:visibility="invisible" />
-
+        <!-- The library. Empty until a Sprout app can make an item. -->
         <LinearLayout
-            android:id="@+id/appPager"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
+            android:id="@+id/libraryView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="28dp">
+
+            <TextView
+                android:id="@+id/libraryMessage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.2"
+                android:textSize="18sp"
+                android:textColor="@color/inkBlack" />
+
+            <!-- Said only while the shell is off: with it off the side bars open the firmware's
+                 own menu, and this is the one place that explains why. -->
+            <TextView
+                android:id="@+id/shellNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:text="@string/shell_off"
+                android:textSize="14sp"
+                android:textColor="@color/inkBlack"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- The app drawer: the apps the person has not hidden, a page at a time. -->
+        <FrameLayout
+            android:id="@+id/appsView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:visibility="gone">
 
+            <FrameLayout
+                android:id="@+id/appGrid"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
+
+            <TextView
+                android:id="@+id/appsEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:padding="28dp"
+                android:lineSpacingMultiplier="1.2"
+                android:text="@string/apps_empty"
+                android:textSize="18sp"
+                android:textColor="@color/inkBlack"
+                android:visibility="gone" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <!-- The bottom bar is for the pager and nothing else. -->
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:orientation="horizontal"
+            android:gravity="center">
+
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btnAppsPrev"
+                android:id="@+id/btnPrev"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:src="@drawable/ic_page_prev"
                 android:contentDescription="@string/cd_page_previous" />
 
             <TextView
-                android:id="@+id/appPageText"
+                android:id="@+id/pageText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:minWidth="72dp"
@@ -137,19 +181,11 @@
                 android:textColor="@color/inkBlack" />
 
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btnAppsNext"
+                android:id="@+id/btnNext"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:src="@drawable/ic_page_next"
                 android:contentDescription="@string/cd_page_next" />
         </LinearLayout>
     </LinearLayout>
-
-    <FrameLayout
-        android:id="@+id/appGrid"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp" />
 
 </LinearLayout>

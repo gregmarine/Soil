@@ -6,6 +6,7 @@ import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.pad.PadPrefs
 import com.symmetricalpalmtree.soil.shell.AppList
+import com.symmetricalpalmtree.soil.shell.HiddenApps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +23,7 @@ class SoilApp : Application() {
         // meanwhile. Every screen reads `SoilIndex.state`.
         appScope.launch(Dispatchers.IO) { SoilIndex.ensureReady(this@SoilApp) }
         appScope.launch { AppList.refresh(this@SoilApp) }
+        appScope.launch { HiddenApps.load(this@SoilApp) }
         appScope.launch { PadPrefs.load(this@SoilApp) }
     }
 

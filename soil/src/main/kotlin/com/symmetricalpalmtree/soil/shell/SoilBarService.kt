@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -68,7 +70,7 @@ class SoilBarService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
-        running = true
+        _running.value = true
         firmwareMenu = FirmwareMenu(this)
         menu = MenuOverlay(this)
         registerReceiver(
@@ -80,11 +82,12 @@ class SoilBarService : AccessibilityService() {
         )
         firmwareMenu.connect()
         scope.launch { AppList.refresh(this@SoilBarService) }
+        scope.launch { HiddenApps.load(this@SoilBarService) }
         Slog.d(TAG) { "the shell is on" }
     }
 
     override fun onDestroy() {
-        running = false
+        _running.value = false
         if (::menu.isInitialized) menu.hide()
         if (::firmwareMenu.isInitialized) firmwareMenu.disconnect()
         runCatching { unregisterReceiver(firmware) }
@@ -144,7 +147,8 @@ class SoilBarService : AccessibilityService() {
     }
 
     private fun showMenu() {
-        menu.show(AppList.apps.value)
+        // What the person has hidden is hidden here too.
+        menu.show(HiddenApps.visible(AppList.apps.value, HiddenApps.hidden.value))
         // An app may have come or gone since the list was read; the next opening has it.
         scope.launch { AppList.refresh(this@SoilBarService) }
     }
@@ -152,9 +156,9 @@ class SoilBarService : AccessibilityService() {
     companion object {
         private const val TAG = "SoilBars"
 
-        /** Whether the shell is on. Read only to say so on the home screen. */
-        @Volatile
-        var running: Boolean = false
-            private set
+        private val _running = MutableStateFlow(false)
+
+        /** Whether the shell is on. Followed only to say so on the home screen. */
+        val running: StateFlow<Boolean> get() = _running
     }
 }

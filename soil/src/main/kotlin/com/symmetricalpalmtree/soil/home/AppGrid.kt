@@ -14,7 +14,7 @@ import com.symmetricalpalmtree.soil.shell.AppEntry
 import com.symmetricalpalmtree.soil.shell.Paging
 
 /**
- * The installed apps as a grid of **fixed pages**: each app's own icon over its name, as many
+ * Apps as a grid of **fixed pages**: each app's own icon over its name, as many
  * columns and rows as the space holds, turned with previous and next. Nothing scrolls.
  *
  * The cells are rebuilt whenever the list, the page or the space changes. An app's icon is its
@@ -23,6 +23,8 @@ import com.symmetricalpalmtree.soil.shell.Paging
 class AppGrid(
     private val container: FrameLayout,
     private val onOpen: (AppEntry) -> Unit,
+    /** A long press on an app. */
+    private val onHold: (AppEntry) -> Unit,
     /** Told the page now showing and how many there are, whenever either changes. */
     private val onPaged: (page: Int, pages: Int) -> Unit,
 ) {
@@ -98,6 +100,7 @@ class AppGrid(
             isFocusable = true
             contentDescription = app.label
             setOnClickListener { onOpen(app) }
+            setOnLongClickListener { onHold(app); true }
             addView(
                 AppCompatImageView(context).apply {
                     scaleType = ImageView.ScaleType.FIT_CENTER
