@@ -50,4 +50,24 @@
     <string name="unlock_wrong">That didn\'t open your library. Try again.</string>
     <string name="unlock_checking">Checking…</string>
     <string name="unlock_locked_out">Too many attempts. Try again in %1$s.</string>
+
+    <!-- The Scratch Pad. Every icon button needs a hint naming it: long-press tooltip and
+         content description. -->
+    <string name="scratch_title">Scratch Pad</string>
+    <string name="scratch_opening">Opening…</string>
+    <string name="cd_scratch_back">Back</string>
+    <string name="cd_tool_pen">Pen</string>
+    <string name="cd_tool_eraser">Eraser</string>
+    <string name="cd_tool_lasso">Lasso</string>
+    <string name="cd_prev_page">Previous page</string>
+    <string name="cd_next_page">Next page</string>
+    <string name="scratch_page_indicator">%1$d / %2$d</string>
+    <!-- Undo restores the ink, so naming it in the prompt would overstate what is lost. -->
+    <string name="delete_page_title">Delete this page?</string>
+    <string name="delete_confirm">Delete</string>
+    <string name="delete_selection_action">Delete selection</string>
+    <!-- A problem dialog: a tap that did nothing is never a toast on e-ink. -->
+    <string name="scratch_store_failed_title">Scratch Pad unavailable</string>
+    <string name="scratch_store_failed_body">Soil could not open the Scratch Pad\'s storage. Nothing was lost. Try again.</string>
+    <string name="cd_scratch_pad">Scratch Pad</string>
 </resources>

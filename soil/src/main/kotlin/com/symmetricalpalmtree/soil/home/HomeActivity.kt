@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.TooltipCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -11,6 +12,8 @@ import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.KeyGate
 import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.bootstrap.RecoveryKeyActivity
+import com.symmetricalpalmtree.soil.bootstrap.Screen
+import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.bootstrap.UnlockActivity
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
@@ -56,6 +59,11 @@ class HomeActivity : AppCompatActivity() {
         )
         binding.btnAppsPrev.setOnClickListener { grid.previous() }
         binding.btnAppsNext.setOnClickListener { grid.next() }
+
+        // Through the gate: while the key is unsaved or the library locked, the pad leads to the
+        // screen that opens it.
+        binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
+        TooltipCompat.setTooltipText(binding.btnScratchPad, binding.btnScratchPad.contentDescription)
 
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }

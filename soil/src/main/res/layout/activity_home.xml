@@ -25,6 +25,12 @@
             android:textStyle="bold"
             android:textColor="@color/inkBlack" />
 
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnScratchPad"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_sketching"
+            android:contentDescription="@string/cd_scratch_pad" />
+
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnRecoveryKey"
             style="@style/Widget.Soil.OutlinedButton"

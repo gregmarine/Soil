@@ -4,6 +4,7 @@ import android.app.Application
 import com.symmetricalpalmtree.gpaper.ratta.RattaEngine
 import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
+import com.symmetricalpalmtree.soil.pad.PadPrefs
 import com.symmetricalpalmtree.soil.shell.AppList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ class SoilApp : Application() {
         // meanwhile. Every screen reads `SoilIndex.state`.
         appScope.launch(Dispatchers.IO) { SoilIndex.ensureReady(this@SoilApp) }
         appScope.launch { AppList.refresh(this@SoilApp) }
+        appScope.launch { PadPrefs.load(this@SoilApp) }
     }
 
     companion object {

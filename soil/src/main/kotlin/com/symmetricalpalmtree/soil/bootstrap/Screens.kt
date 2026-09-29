@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.home.HomeActivity
+import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 
 /**
@@ -16,7 +17,8 @@ import com.symmetricalpalmtree.soil.paper.core.Dialogs
  * screen, never anything of a key.**
  */
 enum class Screen {
-    HOME;
+    HOME,
+    PAD;
 
     companion object {
         fun named(name: String?): Screen? = values().firstOrNull { it.name == name }
@@ -53,6 +55,7 @@ object Screens {
 
     fun target(context: Context, screen: Screen): Intent = when (screen) {
         Screen.HOME -> Intent(context, HomeActivity::class.java)
+        Screen.PAD -> Intent(context, ScratchPadActivity::class.java)
     }
 
     private fun Intent.then(screen: Screen): Intent = putExtra(EXTRA_THEN, screen.name)
