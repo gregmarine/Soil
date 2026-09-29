@@ -26,7 +26,8 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *
  * Home and the Scratch Pad first, then every installed app with a launcher entry, each with its
  * own icon, in **fixed pages** turned with previous and next. Nothing scrolls. A tap outside the
- * panel closes it.
+ * panel closes it; the panel carries no title and no close button, so that every row of it is
+ * something to open.
  *
  * It is an accessibility overlay, which is what lets it sit over any app without a permission of
  * its own, and it never takes the keyboard's focus from the app underneath.
@@ -51,7 +52,6 @@ class MenuOverlay(private val service: Context) {
 
         val b = OverlayMenuBinding.inflate(LayoutInflater.from(themed))
         b.scrim.setOnClickListener { hide() }
-        b.btnClose.setOnClickListener { hide() }
         b.btnPrev.setOnClickListener { turnTo(page - 1) }
         b.btnNext.setOnClickListener { turnTo(page + 1) }
         b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_home), themed.getString(R.string.menu_home)) {
@@ -70,8 +70,9 @@ class MenuOverlay(private val service: Context) {
         try {
             windows.addView(b.root, params)
             binding = b
-            // The rows that fit are known only once the panel has a height.
-            b.appRows.doOnLayout { render() }
+            // The rows that fit are known only once the panel has a height. Posted, never run
+            // inside the layout pass itself: a view added during a pass is not laid out by it.
+            b.appRows.doOnLayout { rows -> rows.post { render() } }
             Slog.d(TAG) { "menu shown" }
         } catch (e: Exception) {
             Log.w(TAG, "the menu could not be shown: ${e.javaClass.simpleName}")

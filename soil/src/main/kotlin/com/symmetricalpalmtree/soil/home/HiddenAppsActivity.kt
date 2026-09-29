@@ -47,8 +47,9 @@ class HiddenAppsActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 combine(AppList.apps, HiddenApps.hidden, HiddenApps::hiddenOf).collect {
                     apps = it
-                    binding.rows.doOnLayout { render() }
-                    binding.rows.requestLayout()
+                    // Posted, never run inside the layout pass itself: a view added during a
+                    // pass is not laid out by it, and stays unseen until something else redraws.
+                    binding.rows.doOnLayout { rows -> rows.post { render() } }
                 }
             }
         }

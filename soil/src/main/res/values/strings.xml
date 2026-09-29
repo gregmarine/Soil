@@ -147,7 +147,6 @@
 
     <!-- The shell -->
     <string name="menu_home">Home</string>
-    <string name="cd_menu_close">Close menu</string>
     <string name="bar_service_label">Soil side menu</string>
     <string name="bar_service_description">Lets Soil open its side menu from the side bars in every app. It watches the side bars only and reads nothing that any app shows.</string>
     <string name="shell_off">The side menu is off.</string>

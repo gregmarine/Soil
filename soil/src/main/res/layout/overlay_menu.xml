@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The side menu: a panel on the right edge over whatever is in front. The rest of the screen
      is a scrim that closes the menu on a tap; it is clear, so the app underneath stays readable.
+     There is no title and no close button: the room goes to rows.
      The rows are built in code. Nothing scrolls: the apps are in fixed pages. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -21,35 +22,6 @@
         android:background="@drawable/shape_menu_panel"
         android:clickable="true"
         android:paddingStart="2dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/toolbar_bar_thickness"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="20dp"
-            android:paddingEnd="4dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/app_name"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="@color/inkBlack" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btnClose"
-                style="@style/Widget.Soil.ToolbarButton"
-                android:src="@drawable/ic_x"
-                android:contentDescription="@string/cd_menu_close" />
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/inkBlack" />
 
         <!-- What Soil itself offers: Home and the Scratch Pad. -->
         <LinearLayout

@@ -24,7 +24,8 @@ Two views under one top bar, chosen with the two buttons at its start.
 | Library | Tabler `books` | The library. The home screen opens on it |
 | App drawer | Tabler `apps` | The installed apps that are not hidden, with their icons, in fixed pages |
 
-The view that is showing wears a border. The drawer's pager is on the bottom bar.
+The view that is showing wears a border. The drawer turns its pages on a sideways swipe, the
+same swipe the Scratch Pad uses, and by the pager on the bottom bar.
 
 ## Hiding apps
 
@@ -57,7 +58,7 @@ The keys are watched and never consumed, so the firmware still sees every swipe.
 - Home and the Scratch Pad, then every installed app that is not hidden, by name, each with
   its own icon.
 - Fixed pages with previous and next. Nothing scrolls.
-- A tap outside the panel, or on the cross, closes it.
+- A tap outside the panel closes it. The panel has no title and no close button.
 
 ## What stays the firmware's
 

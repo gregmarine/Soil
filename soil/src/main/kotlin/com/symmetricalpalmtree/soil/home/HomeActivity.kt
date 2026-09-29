@@ -73,6 +73,8 @@ class HomeActivity : AppCompatActivity() {
         )
         binding.btnPrev.setOnClickListener { grid.previous() }
         binding.btnNext.setOnClickListener { grid.next() }
+        binding.appGrid.onPrevious = { grid.previous() }
+        binding.appGrid.onNext = { grid.next() }
 
         binding.btnLibrary.setOnClickListener { show(Showing.LIBRARY) }
         binding.btnApps.setOnClickListener { show(Showing.APPS) }
