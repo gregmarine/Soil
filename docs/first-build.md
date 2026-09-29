@@ -1,7 +1,7 @@
 # Soil — first build
 
-**Progress, 2026-09-29.** Steps 0 to 9 and 11 are built and walked on the Nomad. Step 10, the
-walk with the bar service off, is what remains. What differs from the plan below:
+**Progress, 2026-09-29.** Every step is built and walked on the Nomad. Not walked: a passphrase
+that is typed rather than generated. What differs from the plan below:
 
 - There is no `SoilOpenHelper`. `SoilDb` opens a file through `SoilCrypto` and runs the schema
   steps itself, which gives the same guarantees with nothing underneath that can create or

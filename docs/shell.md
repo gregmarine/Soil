@@ -100,7 +100,12 @@ ordinary app beside the firmware's menu, and everything but the side menu works.
 The side menu over other apps, the Scratch Pad opened from it and Back to the app underneath,
 the status bar, a reboot, and the app drawer's swipe.
 
+## Walked with the bar service off, 2026-09-29
+
+The service was turned off and Soil stayed the home screen. The library, the app drawer, the
+hidden apps, an app opened from the drawer and Home back from it, the Scratch Pad and Back from
+it, and the Encryption screen all worked. The service was turned back on and reconnected.
+
 ## Still to walk
 
-- Everything again with the bar service off.
 - The side menu since it lost its title, its close button and its apps.
