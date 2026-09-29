@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Without this, Android 11 shows an app no other app: the home screen's grid and the side
-         menu list every app that has a launcher entry. -->
+    <!-- Without this, Android 11 shows an app no other app: the home screen's app drawer lists
+         every app that has a launcher entry. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The side menu: a panel on the right edge over whatever is in front. The rest of the screen
      is a scrim that closes the menu on a tap; it is clear, so the app underneath stays readable.
-     There is no title and no close button: the room goes to rows.
-     The rows are built in code. Nothing scrolls: the apps are in fixed pages. -->
+     There is no title and no close button: the room goes to rows. The rows are built in code. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -29,59 +28,5 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/inkBlack" />
-
-        <!-- The installed apps, one page of them. -->
-        <LinearLayout
-            android:id="@+id/appRows"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="vertical" />
-
-        <LinearLayout
-            android:id="@+id/pager"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/inkBlack" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/toolbar_bar_thickness"
-                android:orientation="horizontal"
-                android:gravity="center">
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnPrev"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:src="@drawable/ic_page_prev"
-                    android:contentDescription="@string/cd_page_previous" />
-
-                <TextView
-                    android:id="@+id/pageText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:minWidth="72dp"
-                    android:gravity="center"
-                    android:textSize="16sp"
-                    android:textColor="@color/inkBlack" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnNext"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:src="@drawable/ic_page_next"
-                    android:contentDescription="@string/cd_page_next" />
-            </LinearLayout>
-        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

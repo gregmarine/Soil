@@ -81,8 +81,6 @@ class SoilBarService : AccessibilityService() {
             },
         )
         firmwareMenu.connect()
-        scope.launch { AppList.refresh(this@SoilBarService) }
-        scope.launch { HiddenApps.load(this@SoilBarService) }
         Slog.d(TAG) { "the shell is on" }
     }
 
@@ -146,12 +144,7 @@ class SoilBarService : AccessibilityService() {
         }
     }
 
-    private fun showMenu() {
-        // What the person has hidden is hidden here too.
-        menu.show(HiddenApps.visible(AppList.apps.value, HiddenApps.hidden.value))
-        // An app may have come or gone since the list was read; the next opening has it.
-        scope.launch { AppList.refresh(this@SoilBarService) }
-    }
+    private fun showMenu() = menu.show()
 
     companion object {
         private const val TAG = "SoilBars"

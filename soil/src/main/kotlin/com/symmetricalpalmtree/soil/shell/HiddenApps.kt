@@ -11,11 +11,11 @@ import kotlinx.coroutines.withContext
  * were never meant to be opened by hand; which ones are worth seeing is the person's call, made
  * one app at a time.
  *
- * An app is hidden from the app drawer and from the side menu alike. Hiding changes nothing about
- * the app itself, and the hidden apps screen brings any of them back.
+ * A hidden app leaves the app drawer for the hidden apps drawer. Hiding changes nothing about the
+ * app itself, and a long press there brings it back.
  *
- * It is an ordinary preference, not part of the encrypted library: the drawer and the menu work
- * while the library is locked, so what they show cannot depend on the key. Read from disk once,
+ * It is an ordinary preference, not part of the encrypted library: the drawer works while the
+ * library is locked, so what it shows cannot depend on the key. Read from disk once,
  * off the main thread, and answered from memory after that.
  *
  * A hidden app that is uninstalled stays on the list, so it is still hidden if it comes back.

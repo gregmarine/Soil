@@ -17,9 +17,9 @@ import kotlinx.coroutines.withContext
 class AppEntry(val label: String, val packageName: String, val className: String, val icon: Drawable?)
 
 /**
- * **Every installed app with a launcher entry**, found automatically — the one list behind the
- * home screen's grid and the side menu. Once Soil holds the side bars the firmware's own menu is
- * shut everywhere, so this list is also the only quick way to the Supernote's own apps.
+ * **Every installed app with a launcher entry**, found automatically — the list behind the home
+ * screen's app drawer. Once Soil holds the side bars the firmware's own menu is shut everywhere,
+ * so the drawer is also the way to the Supernote's own apps.
  *
  * Read off the main thread and kept for the process; [refresh] re-reads it when a package comes
  * or goes. Needs the `<queries>` element in the manifest: without it Android 11 shows an app

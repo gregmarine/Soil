@@ -24,12 +24,13 @@
     <string name="cd_hidden_apps">Hidden apps</string>
     <string name="apps_empty">Every app is hidden. The hidden apps are behind the button at the top.</string>
     <string name="hide_app_title">Hide %1$s?</string>
-    <string name="hide_app_body">It will no longer show here or in the side menu. The app itself is not changed, and it can be shown again from the hidden apps.</string>
+    <string name="hide_app_body">It will no longer show among the apps. The app itself is not changed, and it can be shown again from the hidden apps.</string>
     <string name="hide_app_confirm">Hide</string>
     <string name="hidden_title">Hidden apps</string>
     <string name="hidden_empty">No apps are hidden.\n\nTo hide one, press and hold it in the apps.</string>
-    <string name="hidden_show">Show</string>
-    <string name="hidden_show_named">Show %1$s</string>
+    <string name="show_app_title">Show %1$s?</string>
+    <string name="show_app_body">It will be back among the apps.</string>
+    <string name="show_app_confirm">Show</string>
     <string name="app_open_failed_title">Can\'t open app</string>
     <string name="app_open_failed_body">%1$s could not be opened.</string>
 

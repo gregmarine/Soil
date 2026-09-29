@@ -1,36 +1,34 @@
 package com.symmetricalpalmtree.soil.home
 
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.TooltipCompat
-import androidx.core.view.doOnLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.databinding.ActivityHiddenAppsBinding
-import com.symmetricalpalmtree.soil.databinding.RowHiddenAppBinding
+import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.shell.AppEntry
 import com.symmetricalpalmtree.soil.shell.AppList
 import com.symmetricalpalmtree.soil.shell.HiddenApps
-import com.symmetricalpalmtree.soil.shell.Paging
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * **The hidden apps**: every app the person has hidden, each with a Show button that puts it back
- * in the app drawer and the side menu. Fixed pages; nothing scrolls.
+ * **The hidden apps**, as a drawer of their own. It is the app drawer's twin, so that the hand
+ * learns one thing: the same tiles, the same pages turned by a swipe or the pager, and the same
+ * long press — which here asks whether to **show** the app again.
  *
  * It needs no key, like the drawer it serves.
  */
 class HiddenAppsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityHiddenAppsBinding
-    private var apps: List<AppEntry> = emptyList()
-    private var page = 0
+    private lateinit var grid: AppGrid
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,47 +38,46 @@ class HiddenAppsActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         TooltipCompat.setTooltipText(binding.btnBack, binding.btnBack.contentDescription)
-        binding.btnPrev.setOnClickListener { turnTo(page - 1) }
-        binding.btnNext.setOnClickListener { turnTo(page + 1) }
+
+        grid = AppGrid(
+            container = binding.appGrid,
+            // Hidden is out of sight, not out of reach: a tap opens it, as in the drawer.
+            onOpen = { app ->
+                if (!AppList.launch(this, app)) {
+                    Dialogs.problem(this, getString(R.string.app_open_failed_title), getString(R.string.app_open_failed_body, app.label))
+                }
+            },
+            onHold = ::askToShow,
+            onPaged = { page, pages ->
+                // A pager over one page is two buttons that do nothing: it is not shown.
+                binding.bottomBar.visibility = if (pages > 1) View.VISIBLE else View.GONE
+                binding.pageText.text = getString(R.string.page_of, page + 1, pages)
+            },
+        )
+        binding.btnPrev.setOnClickListener { grid.previous() }
+        binding.btnNext.setOnClickListener { grid.next() }
+        binding.appGrid.onPrevious = { grid.previous() }
+        binding.appGrid.onNext = { grid.next() }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(AppList.apps, HiddenApps.hidden, HiddenApps::hiddenOf).collect {
-                    apps = it
-                    // Posted, never run inside the layout pass itself: a view added during a
-                    // pass is not laid out by it, and stays unseen until something else redraws.
-                    binding.rows.doOnLayout { rows -> rows.post { render() } }
+                combine(AppList.apps, HiddenApps.hidden, HiddenApps::hiddenOf).collect { apps ->
+                    binding.emptyMessage.visibility = if (apps.isEmpty()) View.VISIBLE else View.GONE
+                    grid.show(apps)
                 }
             }
         }
     }
 
-    private fun perPage(): Int =
-        Paging.fit(binding.rows.height, resources.getDimensionPixelSize(R.dimen.menu_row_height))
-
-    private fun turnTo(wanted: Int) {
-        val to = Paging.clamp(wanted, apps.size, perPage())
-        if (to == page) return
-        page = to
-        render()
-    }
-
-    private fun render() {
-        val perPage = perPage()
-        page = Paging.clamp(page, apps.size, perPage)
-        binding.emptyMessage.visibility = if (apps.isEmpty()) View.VISIBLE else View.GONE
-        binding.rows.removeAllViews()
-        for (app in Paging.slice(apps, page, perPage)) {
-            val row = RowHiddenAppBinding.inflate(LayoutInflater.from(this), binding.rows, false)
-            row.icon.setImageDrawable(app.icon)
-            row.label.text = app.label
-            row.btnShow.contentDescription = getString(R.string.hidden_show_named, app.label)
-            row.btnShow.setOnClickListener { HiddenApps.show(this, app) }
-            binding.rows.addView(row.root)
-        }
-        val pages = Paging.pageCount(apps.size, perPage)
-        // A pager over one page is two buttons that do nothing: it is not shown.
-        binding.bottomBar.visibility = if (pages > 1) View.VISIBLE else View.GONE
-        binding.pageText.text = getString(R.string.page_of, page + 1, pages)
+    /** A long press asks; it never acts. */
+    private fun askToShow(app: AppEntry) {
+        Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.show_app_title, app.label))
+                .setMessage(R.string.show_app_body)
+                .setPositiveButton(R.string.show_app_confirm) { _, _ -> HiddenApps.show(this, app) }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .create()
+        ).show()
     }
 }

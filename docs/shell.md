@@ -32,11 +32,19 @@ same swipe the Scratch Pad uses, and by the pager on the bottom bar.
 Many installed apps have a launcher entry and were never meant to be opened by hand. Which are
 worth seeing is decided one app at a time; nothing is hidden to begin with.
 
-- **Hide:** press and hold an app in the drawer. It asks first.
-- **Show again:** the hidden apps screen, behind the crossed-eye button on the drawer's top bar.
-- A hidden app leaves the drawer and the side menu alike. The app itself is not changed.
-- The list is an ordinary preference, not part of the encrypted library, because the drawer and
-  the menu work while the library is locked.
+The hidden apps have a drawer of their own, behind the crossed-eye button on the app drawer's top
+bar. The two drawers work alike:
+
+| | App drawer | Hidden apps |
+|---|---|---|
+| Tiles, in fixed pages | Yes | Yes |
+| Pages turn on a swipe, and by the pager | Yes | Yes |
+| Tap | Opens the app | Opens the app (*proposed*) |
+| Press and hold | Asks whether to hide it | Asks whether to show it |
+
+- The app itself is never changed.
+- The list is an ordinary preference, not part of the encrypted library, because the drawer works
+  while the library is locked.
 - *Proposed:* a hidden app that is uninstalled stays on the list, so it is still hidden if it
   comes back.
 
@@ -55,9 +63,9 @@ The keys are watched and never consumed, so the firmware still sees every swipe.
 
 ## The menu
 
-- Home and the Scratch Pad, then every installed app that is not hidden, by name, each with
-  its own icon.
-- Fixed pages with previous and next. Nothing scrolls.
+- Home and the Scratch Pad.
+- The installed apps are **not** listed. They are in the app drawer. Whether the menu should
+  carry any is to be explored later.
 - A tap outside the panel closes it. The panel has no title and no close button.
 
 ## What stays the firmware's
