@@ -64,6 +64,8 @@ class HomeActivity : AppCompatActivity() {
         // screen that opens it.
         binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
         TooltipCompat.setTooltipText(binding.btnScratchPad, binding.btnScratchPad.contentDescription)
+        binding.btnEncryption.setOnClickListener { Screens.open(this, Screen.ENCRYPTION) }
+        TooltipCompat.setTooltipText(binding.btnEncryption, binding.btnEncryption.contentDescription)
 
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }

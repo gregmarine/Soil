@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.encryption.EncryptionActivity
 import com.symmetricalpalmtree.soil.home.HomeActivity
 import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -18,7 +19,8 @@ import com.symmetricalpalmtree.soil.paper.core.Dialogs
  */
 enum class Screen {
     HOME,
-    PAD;
+    PAD,
+    ENCRYPTION;
 
     companion object {
         fun named(name: String?): Screen? = values().firstOrNull { it.name == name }
@@ -40,8 +42,9 @@ object Screens {
             KeyGate.Route.OPEN -> start(context, target(context, screen))
             KeyGate.Route.RECOVERY_KEY -> start(context, Intent(context, RecoveryKeyActivity::class.java).then(screen))
             KeyGate.Route.UNLOCK -> start(context, Intent(context, UnlockActivity::class.java).then(screen))
-            // The Encryption screen and its resume banner arrive with step 7.
-            KeyGate.Route.RESUME_ROTATION -> explain(context, R.string.gate_rotating_title, R.string.gate_rotating_body)
+            // The library is in two keys until the rotation finishes: whatever was asked for,
+            // the way on is the Encryption screen, whose banner is the resume.
+            KeyGate.Route.RESUME_ROTATION -> start(context, target(context, Screen.ENCRYPTION))
             KeyGate.Route.PREPARING -> explain(context, R.string.gate_preparing_title, R.string.gate_preparing_body)
             KeyGate.Route.BLOCKED -> explain(context, R.string.gate_blocked_title, R.string.gate_blocked_body)
         }
@@ -56,6 +59,7 @@ object Screens {
     fun target(context: Context, screen: Screen): Intent = when (screen) {
         Screen.HOME -> Intent(context, HomeActivity::class.java)
         Screen.PAD -> Intent(context, ScratchPadActivity::class.java)
+        Screen.ENCRYPTION -> Intent(context, EncryptionActivity::class.java)
     }
 
     private fun Intent.then(screen: Screen): Intent = putExtra(EXTRA_THEN, screen.name)

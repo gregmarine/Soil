@@ -40,6 +40,13 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize|stateVisible" />
 
+        <!-- adjustResize: the passphrase dialogs stay above the keyboard. -->
+        <activity
+            android:name=".encryption.EncryptionActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- The Scratch Pad is opened from the side menu over whatever app is in front, so it has
              a task of its own: Back returns to that app, not to Soil's home. It is not an entry
              in the recent apps. -->

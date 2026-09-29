@@ -118,6 +118,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             finish()
             return
         }
+        isOpen = true
         binding = ActivityScratchPadBinding.inflate(layoutInflater)
         setContentView(binding.root)
         Immersive.apply(window, binding.root)
@@ -327,7 +328,20 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         ).show()
     }
 
-    private companion object {
-        const val TAG = "ScratchPadActivity"
+    override fun onScreenDestroyed() {
+        super.onScreenDestroyed()
+        if (::binding.isInitialized) isOpen = false
+    }
+
+    companion object {
+        private const val TAG = "ScratchPadActivity"
+
+        /**
+         * True while a pad screen exists, shown or not. The Encryption screen asks before it
+         * re-keys or locks: the pad's store cannot be taken from under a live page.
+         */
+        @Volatile
+        var isOpen: Boolean = false
+            private set
     }
 }
