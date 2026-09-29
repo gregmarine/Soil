@@ -58,13 +58,6 @@ while the library is locked, it leads to the screen that opens the gate and come
 The pad opens, its store is created encrypted in about two seconds, and it reopens under a new
 key after a rotation.
 
-## Still to walk, by hand
+## Walked by hand, 2026-09-29
 
-Ink does not show in a screenshot and a pen cannot be injected.
-
-- Write; close and reopen; the ink is there.
-- Erase by point and by lasso. Lasso, drag, delete.
-- Undo and redo, across pages.
-- Flip, insert before and after, delete a page.
-- Hide the bars; the corner button and its rows.
-- One very long stroke, saved and read back.
+Writing, erasing, the lasso, undo and redo, pages, and the bars, including over other apps.

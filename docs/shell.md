@@ -39,7 +39,7 @@ bar. The two drawers work alike:
 |---|---|---|
 | Tiles, in fixed pages | Yes | Yes |
 | Pages turn on a swipe, and by the pager | Yes | Yes |
-| Tap | Opens the app | Opens the app (*proposed*) |
+| Tap | Opens the app | Opens the app. Hidden is out of sight, not out of reach |
 | Press and hold | Asks whether to hide it | Asks whether to show it |
 
 - The app itself is never changed.
@@ -95,12 +95,12 @@ ordinary app beside the firmware's menu, and everything but the side menu works.
 | The Scratch Pad opens over apps that hold the e-ink panel | Not yet walked |
 | The menu over Soil's own paper | The pad lets the panel go first. Not yet walked |
 
-## Still to walk, by hand
+## Walked on the Nomad by hand, 2026-09-29
 
-Only a real swipe on the bar tests any of this.
+The side menu over other apps, the Scratch Pad opened from it and Back to the app underneath,
+the status bar, a reboot, and the app drawer's swipe.
 
-- The menu over the firmware's Notes, over Notesprout SN, over the Scratch Pad.
-- The Scratch Pad opened from the menu over each; Back returns to the app underneath.
-- With the library locked, the Scratch Pad row leads to unlock.
-- The pull-down status bar still opens.
-- A reboot: Soil is home, and takes it back after the firmware's push.
+## Still to walk
+
+- Everything again with the bar service off.
+- The side menu since it lost its title, its close button and its apps.

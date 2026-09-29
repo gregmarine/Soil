@@ -1,7 +1,7 @@
 # Soil — first build
 
-**Progress, 2026-09-29.** Steps 0 to 7 and 9 are built and walked on the Nomad. Step 8 is built
-and not yet walked. Steps 10 and 11 follow it. What differs from the plan below:
+**Progress, 2026-09-29.** Steps 0 to 9 and 11 are built and walked on the Nomad. Step 10, the
+walk with the bar service off, is what remains. What differs from the plan below:
 
 - There is no `SoilOpenHelper`. `SoilDb` opens a file through `SoilCrypto` and runs the schema
   steps itself, which gives the same guarantees with nothing underneath that can create or
@@ -11,6 +11,9 @@ and not yet walked. Steps 10 and 11 follow it. What differs from the plan below:
 - Steps 4 and 5 were built together, and step 9 before step 8, so that everything which does not
   change the device's settings was walked first.
 - Unlock and lockout were walked with step 7, which is what can lock the library.
+- The home screen became two views, the library and an app drawer, and apps can be hidden. The
+  side menu lists Home and the Scratch Pad only; whether it carries apps is to be explored.
+  See `shell.md`.
 
 ## Context
 
