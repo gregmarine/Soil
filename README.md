@@ -23,6 +23,7 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 **Design stage. There is no code and no plan yet.**
 
 - [`docs/design.md`](docs/design.md) — the design as decided so far, with the device probes behind it.
+- [`docs/references.md`](docs/references.md) — where the supporting probes and documents live.
 - [`BACKLOG.md`](BACKLOG.md) — ideas deliberately set aside for later.
 
 ## Related repositories

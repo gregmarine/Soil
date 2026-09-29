@@ -12,6 +12,8 @@ until Greg asks for it.
 ## Read first
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
+- `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the
+  known traps live.
 - `BACKLOG.md` — ideas set aside on purpose. Do not re-raise them as new; do not schedule them
   without a decision.
 
