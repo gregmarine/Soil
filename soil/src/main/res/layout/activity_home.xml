@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/paperWhite">
+
+    <!-- Top bar: the title, then the actions. Action buttons live here; a bottom bar is for a
+         pager only. -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/inkBlack" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnRecoveryKey"
+            style="@style/Widget.Soil.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/toolbar_button_size"
+            android:text="@string/action_recovery_key"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnUnlock"
+            style="@style/Widget.Soil.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/toolbar_button_size"
+            android:text="@string/action_unlock"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <!-- The library. Empty until a Sprout app can make an item. -->
+    <TextView
+        android:id="@+id/libraryMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:paddingTop="44dp"
+        android:paddingBottom="44dp"
+        android:lineSpacingMultiplier="1.2"
+        android:textSize="18sp"
+        android:textColor="@color/inkBlack" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <!-- The installed apps: a heading with the grid's own pager, then the grid. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/apps_heading"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/inkBlack" />
+
+        <LinearLayout
+            android:id="@+id/appPager"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnAppsPrev"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_prev"
+                android:contentDescription="@string/cd_page_previous" />
+
+            <TextView
+                android:id="@+id/appPageText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="72dp"
+                android:gravity="center"
+                android:textSize="16sp"
+                android:textColor="@color/inkBlack" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnAppsNext"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_next"
+                android:contentDescription="@string/cd_page_next" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/appGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp" />
+
+</LinearLayout>

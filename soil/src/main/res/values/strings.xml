@@ -1,4 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Soil</string>
+
+    <string name="cd_back">Back</string>
+    <string name="cd_page_previous">Previous page</string>
+    <string name="cd_page_next">Next page</string>
+    <string name="page_of">%1$d / %2$d</string>
+
+    <!-- The home screen: what the library says in each state. -->
+    <string name="library_empty">Nothing here yet.</string>
+    <string name="library_preparing">Preparing your library…</string>
+    <string name="library_save_key">Your library is encrypted. Save your recovery key before you write anything.</string>
+    <string name="library_locked">Your library is locked.</string>
+    <string name="library_rotating">A passphrase change was interrupted. It has to be finished before anything is written.</string>
+    <string name="library_foreign">There is a file where the library should be that Soil did not make. It has not been opened or changed.</string>
+    <string name="library_damaged">The library file cannot be read. It has not been changed.</string>
+    <string name="library_unavailable">The library could not be opened. Nothing has been changed.</string>
+    <string name="action_recovery_key">Recovery key</string>
+    <string name="action_unlock">Unlock</string>
+
+    <string name="apps_heading">Apps</string>
+    <string name="app_open_failed_title">Can\'t open app</string>
+    <string name="app_open_failed_body">%1$s could not be opened.</string>
+
+    <!-- A screen that needs the key, asked for while the key cannot be used. -->
+    <string name="gate_preparing_title">Still preparing</string>
+    <string name="gate_preparing_body">Soil is still preparing your library. Try again in a moment.</string>
+    <string name="gate_rotating_title">Passphrase change not finished</string>
+    <string name="gate_rotating_body">A passphrase change was interrupted. It has to be finished first.</string>
+    <string name="gate_blocked_title">Library not available</string>
+    <string name="gate_blocked_body">The library could not be opened, so this is not available. Nothing has been changed.</string>
+
+    <!-- Recovery key -->
+    <string name="recovery_title">Save your recovery key</string>
+    <string name="recovery_body">Everything you write in Soil is encrypted. This recovery key is the one secret that unlocks it on a new device or after a reinstall. It is the only copy: write it down or save it in a password manager. It cannot be recovered for you.</string>
+    <string name="recovery_copy">Copy</string>
+    <string name="recovery_saved">I\'ve saved it</string>
+    <string name="recovery_continue">Continue</string>
+    <string name="recovery_copied">Recovery key copied</string>
+    <string name="recovery_tick_title">Recovery key not saved</string>
+    <string name="recovery_tick_first">Tick “I\'ve saved it” to continue.</string>
+    <string name="recovery_clip_label">Soil recovery key</string>
+
+    <!-- Unlock -->
+    <string name="unlock_title">Unlock Soil</string>
+    <string name="unlock_body">Enter your recovery key, or the passphrase you chose, to open your library on this device.</string>
+    <string name="unlock_hint">Recovery key or passphrase</string>
+    <string name="unlock_button">Unlock</string>
+    <string name="unlock_wrong">That didn\'t open your library. Try again.</string>
+    <string name="unlock_checking">Checking…</string>
+    <string name="unlock_locked_out">Too many attempts. Try again in %1$s.</string>
 </resources>
