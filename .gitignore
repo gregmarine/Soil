@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+.kotlin/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing — never committed
+*.jks
+*.keystore
+keystore.properties
+
+# Built artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# User content — notebooks, sketchbooks and documents never belong in the repository
+*.soil
+*.soil-wal
+*.soil-shm
+*.db
+*.db-wal
+*.db-shm
+
+# macOS
+.DS_Store
+
+# Tools
+__pycache__/
+*.pyc
+.venv/
+
+# Claude Code, local only
+.claude/settings.local.json
