@@ -41,6 +41,9 @@
     <string name="shape_lock_rect">Rect</string>
     <string name="shape_lock_1_1">1:1</string>
     <string name="shape_lock_free">Free</string>
+    <string name="contents_title">Contents</string>
+    <string name="cd_first_page">First page</string>
+    <string name="cd_last_page">Last page</string>
     <string name="contents_truncated">Showing the first %1$d headings</string>
     <string name="contents_fold">Fold</string>
     <string name="contents_unfold">Unfold</string>
