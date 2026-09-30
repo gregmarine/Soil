@@ -18,8 +18,9 @@ import java.util.Date
 
 /**
  * **The Recents**: the notebooks opened most recently, as a panel that comes in from the right
- * edge, and switches to the one tapped. The rows are built before the panel shows and paged,
- * never scrolled; one-finger swipes over the panel turn the pages.
+ * edge, and switches to the one tapped. No title and no close button: every row is something to
+ * open, and a tap outside the panel closes it. The rows are built before the panel shows and
+ * paged, never scrolled.
  *
  * The list is Soil's: the index keeps when each item was last opened. Nothing here is stored.
  */
@@ -42,7 +43,7 @@ class RecentsPanel(
         val barHeight = ctx.resources.getDimensionPixelSize(com.symmetricalpalmtree.soil.paper.R.dimen.toolbar_bar_thickness)
         val pad = (16 * d.density).toInt()
         val panelWidth = (d.widthPixels * WIDTH_FRACTION).toInt()
-        val perPage = ((d.heightPixels - 2 * barHeight - 2 * hairline) / rowHeight).coerceAtLeast(1)
+        val perPage = ((d.heightPixels - barHeight - hairline) / rowHeight).coerceAtLeast(1)
         val pages = if (items.isEmpty()) 1 else (items.size + perPage - 1) / perPage
         var page = 0
 
@@ -52,26 +53,6 @@ class RecentsPanel(
         }
         val dlg = Dialog(ctx, com.symmetricalpalmtree.soil.paper.R.style.Theme_Soil)
         dialog = dlg
-
-        // The header: the title, and the way out nearest the edge the panel came from.
-        val header = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(pad, 0, pad / 2, 0)
-            addView(
-                AppCompatTextView(ctx).apply {
-                    text = ctx.getString(R.string.recents_title)
-                    textSize = 18f
-                    setTextColor(ink)
-                },
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
-            )
-            addView(
-                toolButton(com.symmetricalpalmtree.soil.paper.R.drawable.ic_x, ctx.getString(com.symmetricalpalmtree.soil.paper.R.string.cancel)) { dlg.dismiss() },
-            )
-        }
-        panel.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeight))
-        panel.addView(rule(ink, hairline))
 
         val body = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         panel.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))

@@ -12,7 +12,6 @@
     <string name="collapsed_tools">Tools</string>
     <string name="page_indicator">%1$d / %2$d</string>
     <string name="cd_recents">Recent notebooks</string>
-    <string name="recents_title">Recent notebooks</string>
     <string name="recents_empty">No recent notebooks.</string>
     <string name="recents_row_detail">%1$s, %2$s</string>
     <string name="recents_gone_title">Can\'t open that notebook</string>

@@ -354,6 +354,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         if (::paletteBar.isInitialized) paletteBar.hide()
     }
 
+    /** The shade panel hangs off the collapsed rows: a contact on it keeps them up. */
+    override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
+        ::paletteBar.isInitialized && paletteBar.isShowing && paletteBar.contains(x, y)
+
     /** The shade panel's outside-tap dismissal: the pen button excluded (its re-tap toggles the
      *  bar), and the collapsed rows it may hang under kept. */
     override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
