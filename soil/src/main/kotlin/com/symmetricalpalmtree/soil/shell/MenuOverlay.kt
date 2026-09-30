@@ -55,16 +55,25 @@ class MenuOverlay(private val service: Context) {
 
     fun show() {
         if (binding != null || preparing) return
+        // A hand resting on the bar while writing is not a swipe: while the pen is down or
+        // hovering over Soil's own paper the menu stays away.
+        if (runCatching { MenuSignals.penActive?.invoke() }.getOrDefault(false) == true) {
+            Slog.d(TAG) { "the pen is active; the menu stays away" }
+            return
+        }
         preparing = true
         // Soil's own paper, if it is in front, lets the panel go first.
         runCatching { MenuSignals.beforeMenuShows?.invoke() }
-        // Then an app's, across the seam, off this thread. The rows are read there too.
+        // Then an app's, across the seam, off this thread: the same pen question, then the
+        // panel. The rows are read there too.
         Thread {
-            SeamClients.releasePanel()
+            val penActive = SeamClients.penActive()
+            if (!penActive) SeamClients.releasePanel()
             val apps = ItemApps.sproutApps(service)
             main.post {
                 preparing = false
-                if (binding == null) add(apps)
+                if (penActive) Slog.d(TAG) { "the pen is active in the app in front; the menu stays away" }
+                else if (binding == null) add(apps)
             }
         }.start()
     }

@@ -10,6 +10,10 @@ package com.symmetricalpalmtree.soil.seam;
  */
 interface ISeamClient {
 
+    /** Whether the pen is down or hovering. Soil's menu stays away while it is: a hand resting
+     *  on the side bar while writing is not a swipe. */
+    boolean penActive();
+
     /** The side menu is about to be drawn over the app. Let the panel go for a frame. */
     void releasePanel();
 

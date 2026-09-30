@@ -23,7 +23,14 @@ class BarGestureTest {
     @Test
     fun aLongerTouchWithNothingHeardIsASwipeDown() {
         assertEquals(Read.SWIPE_DOWN, BarGesture.read(heldMs = 250, refreshHeard = false))
-        assertEquals(Read.SWIPE_DOWN, BarGesture.read(heldMs = 5_000, refreshHeard = false))
+        assertEquals(Read.SWIPE_DOWN, BarGesture.read(heldMs = 999, refreshHeard = false))
+    }
+
+    @Test
+    fun `a hand resting on the bar is a hold, whatever the firmware said`() {
+        assertEquals(Read.HOLD, BarGesture.read(heldMs = 1_000, refreshHeard = false))
+        assertEquals(Read.HOLD, BarGesture.read(heldMs = 5_000, refreshHeard = false))
+        assertEquals(Read.HOLD, BarGesture.read(heldMs = 5_000, refreshHeard = true))
     }
 
     @Test

@@ -30,6 +30,12 @@ class NotesproutApp : Application() {
      * and answered once it has run; Soil waits only so long, so nothing here waits longer.
      */
     private val client = object : ISeamClient.Stub() {
+        override fun penActive(): Boolean {
+            var active = false
+            onMain { active = it.penIsActive() }
+            return active
+        }
+
         override fun releasePanel() = onMain { it.letPanelGo() }
         override fun releaseForHandoff() = onMain { it.letPipelineGo() }
 

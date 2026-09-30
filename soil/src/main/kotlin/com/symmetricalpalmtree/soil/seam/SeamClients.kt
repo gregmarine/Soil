@@ -56,6 +56,14 @@ object SeamClients {
     @Synchronized
     private fun current(): ISeamClient? = client
 
+    /** Whether the pen is down or hovering over the app in front. False with no app, or one that
+     *  does not answer in time. */
+    fun penActive(): Boolean {
+        var active = false
+        ask("say whether the pen is active") { active = it.penActive() }
+        return active
+    }
+
     /** Ask the app in front to let the panel go for a frame, and wait for it, bounded. */
     fun releasePanel() = ask("release the panel") { it.releasePanel() }
 

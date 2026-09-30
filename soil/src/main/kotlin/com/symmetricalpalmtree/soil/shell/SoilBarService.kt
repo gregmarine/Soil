@@ -139,6 +139,7 @@ class SoilBarService : AccessibilityService() {
     private fun act(heldMs: Long) {
         when (BarGesture.read(heldMs, refreshHeard)) {
             BarGesture.Read.TAP -> Unit
+            BarGesture.Read.HOLD -> Unit   // a hand resting on the bar
             BarGesture.Read.SWIPE_UP -> Unit   // the firmware's refresh
             BarGesture.Read.SWIPE_DOWN -> showMenu()
         }

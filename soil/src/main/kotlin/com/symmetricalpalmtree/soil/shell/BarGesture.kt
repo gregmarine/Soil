@@ -12,10 +12,12 @@ package com.symmetricalpalmtree.soil.shell
  * | Held | Refresh heard | It was |
  * |---|---|---|
  * | under [TAP_MS] | — | a tap |
- * | longer | yes | a swipe up — the firmware's refresh, left alone |
- * | longer | no | a swipe down — Soil's menu |
+ * | [MAX_SWIPE_MS] or longer | — | a hold: a palm resting on the bar while writing |
+ * | between | yes | a swipe up — the firmware's refresh, left alone |
+ * | between | no | a swipe down — Soil's menu |
  *
- * A hold in place reads as a swipe down too: nothing distinguishes them.
+ * A short rest of the hand reads as a swipe down still: the menu asks the app in front whether
+ * the pen is active before it shows, and stays away while it is.
  */
 object BarGesture {
 
@@ -35,6 +37,9 @@ object BarGesture {
     /** Shorter than this is a tap. */
     const val TAP_MS = 250L
 
+    /** This long or longer is a hand resting on the bar, not a swipe. */
+    const val MAX_SWIPE_MS = 1000L
+
     /** How long after the finger lifts the firmware's refresh broadcast is waited for. */
     const val SETTLE_MS = 150L
 
@@ -44,7 +49,7 @@ object BarGesture {
      */
     const val LEAK_WINDOW_MS = 1500L
 
-    enum class Read { TAP, SWIPE_UP, SWIPE_DOWN }
+    enum class Read { TAP, HOLD, SWIPE_UP, SWIPE_DOWN }
 
     fun isBarKey(code: Int): Boolean =
         code == RIGHT_FIRST || code == RIGHT_SECOND || code == LEFT_FIRST || code == LEFT_SECOND ||
@@ -52,6 +57,7 @@ object BarGesture {
 
     fun read(heldMs: Long, refreshHeard: Boolean): Read = when {
         heldMs < TAP_MS -> Read.TAP
+        heldMs >= MAX_SWIPE_MS -> Read.HOLD
         refreshHeard -> Read.SWIPE_UP
         else -> Read.SWIPE_DOWN
     }

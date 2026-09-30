@@ -334,10 +334,12 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         // The side menu is drawn over this screen, and shows only once the panel is let go.
         // `opened` says the paper exists and has its page.
         MenuSignals.beforeMenuShows = { if (opened && !closing && !paper.isPenActive) paper.releaseRender() }
+        MenuSignals.penActive = { opened && !closing && paper.isPenActive }
     }
 
     override fun onPause() {
         MenuSignals.beforeMenuShows = null
+        MenuSignals.penActive = null
         super.onPause()
     }
 
