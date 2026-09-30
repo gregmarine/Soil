@@ -12,13 +12,13 @@ import org.junit.Test
 
 class ObjectsTest {
 
-    private val columns = listOf("id", "type", "order", "text", "refId", "x", "y", "width", "height", "strokeWidth", "style", "flags")
+    private val columns = listOf("id", "type", "order", "text", "refId", "x", "y", "width", "height", "flags")
 
-    private fun row(type: String, text: String? = null, x: Double? = 10.0, y: Double? = 20.0, w: Double? = 100.0, h: Double? = 50.0, sw: Double? = null, style: String? = null, flags: Long? = null) =
+    private fun row(type: String, text: String? = null, x: Double? = 10.0, y: Double? = 20.0, w: Double? = 100.0, h: Double? = 50.0, flags: Long? = null) =
         Row(columns, listOf(
             Cell.Text("id-1"), Cell.Text(type), Cell.Integer(3), text?.let { Cell.Text(it) } ?: Cell.Null, Cell.Null,
             x?.let { Cell.Real(it) } ?: Cell.Null, y?.let { Cell.Real(it) } ?: Cell.Null, w?.let { Cell.Real(it) } ?: Cell.Null, h?.let { Cell.Real(it) } ?: Cell.Null,
-            sw?.let { Cell.Real(it) } ?: Cell.Null, style?.let { Cell.Text(it) } ?: Cell.Null, flags?.let { Cell.Integer(it) } ?: Cell.Null,
+            flags?.let { Cell.Integer(it) } ?: Cell.Null,
         ))
 
     @Test
@@ -40,61 +40,12 @@ class ObjectsTest {
     }
 
     @Test
-    fun `a shape row reads its packed flags and drops an unknown type`() {
-        val flags = ShapeFlags.pack(aspectLocked = true, pointCount = 7, rotationDeg = 37.25f)
-        val s = requireNotNull(ObjectRows.toShape(row("shape", style = "STAR", sw = 2.0, flags = flags)))
-        assertEquals(ShapeType.STAR, s.type)
-        assertTrue(s.aspectLocked)
-        assertEquals(7, s.pointCount)
-        assertEquals(37.3f, s.rotationDeg, 0.001f)
-        assertEquals(10f, s.cx)
-        assertEquals(2f, s.strokeWidth)
-        assertNull(ObjectRows.toShape(row("shape", style = "HEXAGON")))
-        assertEquals(ObjectRows.DEFAULT_STROKE_WIDTH_PX, ObjectRows.toShape(row("shape", style = "LINE"))!!.strokeWidth)
-    }
-
-    @Test
-    fun `the shape flags round trip, 359 point 9 included`() {
-        for (deg in listOf(0f, 90f, 359.9f, -10f, 720.5f)) {
-            val back = ShapeFlags.rotationDeg(ShapeFlags.pack(false, 5, deg))
-            assertEquals(ShapeFlags.normalizeDeg(deg), back, 0.001f)
-        }
-        assertEquals(ShapeFlags.DEFAULT_POINTS, ShapeFlags.pointCount(0L))
-        assertEquals(ShapeFlags.MAX_POINTS, ShapeFlags.pointCount(ShapeFlags.pack(false, 40, 0f)))
-    }
-
-    @Test
     fun `a sticky row reads its content size`() {
         val st = requireNotNull(ObjectRows.toSticky(row("sticky_note", flags = StickyFlags.pack(1404, 1872))))
         assertEquals(1404, st.contentW)
         assertEquals(1872, st.contentH)
         assertTrue(st.strokes.isEmpty())
         assertNull(ObjectRows.toSticky(row("sticky_note", x = null)))
-    }
-
-    @Test
-    fun `the shapes' outlines and boxes agree`() {
-        val rect = PageShape("r", ShapeType.RECTANGLE, 100f, 100f, 40f, 20f, 3f, 0f, false, 5, 0)
-        assertEquals(Bounds(80f, 90f, 120f, 110f), ShapeGeometry.tightBounds(rect))
-        val rotated = rect.copy(rotationDeg = 90f)
-        val tb = ShapeGeometry.tightBounds(rotated)
-        assertEquals(90f, tb.left, 0.01f); assertEquals(80f, tb.top, 0.01f)
-        val ellipse = rect.copy(type = ShapeType.ELLIPSE, rotationDeg = 90f)
-        val eb = ShapeGeometry.tightBounds(ellipse)
-        assertEquals(90f, eb.left, 0.01f); assertEquals(120f, eb.bottom, 0.01f)
-        assertEquals(2, ShapeGeometry.outline(rect.copy(type = ShapeType.ARROW)).size)
-        assertEquals(10, ShapeGeometry.outline(rect.copy(type = ShapeType.STAR)).first().points.size)
-        // The hit box is inflated by at least 4 dp.
-        assertEquals(76f, ShapeGeometry.aabb(rect, 1f).left, 0.01f)
-    }
-
-    @Test
-    fun `defaults, a line half the page wide, three shapes locked`() {
-        val line = ShapeDefaults.at("l", ShapeType.LINE, 1000f, 2000f, 2f)
-        assertEquals(500f, line.width); assertEquals(1f, line.height); assertFalse(line.aspectLocked)
-        val star = ShapeDefaults.at("s", ShapeType.STAR, 1000f, 2000f, 2f)
-        assertEquals(144f, star.width); assertTrue(star.aspectLocked)
-        assertFalse(ShapeDefaults.locked(ShapeType.TRIANGLE))
     }
 
     @Test
@@ -118,12 +69,11 @@ class ObjectsTest {
     @Test
     fun `a selection is one mode`() {
         val one = { id: String -> id == "h" }
-        assertEquals(SelectionMode.HEADING, SelectionModes.classify(0, listOf("h"), one, { false }, { false }, { false }))
-        assertEquals(SelectionMode.STROKES, SelectionModes.classify(3, emptyList(), one, { false }, { false }, { false }))
-        assertEquals(SelectionMode.MIXED, SelectionModes.classify(3, listOf("h"), one, { false }, { false }, { false }))
-        assertEquals(SelectionMode.SHAPE, SelectionModes.classify(0, listOf("s"), { false }, { false }, { false }, { it == "s" }))
-        assertEquals(SelectionMode.STICKY, SelectionModes.classify(0, listOf("n"), { false }, { false }, { false }, { false }, { it == "n" }))
-        assertEquals(SelectionMode.MIXED_WITH_LINK, SelectionModes.classify(0, listOf("l", "h"), one, { it == "l" }, { false }, { false }))
+        assertEquals(SelectionMode.HEADING, SelectionModes.classify(0, listOf("h"), one, { false }, { false }))
+        assertEquals(SelectionMode.STROKES, SelectionModes.classify(3, emptyList(), one, { false }, { false }))
+        assertEquals(SelectionMode.MIXED, SelectionModes.classify(3, listOf("h"), one, { false }, { false }))
+        assertEquals(SelectionMode.STICKY, SelectionModes.classify(0, listOf("n"), { false }, { false }, { false }, { it == "n" }))
+        assertEquals(SelectionMode.MIXED_WITH_LINK, SelectionModes.classify(0, listOf("l", "h"), one, { it == "l" }, { false }))
     }
 
     @Test

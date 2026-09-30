@@ -2,10 +2,8 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeFlags
 import com.symmetricalpalmtree.soil.notesprout.objects.StickyFlags
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema.TABLE
 import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
@@ -118,8 +116,8 @@ object NotebookSql : InkDocument.StrokeSql {
 
     /** The objects placed on a page, every kind in one read, each kind in its own z-order. */
     fun selectObjects(pageId: String): Statement = Statement(
-        "SELECT id, type, \"order\", text, refId, x, y, width, height, strokeWidth, style, flags FROM $TABLE " +
-            "WHERE parentId = ? AND type IN ('heading', 'text', 'shape', 'sticky_note') AND deletedAt IS NULL " +
+        "SELECT id, type, \"order\", text, refId, x, y, width, height, flags FROM $TABLE " +
+            "WHERE parentId = ? AND type IN ('heading', 'text', 'sticky_note') AND deletedAt IS NULL " +
             "ORDER BY type, \"order\"",
         pageId,
     )
@@ -131,7 +129,7 @@ object NotebookSql : InkDocument.StrokeSql {
 
     /** Every live heading in the notebook with its parent, for the Contents. */
     fun selectAllHeadings(): Statement = Statement(
-        "SELECT id, parentId, type, \"order\", text, refId, x, y, width, height, strokeWidth, style, flags FROM $TABLE " +
+        "SELECT id, parentId, type, \"order\", text, refId, x, y, width, height, flags FROM $TABLE " +
             "WHERE type = 'heading' AND deletedAt IS NULL",
     )
 
@@ -146,14 +144,6 @@ object NotebookSql : InkDocument.StrokeSql {
         "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, x, y, width, height) " +
             "VALUES (?, ?, 'text', ?, ?, ?, ?, ?, ?, ?, ?)",
         t.id, pageId, order.toLong(), now, now, t.text, t.x.toDouble(), t.y.toDouble(), t.width.toDouble(), t.height.toDouble(),
-    )
-
-    fun insertShape(sh: PageShape, pageId: String, order: Int, now: Long): Statement = Statement(
-        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, style, x, y, width, height, strokeWidth, flags) " +
-            "VALUES (?, ?, 'shape', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        sh.id, pageId, order.toLong(), now, now, sh.type.name, sh.cx.toDouble(), sh.cy.toDouble(),
-        sh.width.toDouble(), sh.height.toDouble(), sh.strokeWidth.toDouble(),
-        ShapeFlags.pack(sh.aspectLocked, sh.pointCount, sh.rotationDeg),
     )
 
     fun insertSticky(st: PageSticky, pageId: String, order: Int, now: Long): Statement = Statement(
@@ -178,13 +168,6 @@ object NotebookSql : InkDocument.StrokeSql {
     fun setTextContent(t: PageText, now: Long): Statement = Statement(
         "UPDATE $TABLE SET text = ?, width = ?, height = ?, updatedAt = ? WHERE id = ?",
         t.text, t.width.toDouble(), t.height.toDouble(), now, t.id,
-    )
-
-    /** A finished transform: the geometry word, the lock and the rotation. */
-    fun setShapeGeometry(sh: PageShape, now: Long): Statement = Statement(
-        "UPDATE $TABLE SET x = ?, y = ?, width = ?, height = ?, flags = ?, updatedAt = ? WHERE id = ?",
-        sh.cx.toDouble(), sh.cy.toDouble(), sh.width.toDouble(), sh.height.toDouble(),
-        ShapeFlags.pack(sh.aspectLocked, sh.pointCount, sh.rotationDeg), now, sh.id,
     )
 
     /** The live children of one parent, of one type, by id. */

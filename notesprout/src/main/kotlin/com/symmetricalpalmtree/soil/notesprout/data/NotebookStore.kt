@@ -5,7 +5,6 @@ import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
 import com.symmetricalpalmtree.soil.notesprout.objects.ObjectRows
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.ink.InkStore
@@ -66,21 +65,19 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     fun readPage(page: PageRef): PageContent = guard {
         val headings = ArrayList<Heading>()
         val texts = ArrayList<PageText>()
-        val shapes = ArrayList<PageShape>()
         val stickies = ArrayList<PageSticky>()
         var dropped = 0
         for (row in store.query(NotebookSql.selectObjects(page.id)).rows) {
             val kept = when (row.text("type")) {
                 NotebookSchema.TYPE_HEADING -> ObjectRows.toHeading(row)?.also { headings += it }
                 NotebookSchema.TYPE_TEXT -> ObjectRows.toText(row)?.also { texts += it }
-                NotebookSchema.TYPE_SHAPE -> ObjectRows.toShape(row)?.also { shapes += it }
                 NotebookSchema.TYPE_STICKY -> ObjectRows.toSticky(row)?.also { stickies += it }
                 else -> null
             }
             if (kept == null) dropped++
         }
         if (dropped > 0) Log.w(TAG, "a page had $dropped object row(s) that would not read")
-        PageContent(readStrokesOf(page.id), headings, texts, shapes, stickies)
+        PageContent(readStrokesOf(page.id), headings, texts, stickies)
     }
 
     /** The live strokes parented to [parentId]: a page's ink, or a sticky note's content. */
@@ -120,12 +117,6 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         placed
     }
 
-    fun createShape(pageId: String, sh: PageShape): PageShape = guard {
-        val placed = sh.copy(order = nextOrder(pageId, NotebookSchema.TYPE_SHAPE))
-        run(listOf(NotebookSql.insertShape(placed, pageId, placed.order, System.currentTimeMillis())))
-        placed
-    }
-
     fun createSticky(pageId: String, st: PageSticky): PageSticky = guard {
         val placed = st.copy(order = nextOrder(pageId, NotebookSchema.TYPE_STICKY))
         run(listOf(NotebookSql.insertSticky(placed, pageId, placed.order, System.currentTimeMillis())))
@@ -138,9 +129,6 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
 
     fun restoreText(pageId: String, t: PageText) =
         execAll(listOf(NotebookSql.insertText(t, pageId, t.order, System.currentTimeMillis()), NotebookSql.restore(t.id)))
-
-    fun restoreShape(pageId: String, sh: PageShape) =
-        execAll(listOf(NotebookSql.insertShape(sh, pageId, sh.order, System.currentTimeMillis()), NotebookSql.restore(sh.id)))
 
     /** The icon revives (or returns), and the snapshot's children with it. */
     fun restoreSticky(pageId: String, st: PageSticky) = execAll(
@@ -157,8 +145,6 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     fun setHeadingContent(h: Heading) = execAll(listOf(NotebookSql.setHeadingContent(h, System.currentTimeMillis())))
 
     fun setTextContent(t: PageText) = execAll(listOf(NotebookSql.setTextContent(t, System.currentTimeMillis())))
-
-    fun setShapeGeometry(sh: PageShape) = execAll(listOf(NotebookSql.setShapeGeometry(sh, System.currentTimeMillis())))
 
     /** A note's content in writing order, in its own space. */
     fun stickyContent(stickyId: String): List<Stroke> = guard { readStrokesOf(stickyId).map { it.second } }

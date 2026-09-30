@@ -34,10 +34,10 @@ class NotebookSchemaTest {
         val types = listOf(
             NotebookSchema.TYPE_NOTEBOOK, NotebookSchema.TYPE_PAGE, NotebookSchema.TYPE_TEMPLATE,
             NotebookSchema.TYPE_STROKE, NotebookSchema.TYPE_HEADING, NotebookSchema.TYPE_LINK,
-            NotebookSchema.TYPE_TEXT, NotebookSchema.TYPE_SHAPE, NotebookSchema.TYPE_STICKY,
+            NotebookSchema.TYPE_TEXT, NotebookSchema.TYPE_STICKY,
         )
         assertEquals(types.size, types.toSet().size)
-        assertFalse(types.any { it.startsWith("sketch") || it.startsWith("guide") || it == "document" })
+        assertFalse(types.any { it.startsWith("sketch") || it.startsWith("guide") || it == "document" || it == "shape" })
     }
 
     @Test

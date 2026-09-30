@@ -50,34 +50,6 @@ data class PageText(
     fun translated(dx: Float, dy: Float): PageText = copy(x = x + dx, y = y + dy)
 }
 
-/** The six hand-placed shapes. A square and a circle are a rectangle and an ellipse with the
- *  aspect lock, not types. The name is what the `style` column holds. */
-enum class ShapeType { RECTANGLE, ELLIPSE, TRIANGLE, ARROW, LINE, STAR }
-
-/**
- * A shape. **[cx]/[cy] is the centre**, the one row kind whose `x`/`y` is not a top-left;
- * [width]/[height] are the un-rotated extents; [rotationDeg] is applied about the centre,
- * clockwise, last. The outline and its box come from [ShapeGeometry].
- */
-data class PageShape(
-    val id: String,
-    val type: ShapeType,
-    val cx: Float,
-    val cy: Float,
-    val width: Float,
-    val height: Float,
-    /** The outline width in px. */
-    val strokeWidth: Float,
-    /** Clockwise, 0 ≤ deg < 360, kept to a tenth of a degree. */
-    val rotationDeg: Float,
-    val aspectLocked: Boolean,
-    /** STAR only, 5..12. */
-    val pointCount: Int,
-    val order: Int,
-) {
-    fun translated(dx: Float, dy: Float): PageShape = copy(cx = cx + dx, cy = cy + dy)
-}
-
 /**
  * A sticky note: the **icon box** on the page and the note's content size. The page knows the
  * note by its icon alone; its content is `stroke` rows parented to [id] in the note's own space,
@@ -103,50 +75,6 @@ data class PageSticky(
     fun translated(dx: Float, dy: Float): PageSticky = copy(x = x + dx, y = y + dy)
 }
 
-/**
- * The `flags` word of a shape row, three fields packed into one integer: bit 0 the aspect lock;
- * bits 8–15 the point count (0 reads as [DEFAULT_POINTS]); bits 16–31 the rotation in tenths of a
- * degree, 0–3599 clockwise.
- */
-object ShapeFlags {
-    const val DEFAULT_POINTS = 5
-    const val MIN_POINTS = 5
-    const val MAX_POINTS = 12
-
-    private const val ASPECT_BIT = 1L
-    private const val POINTS_SHIFT = 8
-    private const val POINTS_MASK = 0xFFL
-    private const val ROTATION_SHIFT = 16
-    private const val ROTATION_MASK = 0xFFFFL
-
-    fun pack(aspectLocked: Boolean, pointCount: Int, rotationDeg: Float): Long {
-        val tenths = rotationTenths(rotationDeg).toLong()
-        val points = pointCount.coerceIn(MIN_POINTS, MAX_POINTS).toLong()
-        return (if (aspectLocked) ASPECT_BIT else 0L) or (points shl POINTS_SHIFT) or (tenths shl ROTATION_SHIFT)
-    }
-
-    fun aspectLocked(flags: Long?): Boolean = flags != null && (flags and ASPECT_BIT) != 0L
-
-    fun pointCount(flags: Long?): Int {
-        val raw = ((flags ?: 0L) shr POINTS_SHIFT and POINTS_MASK).toInt()
-        return if (raw == 0) DEFAULT_POINTS else raw.coerceIn(MIN_POINTS, MAX_POINTS)
-    }
-
-    fun rotationDeg(flags: Long?): Float {
-        val tenths = ((flags ?: 0L) shr ROTATION_SHIFT and ROTATION_MASK).toInt()
-        return (tenths % 3600) / 10f
-    }
-
-    fun rotationTenths(deg: Float): Int {
-        val d = if (deg.isFinite()) deg else 0f
-        val tenths = Math.round(d * 10f)
-        return ((tenths % 3600) + 3600) % 3600
-    }
-
-    /** The stored form of a rotation, so two angles that pack alike compare alike. */
-    fun normalizeDeg(deg: Float): Float = rotationTenths(deg) / 10f
-}
-
 /** The `flags` word of a sticky row: bits 0–19 the content width, bits 20–39 the height, in px. */
 object StickyFlags {
     const val MAX = 0xFFFFF
@@ -162,7 +90,7 @@ object StickyFlags {
 
 /**
  * The object rows read back. The row shape is [NotebookSql.selectObjects]'s:
- * `id, type, "order", text, refId, x, y, width, height, strokeWidth, style, flags`.
+ * `id, type, "order", text, refId, x, y, width, height, flags`.
  */
 object ObjectRows {
 
@@ -196,26 +124,6 @@ object ObjectRows {
         }
     }
 
-    fun toShape(row: Row): PageShape? {
-        return try {
-        val type = typeOf(row.textOrNull("style")) ?: return null
-        val cx = row.realOrNull("x")?.toFloat() ?: return null
-        val cy = row.realOrNull("y")?.toFloat() ?: return null
-        val w = row.realOrNull("width")?.toFloat() ?: return null
-        val h = row.realOrNull("height")?.toFloat() ?: return null
-        if (!(cx.isFinite() && cy.isFinite() && w.isFinite() && h.isFinite()) || w < 0f || h < 0f) return null
-        val sw = row.realOrNull("strokeWidth")?.toFloat()?.takeIf { it.isFinite() && it > 0f } ?: DEFAULT_STROKE_WIDTH_PX
-        val flags = row.longOrNull("flags")
-        PageShape(
-            id = row.text("id"), type = type, cx = cx, cy = cy, width = w, height = h, strokeWidth = sw,
-            rotationDeg = ShapeFlags.rotationDeg(flags), aspectLocked = ShapeFlags.aspectLocked(flags),
-            pointCount = ShapeFlags.pointCount(flags), order = row.long("order").toInt(),
-        )
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     fun toSticky(row: Row): PageSticky? {
         return try {
         val x = row.realOrNull("x")?.toFloat() ?: return null
@@ -233,11 +141,6 @@ object ObjectRows {
             null
         }
     }
-
-    fun typeOf(style: String?): ShapeType? = style?.let { s -> ShapeType.entries.firstOrNull { it.name == s } }
-
-    /** The pen's width: a shape's outline is as wide as the pen that would have drawn it. */
-    const val DEFAULT_STROKE_WIDTH_PX = 3f
 
     /** The icon's edge at creation, in dp. */
     const val STICKY_ICON_DP = 72f

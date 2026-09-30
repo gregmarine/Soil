@@ -12,13 +12,15 @@ import com.symmetricalpalmtree.soil.seam.SeamSchema
  * notebook (parentId "")            text = title · refId = the page last open
  *   template                        text = token · width/height px · blob = the image
  *   page                            refId = its template's row id ("" = blank) · width/height px
- *     stroke · heading · text · shape
+ *     stroke · heading · text
  *     link                          the strokes and headings it wraps are re-parented to it
  *     sticky_note                   its content is stroke rows parented to it, in its own space
  * ```
  *
  * A new kind of thing is a new row type, never a new column and never a new step: the version
- * moves only when the table itself has to.
+ * moves only when the table itself has to. SN's `shape` rows are not read: the shapes were set
+ * aside on 2026-09-30 (BACKLOG.md), and the converter from SN will have to say what becomes of
+ * any it finds.
  *
  * `"order"` is an SQL keyword and is always double-quoted. It is a position among the rows of the
  * same parent **and** the same type, dense from 0. A delete is soft; [PURGE] is what Soil runs
@@ -36,7 +38,6 @@ object NotebookSchema {
     const val TYPE_HEADING = "heading"
     const val TYPE_LINK = "link"
     const val TYPE_TEXT = "text"
-    const val TYPE_SHAPE = "shape"
     const val TYPE_STICKY = "sticky_note"
 
     /** The notebook row's `parentId`: it is the root. */

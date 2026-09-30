@@ -2,7 +2,6 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -36,7 +35,6 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     /** The showing page's objects, each kind in z-order. Read on Main. */
     val headings: MutableMap<String, Heading> = linkedMapOf()
     val texts: MutableMap<String, PageText> = linkedMapOf()
-    val shapes: MutableMap<String, PageShape> = linkedMapOf()
     val stickies: MutableMap<String, PageSticky> = linkedMapOf()
 
     /** Runs on Main after every change to the object maps: the screen re-hands them to the renderers. */
@@ -58,7 +56,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     val pageIndex: Int get() = pages.indexOfFirst { it.id == pageId }.coerceAtLeast(0)
     val pageNumber: Int get() = pageIndex + 1
 
-    fun holdsObject(id: String): Boolean = id in headings || id in texts || id in shapes || id in stickies
+    fun holdsObject(id: String): Boolean = id in headings || id in texts || id in stickies
 
     // ── Loading ──────
 
@@ -146,13 +144,6 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         return placed
     }
 
-    suspend fun createShape(sh: PageShape): PageShape {
-        val placed = withContext(Dispatchers.IO) { store.createShape(pageId, sh) }
-        shapes[placed.id] = placed
-        onObjectsChanged()
-        return placed
-    }
-
     suspend fun createSticky(st: PageSticky): PageSticky {
         val placed = withContext(Dispatchers.IO) { store.createSticky(pageId, st) }
         stickies[placed.id] = placed
@@ -172,49 +163,35 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         onObjectsChanged()
     }
 
-    suspend fun updateShape(sh: PageShape) {
-        withContext(Dispatchers.IO) { store.setShapeGeometry(sh) }
-        shapes[sh.id] = sh
-        onObjectsChanged()
-    }
-
-    /** The in-memory half of a live transform: the working copy only, nothing written. */
-    fun putShapeWorking(sh: PageShape) {
-        shapes[sh.id] = sh
-        onObjectsChanged()
-    }
-
     /** Take [contentIds] off the page, whatever kinds they are. Answers what went, with each
      *  sticky's content read first so an undo can bring it back. */
     suspend fun deleteObjects(contentIds: Collection<String>): DeletedObjects {
         val headingIds = contentIds.filter { it in headings }
         val textIds = contentIds.filter { it in texts }
-        val shapeIds = contentIds.filter { it in shapes }
         val stickyIcons = contentIds.mapNotNull { stickies[it] }
         val gone = withContext(Dispatchers.IO) {
             val full = store.withContent(stickyIcons)
-            store.deleteObjects(headingIds + textIds + shapeIds + stickyIcons.map { it.id }, stickyIcons.map { it.id })
-            DeletedObjects(headingIds, textIds, shapeIds, full)
+            store.deleteObjects(headingIds + textIds + stickyIcons.map { it.id }, stickyIcons.map { it.id })
+            DeletedObjects(headingIds, textIds, full)
         }
         headingIds.forEach { headings.remove(it) }
         textIds.forEach { texts.remove(it) }
-        shapeIds.forEach { shapes.remove(it) }
         stickyIcons.forEach { stickies.remove(it.id) }
         onObjectsChanged()
         return gone
     }
 
     /** The objects among [contentIds], by kind. */
-    class Moved(val headingIds: List<String>, val textIds: List<String>, val shapeIds: List<String>, val stickyIds: List<String>) {
-        val isEmpty: Boolean get() = headingIds.isEmpty() && textIds.isEmpty() && shapeIds.isEmpty() && stickyIds.isEmpty()
-        val ids: List<String> get() = headingIds + textIds + shapeIds + stickyIds
+    class Moved(val headingIds: List<String>, val textIds: List<String>, val stickyIds: List<String>) {
+        val isEmpty: Boolean get() = headingIds.isEmpty() && textIds.isEmpty() && stickyIds.isEmpty()
+        val ids: List<String> get() = headingIds + textIds + stickyIds
     }
 
     /** The in-memory half of a finished drag, on Main, synchronous: the working copies shift so the
      *  engine's next record shows them where they landed. [writeMove] follows on IO. */
     fun translateObjects(contentIds: Collection<String>, dx: Float, dy: Float): Moved {
-        val moved = Moved(contentIds.filter { it in headings }, contentIds.filter { it in texts }, contentIds.filter { it in shapes }, contentIds.filter { it in stickies })
-        if (!moved.isEmpty && !(dx == 0f && dy == 0f)) translateObjects(moved.headingIds, moved.textIds, moved.shapeIds, moved.stickyIds, dx, dy)
+        val moved = Moved(contentIds.filter { it in headings }, contentIds.filter { it in texts }, contentIds.filter { it in stickies })
+        if (!moved.isEmpty && !(dx == 0f && dy == 0f)) translateObjects(moved.headingIds, moved.textIds, moved.stickyIds, dx, dy)
         return moved
     }
 
@@ -224,10 +201,9 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         withContext(Dispatchers.IO) { store.moveBy(moved.ids, dx, dy) }
     }
 
-    private fun translateObjects(headingIds: List<String>, textIds: List<String>, shapeIds: List<String>, stickyIds: List<String>, dx: Float, dy: Float) {
+    private fun translateObjects(headingIds: List<String>, textIds: List<String>, stickyIds: List<String>, dx: Float, dy: Float) {
         headingIds.forEach { id -> headings[id]?.let { headings[id] = it.translated(dx, dy) } }
         textIds.forEach { id -> texts[id]?.let { texts[id] = it.translated(dx, dy) } }
-        shapeIds.forEach { id -> shapes[id]?.let { shapes[id] = it.translated(dx, dy) } }
         stickyIds.forEach { id -> stickies[id]?.let { stickies[id] = it.translated(dx, dy) } }
         onObjectsChanged()
     }
@@ -251,14 +227,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             }
             is NotebookAction.Moved -> objects(a.pageId) {
                 a.ink?.let { ink.revert(it) }
-                store.moveBy(a.headingIds + a.textIds + a.shapeIds + a.stickyIds, -a.dx, -a.dy)
+                store.moveBy(a.headingIds + a.textIds + a.stickyIds, -a.dx, -a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.heading.id), emptyList()) }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.before) }
             is NotebookAction.TextCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.text.id), emptyList()) }
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.before) }
-            is NotebookAction.ShapeInserted -> objects(a.pageId) { store.deleteObjects(listOf(a.shape.id), emptyList()) }
-            is NotebookAction.ShapeTransformed -> objects(a.pageId) { store.setShapeGeometry(a.before) }
             is NotebookAction.StickyInserted -> objects(a.pageId) { store.deleteObjects(listOf(a.sticky.id), listOf(a.sticky.id)) }
             is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.before) }
             is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids) }
@@ -275,14 +249,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             }
             is NotebookAction.Moved -> objects(a.pageId) {
                 a.ink?.let { ink.reapply(it) }
-                store.moveBy(a.headingIds + a.textIds + a.shapeIds + a.stickyIds, a.dx, a.dy)
+                store.moveBy(a.headingIds + a.textIds + a.stickyIds, a.dx, a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.restoreHeading(a.pageId, a.heading) }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.after) }
             is NotebookAction.TextCreated -> objects(a.pageId) { store.restoreText(a.pageId, a.text) }
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.after) }
-            is NotebookAction.ShapeInserted -> objects(a.pageId) { store.restoreShape(a.pageId, a.shape) }
-            is NotebookAction.ShapeTransformed -> objects(a.pageId) { store.setShapeGeometry(a.after) }
             is NotebookAction.StickyInserted -> objects(a.pageId) { store.restoreSticky(a.pageId, a.sticky) }
             is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.after) }
             is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids) }
@@ -330,7 +302,6 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         ink.reset(page.id, read.strokes)
         headings.clear(); read.headings.forEach { headings[it.id] = measureHeading?.invoke(it) ?: it }
         texts.clear(); read.texts.forEach { texts[it.id] = measureText?.invoke(it, page.width) ?: it }
-        shapes.clear(); read.shapes.forEach { shapes[it.id] = it }
         stickies.clear(); read.stickies.forEach { stickies[it.id] = it }
         onObjectsChanged()
     }

@@ -2,7 +2,6 @@ package com.symmetricalpalmtree.soil.notesprout.notebook
 
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.text.TextPaint
 import com.symmetricalpalmtree.gpaper.core.render.ContentLayer
@@ -11,10 +10,8 @@ import com.symmetricalpalmtree.gpaper.core.render.HitTarget
 import com.symmetricalpalmtree.soil.markdown.HeadingTypography
 import com.symmetricalpalmtree.soil.markdown.MarkdownDraw
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeGeometry
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -24,7 +21,7 @@ import kotlin.math.roundToInt
  * Main; the engine re-records on `notifyContentChanged()`, never per frame. Each implements the
  * live-drag pair, so a dragged object rides under the pen as its real self.
  *
- * Draw order is the caller's, by registration: headings · texts · shapes · stickies, then the ink.
+ * Draw order is the caller's, by registration: headings · texts · stickies, then the ink.
  */
 
 /** Headings: the stored hash prefix goes through the Markdown engine, single line, ellipsized. The
@@ -110,39 +107,6 @@ class TextRenderer(private val density: Float, scaledDensity: Float) : ContentRe
         }
 
         private const val MIN_WIDTH_PX = 48
-    }
-}
-
-/** Shapes: the outline stroked with its own width, round joins and caps, black, no fill. */
-class ShapeRenderer(private val density: Float) : ContentRenderer {
-    override val layer = ContentLayer.BELOW_STROKES
-    var shapes: List<PageShape> = emptyList()
-    private val paint = basePaint()
-
-    override fun draw(canvas: Canvas) = draw(canvas, emptySet())
-    override fun draw(canvas: Canvas, excludedContentIds: Set<String>) {
-        for (s in shapes) if (s.id !in excludedContentIds) drawShape(canvas, s, paint)
-    }
-    override fun drawObject(canvas: Canvas, contentId: String): Boolean {
-        val s = shapes.firstOrNull { it.id == contentId } ?: return false
-        drawShape(canvas, s, paint)
-        return true
-    }
-    override fun hitTargets(): List<HitTarget> = shapes.map { HitTarget(it.id, ShapeGeometry.aabb(it, density)) }
-
-    companion object {
-        fun drawShape(canvas: Canvas, s: PageShape, paint: Paint) {
-            if (s.width <= 0f && s.height <= 0f) return
-            paint.strokeWidth = s.strokeWidth
-            canvas.drawPath(ShapeGeometry.pathFor(s), paint)
-        }
-
-        fun basePaint() = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
-            style = Paint.Style.STROKE
-            strokeJoin = Paint.Join.ROUND
-            strokeCap = Paint.Cap.ROUND
-        }
     }
 }
 

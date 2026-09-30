@@ -94,7 +94,11 @@ complete on BOOX. Two things are already known:
 ## Shapes in a notebook
 
 Set aside 2026-09-30, during Notesprout's phase 4. SN's six shapes (rectangle, ellipse, triangle,
-line, arrow, star) and the engine's transform mode were built and walked, and Greg asked for the
-tools to go, at least for now. The `shape` row type, its reading, rendering, selection and delete
-stay, so a file that holds one still shows it; only the Insert bar's shapes and the Transform button
-are gone. Bringing them back is the Insert kinds and the transform bar, in git history at `1e8d78d`.
+line, arrow, star) and the engine's transform mode were built and walked, and Greg asked for them to
+go, at least for now: the tools, the `shape` row type, its reading and its rendering. Notesprout
+does not read a `shape` row. Bringing them back is git history at `1e8d78d` (the last commit with
+them whole).
+
+**For the converter from Notesprout SN** (design.md § 11): check every SN notebook for `shape` rows
+before converting. Greg believes he never used shapes but may have a few times and forgotten; if any
+are found, he decides then what becomes of them (dropped, or shapes brought back first).

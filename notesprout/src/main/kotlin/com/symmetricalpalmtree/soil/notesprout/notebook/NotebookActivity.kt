@@ -35,7 +35,6 @@ import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.notesprout.objects.SelectionMode
 import com.symmetricalpalmtree.soil.notesprout.objects.SelectionModes
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeGeometry
 import com.symmetricalpalmtree.soil.notesprout.objects.StickyDefaults
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
 import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBinding
@@ -97,7 +96,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private lateinit var prefs: NotebookPrefs
     private lateinit var headingRenderer: HeadingRenderer
     private lateinit var textRenderer: TextRenderer
-    private lateinit var shapeRenderer: ShapeRenderer
     private lateinit var stickyRenderer: StickyRenderer
     private var document: NotebookDocument? = null
     private var recentsShowing = false
@@ -170,14 +168,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         paper.scribbleEraseEnabled = true
         paper.directInk = true
         paper.setPaperListener(notebookListener)
-        // Draw order is registration order, below the ink: headings · texts · shapes · stickies.
+        // Draw order is registration order, below the ink: headings · texts · stickies.
         headingRenderer = HeadingRenderer(density, scaledDensity)
         textRenderer = TextRenderer(density, scaledDensity)
-        shapeRenderer = ShapeRenderer(density)
         stickyRenderer = StickyRenderer(checkNotNull(AppCompatResources.getDrawable(this, com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2)).mutate())
         paper.addContentRenderer(headingRenderer)
         paper.addContentRenderer(textRenderer)
-        paper.addContentRenderer(shapeRenderer)
         paper.addContentRenderer(stickyRenderer)
 
         toolbar = NotebookToolbar(
@@ -433,7 +429,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 val moved = doc.translateObjects(move.contentIds, move.dx, move.dy)
                 paper.notifyContentChanged()
                 if (!moved.isEmpty || ink != null) {
-                    undo.record(NotebookAction.Moved(doc.pageId, ink, moved.headingIds, moved.textIds, moved.shapeIds, moved.stickyIds, move.dx, move.dy))
+                    undo.record(NotebookAction.Moved(doc.pageId, ink, moved.headingIds, moved.textIds, moved.stickyIds, move.dx, move.dy))
                 }
                 runPageOp {
                     doc.writeMove(moved, move.dx, move.dy)
@@ -470,15 +466,13 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val doc = document ?: return
         headingRenderer.headings = doc.headings.values.toList()
         textRenderer.texts = doc.texts.values.toList()
-        shapeRenderer.shapes = doc.shapes.values.toList()
         stickyRenderer.stickies = doc.stickies.values.toList()
     }
 
     /** Every box already on the page, for a drop that must not land on what is there. */
     private fun occupied(): List<Bounds> {
         val doc = document ?: return emptyList()
-        return doc.headings.values.map { it.bounds } + doc.texts.values.map { it.bounds } +
-            doc.shapes.values.map { ShapeGeometry.aabb(it, density) } + doc.stickies.values.map { it.bounds } +
+        return doc.headings.values.map { it.bounds } + doc.texts.values.map { it.bounds } + doc.stickies.values.map { it.bounds } +
             doc.strokes.map { it.bounds }
     }
 
@@ -489,7 +483,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val mode = SelectionModes.classify(
             strokeCount = sel.strokeIds.size, contentIds = sel.contentIds,
             isHeading = { it in doc.headings }, isLink = { false }, isText = { it in doc.texts },
-            isShape = { it in doc.shapes }, isSticky = { it in doc.stickies },
+            isSticky = { it in doc.stickies },
         )
         val level = sel.contentIds.singleOrNull()?.let { doc.headings[it]?.level }
         objectBar.show(sel.bounds, mode, level)

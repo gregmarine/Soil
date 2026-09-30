@@ -2,7 +2,6 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
@@ -30,7 +29,6 @@ sealed interface NotebookAction {
         val ink: InkAction.Moved?,
         val headingIds: List<String>,
         val textIds: List<String>,
-        val shapeIds: List<String>,
         val stickyIds: List<String>,
         val dx: Float,
         val dy: Float,
@@ -44,11 +42,6 @@ sealed interface NotebookAction {
     class TextCreated(val pageId: String, val text: PageText) : NotebookAction
 
     class TextEdited(val pageId: String, val before: PageText, val after: PageText) : NotebookAction
-
-    class ShapeInserted(val pageId: String, val shape: PageShape) : NotebookAction
-
-    /** One finished transform; both sides carry the whole shape. */
-    class ShapeTransformed(val pageId: String, val before: PageShape, val after: PageShape) : NotebookAction
 
     /** The icon row as created, with no content yet. */
     class StickyInserted(val pageId: String, val sticky: PageSticky) : NotebookAction
