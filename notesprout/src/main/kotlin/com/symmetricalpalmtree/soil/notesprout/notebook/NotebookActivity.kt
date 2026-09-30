@@ -449,14 +449,30 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             if (successor != null) successor() else restoreToolAfterLanding()
         }
 
-        /** A stylus tap inside a lone selected heading or text opens its words. */
+        /**
+         * A stylus tap inside the selection. On a lone heading or text it opens the words. On a
+         * selection that holds more, a tap on one of its objects **narrows** the selection to that
+         * object alone, topmost first (a sticky, then a text, then a heading): the way to pick one
+         * thing out of a cluster the lasso caught whole.
+         */
         override fun onSelectionTapped(x: Float, y: Float) {
             val sel = currentSelection ?: return
-            if (sel.strokeIds.isNotEmpty() || sel.contentIds.size != 1) return
             val doc = document ?: return
-            val id = sel.contentIds.first()
-            doc.headings[id]?.let { editHeading(it); return }
-            doc.texts[id]?.let { editText(it) }
+            val lone = if (sel.strokeIds.isEmpty()) sel.contentIds.singleOrNull() else null
+            if (lone != null) {
+                doc.headings[lone]?.let { editHeading(it); return }
+                doc.texts[lone]?.let { editText(it) }
+                return
+            }
+            val hit = sel.contentIds.firstOrNull { doc.stickies[it]?.bounds?.contains(x, y) == true }
+                ?: sel.contentIds.lastOrNull { doc.texts[it]?.bounds?.contains(x, y) == true }
+                ?: sel.contentIds.lastOrNull { doc.headings[it]?.bounds?.contains(x, y) == true }
+                ?: return
+            val bounds = doc.stickies[hit]?.bounds ?: doc.texts[hit]?.bounds ?: doc.headings[hit]?.bounds ?: return
+            paper.setSelection(emptySet(), setOf(hit), bounds)
+            val narrowed = Selection(emptySet(), setOf(hit), bounds)
+            currentSelection = narrowed
+            showObjectBar(narrowed)
         }
 
     }
