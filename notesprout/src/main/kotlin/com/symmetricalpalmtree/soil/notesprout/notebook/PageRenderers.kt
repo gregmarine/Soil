@@ -16,8 +16,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * The renderers that paint the page's objects into g-paper's committed layer, all below the ink
- * so an annotation over an object stays visible. Each holds the screen's working copy, set on
+ * The renderers that paint the page's objects into g-paper's committed layer: headings and texts
+ * below the ink, so an annotation over them stays visible; sticky notes above it. Each holds the screen's working copy, set on
  * Main; the engine re-records on `notifyContentChanged()`, never per frame. Each implements the
  * live-drag pair, so a dragged object rides under the pen as its real self.
  *
@@ -110,10 +110,10 @@ class TextRenderer(private val density: Float, scaledDensity: Float) : ContentRe
     }
 }
 
-/** Sticky notes: the icon scaled into its box. The content never draws on the page. The glyph
- *  carries a white fill so a template never shows through it. */
+/** Sticky notes: the icon scaled into its box, **above the ink**: a note dropped on a page sits
+ *  on top of everything, so nothing shows through it. The content never draws on the page. */
 class StickyRenderer(private val icon: Drawable) : ContentRenderer {
-    override val layer = ContentLayer.BELOW_STROKES
+    override val layer = ContentLayer.ABOVE_STROKES
     var stickies: List<PageSticky> = emptyList()
 
     override fun draw(canvas: Canvas) = draw(canvas, emptySet())
