@@ -61,7 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - **Forget on this device…** — confirm, then the cached passphrase, the RAM copy and every
  *    cached raw key leave this device and the library locks. Nothing is decrypted or modified.
  *
- * **Nothing here runs while the Scratch Pad is open** (*proposed*): its store cannot be re-keyed
+ * **Nothing here runs while the Scratch Pad is open**: its store cannot be re-keyed
  * or closed under a live page, so the person is asked to close the pad first.
  *
  * The passphrase is never logged and never rides an Intent; the only place it goes from here is

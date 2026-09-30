@@ -6,10 +6,13 @@ Supernote Nomad and Manta first.
 
 ## Status
 
-**First build under way, on the branch `first-build`.** Greg granted it on 2026-09-28. The plan,
-with his decisions and the step order, is `docs/first-build.md`. Work only within that plan: do
-not start anything beyond it, or anything in `BACKLOG.md`, until Greg asks for it. The branch is
-merged when Greg is happy with it, not before.
+**The first build is done and merged** (2026-09-29): the home screen with the library and the app
+drawer, the side menu, the Scratch Pad, encryption, the library index and the seam's handshake.
+It runs on the Nomad as its home screen and bar service. None of the Sprout apps exist.
+
+**Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
+design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
+when he is happy with it, not before.
 
 ## Build
 
@@ -25,6 +28,12 @@ merged when Greg is happy with it, not before.
 - Ink does not show in a screenshot, and a pen cannot be injected. Writing is walked by Greg.
 - The side bars cannot be injected. Only a real swipe tests the menu.
 - `adb shell input text` is swallowed. Tap the on-screen keys, or use Copy and Paste.
+- Never tick "I've saved it" for Greg. A key acknowledged in a walk is a key nobody wrote down;
+  say so at once if a walk needs it.
+- Never change what Greg has set on the device to test something: his hidden apps, his pad's
+  pages. Cancel out of prompts, or say what could not be checked.
+- A view added inside a layout pass is not drawn. Build rows before the window shows, or post
+  them. A view dump lists hidden views too: confirm what is visible with a screenshot.
 - Never read a recovery key off the device: not in a screenshot, not in a view dump, not in a
   log. To move one, use the screen's own Copy and the field's Paste.
 - Ask before changing the device's home screen or accessibility settings. The commands, and the
@@ -32,7 +41,8 @@ merged when Greg is happy with it, not before.
 
 ## Read first
 
-- `docs/first-build.md` — the plan for the first build.
+- `docs/first-build.md` — the first build's plan as granted, and its decisions. A record; never
+  resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md` — each part as built.
 

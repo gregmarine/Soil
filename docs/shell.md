@@ -45,7 +45,7 @@ bar. The two drawers work alike:
 - The app itself is never changed.
 - The list is an ordinary preference, not part of the encrypted library, because the drawer works
   while the library is locked.
-- *Proposed:* a hidden app that is uninstalled stays on the list, so it is still hidden if it
+- A hidden app that is uninstalled stays on the list, so it is still hidden if it
   comes back.
 
 ## Reading the bars
@@ -85,7 +85,7 @@ be that push, and Soil puts its home screen back.
 The home screen does not touch the bars or the firmware's menu. With the service off, Soil is an
 ordinary app beside the firmware's menu, and everything but the side menu works.
 
-*Proposed:* while the service is off, the library view says "The side menu is off."
+While the service is off, the library view says "The side menu is off."
 
 ## Risks
 
@@ -106,6 +106,3 @@ The service was turned off and Soil stayed the home screen. The library, the app
 hidden apps, an app opened from the drawer and Home back from it, the Scratch Pad and Back from
 it, and the Encryption screen all worked. The service was turned back on and reconnected.
 
-## Still to walk
-
-- The side menu since it lost its title, its close button and its apps.

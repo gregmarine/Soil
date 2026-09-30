@@ -73,10 +73,13 @@ Removes the passphrase and every raw key from the device, closes the index and t
 locks the library. No file changes. Unlike Notesprout SN, the process is not killed: Soil can
 close its index.
 
+## While the Scratch Pad is open
+
+Nothing on the Encryption screen runs while the Scratch Pad is open, shown or left behind another
+app: its store cannot be re-keyed or closed under a live page. The person is asked to close it.
+
 ## Open
 
-- *Proposed:* nothing on the Encryption screen runs while the Scratch Pad is open; the person is
-  asked to close it first.
 - When backup arrives, a rotation must clear its stamps before the index is closed.
 
 ## Walked on the Nomad, 2026-09-28

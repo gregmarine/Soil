@@ -20,7 +20,8 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 
 ## Status
 
-**The first build is under way** on the branch `first-build`. None of the Sprout apps exist yet.
+**The first build is done**, and runs on the Supernote Nomad as its home screen. None of the
+Sprout apps exist yet.
 
 | Part | State |
 |---|---|
@@ -31,7 +32,7 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 | Seam, handshake only | Built, walked on the Nomad |
 | Side menu and home screen role | Built, walked on the Nomad by hand |
 
-- [`docs/first-build.md`](docs/first-build.md) — the plan for the first build, and what was decided.
+- [`docs/first-build.md`](docs/first-build.md) — the plan for the first build as it was granted, and what was decided. A record.
 - [`docs/building.md`](docs/building.md) — building, installing, turning the shell on and off.
 - [`docs/encryption.md`](docs/encryption.md), [`docs/shell.md`](docs/shell.md),
   [`docs/scratchpad.md`](docs/scratchpad.md), [`docs/seam.md`](docs/seam.md) — each part as built.

@@ -32,7 +32,7 @@ build that is actually put to use, and goes up from there.
 | A signature permission on the service | Android, at the bind | Any app not signed with Soil's key, before any of Soil's code runs |
 | `SeamCallerCheck.enforce` | Soil, first thing in every call | The same, checked again at the moment of the call |
 
-*Proposed:* the permission is named after the install,
+The permission is named after the install,
 `<package>.permission.SEAM`, so a debug Soil and a release Soil never declare the same name. An
 app says which Soil it talks to when it is built.
 

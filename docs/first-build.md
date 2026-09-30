@@ -1,7 +1,11 @@
 # Soil — first build
 
-**Progress, 2026-09-29.** Every step is built and walked on the Nomad. Not walked: a passphrase
-that is typed rather than generated. What differs from the plan below:
+**Finished and merged into `main` on 2026-09-29.** This page is now a record: the plan as it was
+granted, and what was decided. Do not resume from it. Each part as built has a page of its own,
+and those are what is current.
+
+Every step was built and walked on the Nomad. Not walked: a passphrase that is typed rather than
+generated. Everything marked *proposed* below was accepted as built. What differs from the plan:
 
 - There is no `SoilOpenHelper`. `SoilDb` opens a file through `SoilCrypto` and runs the schema
   steps itself, which gives the same guarantees with nothing underneath that can create or
