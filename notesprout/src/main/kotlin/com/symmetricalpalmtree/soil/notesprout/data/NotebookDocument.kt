@@ -204,17 +204,24 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         return gone
     }
 
-    /** The in-memory and row halves of a finished drag of objects. */
-    suspend fun moveObjects(contentIds: Collection<String>, dx: Float, dy: Float): NotebookAction.Moved? {
-        val headingIds = contentIds.filter { it in headings }
-        val textIds = contentIds.filter { it in texts }
-        val shapeIds = contentIds.filter { it in shapes }
-        val stickyIds = contentIds.filter { it in stickies }
-        val all = headingIds + textIds + shapeIds + stickyIds
-        if (all.isEmpty() || (dx == 0f && dy == 0f)) return null
-        withContext(Dispatchers.IO) { store.moveBy(all, dx, dy) }
-        translateObjects(headingIds, textIds, shapeIds, stickyIds, dx, dy)
-        return NotebookAction.Moved(pageId, null, headingIds, textIds, shapeIds, stickyIds, dx, dy)
+    /** The objects among [contentIds], by kind. */
+    class Moved(val headingIds: List<String>, val textIds: List<String>, val shapeIds: List<String>, val stickyIds: List<String>) {
+        val isEmpty: Boolean get() = headingIds.isEmpty() && textIds.isEmpty() && shapeIds.isEmpty() && stickyIds.isEmpty()
+        val ids: List<String> get() = headingIds + textIds + shapeIds + stickyIds
+    }
+
+    /** The in-memory half of a finished drag, on Main, synchronous: the working copies shift so the
+     *  engine's next record shows them where they landed. [writeMove] follows on IO. */
+    fun translateObjects(contentIds: Collection<String>, dx: Float, dy: Float): Moved {
+        val moved = Moved(contentIds.filter { it in headings }, contentIds.filter { it in texts }, contentIds.filter { it in shapes }, contentIds.filter { it in stickies })
+        if (!moved.isEmpty && !(dx == 0f && dy == 0f)) translateObjects(moved.headingIds, moved.textIds, moved.shapeIds, moved.stickyIds, dx, dy)
+        return moved
+    }
+
+    /** The row half of [translateObjects]. */
+    suspend fun writeMove(moved: Moved, dx: Float, dy: Float) {
+        if (moved.isEmpty || (dx == 0f && dy == 0f)) return
+        withContext(Dispatchers.IO) { store.moveBy(moved.ids, dx, dy) }
     }
 
     private fun translateObjects(headingIds: List<String>, textIds: List<String>, shapeIds: List<String>, stickyIds: List<String>, dx: Float, dy: Float) {

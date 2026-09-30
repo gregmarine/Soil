@@ -447,13 +447,15 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             if (move.contentIds.isEmpty()) {
                 ink?.let { record(it); scheduleSave() }
             } else {
+                // The working copies move now, in this callback, and the engine re-records at once:
+                // its committed picture still holds the objects where they were. The rows follow.
+                val moved = doc.translateObjects(move.contentIds, move.dx, move.dy)
+                paper.notifyContentChanged()
+                if (!moved.isEmpty || ink != null) {
+                    undo.record(NotebookAction.Moved(doc.pageId, ink, moved.headingIds, moved.textIds, moved.shapeIds, moved.stickyIds, move.dx, move.dy))
+                }
                 runPageOp {
-                    val moved = doc.moveObjects(move.contentIds, move.dx, move.dy)
-                    if (moved != null || ink != null) {
-                        undo.record(NotebookAction.Moved(doc.pageId, ink, moved?.headingIds.orEmpty(), moved?.textIds.orEmpty(), moved?.shapeIds.orEmpty(), moved?.stickyIds.orEmpty(), move.dx, move.dy))
-                    }
-                    // The committed record still holds the objects where they were: re-record it.
-                    paper.notifyContentChanged()
+                    doc.writeMove(moved, move.dx, move.dy)
                     doc.flushUntilClean()
                 }
             }
