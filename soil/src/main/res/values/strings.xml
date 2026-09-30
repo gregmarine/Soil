@@ -31,6 +31,10 @@
     <string name="show_app_title">Show %1$s?</string>
     <string name="show_app_body">It will be back among the apps.</string>
     <string name="show_app_confirm">Show</string>
+    <string name="item_no_app_title">No app for this</string>
+    <string name="item_no_app_body">The app that opens %1$s is not installed.</string>
+    <string name="item_open_failed_title">Can\'t open</string>
+    <string name="item_open_failed_body">%1$s could not be opened.</string>
     <string name="app_open_failed_title">Can\'t open app</string>
     <string name="app_open_failed_body">%1$s could not be opened.</string>
 
@@ -143,6 +147,10 @@
     <string name="encryption_failed_no_key">The current key is no longer on this device. Unlock with it and resume from this screen.</string>
     <string name="encryption_failed_transient">A file could not be re-keyed. Resume from this screen to try again.</string>
     <string name="encryption_failed_stuck">A file could not be opened with either key. Nothing was deleted, but the change cannot continue on its own.</string>
+    <string name="encryption_item_unnamed">what is open</string>
+    <string name="encryption_item_open_title">Something is open</string>
+    <string name="encryption_item_open_one">Close %1$s first. It cannot be re-keyed or locked while it is open.</string>
+    <string name="encryption_item_open_many">Close %1$s and the %2$d others that are open first. They cannot be re-keyed or locked while they are open.</string>
     <string name="encryption_pad_open_title">Scratch Pad is open</string>
     <string name="encryption_pad_open_body">Close the Scratch Pad first. Its pages cannot be re-keyed or locked while it is open.</string>
 

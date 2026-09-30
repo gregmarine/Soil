@@ -86,37 +86,50 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- The library. Empty until a Sprout app can make an item. -->
-        <LinearLayout
+        <!-- The library: the items, a page at a time, or a line that says why there are none. -->
+        <FrameLayout
             android:id="@+id/libraryView"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="28dp">
+            android:layout_height="match_parent">
 
-            <TextView
-                android:id="@+id/libraryMessage"
+            <!-- Turned by a sideways swipe, and by the pager below. -->
+            <com.symmetricalpalmtree.soil.home.PageSwipeLayout
+                android:id="@+id/itemList"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:lineSpacingMultiplier="1.2"
-                android:textSize="18sp"
-                android:textColor="@color/inkBlack" />
-
-            <!-- Said only while the shell is off: with it off the side bars open the firmware's
-                 own menu, and this is the one place that explains why. -->
-            <TextView
-                android:id="@+id/shellNote"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:gravity="center"
-                android:text="@string/shell_off"
-                android:textSize="14sp"
-                android:textColor="@color/inkBlack"
+                android:layout_height="match_parent"
                 android:visibility="gone" />
-        </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/libraryNote"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="28dp">
+
+                <TextView
+                    android:id="@+id/libraryMessage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.2"
+                    android:textSize="18sp"
+                    android:textColor="@color/inkBlack" />
+
+                <!-- Said only while the shell is off: with it off the side bars open the
+                     firmware's own menu, and this is the one place that explains why. -->
+                <TextView
+                    android:id="@+id/shellNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="center"
+                    android:text="@string/shell_off"
+                    android:textSize="14sp"
+                    android:textColor="@color/inkBlack"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </FrameLayout>
 
         <!-- The app drawer: the apps the person has not hidden, a page at a time. -->
         <FrameLayout

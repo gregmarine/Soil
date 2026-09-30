@@ -16,7 +16,11 @@ import com.symmetricalpalmtree.soil.bootstrap.RecoveryKeyActivity
 import com.symmetricalpalmtree.soil.bootstrap.Screen
 import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.bootstrap.UnlockActivity
+import com.symmetricalpalmtree.soil.data.index.IndexStore
+import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
+import com.symmetricalpalmtree.soil.library.ItemApps
 import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -24,13 +28,16 @@ import com.symmetricalpalmtree.soil.shell.AppEntry
 import com.symmetricalpalmtree.soil.shell.AppList
 import com.symmetricalpalmtree.soil.shell.HiddenApps
 import com.symmetricalpalmtree.soil.shell.SoilBarService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * **The home screen**: two views under one top bar.
  *
- *  - **The library**, which it opens on. Empty until a Sprout app can make an item.
+ *  - **The library**, which it opens on: every item, newest first, in fixed pages. An item
+ *    opens in the app for its kind.
  *  - **The app drawer**: the installed apps the person has not hidden, each with its own icon,
  *    in fixed pages. A long press on an app asks whether to hide it; the hidden apps screen
  *    brings it back.
@@ -48,8 +55,14 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityHomeBinding
     private lateinit var grid: AppGrid
+    private lateinit var list: ItemList
     private var showing = Showing.LIBRARY
     private var appPages = 1
+    private var appPage = 0
+    private var itemPages = 1
+    private var itemPage = 0
+    private var itemCount = 0
+    private var route = KeyGate.Route.PREPARING
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,15 +79,26 @@ class HomeActivity : AppCompatActivity() {
             },
             onHold = ::askToHide,
             onPaged = { page, pages ->
+                appPage = page
                 appPages = pages
-                binding.pageText.text = getString(R.string.page_of, page + 1, pages)
                 renderPager()
             },
         )
-        binding.btnPrev.setOnClickListener { grid.previous() }
-        binding.btnNext.setOnClickListener { grid.next() }
+        list = ItemList(
+            container = binding.itemList,
+            onOpen = ::open,
+            onPaged = { page, pages ->
+                itemPage = page
+                itemPages = pages
+                renderPager()
+            },
+        )
+        binding.btnPrev.setOnClickListener { if (showing == Showing.APPS) grid.previous() else list.previous() }
+        binding.btnNext.setOnClickListener { if (showing == Showing.APPS) grid.next() else list.next() }
         binding.appGrid.onPrevious = { grid.previous() }
         binding.appGrid.onNext = { grid.next() }
+        binding.itemList.onPrevious = { list.previous() }
+        binding.itemList.onNext = { list.next() }
 
         binding.btnLibrary.setOnClickListener { show(Showing.LIBRARY) }
         binding.btnApps.setOnClickListener { show(Showing.APPS) }
@@ -94,6 +118,10 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { Library.status.collect(::render) }
+                // The items are read again whenever the library opens or one of them changes.
+                launch {
+                    combine(Library.status, ItemSessions.changes) { status, _ -> status.route }.collect { loadItems(it) }
+                }
                 launch {
                     SoilBarService.running.collect { on ->
                         binding.shellNote.visibility = if (on) View.GONE else View.VISIBLE
@@ -133,10 +161,44 @@ class HomeActivity : AppCompatActivity() {
         renderPager()
     }
 
-    /** The pager is the drawer's for now; the library has nothing to page. A pager over one page
-     *  is two buttons that do nothing, so it is not shown. */
+    /** The pager belongs to the view that is showing. A pager over one page is two buttons that
+     *  do nothing, so it is not shown. */
     private fun renderPager() {
-        binding.bottomBar.visibility = if (showing == Showing.APPS && appPages > 1) View.VISIBLE else View.GONE
+        val (page, pages) = if (showing == Showing.APPS) appPage to appPages else itemPage to itemPages
+        binding.pageText.text = getString(R.string.page_of, page + 1, pages)
+        binding.bottomBar.visibility = if (pages > 1) View.VISIBLE else View.GONE
+    }
+
+    /** The items, read off the main thread. While the library is not open there are none to show. */
+    private suspend fun loadItems(route: KeyGate.Route) {
+        val items = if (route != KeyGate.Route.OPEN) emptyList() else withContext(Dispatchers.IO) {
+            runCatching { IndexStore().aliveItems() }.getOrDefault(emptyList())
+        }
+        itemCount = items.size
+        list.show(items)
+        renderLibrary()
+    }
+
+    /** The list when there is something in it, the line when there is not. */
+    private fun renderLibrary() {
+        val some = route == KeyGate.Route.OPEN && itemCount > 0
+        binding.itemList.visibility = if (some) View.VISIBLE else View.GONE
+        binding.libraryNote.visibility = if (some) View.GONE else View.VISIBLE
+        if (!some) {
+            itemPages = 1
+            itemPage = 0
+            renderPager()
+        }
+    }
+
+    private fun open(item: Item) {
+        when (ItemApps.open(this, item.id, item.kind)) {
+            ItemApps.Opened.YES -> Unit
+            ItemApps.Opened.NO_APP ->
+                Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))
+            ItemApps.Opened.FAILED ->
+                Dialogs.problem(this, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, item.name))
+        }
     }
 
     /** A long press asks; it never acts. */
@@ -154,7 +216,8 @@ class HomeActivity : AppCompatActivity() {
     /** One status, one appearance: the message, and which of the top bar's buttons exist. A
      *  button that cannot act is absent, never greyed — a disabled control is invisible on e-ink. */
     private fun render(status: Library.Status) {
-        val route = status.route
+        route = status.route
+        renderLibrary()
         binding.libraryMessage.setText(
             when (route) {
                 KeyGate.Route.OPEN -> R.string.library_empty

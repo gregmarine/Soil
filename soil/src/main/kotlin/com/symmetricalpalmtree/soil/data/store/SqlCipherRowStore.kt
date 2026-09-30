@@ -46,6 +46,16 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
     }
 
     override fun query(statement: Statement): StoreRows {
+        var names: List<String> = emptyList()
+        val rows = stream(statement, { columns -> names = columns; ArrayList<List<Cell>>() }) { list, cells -> list += cells }
+        return StoreRows(names, rows)
+    }
+
+    /**
+     * Run one SELECT and hand each row to [add] as it is read, so a reader that counts can stop
+     * at the row that is one too many without the rest being read.
+     */
+    fun <B> stream(statement: Statement, builder: (columns: List<String>) -> B, add: (B, List<Cell>) -> Unit): B {
         val bound = Array<Any?>(statement.args.size) { i ->
             when (val c = statement.args[i]) {
                 is Cell.Null -> null
@@ -56,9 +66,8 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
             }
         }
         db.query(statement.sql, bound).use { cursor ->
-            val names = cursor.columnNames.toList()
-            val n = names.size
-            val rows = ArrayList<List<Cell>>(cursor.count.coerceAtLeast(0))
+            val n = cursor.columnCount
+            val out = builder(cursor.columnNames.toList())
             while (cursor.moveToNext()) {
                 val cells = ArrayList<Cell>(n)
                 for (i in 0 until n) {
@@ -71,9 +80,9 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
                         else -> Cell.Null
                     }
                 }
-                rows += cells
+                add(out, cells)
             }
-            return StoreRows(names, rows)
+            return out
         }
     }
 }

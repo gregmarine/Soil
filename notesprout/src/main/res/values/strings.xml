@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Notesprout</string>
+    <string name="selftest_name">Notesprout self-test</string>
+
+    <string name="open_opening">Opening…</string>
+    <string name="open_pages_one">1 page</string>
+    <string name="open_pages_many">%1$d pages</string>
+    <string name="open_failed_title">Can\'t open notebook</string>
+    <string name="open_no_soil">Soil could not be reached. Notesprout keeps its notebooks in Soil.</string>
+    <string name="open_locked">The library is not open. Open it in Soil, then open the notebook again.</string>
+    <string name="open_missing">This notebook is no longer in the library.</string>
+    <string name="open_newer">This notebook was written by a later Notesprout. It has not been changed.</string>
+    <string name="open_failed">The notebook could not be opened. It has not been changed.</string>
+</resources>

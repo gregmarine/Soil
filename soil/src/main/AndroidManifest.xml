@@ -8,6 +8,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- The Sprout apps: each says which kind of item it opens. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.OPEN_ITEM" />
+        </intent>
         <!-- The firmware's launcher, bound to hold its side menu shut. -->
         <package android:name="com.ratta.supernote.launcher" />
     </queries>
@@ -18,6 +22,10 @@
     <permission
         android:name="${applicationId}.permission.SEAM"
         android:protectionLevel="signature" />
+
+    <!-- Soil holds its own permission: the screen an app opens an item in is guarded by it, and
+         Soil is what starts that screen. -->
+    <uses-permission android:name="${applicationId}.permission.SEAM" />
 
     <application
         android:name=".SoilApp"

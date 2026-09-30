@@ -27,6 +27,7 @@ import com.symmetricalpalmtree.soil.crypto.KeyMaterial
 import com.symmetricalpalmtree.soil.crypto.PassphraseRules
 import com.symmetricalpalmtree.soil.crypto.PassphraseStore
 import com.symmetricalpalmtree.soil.data.index.IndexStore
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.databinding.ActivityEncryptionBinding
 import com.symmetricalpalmtree.soil.databinding.DialogPassphraseCurrentBinding
@@ -107,10 +108,28 @@ class EncryptionActivity : AppCompatActivity() {
         if (!rotating) super.onBackPressed()
     }
 
-    /** Explains, rather than refusing in silence, when the pad is open. */
+    /**
+     * Explains, rather than refusing in silence, when the pad or an item is open. An item left
+     * in the background holds no file and stands in the way of nothing.
+     */
     private fun padIsShut(): Boolean {
-        if (!ScratchPadActivity.isOpen) return true
-        Dialogs.problem(this, R.string.encryption_pad_open_title, R.string.encryption_pad_open_body)
+        if (ScratchPadActivity.isOpen) {
+            Dialogs.problem(this, R.string.encryption_pad_open_title, R.string.encryption_pad_open_body)
+            return false
+        }
+        val open = ItemSessions.openItems()
+        if (open.isEmpty()) return true
+        lifecycleScope.launch {
+            val name = withContext(Dispatchers.IO) {
+                runCatching { IndexStore().aliveItem(open.first())?.name }.getOrNull()
+            } ?: getString(R.string.encryption_item_unnamed)
+            Dialogs.problem(
+                this@EncryptionActivity,
+                getString(R.string.encryption_item_open_title),
+                if (open.size == 1) getString(R.string.encryption_item_open_one, name)
+                else getString(R.string.encryption_item_open_many, name, open.size - 1),
+            )
+        }
         return false
     }
 

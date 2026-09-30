@@ -14,6 +14,7 @@ import com.symmetricalpalmtree.soil.crypto.SoilRekey
 import com.symmetricalpalmtree.soil.data.FileKey
 import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import kotlinx.coroutines.Dispatchers
@@ -176,7 +177,10 @@ object SoilIndex {
      * caller reopens with [ensureReady] when it is done. Idempotent; never throws. IO.
      */
     suspend fun closeForRotation(context: Context) = withContext(Dispatchers.IO) {
-        prepareMutex.withLock { close(context.applicationContext, State.PREPARING) }
+        prepareMutex.withLock {
+            ItemSessions.releaseAll(context.applicationContext)
+            close(context.applicationContext, State.PREPARING)
+        }
     }
 
     /**
@@ -187,6 +191,7 @@ object SoilIndex {
     suspend fun lock(context: Context) = withContext(Dispatchers.IO) {
         prepareMutex.withLock {
             val app = context.applicationContext
+            ItemSessions.releaseAll(app)
             AppStores.closeAll(app)
             close(app, State.NEEDS_UNLOCK)
             KeySession.clear()

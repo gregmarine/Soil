@@ -1,0 +1,133 @@
+package com.symmetricalpalmtree.soil.data.item
+
+import android.content.Context
+import com.symmetricalpalmtree.soil.crypto.KeyOpener
+import com.symmetricalpalmtree.soil.crypto.KeySession
+import com.symmetricalpalmtree.soil.crypto.OpenFiles
+import com.symmetricalpalmtree.soil.crypto.SoilLockedException
+import com.symmetricalpalmtree.soil.data.Schema
+import com.symmetricalpalmtree.soil.data.SoilDb
+import com.symmetricalpalmtree.soil.data.SoilFiles
+import com.symmetricalpalmtree.soil.paper.core.Slog
+import com.symmetricalpalmtree.soil.seam.SeamLimits
+import com.symmetricalpalmtree.soil.seam.SeamSchema
+import net.zetetic.database.sqlcipher.SQLiteDatabase as ZeticDB
+
+/** The file is not the item it was opened as. Nothing in it was changed. */
+class ItemRefused(val verdict: ItemMeta.Verdict) : RuntimeException(verdict.name)
+
+/**
+ * **Every open and every close of an item file.** An item is one `.soil` file in the garden,
+ * named by its id, under the global key.
+ *
+ * A file is made once, by [create], and never made by an open: a missing file is a missing item,
+ * and is never replaced by an empty one.
+ *
+ * **Blocking.** IO only.
+ */
+object ItemFiles {
+
+    private const val TAG = "ItemFiles"
+
+    /** Make the file of a new item, at [schema], and close it. */
+    fun create(context: Context, id: String, name: String, createdAt: Long, schema: SeamSchema) {
+        val app = context.applicationContext
+        val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
+        val file = SoilFiles.itemFile(app, id)
+        val db = SoilDb.create(file, passphrase, Schema(schema.kind, schema.steps))
+        try {
+            db.execSQL(ItemMeta.CREATE)
+            for ((key, value) in ItemMeta.rows(id, schema.kind, name, createdAt)) {
+                db.execSQL(ItemMeta.PUT, arrayOf<Any>(key, value))
+            }
+            SoilDb.checkpoint(db)
+        } finally {
+            runCatching { db.close() }
+        }
+        // The file now has a salt: derive its key once, so every open after this is quick.
+        KeyOpener.warm(app, id, file, passphrase)
+        Slog.d(TAG) { "made an item of kind ${schema.kind}" }
+    }
+
+    /**
+     * Open the file of item [id] and bring it to [schema]. The file must say it is that item, of
+     * that kind, before any step runs. Claims the file: the caller gives it back with [close].
+     *
+     * @throws ItemRefused when the file is another item's, another kind's, or a later Soil's
+     * @throws IllegalStateException with [SeamLimits.SCHEMA_NEWER] when the file is newer than [schema]
+     */
+    fun open(context: Context, id: String, schema: SeamSchema): ZeticDB {
+        val app = context.applicationContext
+        val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
+        val file = SoilFiles.itemFile(app, id)
+        val key = KeyOpener.keyFor(app, id, file, passphrase)
+        val db = try {
+            SoilDb.open(file, key, Schema(schema.kind, schema.steps)) { opened ->
+                val verdict = ItemMeta.verdict(readMeta(opened), id, schema.kind)
+                if (verdict != ItemMeta.Verdict.OK) throw ItemRefused(verdict)
+            }
+        } catch (e: IllegalStateException) {
+            // `Schema.pending` refuses a file newer than the schema. The file was not changed.
+            if (e.message?.contains("newer than") == true) throw IllegalStateException(SeamLimits.SCHEMA_NEWER)
+            throw e
+        }
+        OpenFiles.claim(file)
+        return db
+    }
+
+    /** Fold what is written into the file and close it. Never throws. */
+    fun close(context: Context, id: String, db: ZeticDB) {
+        SoilDb.checkpoint(db)
+        runCatching { db.close() }.onFailure { Slog.d(TAG) { "close failed: ${it.javaClass.simpleName}" } }
+        runCatching { OpenFiles.release(SoilFiles.itemFile(context.applicationContext, id)) }
+    }
+
+    /**
+     * Purge what the app has soft-deleted and give the space back. `updatedAt` is not touched
+     * anywhere: rows are removed, never rewritten. Never throws: a tidy that fails must never
+     * cost a save.
+     */
+    fun tidy(db: ZeticDB, schema: SeamSchema) {
+        if (schema.purge.isEmpty()) return
+        val removed = try {
+            var n = 0L
+            db.beginTransaction()
+            try {
+                for (sql in schema.purge) {
+                    val statement = db.compileStatement(sql)
+                    try { n += statement.executeUpdateDelete() } finally { statement.close() }
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            n
+        } catch (e: Exception) {
+            Slog.d(TAG) { "purge failed: ${e.javaClass.simpleName}" }
+            return
+        }
+        if (removed == 0L) return
+        // The full form, and only when something went: what a freed value leaves behind is not
+        // given back by the incremental one.
+        runCatching { db.execSQL("VACUUM") }.onFailure { Slog.d(TAG) { "VACUUM failed: ${it.javaClass.simpleName}" } }
+        Slog.d(TAG) { "purged $removed row(s)" }
+    }
+
+    /** The file's name for itself is kept in step with the index. */
+    fun writeName(db: ZeticDB, name: String) {
+        db.execSQL(ItemMeta.PUT, arrayOf<Any>(ItemMeta.KEY_NAME, name))
+    }
+
+    private fun readMeta(db: ZeticDB): Map<String, String>? {
+        val has = db.rawQuery(ItemMeta.EXISTS, NO_ARGS).use { it.moveToFirst() && it.getInt(0) > 0 }
+        if (!has) return null
+        val found = HashMap<String, String>()
+        db.rawQuery(ItemMeta.READ, NO_ARGS).use { c ->
+            while (c.moveToNext()) found[c.getString(0)] = c.getString(1)
+        }
+        return found
+    }
+
+    /** Typed, so the call never lands on `rawQuery(String, Object...)`. */
+    private val NO_ARGS: Array<String>? = null
+}

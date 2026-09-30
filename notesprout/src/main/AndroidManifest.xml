@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The seam's first guard. Android grants it only to an app signed with Soil's key. -->
+    <uses-permission android:name="${soilPackage}.permission.SEAM" />
+
+    <queries>
+        <package android:name="${soilPackage}" />
+    </queries>
+
+    <application
+        android:name=".NotesproutApp"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Soil">
+
+        <!-- A notebook, opened by Soil and by nothing else: the screen is guarded by Soil's
+             permission. What arrives is the notebook's id. -->
+        <activity
+            android:name=".open.OpenItemActivity"
+            android:exported="true"
+            android:permission="${soilPackage}.permission.SEAM"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.OPEN_ITEM" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.kind"
+                android:value="notebook" />
+        </activity>
+
+    </application>
+
+</manifest>

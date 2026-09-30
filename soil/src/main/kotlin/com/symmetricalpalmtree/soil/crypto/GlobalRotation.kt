@@ -5,6 +5,7 @@ import android.util.Log
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import kotlinx.coroutines.Dispatchers
@@ -184,6 +185,9 @@ object GlobalRotation {
         // Names for the dialog, read while the index is open. Never stored anywhere.
         val names = globals.associate { it.id to it.name }
         var storesClosed = false
+        // An item an app holds open would sit under its own rekey. The screen refuses to start
+        // while one is; this covers the rest, and leaves every session parked.
+        ItemSessions.releaseAll(app)
 
         for (id in marker.pendingIds) {
             coroutineContext.ensureActive()

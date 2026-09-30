@@ -21,21 +21,57 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
 
     /** Every item that has not been deleted, newest first. */
     fun aliveItems(): List<Item> =
+        rows.query(Statement("$SELECT WHERE deletedAt IS NULL ORDER BY updatedAt DESC, id")).rows.map(::item)
+
+    /** Every item of [kind] that has not been deleted, newest first. */
+    fun aliveItems(kind: String): List<Item> =
         rows.query(
-            Statement(
-                "SELECT id, kind, name, keyScope, createdAt, updatedAt FROM item " +
-                    "WHERE deletedAt IS NULL ORDER BY updatedAt DESC",
+            Statement("$SELECT WHERE deletedAt IS NULL AND kind = ? ORDER BY updatedAt DESC, id", kind),
+        ).rows.map(::item)
+
+    /** The item by [itemId], or null when there is none alive. */
+    fun aliveItem(itemId: String): Item? =
+        rows.query(Statement("$SELECT WHERE deletedAt IS NULL AND id = ?", itemId)).rows.firstOrNull()?.let(::item)
+
+    /** A new item under the global key. The id is never one that was used before. */
+    fun insert(id: String, kind: String, name: String, now: Long) {
+        rows.exec(
+            listOf(
+                Statement(
+                    "INSERT INTO item (id, kind, name, keyScope, flags, createdAt, updatedAt) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                    id, kind, name, IndexSchema.KEY_SCOPE_GLOBAL, now, now,
+                ),
             ),
-        ).rows.map {
-            Item(
-                id = it.text("id"),
-                kind = it.text("kind"),
-                name = it.text("name"),
-                keyScope = it.text("keyScope"),
-                createdAt = it.long("createdAt"),
-                updatedAt = it.long("updatedAt"),
-            )
-        }
+        )
+    }
+
+    /** False when there is no such item alive. */
+    fun rename(itemId: String, name: String, now: Long): Boolean =
+        rows.exec(
+            listOf(
+                Statement("UPDATE item SET name = ?, updatedAt = ? WHERE id = ? AND deletedAt IS NULL", name, now, itemId),
+            ),
+        )[0] > 0
+
+    /** A delete is soft: the row is marked, and the file is not touched. */
+    fun softDelete(itemId: String, now: Long): Boolean =
+        rows.exec(
+            listOf(Statement("UPDATE item SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL", now, itemId)),
+        )[0] > 0
+
+    /** The item was written to at [at]. Never moved backwards. */
+    fun touch(itemId: String, at: Long) {
+        rows.exec(listOf(Statement("UPDATE item SET updatedAt = ? WHERE id = ? AND updatedAt < ?", at, itemId, at)))
+    }
+
+    private fun item(row: com.symmetricalpalmtree.soil.paper.store.Row) = Item(
+        id = row.text("id"),
+        kind = row.text("kind"),
+        name = row.text("name"),
+        keyScope = row.text("keyScope"),
+        createdAt = row.long("createdAt"),
+        updatedAt = row.long("updatedAt"),
+    )
 
     /** The items the global key opens — what a rotation re-keys. */
     fun globalItems(): List<Item> = aliveItems().filter { it.keyScope == IndexSchema.KEY_SCOPE_GLOBAL }
@@ -54,5 +90,9 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
                 ),
             ),
         )
+    }
+
+    private companion object {
+        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt FROM item"
     }
 }
