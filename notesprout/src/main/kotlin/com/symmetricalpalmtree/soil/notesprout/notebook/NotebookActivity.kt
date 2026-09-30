@@ -452,6 +452,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                     if (moved != null || ink != null) {
                         undo.record(NotebookAction.Moved(doc.pageId, ink, moved?.headingIds.orEmpty(), moved?.textIds.orEmpty(), moved?.shapeIds.orEmpty(), moved?.stickyIds.orEmpty(), move.dx, move.dy))
                     }
+                    // The committed record still holds the objects where they were: re-record it.
+                    paper.notifyContentChanged()
                     doc.flushUntilClean()
                 }
             }
