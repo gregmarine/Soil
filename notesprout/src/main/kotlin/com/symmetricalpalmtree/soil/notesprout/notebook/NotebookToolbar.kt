@@ -10,6 +10,7 @@ import com.symmetricalpalmtree.gpaper.core.model.StrokeStyle
 import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
+import com.symmetricalpalmtree.soil.paper.chrome.PenShadeGlyph
 import com.symmetricalpalmtree.soil.paper.core.InkTones
 
 /**
@@ -17,8 +18,9 @@ import com.symmetricalpalmtree.soil.paper.core.InkTones
  * the page indicator on the bottom one. The tool half is `:paper`'s [PaperToolbar].
  *
  * **The pen has one width and one of sixteen shades.** The shade is a level on [InkTones]'
- * ladder, remembered device-wide; [setPenLevel] arms it. The eraser has two kinds: a second tap
- * on the armed eraser opens the shared `EraserBar`.
+ * ladder, remembered device-wide; [applyShade] arms it and the pen button wears it as a fill in
+ * the glyph ([PenShadeGlyph], the colour rule's one opening). A second tap on the armed pen opens
+ * the shade panel ([onPenReTap]); a second tap on the armed eraser opens `EraserBar`.
  *
  * **The arrows no-op at a bound, never disable.** A greyed control is invisible on e-ink.
  *
@@ -33,25 +35,29 @@ class NotebookToolbar(
     btnLasso: ImageButton,
     private val btnPrevPage: ImageButton,
     private val btnNextPage: ImageButton,
+    btnRecents: ImageButton,
     private val title: TextView,
     private val pageIndicator: TextView,
     penLevel: Int,
     onBack: () -> Unit,
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
+    onRecents: () -> Unit,
+    onPenReTap: () -> Unit,
     onEraserReTap: () -> Unit,
     onToolTapped: () -> Unit,
     onSynced: () -> Unit = {},
 ) {
 
     private val tools: PaperToolbar
+    private val penGlyph = PenShadeGlyph(btnPen, InkTones.tone(penLevel))
 
     init {
         paper.tool = Tool.PEN
         paper.penWidth = PEN_WIDTH_PX
         paper.penStyle = StrokeStyle.PEN
         paper.eraserRadius = ERASER_RADIUS_PX
-        setPenLevel(penLevel)
+        paper.penColor = InkTones.tone(penLevel)
 
         tools = PaperToolbar(
             bar = bottomBar,
@@ -61,14 +67,16 @@ class NotebookToolbar(
             btnLasso = btnLasso,
             paper = paper,
             onBack = onBack,
+            onPenReTap = { onPenReTap() },
             onEraserReTap = onEraserReTap,
             onToolTapped = onToolTapped,
             onSynced = onSynced,
         )
 
-        listOf(btnPrevPage, btnNextPage).forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
+        listOf(btnPrevPage, btnNextPage, btnRecents).forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
         btnPrevPage.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onPrevPage() }
         btnNextPage.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onNextPage() }
+        btnRecents.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onRecents() }
         pageIndicator.text = ""
         title.text = ""
     }
@@ -77,10 +85,14 @@ class NotebookToolbar(
 
     fun arm(tool: Tool) = tools.arm(tool)
 
-    /** Arm the pen with the shade [level] names. */
-    fun setPenLevel(level: Int) {
-        paper.penColor = InkTones.tone(level)
+    /** Arm the pen with [ink], and have the button wear it. Unchanged is silent. */
+    fun applyShade(ink: Int) {
+        paper.penColor = ink
+        penGlyph.report(ink)
     }
+
+    /** The tone the pen button is wearing: the token the collapsed chrome compares. */
+    val penInk: Int get() = penGlyph.ink
 
     fun setTitle(name: String) = PenIdle.whenIdle(paper, title) { title.text = name }
 

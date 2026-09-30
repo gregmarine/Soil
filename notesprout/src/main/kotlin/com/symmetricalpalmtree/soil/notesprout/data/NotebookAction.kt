@@ -10,6 +10,9 @@ sealed interface NotebookAction {
 
     class Ink(val action: InkAction) : NotebookAction
 
+    /** Erase page: everything on [pageId] soft-deleted; the page stays. Undo restores [ids]. */
+    class PageErased(val pageId: String, val ids: List<String>) : NotebookAction
+
     /**
      * A page insert or delete: the live pages [before] and [after], in order; the ids of the
      * content the operation soft-deleted (empty for an insert), which undo restores; and the

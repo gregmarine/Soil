@@ -30,6 +30,19 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
             Statement("$SELECT WHERE deletedAt IS NULL AND kind = ? ORDER BY updatedAt DESC, id", kind),
         ).rows.map(::item)
 
+    /** The items of [kind] opened most recently, latest first. */
+    fun recentItems(kind: String, limit: Int): List<Item> =
+        rows.query(
+            Statement(
+                "$SELECT WHERE deletedAt IS NULL AND kind = ? AND openedAt IS NOT NULL ORDER BY openedAt DESC, id LIMIT ?",
+                kind, limit,
+            ),
+        ).rows.map(::item)
+
+    fun markOpened(itemId: String, at: Long) {
+        rows.exec(listOf(Statement("UPDATE item SET openedAt = ? WHERE id = ?", at, itemId)))
+    }
+
     /** The item by [itemId], or null when there is none alive. */
     fun aliveItem(itemId: String): Item? =
         rows.query(Statement("$SELECT WHERE deletedAt IS NULL AND id = ?", itemId)).rows.firstOrNull()?.let(::item)

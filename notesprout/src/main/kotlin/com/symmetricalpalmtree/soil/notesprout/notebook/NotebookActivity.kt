@@ -20,11 +20,17 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBinding
+import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
+import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
+import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
+import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
+import com.symmetricalpalmtree.soil.paper.core.InkTones
 import com.symmetricalpalmtree.soil.paper.core.Immersive
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -33,6 +39,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkPage
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
 import com.symmetricalpalmtree.soil.seam.ISeamItem
 import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.seam.SeamItem
 import com.symmetricalpalmtree.soil.seam.SeamLimits
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import com.symmetricalpalmtree.soil.seamkit.SeamUnavailable
@@ -62,8 +69,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     private lateinit var binding: ActivityNotebookBinding
     private lateinit var toolbar: NotebookToolbar
+    private lateinit var paletteBar: PaletteBar
+    private lateinit var recents: RecentsPanel
     private lateinit var prefs: NotebookPrefs
     private var document: NotebookDocument? = null
+    private var recentsShowing = false
 
     /** Any binder of this app's own: Soil watches it, and closes the notebook if the app dies. */
     private val owner = Binder()
@@ -125,14 +135,19 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             btnLasso = binding.btnLasso,
             btnPrevPage = binding.btnPrevPage,
             btnNextPage = binding.btnNextPage,
+            btnRecents = binding.btnRecents,
             title = binding.title,
             pageIndicator = binding.pageIndicator,
             penLevel = prefs.penLevel,
             onBack = { exit() },
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
             onNextPage = { runPageOp { flipTo(pageIndex() + 1) } },
-            onEraserReTap = { toggleEraserBar() },
-            onToolTapped = { hideEraserBar() },
+            onRecents = { showRecents() },
+            // A second tap on the armed pen toggles its shade panel; on the armed eraser, its
+            // sub-bar. Arming a different tool takes any bar with it.
+            onPenReTap = { if (paletteBar.isShowing) hidePaletteBar() else showPaletteBar() },
+            onEraserReTap = { hidePaletteBar(); toggleEraserBar() },
+            onToolTapped = { hideFloatingBars() },
         )
         eraserBar = EraserBar(
             root = binding.root,
@@ -140,8 +155,21 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             anchor = binding.btnEraser,
             bandBottom = { chromeBand()?.last },
             paper = paper,
-            onPicked = { hideEraserBar(); toolbar.arm(it) },
+            onPicked = { hideFloatingBars(); toolbar.arm(it) },
         )
+        paletteBar = PaletteBar(
+            root = binding.root,
+            bar = binding.paletteBar,
+            anchor = binding.btnPen,
+            bandBottom = { chromeBand()?.last },
+            paper = paper,
+            armedLevel = { prefs.penLevel },
+            onPicked = { level ->
+                prefs.penLevel = level
+                applyPenShade()
+            },
+        )
+        recents = RecentsPanel(this, onPick = ::switchTo)
         selectionBar = InkSelectionBar(
             root = binding.root,
             paperView = paper.asView(),
@@ -157,7 +185,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             bottomStrip = binding.bottomBar,
             extraRects = { floatingRects() },
             extraContains = { x, y -> floatingContains(x, y) },
-            blockAll = { !opened },
+            blockAll = { !opened || recentsShowing },
         )
         gestures = PageGestures(
             host = paper.asView(),
@@ -288,8 +316,144 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         override fun onInsertBefore() = runPageOp { doInsert(after = false) }
         override fun onUndo() = runPageOp { doUndo() }
         override fun onRedo() = runPageOp { doRedo() }
-        override fun onPageSheetRequested() = confirmDeletePage()
+        override fun onPageSheetRequested() = showPageSheet()
+        override fun onTwoFingerSwipeDown() = showRecents()
         override fun onFingerDoubleTap(x: Float, y: Float) = toggleChrome()
+    }
+
+    // ── The pen's shade ──────
+
+    /** Arm the pen with the device's shade: at open, at every resume, and after a pick. The
+     *  toolbar wears it and the collapsed chrome repaints from the toolbar's funnel. */
+    private fun applyPenShade() {
+        toolbar.applyShade(InkTones.tone(prefs.penLevel))
+        syncCollapsed()
+    }
+
+    /** Under the pen button, or under [anchor], the mini toolbar's own pen while the chrome is
+     *  collapsed. Not pen-idle gated: one chrome frame at a deliberate tap. */
+    private fun showPaletteBar(anchor: View? = null) {
+        if (!opened || closing) return
+        hideEraserBar()
+        val shown = if (anchor == null) paletteBar.show() else paletteBar.show(anchor)
+        if (shown) pushExclusions()
+    }
+
+    private fun hidePaletteBar() {
+        if (!::paletteBar.isInitialized || !paletteBar.isShowing) return
+        paletteBar.hide()
+        pushExclusions()
+    }
+
+    override fun hideFloatingBars() {
+        super.hideFloatingBars()
+        hidePaletteBar()
+    }
+
+    override fun onCollapsedClosing() {
+        if (::paletteBar.isInitialized) paletteBar.hide()
+    }
+
+    /** The shade panel's outside-tap dismissal: the pen button excluded (its re-tap toggles the
+     *  bar), and the collapsed rows it may hang under kept. */
+    override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
+        if (!::paletteBar.isInitialized || !paletteBar.isShowing) return
+        val x = ev.getX(index).toInt()
+        val y = ev.getY(index).toInt()
+        if (PaperToolbar.rectOf(binding.btnPen)?.contains(x, y) == true) return
+        if (paletteBar.contains(x, y)) return
+        if (collapsedContains(x, y)) return
+        hidePaletteBar()
+    }
+
+    override fun extraFloatingRects(): List<android.graphics.Rect> =
+        super.extraFloatingRects() + (if (::paletteBar.isInitialized) paletteBar.rects() else emptyList())
+
+    override fun extraFloatingContains(x: Int, y: Int): Boolean =
+        super.extraFloatingContains(x, y) || (::paletteBar.isInitialized && paletteBar.contains(x, y))
+
+    /** The mini toolbar's pen wears the shade too, and its re-tap hangs the panel under it. */
+    override fun collapsedPenIcon(): (() -> CollapsedChrome.PenIcon) = {
+        val ink = toolbar.penInk
+        CollapsedChrome.PenIcon(ink) { ShadeIcon.pen(this, ink) }
+    }
+
+    override fun collapsedPenReTap(): ((anchor: View) -> Unit) =
+        { anchor -> if (paletteBar.isShowing) hidePaletteBar() else showPaletteBar(anchor) }
+
+    // ── Recents ──────
+
+    /** The notebooks opened recently, from Soil, this one left out; the panel blocks ink. */
+    private fun showRecents() {
+        if (!opened || closing || recentsShowing) return
+        recentsShowing = true
+        hideFloatingBars()
+        dismissCollapsed()
+        paper.releaseRender()
+        val me = itemId
+        lifecycleScope.launch {
+            val items = withContext(Dispatchers.IO) {
+                runCatching { (application as NotesproutApp).soil.seam().recentItems(NotebookSchema.KIND, RECENTS_LIMIT) }
+                    .getOrDefault(emptyList())
+                    .filter { it.id != me }
+            }
+            if (isFinishing || isDestroyed || closing) { recentsShowing = false; return@launch }
+            pushExclusions()
+            recents.show(items) { recentsShowing = false; pushExclusions() }
+        }
+    }
+
+    /** The panel is a snapshot: the notebook is checked against Soil first. Then the box goes
+     *  up, and the switch is a new ask of this screen ([onNewIntent]). */
+    private fun switchTo(item: SeamItem) {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            val alive = withContext(Dispatchers.IO) {
+                runCatching { (application as NotesproutApp).soil.seam().item(item.id) != null }.getOrDefault(false)
+            }
+            if (!alive) {
+                Dialogs.problem(this@NotebookActivity, R.string.recents_gone_title, R.string.recents_gone_body)
+                return@launch
+            }
+            binding.openingOverlay.visibility = View.VISIBLE
+            startActivity(
+                android.content.Intent(this@NotebookActivity, NotebookActivity::class.java)
+                    .setAction(Seam.ACTION_OPEN_ITEM)
+                    .putExtra(Seam.EXTRA_ITEM_ID, item.id),
+            )
+        }
+    }
+
+    // ── The page sheet ──────
+
+    /** A long press asks; it never acts. What can be done with this page. */
+    private fun showPageSheet() {
+        if (!opened || closing) return
+        paper.releaseRender()
+        ActionSheetDialog(this)
+            .title(getString(R.string.page_sheet_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_erase_page, getString(R.string.page_sheet_erase)) { confirmErasePage() }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
+            .show()
+    }
+
+    private fun confirmErasePage() {
+        if (!opened || closing) return
+        Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(R.string.erase_page_title)
+                .setPositiveButton(R.string.erase_confirm) { _, _ -> runPageOp { doErase() } }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .create(),
+        ).show()
+    }
+
+    /** An empty page's erase is silent: nothing recorded, nothing repainted. */
+    private suspend fun doErase() {
+        val doc = document ?: return
+        val erased = doc.eraseCurrent() ?: return
+        undo.record(erased)
+        showPage()
     }
 
     private fun pageIndex(): Int = document?.pageIndex ?: 0
@@ -320,7 +484,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         selectionActive = false
         currentSelection = null
         selectionBar.hide()
-        hideEraserBar()
+        hideFloatingBars()
         dismissCollapsed()
         if (!firstLoad) paper.clearForContentSwap()
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
@@ -331,7 +495,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     private fun confirmDeletePage() {
         if (!opened || closing) return
-        paper.releaseRender()
         Dialogs.style(
             AlertDialog.Builder(this)
                 .setTitle(R.string.delete_page_title)
@@ -358,6 +521,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     override fun onResume() {
         super.onResume()
+        // The shade is device-wide: another screen may have picked since.
+        if (::toolbar.isInitialized) applyPenShade()
         (application as NotesproutApp).front(this)
     }
 
@@ -390,6 +555,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     override fun onScreenDestroyed() {
         super.onScreenDestroyed()
+        if (::recents.isInitialized) recents.dismiss()
         val open = session ?: return
         session = null
         appScope.launch(Dispatchers.IO + NonCancellable) {
@@ -400,6 +566,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     companion object {
         private const val TAG = "NotebookActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
+        private const val RECENTS_LIMIT = 20
 
         /** Outlives the screen, so a park or a close in flight always completes. */
         private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

@@ -66,6 +66,12 @@ class SoilSeamService : Service() {
             IndexStore().aliveItems(kind).map(::seamItem)
         }
 
+        override fun recentItems(kind: String, limit: Int): List<SeamItem> = answered {
+            require(SeamSchema.isValidKind(kind)) { "not a kind" }
+            require(limit in 1..200) { "a limit is 1..200" }
+            IndexStore().recentItems(kind, limit).map(::seamItem)
+        }
+
         override fun item(itemId: String): SeamItem? = answered {
             IndexStore().aliveItem(itemId)?.let(::seamItem)
         }
@@ -93,6 +99,7 @@ class SoilSeamService : Service() {
             val item = IndexStore().aliveItem(itemId) ?: throw IllegalStateException(NO_SUCH_ITEM)
             // An app opens items of its own kind and no other.
             check(item.kind == schema.kind) { "the item is of another kind" }
+            runCatching { IndexStore().markOpened(itemId, System.currentTimeMillis()) }
             val holder = try {
                 ItemSessions.join(this@SoilSeamService, itemId, schema)
             } catch (e: ItemRefused) {

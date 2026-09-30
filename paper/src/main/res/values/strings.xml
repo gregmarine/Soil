@@ -16,4 +16,9 @@
     <string name="tool_smudge">Smudge</string>
     <string name="tool_lasso">Lasso</string>
 
+
+    <!-- The shade panel -->
+    <string name="cd_shade_black">Black</string>
+    <string name="cd_shade_white">White</string>
+    <string name="cd_shade">Grey %1$d</string>
 </resources>

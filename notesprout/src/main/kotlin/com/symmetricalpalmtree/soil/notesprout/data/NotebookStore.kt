@@ -124,6 +124,23 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         Triple(next, landing, under)
     }
 
+    /** Everything alive under [pageId], soft-deleted. The page stays. Answers what went. */
+    fun erasePage(pageId: String): List<String> = guard {
+        val now = System.currentTimeMillis()
+        val under = store.query(NotebookSql.selectLiveDescendantIds(pageId)).rows.map { it.text("id") }
+        if (under.isNotEmpty()) run(under.map { NotebookSql.softDelete(it, now) })
+        under
+    }
+
+    fun restoreIds(ids: List<String>) {
+        if (ids.isNotEmpty()) execAll(ids.map { NotebookSql.restore(it) })
+    }
+
+    fun softDeleteIds(ids: List<String>) {
+        val now = System.currentTimeMillis()
+        if (ids.isNotEmpty()) execAll(ids.map { NotebookSql.softDelete(it, now) })
+    }
+
     /**
      * Make the live page set exactly [target], in that order, restore and delete the given
      * content ids with it, and land on [currentId]. The one primitive behind both directions of

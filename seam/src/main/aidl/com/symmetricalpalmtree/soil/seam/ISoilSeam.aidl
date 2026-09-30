@@ -38,6 +38,9 @@ interface ISoilSeam {
     /** Every item of a kind that has not been deleted, newest first. */
     List<SeamItem> listItems(String kind);
 
+    /** The items of a kind opened most recently, latest first, at most limit of them. */
+    List<SeamItem> recentItems(String kind, int limit);
+
     /** One item, or null when there is none alive by that id. */
     SeamItem item(String itemId);
 

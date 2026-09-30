@@ -11,6 +11,17 @@
     <string name="cd_next_page">Next page</string>
     <string name="collapsed_tools">Tools</string>
     <string name="page_indicator">%1$d / %2$d</string>
+    <string name="cd_recents">Recent notebooks</string>
+    <string name="recents_title">Recent notebooks</string>
+    <string name="recents_empty">No recent notebooks.</string>
+    <string name="recents_row_detail">%1$s, %2$s</string>
+    <string name="recents_gone_title">Can\'t open that notebook</string>
+    <string name="recents_gone_body">It is no longer in the library.</string>
+    <string name="page_sheet_title">This page</string>
+    <string name="page_sheet_erase">Erase page</string>
+    <string name="page_sheet_delete">Delete</string>
+    <string name="erase_page_title">Erase this page?</string>
+    <string name="erase_confirm">Erase</string>
     <string name="delete_page_title">Delete this page?</string>
     <string name="delete_confirm">Delete</string>
     <string name="delete_selection_action">Delete selection</string>

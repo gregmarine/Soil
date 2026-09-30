@@ -209,6 +209,10 @@ abstract class PaperScreenActivity : AppCompatActivity() {
 
     /** Both of the corner button's rows down. Idempotent, and safe before the chrome is built —
      *  every page swap and every exit calls it beside [hideEraserBar], for the same reason. */
+    /** Whether ([x], [y]) lands on the corner button or its rows. */
+    protected fun collapsedContains(x: Int, y: Int): Boolean =
+        ::collapsed.isInitialized && collapsed.contains(x, y)
+
     protected fun dismissCollapsed() {
         if (::collapsed.isInitialized) collapsed.dismiss()
     }
@@ -226,6 +230,17 @@ abstract class PaperScreenActivity : AppCompatActivity() {
     // ── The eraser sub-bar (arc 29 / LE3) ────────────────────────────────────
 
     /** A second tap on the armed eraser opens the sub-bar; a third closes it — the notebook's toggle. */
+    /**
+     * Every floating bar down: the eraser's sub-bar, and whatever a screen hangs of its own (the
+     * shade panel). Called before the chrome flips and as the collapsed rows open.
+     */
+    protected open fun hideFloatingBars() {
+        hideEraserBar()
+    }
+
+    /** A contact landed: a screen closes any floating bar of its own that it is outside of. */
+    protected open fun dismissFloatingOnContact(ev: MotionEvent, index: Int) {}
+
     protected fun toggleEraserBar() {
         if (::eraserBar.isInitialized && eraserBar.isShowing) hideEraserBar() else showEraserBar()
     }
@@ -305,7 +320,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             paper = paper,
             root = root,
             bars = listOfNotNull(topBarView, bottomBarView),
-            beforeHide = { hideEraserBar() },
+            beforeHide = { hideFloatingBars() },
             afterLayout = { pushExclusions() },
             onChanged = { onChromeChanged(it) },
             // Arc 36 / C2: the corner button lives exactly as long as the bars do not, and the
@@ -345,7 +360,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             overflow = collapsedOverflow(),
             // The eraser's own sub-bar is the one other thing that could be up: it belongs to the
             // bar's eraser button, which is not on the glass while the rows are.
-            onOpen = { hideEraserBar() },
+            onOpen = { hideFloatingBars() },
             // Arc 44 / T3: a sub-bar the screen hung off the rows goes down with them, before the
             // one exclusion push — a close stays one binder call.
             onClose = { onCollapsedClosing() },
@@ -418,6 +433,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         // arrives as ACTION_POINTER_DOWN (the notebook's O2 finding).
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
             dismissEraserBarOnContact(ev, ev.actionIndex)
+            dismissFloatingOnContact(ev, ev.actionIndex)
             dismissCollapsedOnContact(ev, ev.actionIndex)
         }
         if (::chrome.isInitialized && action == MotionEvent.ACTION_DOWN) {

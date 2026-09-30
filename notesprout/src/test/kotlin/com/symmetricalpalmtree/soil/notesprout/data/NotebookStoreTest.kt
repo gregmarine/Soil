@@ -76,6 +76,20 @@ class NotebookStoreTest {
     }
 
     @Test
+    fun `erase page takes what is under the page and leaves the page`() {
+        rows.pages = listOf(page("a", "s1", "s2"))
+        assertEquals(listOf("s1", "s2"), store.erasePage("a"))
+        val sql = rows.sql()
+        assertEquals(2, sql.size)
+        assertTrue(sql.all { it.contains("deletedAt = ?") })
+        assertTrue(rows.statements.none { (it.args[1] as com.symmetricalpalmtree.soil.paper.store.Cell.Text).value == "a" })
+        // An empty page's erase writes nothing.
+        rows.pages = listOf(page("b"))
+        assertTrue(store.erasePage("b").isEmpty())
+        assertEquals(2, rows.sql().size)
+    }
+
+    @Test
     fun `reconcile restores in place, deletes what is not wanted, and orders the rest`() {
         val a = PageRef("a", 1f, 1f, "")
         val b = PageRef("b", 1f, 1f, "")

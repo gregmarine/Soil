@@ -43,5 +43,11 @@ object IndexSchema {
         """ALTER TABLE item ADD COLUMN pageCount INTEGER NOT NULL DEFAULT 0;""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2))
+    /** When the item was last opened, so the Recents can be answered without a store of their
+     *  own. Null for an item never opened. */
+    private val V3 = listOf(
+        """ALTER TABLE item ADD COLUMN openedAt INTEGER;""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3))
 }

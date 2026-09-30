@@ -80,6 +80,16 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         return NotebookAction.Page(before, next, taken, victim.id, landing.id)
     }
 
+    /** Everything on the page goes; the page stays. Null when the page was empty. */
+    suspend fun eraseCurrent(): NotebookAction.PageErased? {
+        flushUntilClean()
+        val page = current ?: return null
+        val gone = withContext(Dispatchers.IO) { store.erasePage(page.id) }
+        if (gone.isEmpty()) return null
+        applyPage(page, com.symmetricalpalmtree.soil.paper.ink.PageInk(page.width, page.height, emptyList()))
+        return NotebookAction.PageErased(page.id, gone)
+    }
+
     // ── Mutations (Main, synchronous) ──────
 
     override fun addStroke(stroke: Stroke) = ink.addStroke(stroke)
@@ -104,6 +114,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
                 flushUntilClean()
             }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
+            is NotebookAction.PageErased -> {
+                if (!goToLiving(a.pageId)) return
+                flushUntilClean()
+                withContext(Dispatchers.IO) { store.restoreIds(a.ids) }
+                reloadCurrent()
+            }
         }
     }
 
@@ -115,7 +131,19 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
                 flushUntilClean()
             }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
+            is NotebookAction.PageErased -> {
+                if (!goToLiving(a.pageId)) return
+                flushUntilClean()
+                withContext(Dispatchers.IO) { store.softDeleteIds(a.ids) }
+                reloadCurrent()
+            }
         }
+    }
+
+    /** The page showing, read again: its ink has just changed underneath. */
+    private suspend fun reloadCurrent() {
+        val page = current ?: return
+        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) })
     }
 
     private suspend fun goToLiving(id: String): Boolean {
