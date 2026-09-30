@@ -21,7 +21,6 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *
  * - **H** on a lone heading: the H1–H6 sub-bar picks its level. (On ink it will convert the ink,
  *   once recognition arrives.)
- * - **Transform** on a lone shape: the engine's handles and rotate knob.
  * - **Delete** on anything.
  */
 class ObjectSelectionBar(
@@ -32,12 +31,10 @@ class ObjectSelectionBar(
     private val band: () -> IntRange?,
     private val releaseRender: () -> Unit,
     private val onLevelPicked: (Int) -> Unit,
-    private val onTransform: () -> Unit,
     private val onDelete: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
-    private val transformButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -46,9 +43,7 @@ class ObjectSelectionBar(
     init {
         val ctx = bar.context
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
-        transformButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_resize, ctx.getString(R.string.selection_transform)) { onTransform() }
         bar.addView(headingButton)
-        bar.addView(transformButton)
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, ctx.getString(R.string.delete_selection_action)) { onDelete() })
         val icons = listOf(
             com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_1, com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_2,
@@ -63,7 +58,6 @@ class ObjectSelectionBar(
     fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?) {
         val band = band() ?: return
         headingButton.visibility = if (mode == SelectionMode.HEADING) View.VISIBLE else View.GONE
-        transformButton.visibility = if (mode == SelectionMode.SHAPE) View.VISIBLE else View.GONE
         subBar.visibility = View.GONE
         levelButtons.forEachIndexed { i, b -> b.isSelected = (i + 1) == currentLevel }
 

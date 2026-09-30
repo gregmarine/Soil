@@ -5,7 +5,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import com.symmetricalpalmtree.soil.notesprout.R
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeType
 import com.symmetricalpalmtree.soil.paper.chrome.AnchoredBar
 
 /**
@@ -22,8 +21,9 @@ class InsertBar(
     private val releaseRender: () -> Unit,
     private val onInsert: (Kind) -> Unit,
 ) {
-    /** The buttons' order is this order; a new kind is appended, never inserted. */
-    enum class Kind { HEADING, TEXT, STICKY, RECTANGLE, ELLIPSE, TRIANGLE, LINE, ARROW, STAR }
+    /** The buttons' order is this order; a new kind is appended, never inserted. The shapes were
+     *  set aside on 2026-09-30 (BACKLOG.md). */
+    enum class Kind { HEADING, TEXT, STICKY }
 
     private val bar = AnchoredBar(root, bar, anchor, bandBottom)
 
@@ -40,38 +40,16 @@ class InsertBar(
     fun contains(x: Int, y: Int): Boolean = bar.contains(x, y)
 
     companion object {
-        fun shapeType(kind: Kind): ShapeType? = when (kind) {
-            Kind.HEADING, Kind.TEXT, Kind.STICKY -> null
-            Kind.RECTANGLE -> ShapeType.RECTANGLE
-            Kind.ELLIPSE -> ShapeType.ELLIPSE
-            Kind.TRIANGLE -> ShapeType.TRIANGLE
-            Kind.LINE -> ShapeType.LINE
-            Kind.ARROW -> ShapeType.ARROW
-            Kind.STAR -> ShapeType.STAR
-        }
-
         private fun iconOf(kind: Kind): Int = when (kind) {
             Kind.HEADING -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading
             Kind.TEXT -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_text_recognition
             Kind.STICKY -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2
-            Kind.RECTANGLE -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_rectangle
-            Kind.ELLIPSE -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_ellipse
-            Kind.TRIANGLE -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_triangle
-            Kind.LINE -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_line
-            Kind.ARROW -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_arrow
-            Kind.STAR -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_shape_star
         }
 
         private fun hintOf(kind: Kind): Int = when (kind) {
             Kind.HEADING -> R.string.insert_heading
             Kind.TEXT -> R.string.insert_text
             Kind.STICKY -> R.string.insert_sticky
-            Kind.RECTANGLE -> R.string.insert_rectangle
-            Kind.ELLIPSE -> R.string.insert_ellipse
-            Kind.TRIANGLE -> R.string.insert_triangle
-            Kind.LINE -> R.string.insert_line
-            Kind.ARROW -> R.string.insert_arrow
-            Kind.STAR -> R.string.insert_star
         }
     }
 }

@@ -17,7 +17,6 @@ import com.symmetricalpalmtree.gpaper.core.PaperListener
 import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.gpaper.core.model.Bounds
-import com.symmetricalpalmtree.gpaper.core.model.OrientedBox
 import com.symmetricalpalmtree.gpaper.core.model.Selection
 import com.symmetricalpalmtree.gpaper.core.model.SelectionMove
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
@@ -32,15 +31,11 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.objects.FreePlacement
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
 import com.symmetricalpalmtree.soil.notesprout.objects.OutlineTree
-import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.notesprout.objects.SelectionMode
 import com.symmetricalpalmtree.soil.notesprout.objects.SelectionModes
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeBox
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeDefaults
 import com.symmetricalpalmtree.soil.notesprout.objects.ShapeGeometry
-import com.symmetricalpalmtree.soil.notesprout.objects.ShapeType
 import com.symmetricalpalmtree.soil.notesprout.objects.StickyDefaults
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
 import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBinding
@@ -97,7 +92,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private lateinit var paletteBar: PaletteBar
     private lateinit var insertBar: InsertBar
     private lateinit var objectBar: ObjectSelectionBar
-    private lateinit var transformBar: ShapeTransformBar
     private lateinit var recents: RecentsPanel
     private lateinit var contents: ContentsPanel
     private lateinit var prefs: NotebookPrefs
@@ -115,11 +109,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     /** A selection to land inside the next dismissal, so a smart-lasso session stays alive. */
     private var pendingSelection: (() -> Unit)? = null
-
-    /** The transform in flight: the shape as it began and its live working copy. */
-    private var transformBegan: PageShape? = null
-    private var transformWorking: PageShape? = null
-    private var transformDone = false
 
     /** The sticky editor showing: the note, and whether this is its first showing after an insert. */
     private var stickyInFlight: Pair<String, Boolean>? = null
@@ -248,14 +237,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             root = binding.root, paperView = paper.asView(), bar = binding.selectionToolbar, subBar = binding.selectionSubBar,
             band = { chromeBand() }, releaseRender = { paper.releaseRender() },
             onLevelPicked = ::setHeadingLevel,
-            onTransform = { currentSelection?.contentIds?.singleOrNull()?.let { beginTransform(it) } },
             onDelete = { currentSelection?.let { deleteSelected(it) } },
-        )
-        transformBar = ShapeTransformBar(
-            root = binding.root, paperView = paper.asView(), bar = binding.transformBar, band = { chromeBand() },
-            releaseRender = { paper.releaseRender() },
-            onToggleLock = ::toggleAspectLock,
-            onDone = { if (transformWorking != null) { transformDone = true; paper.endTransform() } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -273,8 +255,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         gestures = PageGestures(
             host = paper.asView(),
             isPenActive = { paper.isPenActive },
-            // The engine claims finger input while a selection or a transform is up.
-            standDown = { selectionActive || paper.transformingContentId != null },
+            standDown = { selectionActive },
             overChrome = { chrome.overChrome(it) },
             listener = gestureListener,
         )
@@ -482,17 +463,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             doc.texts[id]?.let { editText(it) }
         }
 
-        override fun onTransformChanged(contentId: String, box: OrientedBox) {
-            val current = transformWorking ?: return
-            if (contentId != current.id) return
-            val next = ShapeBox.applied(current, box)
-            transformWorking = next
-            // The working copy only: the engine repaints the live shape itself.
-            document?.putShapeWorking(next)
-            if (transformBar.coveredBy(next)) transformBar.show(next)
-        }
-
-        override fun onTransformEnded(contentId: String, before: OrientedBox, after: OrientedBox) = transformEnded(contentId, after)
     }
 
     /** Hand the working copies to the renderers. The repaint is the caller's. */
@@ -611,7 +581,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             InsertBar.Kind.HEADING -> ObjectDialogs.heading(this, "", onSave = { words -> if (words.isNotEmpty()) insertHeading(words) })
             InsertBar.Kind.TEXT -> ObjectDialogs.text(this, "", onSave = { source -> if (source.isNotEmpty()) insertText(source) })
             InsertBar.Kind.STICKY -> insertSticky()
-            else -> InsertBar.shapeType(kind)?.let { insertShape(it) }
         }
     }
 
@@ -642,21 +611,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             val text = doc.createText(PageText(UUID.randomUUID().toString(), source, x, y, w, h, 0))
             undo.record(NotebookAction.TextCreated(pageId, text))
             selectObject(text.id, text.bounds)
-            paper.notifyContentChanged()
-        }
-    }
-
-    private fun insertShape(type: ShapeType) {
-        val doc = document ?: return
-        val pageId = doc.pageId
-        val built = ShapeDefaults.at(UUID.randomUUID().toString(), type, doc.pageWidth, doc.pageHeight, density)
-        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, built.width, built.height, occupied(), density)
-        val placed = built.copy(cx = x + built.width / 2f, cy = y + built.height / 2f)
-        runPageOp {
-            if (doc.pageId != pageId) return@runPageOp
-            val shape = doc.createShape(placed)
-            undo.record(NotebookAction.ShapeInserted(pageId, shape))
-            selectObject(shape.id, ShapeGeometry.aabb(shape, density))
             paper.notifyContentChanged()
         }
     }
@@ -753,69 +707,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         })
     }
 
-    // ── Shapes: the engine's transform mode ──────
-
-    private fun beginTransform(shapeId: String) {
-        if (!opened || closing) return
-        val shape = document?.shapes?.get(shapeId) ?: return
-        armLassoForLanding()
-        transformBegan = shape
-        transformWorking = shape
-        transformDone = false
-        // `beginTransform` dismisses the selection without `onSelectionDismissed`.
-        selectionActive = false
-        currentSelection = null
-        objectBar.hide()
-        paper.beginTransform(shape.id, ShapeBox.toBox(shape), shape.aspectLocked, minSizePx = ShapeDefaults.MIN_SIZE_DP * density)
-        if (paper.transformingContentId != shape.id) {
-            transformBegan = null
-            transformWorking = null
-            selectObject(shape.id, ShapeGeometry.aabb(shape, density))
-            return
-        }
-        transformBar.show(shape)
-        pushExclusions()
-    }
-
-    private fun toggleAspectLock() {
-        val current = transformWorking ?: return
-        val next = current.copy(aspectLocked = !current.aspectLocked)
-        transformWorking = next
-        paper.setTransformAspectLocked(next.aspectLocked)
-        transformBar.relabel(next)
-    }
-
-    private fun endTransformIfRunning() {
-        if (paper.transformingContentId != null) paper.endTransform()
-    }
-
-    /** The one teardown; it fires on every exit, Done included. */
-    private fun transformEnded(contentId: String, after: OrientedBox) {
-        val before = transformBegan
-        val live = transformWorking
-        val done = transformDone
-        transformBegan = null
-        transformWorking = null
-        transformDone = false
-        transformBar.hide()
-        pushExclusions()
-        val doc = document
-        if (before == null || contentId != before.id || doc == null) return
-        val afterShape = ShapeBox.applied(before.copy(aspectLocked = live?.aspectLocked ?: before.aspectLocked), after)
-        val changed = afterShape != before
-        if (!done) restoreToolAfterLanding()
-        runPageOp {
-            if (changed) {
-                doc.updateShape(afterShape)
-                undo.record(NotebookAction.ShapeTransformed(doc.pageId, before, afterShape))
-            } else {
-                doc.putShapeWorking(before)
-            }
-            if (done) selectObject(afterShape.id, ShapeGeometry.aabb(afterShape, density))
-            paper.notifyContentChanged()
-        }
-    }
-
     // ── Sticky notes ──────
 
     /** A finger tap on a sticky icon opens the note; the topmost one under the finger. */
@@ -840,7 +731,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 StickyEditorTransfer.stage(StickyEditorTransfer.Showing(store = requireNotNull(storeOf(doc)), pageId = pageId, stickyId = stickyId, contentW = sticky.contentW, contentH = sticky.contentH, initial = initial))
                 hideFloatingBars()
                 dismissCollapsed()
-                endTransformIfRunning()
                 inAppHandoff = true
                 paper.releaseForHandoff()
                 editorLauncher.launch(StickyEditorActivity.intent(this@NotebookActivity))
@@ -971,15 +861,13 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         super.extraFloatingRects() +
             (if (::paletteBar.isInitialized) paletteBar.rects() else emptyList()) +
             (if (::insertBar.isInitialized) insertBar.rects() else emptyList()) +
-            (if (::objectBar.isInitialized) objectBar.rects() else emptyList()) +
-            (if (::transformBar.isInitialized) transformBar.rects() else emptyList())
+            (if (::objectBar.isInitialized) objectBar.rects() else emptyList())
 
     override fun extraFloatingContains(x: Int, y: Int): Boolean =
         super.extraFloatingContains(x, y) ||
             (::paletteBar.isInitialized && paletteBar.contains(x, y)) ||
             (::insertBar.isInitialized && insertBar.contains(x, y)) ||
-            (::objectBar.isInitialized && objectBar.contains(x, y)) ||
-            (::transformBar.isInitialized && transformBar.contains(x, y))
+            (::objectBar.isInitialized && objectBar.contains(x, y))
 
     /** The corner button's overflow row: Back, and Insert, whose bar hangs under the row's own button. */
     override fun collapsedOverflow(): List<CollapsedChrome.Entry> = listOfNotNull(
@@ -1101,7 +989,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         selectionBar.hide()
         hideFloatingBars()
         dismissCollapsed()
-        endTransformIfRunning()
         if (!firstLoad) paper.clearForContentSwap()
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
         paper.setTemplate(null)   // the paper library arrives later

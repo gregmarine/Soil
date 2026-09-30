@@ -90,3 +90,11 @@ complete on BOOX. Two things are already known:
 
 - The side bars are Supernote hardware. Elsewhere Soil runs as an ordinary app without the shell.
 - Separate installs let each device carry only the apps it can support.
+
+## Shapes in a notebook
+
+Set aside 2026-09-30, during Notesprout's phase 4. SN's six shapes (rectangle, ellipse, triangle,
+line, arrow, star) and the engine's transform mode were built and walked, and Greg asked for the
+tools to go, at least for now. The `shape` row type, its reading, rendering, selection and delete
+stay, so a file that holds one still shows it; only the Insert bar's shapes and the Transform button
+are gone. Bringing them back is the Insert kinds and the transform bar, in git history at `1e8d78d`.

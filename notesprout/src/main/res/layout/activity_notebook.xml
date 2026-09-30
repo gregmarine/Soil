@@ -201,18 +201,6 @@
         android:padding="4dp"
         android:visibility="gone" />
 
-    <!-- The shape transform bar: the aspect latch and Done, beside a shape under the engine's
-         handles. -->
-    <LinearLayout
-        android:id="@+id/transformBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
-        android:padding="4dp"
-        android:visibility="gone" />
-
     <!-- The Insert button's sub-bar. -->
     <LinearLayout
         android:id="@+id/insertBar"
