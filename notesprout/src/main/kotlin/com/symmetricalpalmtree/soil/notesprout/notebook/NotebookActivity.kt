@@ -1,5 +1,6 @@
 package com.symmetricalpalmtree.soil.notesprout.notebook
 
+import android.graphics.drawable.Drawable
 import android.os.Binder
 import android.os.Bundle
 import android.util.Log
@@ -8,10 +9,19 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
+import com.symmetricalpalmtree.gpaper.core.PaperListener
 import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
+import com.symmetricalpalmtree.gpaper.core.model.Bounds
+import com.symmetricalpalmtree.gpaper.core.model.OrientedBox
+import com.symmetricalpalmtree.gpaper.core.model.Selection
+import com.symmetricalpalmtree.gpaper.core.model.SelectionMove
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
+import com.symmetricalpalmtree.soil.markdown.HeadingPrefix
 import com.symmetricalpalmtree.soil.notesprout.NotesproutApp
 import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookAction
@@ -19,6 +29,20 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookDocument
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
+import com.symmetricalpalmtree.soil.notesprout.objects.FreePlacement
+import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.OutlineTree
+import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
+import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
+import com.symmetricalpalmtree.soil.notesprout.objects.PageText
+import com.symmetricalpalmtree.soil.notesprout.objects.SelectionMode
+import com.symmetricalpalmtree.soil.notesprout.objects.SelectionModes
+import com.symmetricalpalmtree.soil.notesprout.objects.ShapeBox
+import com.symmetricalpalmtree.soil.notesprout.objects.ShapeDefaults
+import com.symmetricalpalmtree.soil.notesprout.objects.ShapeGeometry
+import com.symmetricalpalmtree.soil.notesprout.objects.ShapeType
+import com.symmetricalpalmtree.soil.notesprout.objects.StickyDefaults
+import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
 import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBinding
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
@@ -51,6 +75,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
  * **The notebook.** A full screen of paper, opened by Soil with a notebook's id, or with the name
@@ -70,10 +95,42 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private lateinit var binding: ActivityNotebookBinding
     private lateinit var toolbar: NotebookToolbar
     private lateinit var paletteBar: PaletteBar
+    private lateinit var insertBar: InsertBar
+    private lateinit var objectBar: ObjectSelectionBar
+    private lateinit var transformBar: ShapeTransformBar
     private lateinit var recents: RecentsPanel
+    private lateinit var contents: ContentsPanel
     private lateinit var prefs: NotebookPrefs
+    private lateinit var headingRenderer: HeadingRenderer
+    private lateinit var textRenderer: TextRenderer
+    private lateinit var shapeRenderer: ShapeRenderer
+    private lateinit var stickyRenderer: StickyRenderer
     private var document: NotebookDocument? = null
     private var recentsShowing = false
+    private var contentsShowing = false
+    private var contentsAvailable = false
+
+    /** The tool armed before a landing took the lasso; put back at the selection's dismissal. */
+    private var toolBeforeLanding: Tool? = null
+
+    /** A selection to land inside the next dismissal, so a smart-lasso session stays alive. */
+    private var pendingSelection: (() -> Unit)? = null
+
+    /** The transform in flight: the shape as it began and its live working copy. */
+    private var transformBegan: PageShape? = null
+    private var transformWorking: PageShape? = null
+    private var transformDone = false
+
+    /** The sticky editor showing: the note, and whether this is its first showing after an insert. */
+    private var stickyInFlight: Pair<String, Boolean>? = null
+
+    /** True between launching an in-app paper screen and its return: the session is not parked. */
+    private var inAppHandoff = false
+
+    private val density: Float get() = resources.displayMetrics.density
+    private val scaledDensity: Float get() = resources.displayMetrics.scaledDensity
+
+    private val editorLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onEditorClosed() }
 
     /** Any binder of this app's own: Soil watches it, and closes the notebook if the app dies. */
     private val owner = Binder()
@@ -123,7 +180,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         paper.smartLassoEnabled = true
         paper.scribbleEraseEnabled = true
         paper.directInk = true
-        paper.setPaperListener(paperListener)
+        paper.setPaperListener(notebookListener)
+        // Draw order is registration order, below the ink: headings · texts · shapes · stickies.
+        headingRenderer = HeadingRenderer(density, scaledDensity)
+        textRenderer = TextRenderer(density, scaledDensity)
+        shapeRenderer = ShapeRenderer(density)
+        stickyRenderer = StickyRenderer(checkNotNull(AppCompatResources.getDrawable(this, com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2)).mutate())
+        paper.addContentRenderer(headingRenderer)
+        paper.addContentRenderer(textRenderer)
+        paper.addContentRenderer(shapeRenderer)
+        paper.addContentRenderer(stickyRenderer)
 
         toolbar = NotebookToolbar(
             paper = paper,
@@ -170,14 +236,31 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             },
         )
         recents = RecentsPanel(this, onPick = ::switchTo)
-        selectionBar = InkSelectionBar(
-            root = binding.root,
-            paperView = paper.asView(),
-            bar = binding.selectionToolbar,
-            band = { chromeBand() },
+        contents = ContentsPanel(this, onPick = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } })
+        insertBar = InsertBar(
+            root = binding.root, bar = binding.insertBar, anchor = binding.btnInsert, bandBottom = { chromeBand()?.last },
             releaseRender = { paper.releaseRender() },
-            deleteHint = getString(R.string.delete_selection_action),
-            onDelete = { currentSelection?.let { deleteSelection(it) } },
+            onInsert = { kind -> hideInsertBar(); insert(kind) },
+        )
+        binding.btnInsert.setOnClickListener { paper.releaseRender(); if (insertBar.isShowing) hideInsertBar() else showInsertBar() }
+        binding.btnContents.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); showContents() }
+        objectBar = ObjectSelectionBar(
+            root = binding.root, paperView = paper.asView(), bar = binding.selectionToolbar, subBar = binding.selectionSubBar,
+            band = { chromeBand() }, releaseRender = { paper.releaseRender() },
+            onLevelPicked = ::setHeadingLevel,
+            onTransform = { currentSelection?.contentIds?.singleOrNull()?.let { beginTransform(it) } },
+            onDelete = { currentSelection?.let { deleteSelected(it) } },
+        )
+        transformBar = ShapeTransformBar(
+            root = binding.root, paperView = paper.asView(), bar = binding.transformBar, band = { chromeBand() },
+            releaseRender = { paper.releaseRender() },
+            onToggleLock = ::toggleAspectLock,
+            onDone = { if (transformWorking != null) { transformDone = true; paper.endTransform() } },
+        )
+        // The base's own bar is never shown here: the notebook's selection bar knows objects.
+        selectionBar = InkSelectionBar(
+            root = binding.root, paperView = paper.asView(), bar = LinearLayout(this), band = { chromeBand() },
+            releaseRender = {}, deleteHint = "", onDelete = {},
         )
         chrome = PaperChrome(
             paper = paper,
@@ -185,12 +268,13 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             bottomStrip = binding.bottomBar,
             extraRects = { floatingRects() },
             extraContains = { x, y -> floatingContains(x, y) },
-            blockAll = { !opened || recentsShowing },
+            blockAll = { !opened || recentsShowing || contentsShowing },
         )
         gestures = PageGestures(
             host = paper.asView(),
             isPenActive = { paper.isPenActive },
-            standDown = { selectionActive },
+            // The engine claims finger input while a selection or a transform is up.
+            standDown = { selectionActive || paper.transformingContentId != null },
             overChrome = { chrome.overChrome(it) },
             listener = gestureListener,
         )
@@ -249,6 +333,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 session = opened
                 itemId = item.id
                 val store = NotebookStore(SeamRowStore(opened), item.id)
+                storeRef = store
                 val loaded = if (!newName.isNullOrBlank()) {
                     store.initialize(item.name, w, h).also { seam.setPageCount(item.id, 1) }
                 } else {
@@ -257,6 +342,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPageCount(item.id, pages) } }
                 }
+                document.onObjectsChanged = ::syncRenderers
+                document.measureHeading = { h -> HeadingRenderer.measure(h.text, density, scaledDensity).let { (w, hh) -> if (w == h.width && hh == h.height) h else h.copy(width = w, height = hh) } }
+                document.measureText = { t, pageW -> TextRenderer.measure(t.text, (pageW - t.x).toInt(), density, scaledDensity).let { (w, hh) -> if (w == t.width && hh == t.height) t else t.copy(width = w, height = hh) } }
                 document.load(loaded)
                 prefs.lastNotebookId = item.id
                 document to item.name
@@ -285,6 +373,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
         binding.openingOverlay.visibility = View.GONE
+        refreshContents()
         Slog.d(TAG) { "opened: ${doc.first.pageCount} pages" }
     }
 
@@ -318,7 +407,508 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         override fun onRedo() = runPageOp { doRedo() }
         override fun onPageSheetRequested() = showPageSheet()
         override fun onTwoFingerSwipeDown() = showRecents()
+        override fun onSwipeDown() = showContents()
+        override fun onFingerTap(x: Float, y: Float) { openStickyAt(x, y) }
         override fun onFingerDoubleTap(x: Float, y: Float) = toggleChrome()
+    }
+
+    // ── The paper's callbacks: ink to the base, objects here ──────
+
+    private val notebookListener = object : PaperListener {
+        override fun onStrokeCommitted(stroke: Stroke) = paperListener.onStrokeCommitted(stroke)
+        override fun onStrokesErased(strokeIds: List<String>) = paperListener.onStrokesErased(strokeIds)
+        override fun onToolChanged(tool: Tool) = paperListener.onToolChanged(tool)
+        override fun onPenLifted() = paperListener.onPenLifted()
+
+        /** The eraser swept an object: it goes, and comes back whole on undo. */
+        override fun onContentErased(contentIds: List<String>) = erased(emptyList(), contentIds)
+
+        /** One gesture that took ink and objects together is one undo step. */
+        override fun onScribbleErased(strokeIds: List<String>, contentIds: List<String>) = erased(strokeIds, contentIds)
+        override fun onLassoErased(strokeIds: List<String>, contentIds: List<String>) = erased(strokeIds, contentIds)
+
+        override fun onSelectionCreated(selection: Selection) {
+            selectionActive = true
+            currentSelection = selection
+            // Shown at once, not through the pen-idle gate: a lasso ends with the pen hovering.
+            showObjectBar(selection)
+        }
+
+        override fun onSelectionDragStarted() {
+            objectBar.hide()
+            pushExclusions()
+        }
+
+        override fun onSelectionMoved(move: SelectionMove) {
+            if (!opened || closing) return
+            val doc = document ?: return
+            val ink = doc.move(move.strokeIds, move.dx, move.dy)
+            currentSelection = currentSelection?.let { it.copy(bounds = it.bounds.offset(move.dx, move.dy)) }
+            if (move.contentIds.isEmpty()) {
+                ink?.let { record(it); scheduleSave() }
+            } else {
+                runPageOp {
+                    val moved = doc.moveObjects(move.contentIds, move.dx, move.dy)
+                    if (moved != null || ink != null) {
+                        undo.record(NotebookAction.Moved(doc.pageId, ink, moved?.headingIds.orEmpty(), moved?.textIds.orEmpty(), moved?.shapeIds.orEmpty(), moved?.stickyIds.orEmpty(), move.dx, move.dy))
+                    }
+                    doc.flushUntilClean()
+                }
+            }
+            currentSelection?.let { showObjectBar(it) }
+        }
+
+        override fun onSelectionDismissed() {
+            selectionActive = false
+            currentSelection = null
+            objectBar.hide()
+            pushExclusions()
+            val successor = pendingSelection
+            pendingSelection = null
+            if (successor != null) successor() else restoreToolAfterLanding()
+        }
+
+        /** A stylus tap inside a lone selected heading or text opens its words. */
+        override fun onSelectionTapped(x: Float, y: Float) {
+            val sel = currentSelection ?: return
+            if (sel.strokeIds.isNotEmpty() || sel.contentIds.size != 1) return
+            val doc = document ?: return
+            val id = sel.contentIds.first()
+            doc.headings[id]?.let { editHeading(it); return }
+            doc.texts[id]?.let { editText(it) }
+        }
+
+        override fun onTransformChanged(contentId: String, box: OrientedBox) {
+            val current = transformWorking ?: return
+            if (contentId != current.id) return
+            val next = ShapeBox.applied(current, box)
+            transformWorking = next
+            // The working copy only: the engine repaints the live shape itself.
+            document?.putShapeWorking(next)
+            if (transformBar.coveredBy(next)) transformBar.show(next)
+        }
+
+        override fun onTransformEnded(contentId: String, before: OrientedBox, after: OrientedBox) = transformEnded(contentId, after)
+    }
+
+    /** Hand the working copies to the renderers. The repaint is the caller's. */
+    private fun syncRenderers() {
+        val doc = document ?: return
+        headingRenderer.headings = doc.headings.values.toList()
+        textRenderer.texts = doc.texts.values.toList()
+        shapeRenderer.shapes = doc.shapes.values.toList()
+        stickyRenderer.stickies = doc.stickies.values.toList()
+    }
+
+    /** Every box already on the page, for a drop that must not land on what is there. */
+    private fun occupied(): List<Bounds> {
+        val doc = document ?: return emptyList()
+        return doc.headings.values.map { it.bounds } + doc.texts.values.map { it.bounds } +
+            doc.shapes.values.map { ShapeGeometry.aabb(it, density) } + doc.stickies.values.map { it.bounds } +
+            doc.strokes.map { it.bounds }
+    }
+
+    // ── Selection ──────
+
+    private fun showObjectBar(sel: Selection) {
+        val doc = document ?: return
+        val mode = SelectionModes.classify(
+            strokeCount = sel.strokeIds.size, contentIds = sel.contentIds,
+            isHeading = { it in doc.headings }, isLink = { false }, isText = { it in doc.texts },
+            isShape = { it in doc.shapes }, isSticky = { it in doc.stickies },
+        )
+        val level = sel.contentIds.singleOrNull()?.let { doc.headings[it]?.level }
+        objectBar.show(sel.bounds, mode, level)
+        pushExclusions()
+    }
+
+    /** Arm the lasso before a selection lands under another tool: a selection under the pen is a
+     *  picture the pen inks through. The prior tool comes back at the dismissal. */
+    private fun armLassoForLanding() {
+        if (paper.tool == Tool.LASSO) return
+        toolBeforeLanding = paper.tool
+        toolbar.arm(Tool.LASSO)
+    }
+
+    private fun restoreToolAfterLanding() {
+        val tool = toolBeforeLanding ?: return
+        toolBeforeLanding = null
+        toolbar.arm(tool)
+    }
+
+    /** Land the selection on one object, host-initiated: no `onSelectionCreated` echoes. */
+    private fun selectObject(id: String, bounds: Bounds) {
+        armLassoForLanding()
+        paper.setSelection(emptySet(), setOf(id), bounds)
+        val sel = Selection(emptySet(), setOf(id), bounds)
+        selectionActive = true
+        currentSelection = sel
+        showObjectBar(sel)
+    }
+
+    /** Delete on the bar: ink and objects together, one undo step. */
+    private fun deleteSelected(sel: Selection) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val strokeIds = sel.strokeIds.toList()
+        val ink = doc.erase(strokeIds)
+        if (sel.contentIds.isEmpty()) {
+            ink?.let { record(it); scheduleSave() }
+            paper.removeStrokes(strokeIds)
+            return
+        }
+        runPageOp {
+            val gone = doc.deleteObjects(sel.contentIds)
+            undo.record(NotebookAction.Deleted(doc.pageId, ink, gone))
+            doc.flushUntilClean()
+            // Both in one Main block: one frame.
+            if (strokeIds.isNotEmpty()) paper.removeStrokes(strokeIds) else paper.clearSelection()
+            paper.notifyContentChanged()
+            refreshContents()
+        }
+    }
+
+    /** An erase gesture that took [contentIds], and maybe ink with them. */
+    private fun erased(strokeIds: List<String>, contentIds: List<String>) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val ink = doc.erase(strokeIds)
+        if (contentIds.isEmpty()) {
+            ink?.let { record(it); scheduleSave() }
+            return
+        }
+        runPageOp {
+            val gone = doc.deleteObjects(contentIds)
+            undo.record(NotebookAction.Deleted(doc.pageId, ink, gone))
+            doc.flushUntilClean()
+            paper.notifyContentChanged()
+            refreshContents()
+        }
+    }
+
+    // ── Insert ──────
+
+    private fun showInsertBar(anchor: View? = null) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        val shown = if (anchor == null) insertBar.show() else insertBar.show(anchor)
+        if (shown) pushExclusions()
+    }
+
+    private fun hideInsertBar() {
+        if (!::insertBar.isInitialized || !insertBar.isShowing) return
+        insertBar.hide()
+        pushExclusions()
+    }
+
+    private fun insert(kind: InsertBar.Kind) {
+        if (!opened || closing) return
+        when (kind) {
+            InsertBar.Kind.HEADING -> ObjectDialogs.heading(this, "", onSave = { words -> if (words.isNotEmpty()) insertHeading(words) })
+            InsertBar.Kind.TEXT -> ObjectDialogs.text(this, "", onSave = { source -> if (source.isNotEmpty()) insertText(source) })
+            InsertBar.Kind.STICKY -> insertSticky()
+            else -> InsertBar.shapeType(kind)?.let { insertShape(it) }
+        }
+    }
+
+    private fun insertHeading(words: String) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val text = HeadingPrefix.applyLevel(words, DEFAULT_HEADING_LEVEL)
+        val (w, h) = HeadingRenderer.measure(text, density, scaledDensity)
+        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, w, h, occupied(), density)
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val heading = doc.createHeading(Heading(UUID.randomUUID().toString(), text, DEFAULT_HEADING_LEVEL, x, y, w, h, 0))
+            undo.record(NotebookAction.HeadingCreated(pageId, heading))
+            selectObject(heading.id, heading.bounds)
+            paper.notifyContentChanged()
+            refreshContents()
+        }
+    }
+
+    private fun insertText(source: String) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val (w0, h0) = TextRenderer.measure(source, doc.pageWidth.toInt(), density, scaledDensity)
+        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, w0, h0, occupied(), density)
+        val (w, h) = if (doc.pageWidth - x < w0) TextRenderer.measure(source, (doc.pageWidth - x).toInt(), density, scaledDensity) else w0 to h0
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val text = doc.createText(PageText(UUID.randomUUID().toString(), source, x, y, w, h, 0))
+            undo.record(NotebookAction.TextCreated(pageId, text))
+            selectObject(text.id, text.bounds)
+            paper.notifyContentChanged()
+        }
+    }
+
+    private fun insertShape(type: ShapeType) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val built = ShapeDefaults.at(UUID.randomUUID().toString(), type, doc.pageWidth, doc.pageHeight, density)
+        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, built.width, built.height, occupied(), density)
+        val placed = built.copy(cx = x + built.width / 2f, cy = y + built.height / 2f)
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val shape = doc.createShape(placed)
+            undo.record(NotebookAction.ShapeInserted(pageId, shape))
+            selectObject(shape.id, ShapeGeometry.aabb(shape, density))
+            paper.notifyContentChanged()
+        }
+    }
+
+    private fun insertSticky() {
+        val doc = document ?: return
+        if (stickyInFlight != null) return
+        val pageId = doc.pageId
+        val (cw, ch) = StickyDefaults.contentSize(binding.root.width, binding.root.height)
+        val built = StickyDefaults.at(UUID.randomUUID().toString(), doc.pageWidth, doc.pageHeight, density, cw, ch)
+        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, built.width, built.height, occupied(), density)
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val sticky = doc.createSticky(built.copy(x = x, y = y))
+            undo.record(NotebookAction.StickyInserted(pageId, sticky))
+            paper.notifyContentChanged()
+            openSticky(sticky.id, initialCreate = true)
+        }
+    }
+
+    // ── Headings and texts ──────
+
+    private fun editHeading(heading: Heading) {
+        val pageId = document?.pageId ?: return
+        ObjectDialogs.heading(this, HeadingPrefix.stripHeadingPrefix(heading.text), onSave = { words ->
+            val doc = document ?: return@heading
+            if (!opened || closing || doc.pageId != pageId) return@heading
+            val before = doc.headings[heading.id] ?: return@heading
+            if (words.isEmpty()) {
+                runPageOp {
+                    val gone = doc.deleteObjects(listOf(before.id))
+                    undo.record(NotebookAction.Deleted(pageId, null, gone))
+                    paper.clearSelection()
+                    paper.notifyContentChanged()
+                    refreshContents()
+                }
+                return@heading
+            }
+            val text = HeadingPrefix.applyLevel(words, before.level)
+            if (text == before.text) return@heading
+            val (w, h) = HeadingRenderer.measure(text, density, scaledDensity)
+            val after = before.copy(text = text, width = w, height = h)
+            runPageOp {
+                doc.updateHeading(after)
+                undo.record(NotebookAction.HeadingEdited(pageId, before, after))
+                selectObject(after.id, after.bounds)
+                paper.notifyContentChanged()
+                refreshContents()
+            }
+        })
+    }
+
+    private fun setHeadingLevel(level: Int) {
+        val doc = document ?: return
+        val id = currentSelection?.contentIds?.singleOrNull() ?: return
+        val before = doc.headings[id] ?: return
+        if (before.level == level) return
+        val text = HeadingPrefix.applyLevel(HeadingPrefix.stripHeadingPrefix(before.text), level)
+        val (w, h) = HeadingRenderer.measure(text, density, scaledDensity)
+        val after = before.copy(text = text, level = level, width = w, height = h)
+        runPageOp {
+            doc.updateHeading(after)
+            undo.record(NotebookAction.HeadingEdited(doc.pageId, before, after))
+            selectObject(after.id, after.bounds)
+            paper.notifyContentChanged()
+            refreshContents()
+        }
+    }
+
+    private fun editText(text: PageText) {
+        val pageId = document?.pageId ?: return
+        ObjectDialogs.text(this, text.text, onSave = { source ->
+            val doc = document ?: return@text
+            if (!opened || closing || doc.pageId != pageId) return@text
+            val before = doc.texts[text.id] ?: return@text
+            if (source.isEmpty()) {
+                runPageOp {
+                    val gone = doc.deleteObjects(listOf(before.id))
+                    undo.record(NotebookAction.Deleted(pageId, null, gone))
+                    paper.clearSelection()
+                    paper.notifyContentChanged()
+                }
+                return@text
+            }
+            if (source == before.text) return@text
+            val (w, h) = TextRenderer.measure(source, (doc.pageWidth - before.x).toInt(), density, scaledDensity)
+            val after = before.copy(text = source, width = w, height = h)
+            runPageOp {
+                doc.updateText(after)
+                undo.record(NotebookAction.TextEdited(pageId, before, after))
+                selectObject(after.id, after.bounds)
+                paper.notifyContentChanged()
+            }
+        })
+    }
+
+    // ── Shapes: the engine's transform mode ──────
+
+    private fun beginTransform(shapeId: String) {
+        if (!opened || closing) return
+        val shape = document?.shapes?.get(shapeId) ?: return
+        armLassoForLanding()
+        transformBegan = shape
+        transformWorking = shape
+        transformDone = false
+        // `beginTransform` dismisses the selection without `onSelectionDismissed`.
+        selectionActive = false
+        currentSelection = null
+        objectBar.hide()
+        paper.beginTransform(shape.id, ShapeBox.toBox(shape), shape.aspectLocked, minSizePx = ShapeDefaults.MIN_SIZE_DP * density)
+        if (paper.transformingContentId != shape.id) {
+            transformBegan = null
+            transformWorking = null
+            selectObject(shape.id, ShapeGeometry.aabb(shape, density))
+            return
+        }
+        transformBar.show(shape)
+        pushExclusions()
+    }
+
+    private fun toggleAspectLock() {
+        val current = transformWorking ?: return
+        val next = current.copy(aspectLocked = !current.aspectLocked)
+        transformWorking = next
+        paper.setTransformAspectLocked(next.aspectLocked)
+        transformBar.relabel(next)
+    }
+
+    private fun endTransformIfRunning() {
+        if (paper.transformingContentId != null) paper.endTransform()
+    }
+
+    /** The one teardown; it fires on every exit, Done included. */
+    private fun transformEnded(contentId: String, after: OrientedBox) {
+        val before = transformBegan
+        val live = transformWorking
+        val done = transformDone
+        transformBegan = null
+        transformWorking = null
+        transformDone = false
+        transformBar.hide()
+        pushExclusions()
+        val doc = document
+        if (before == null || contentId != before.id || doc == null) return
+        val afterShape = ShapeBox.applied(before.copy(aspectLocked = live?.aspectLocked ?: before.aspectLocked), after)
+        val changed = afterShape != before
+        if (!done) restoreToolAfterLanding()
+        runPageOp {
+            if (changed) {
+                doc.updateShape(afterShape)
+                undo.record(NotebookAction.ShapeTransformed(doc.pageId, before, afterShape))
+            } else {
+                doc.putShapeWorking(before)
+            }
+            if (done) selectObject(afterShape.id, ShapeGeometry.aabb(afterShape, density))
+            paper.notifyContentChanged()
+        }
+    }
+
+    // ── Sticky notes ──────
+
+    /** A finger tap on a sticky icon opens the note; the topmost one under the finger. */
+    private fun openStickyAt(x: Float, y: Float): Boolean {
+        if (!opened || closing || stickyInFlight != null) return false
+        val hit = document?.stickies?.values?.lastOrNull { it.bounds.contains(x, y) } ?: return false
+        openSticky(hit.id, initialCreate = false)
+        return true
+    }
+
+    /** Read the note's content, stage the showing, hand the pipeline over, launch. */
+    private fun openSticky(stickyId: String, initialCreate: Boolean) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        stickyInFlight = stickyId to initialCreate
+        runPageOp {
+            try {
+                val sticky = doc.stickies[stickyId]
+                if (sticky == null || !opened || closing || doc.pageId != pageId) { stickyInFlight = null; return@runPageOp }
+                doc.flushUntilClean()
+                val initial = withContext(Dispatchers.IO) { (storeOf(doc) ?: return@withContext emptyList()).readStrokesOf(stickyId) }
+                StickyEditorTransfer.stage(StickyEditorTransfer.Showing(store = requireNotNull(storeOf(doc)), pageId = pageId, stickyId = stickyId, contentW = sticky.contentW, contentH = sticky.contentH, initial = initial))
+                hideFloatingBars()
+                dismissCollapsed()
+                endTransformIfRunning()
+                inAppHandoff = true
+                paper.releaseForHandoff()
+                editorLauncher.launch(StickyEditorActivity.intent(this@NotebookActivity))
+            } catch (e: Exception) {
+                Log.w(TAG, "the note could not be opened: ${e.javaClass.simpleName}")
+                StickyEditorTransfer.clear()
+                stickyInFlight = null
+                inAppHandoff = false
+                paper.resumeDrawing()
+            }
+        }
+    }
+
+    /** The result callback runs before `onResume`: the pipeline is reclaimed first of all. */
+    private fun onEditorClosed() {
+        inAppHandoff = false
+        if (opened) paper.resumeDrawing()
+        val flight = stickyInFlight
+        stickyInFlight = null
+        val showing = StickyEditorTransfer.current
+        StickyEditorTransfer.clear()
+        val doc = document
+        if (flight == null || showing == null || doc == null || showing.stickyId != flight.first) return
+        runPageOp {
+            val after = doc.stickyContent(showing.stickyId)
+            val before = showing.initial.map { it.second }
+            if (after != before) undo.record(NotebookAction.StickyContentEdited(showing.pageId, showing.stickyId, before, after))
+            if (!flight.second || doc.pageId != showing.pageId) return@runPageOp
+            val sticky = doc.stickies[showing.stickyId] ?: return@runPageOp
+            // The icon lands selected so the next drag places it.
+            selectObject(sticky.id, sticky.bounds)
+        }
+    }
+
+    /** The store behind [document], for the sticky editor, which writes through it. */
+    private var storeRef: NotebookStore? = null
+    private fun storeOf(@Suppress("UNUSED_PARAMETER") doc: NotebookDocument): NotebookStore? = storeRef
+
+    // ── Contents ──────
+
+    /** The button shows and the swipe acts only while the notebook holds a heading. */
+    private fun refreshContents() {
+        val doc = document ?: return
+        lifecycleScope.launch {
+            val any = runCatching { doc.allHeadings().isNotEmpty() }.getOrDefault(contentsAvailable)
+            if (!opened || closing) return@launch
+            contentsAvailable = any
+            whenPenIdle {
+                val vis = if (contentsAvailable) View.VISIBLE else View.GONE
+                if (binding.btnContents.visibility != vis) { binding.btnContents.visibility = vis; pushExclusions() }
+            }
+        }
+    }
+
+    private fun showContents() {
+        if (!opened || closing || contentsShowing || !contentsAvailable) return
+        val doc = document ?: return
+        contentsShowing = true
+        hideFloatingBars()
+        dismissCollapsed()
+        if (!paper.isPenActive) paper.releaseRender()
+        lifecycleScope.launch {
+            val outline = runCatching {
+                val pageIndexById = doc.pages.withIndex().associate { (i, p) -> p.id to i }
+                OutlineTree.items(doc.allHeadings(), pageIndexById)
+            }.getOrNull()
+            if (outline == null || isFinishing || isDestroyed || closing) { contentsShowing = false; return@launch }
+            val (items, truncated) = outline
+            if (items.isEmpty()) { contentsShowing = false; refreshContents(); return@launch }
+            pushExclusions()
+            contents.show(OutlineTree.build(items), doc.pageIndex, truncated) { contentsShowing = false; pushExclusions() }
+        }
     }
 
     // ── The pen's shade ──────
@@ -348,33 +938,50 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     override fun hideFloatingBars() {
         super.hideFloatingBars()
         hidePaletteBar()
+        hideInsertBar()
     }
 
     override fun onCollapsedClosing() {
         if (::paletteBar.isInitialized) paletteBar.hide()
     }
 
-    /** The shade panel hangs off the collapsed rows: a contact on it keeps them up. */
-    override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
-        ::paletteBar.isInitialized && paletteBar.isShowing && paletteBar.contains(x, y)
 
     /** The shade panel's outside-tap dismissal: the pen button excluded (its re-tap toggles the
      *  bar), and the collapsed rows it may hang under kept. */
     override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
-        if (!::paletteBar.isInitialized || !paletteBar.isShowing) return
         val x = ev.getX(index).toInt()
         val y = ev.getY(index).toInt()
-        if (PaperToolbar.rectOf(binding.btnPen)?.contains(x, y) == true) return
-        if (paletteBar.contains(x, y)) return
-        if (collapsedContains(x, y)) return
-        hidePaletteBar()
+        if (::paletteBar.isInitialized && paletteBar.isShowing) {
+            if (PaperToolbar.rectOf(binding.btnPen)?.contains(x, y) != true && !paletteBar.contains(x, y) && !collapsedContains(x, y)) hidePaletteBar()
+        }
+        if (::insertBar.isInitialized && insertBar.isShowing) {
+            if (PaperToolbar.rectOf(binding.btnInsert)?.contains(x, y) != true && !insertBar.contains(x, y) && !collapsedContains(x, y)) hideInsertBar()
+        }
     }
 
+    override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
+        (::paletteBar.isInitialized && paletteBar.isShowing && paletteBar.contains(x, y)) ||
+            (::insertBar.isInitialized && insertBar.isShowing && insertBar.contains(x, y))
+
     override fun extraFloatingRects(): List<android.graphics.Rect> =
-        super.extraFloatingRects() + (if (::paletteBar.isInitialized) paletteBar.rects() else emptyList())
+        super.extraFloatingRects() +
+            (if (::paletteBar.isInitialized) paletteBar.rects() else emptyList()) +
+            (if (::insertBar.isInitialized) insertBar.rects() else emptyList()) +
+            (if (::objectBar.isInitialized) objectBar.rects() else emptyList()) +
+            (if (::transformBar.isInitialized) transformBar.rects() else emptyList())
 
     override fun extraFloatingContains(x: Int, y: Int): Boolean =
-        super.extraFloatingContains(x, y) || (::paletteBar.isInitialized && paletteBar.contains(x, y))
+        super.extraFloatingContains(x, y) ||
+            (::paletteBar.isInitialized && paletteBar.contains(x, y)) ||
+            (::insertBar.isInitialized && insertBar.contains(x, y)) ||
+            (::objectBar.isInitialized && objectBar.contains(x, y)) ||
+            (::transformBar.isInitialized && transformBar.contains(x, y))
+
+    /** The corner button's overflow row: Back, and Insert, whose bar hangs under the row's own button. */
+    override fun collapsedOverflow(): List<CollapsedChrome.Entry> = listOfNotNull(
+        backEntry(),
+        CollapsedChrome.Entry(com.symmetricalpalmtree.soil.paper.R.drawable.ic_plus, getString(R.string.cd_insert)) { anchor -> if (insertBar.isShowing) hideInsertBar() else showInsertBar(anchor) },
+    )
 
     /** The mini toolbar's pen wears the shade too, and its re-tap hangs the panel under it. */
     override fun collapsedPenIcon(): (() -> CollapsedChrome.PenIcon) = {
@@ -490,9 +1097,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         selectionBar.hide()
         hideFloatingBars()
         dismissCollapsed()
+        endTransformIfRunning()
         if (!firstLoad) paper.clearForContentSwap()
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
         paper.setTemplate(null)   // the paper library arrives later
+        // The objects are handed over before `loadStrokes`, which is the frame that paints the page.
+        syncRenderers()
         paper.loadStrokes(doc.strokes)
         toolbar.setPage(doc.pageNumber, doc.pageCount)
     }
@@ -546,7 +1156,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     override fun onStop() {
         super.onStop()
         val open = session ?: return
-        if (closing) return
+        if (closing || inAppHandoff) return
         // After the pause flush, which holds the same lock and was queued first.
         appScope.launch {
             withContext(NonCancellable) {
@@ -560,6 +1170,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     override fun onScreenDestroyed() {
         super.onScreenDestroyed()
         if (::recents.isInitialized) recents.dismiss()
+        if (::contents.isInitialized) contents.dismiss()
         val open = session ?: return
         session = null
         appScope.launch(Dispatchers.IO + NonCancellable) {
@@ -571,6 +1182,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         private const val TAG = "NotebookActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
         private const val RECENTS_LIMIT = 20
+        private const val DEFAULT_HEADING_LEVEL = 1
 
         /** Outlives the screen, so a park or a close in flight always completes. */
         private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

@@ -1,6 +1,12 @@
 package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
+import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
+import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
+import com.symmetricalpalmtree.soil.notesprout.objects.PageText
+import com.symmetricalpalmtree.soil.notesprout.objects.ShapeFlags
+import com.symmetricalpalmtree.soil.notesprout.objects.StickyFlags
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema.TABLE
 import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
@@ -107,4 +113,81 @@ object NotebookSql : InkDocument.StrokeSql {
         "SELECT id, \"order\", color, strokeWidth, style, blob FROM $TABLE WHERE parentId = ? AND type = 'stroke' AND deletedAt IS NULL ORDER BY \"order\"",
         pageId,
     )
+
+    // ── Objects: headings, texts, shapes, sticky notes ──────
+
+    /** The objects placed on a page, every kind in one read, each kind in its own z-order. */
+    fun selectObjects(pageId: String): Statement = Statement(
+        "SELECT id, type, \"order\", text, refId, x, y, width, height, strokeWidth, style, flags FROM $TABLE " +
+            "WHERE parentId = ? AND type IN ('heading', 'text', 'shape', 'sticky_note') AND deletedAt IS NULL " +
+            "ORDER BY type, \"order\"",
+        pageId,
+    )
+
+    /** The highest `"order"` among [parentId]'s rows of [type], live or not; -1 with none. Order
+     *  is per parent **and** type, and an order once used is never handed out again. */
+    fun selectMaxOrder(parentId: String, type: String): Statement =
+        Statement("SELECT COALESCE(MAX(\"order\"), -1) AS m FROM $TABLE WHERE parentId = ? AND type = ?", parentId, type)
+
+    /** Every live heading in the notebook with its parent, for the Contents. */
+    fun selectAllHeadings(): Statement = Statement(
+        "SELECT id, parentId, type, \"order\", text, refId, x, y, width, height, strokeWidth, style, flags FROM $TABLE " +
+            "WHERE type = 'heading' AND deletedAt IS NULL",
+    )
+
+    fun insertHeading(h: Heading, pageId: String, order: Int, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, flags, x, y, width, height) " +
+            "VALUES (?, ?, 'heading', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        h.id, pageId, order.toLong(), now, now, h.text, h.level.toLong(),
+        h.x.toDouble(), h.y.toDouble(), h.width.toDouble(), h.height.toDouble(),
+    )
+
+    fun insertText(t: PageText, pageId: String, order: Int, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, x, y, width, height) " +
+            "VALUES (?, ?, 'text', ?, ?, ?, ?, ?, ?, ?, ?)",
+        t.id, pageId, order.toLong(), now, now, t.text, t.x.toDouble(), t.y.toDouble(), t.width.toDouble(), t.height.toDouble(),
+    )
+
+    fun insertShape(sh: PageShape, pageId: String, order: Int, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, style, x, y, width, height, strokeWidth, flags) " +
+            "VALUES (?, ?, 'shape', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        sh.id, pageId, order.toLong(), now, now, sh.type.name, sh.cx.toDouble(), sh.cy.toDouble(),
+        sh.width.toDouble(), sh.height.toDouble(), sh.strokeWidth.toDouble(),
+        ShapeFlags.pack(sh.aspectLocked, sh.pointCount, sh.rotationDeg),
+    )
+
+    fun insertSticky(st: PageSticky, pageId: String, order: Int, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, x, y, width, height, flags) " +
+            "VALUES (?, ?, 'sticky_note', ?, ?, ?, ?, ?, ?, ?, ?)",
+        st.id, pageId, order.toLong(), now, now, st.x.toDouble(), st.y.toDouble(), st.width.toDouble(), st.height.toDouble(),
+        StickyFlags.pack(st.contentW, st.contentH),
+    )
+
+    /** A finished drag: the row's stored position shifts by the same delta. */
+    fun moveBy(id: String, dx: Float, dy: Float, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET x = x + ?, y = y + ?, updatedAt = ? WHERE id = ? AND deletedAt IS NULL",
+        dx.toDouble(), dy.toDouble(), now, id,
+    )
+
+    /** An edit: the words, the level and the re-measured box. The top-left is kept. */
+    fun setHeadingContent(h: Heading, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET text = ?, flags = ?, width = ?, height = ?, updatedAt = ? WHERE id = ?",
+        h.text, h.level.toLong(), h.width.toDouble(), h.height.toDouble(), now, h.id,
+    )
+
+    fun setTextContent(t: PageText, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET text = ?, width = ?, height = ?, updatedAt = ? WHERE id = ?",
+        t.text, t.width.toDouble(), t.height.toDouble(), now, t.id,
+    )
+
+    /** A finished transform: the geometry word, the lock and the rotation. */
+    fun setShapeGeometry(sh: PageShape, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET x = ?, y = ?, width = ?, height = ?, flags = ?, updatedAt = ? WHERE id = ?",
+        sh.cx.toDouble(), sh.cy.toDouble(), sh.width.toDouble(), sh.height.toDouble(),
+        ShapeFlags.pack(sh.aspectLocked, sh.pointCount, sh.rotationDeg), now, sh.id,
+    )
+
+    /** The live children of one parent, of one type, by id. */
+    fun selectLiveChildIds(parentId: String, type: String): Statement =
+        Statement("SELECT id FROM $TABLE WHERE parentId = ? AND type = ? AND deletedAt IS NULL", parentId, type)
 }

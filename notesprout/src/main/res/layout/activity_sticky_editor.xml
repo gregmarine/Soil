@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The notebook: full-bleed paper with two thin chrome bars overlaid. The PaperView is added
+  The sticky note editor: full-bleed paper with two thin chrome bars overlaid. The PaperView is added
   into paperContainer programmatically.
 
   Both bars go to paper.setExclusionRects (via PaperChrome) after layout, so ink never lands under
   chrome. Chrome sits flush at the top edge.
 
-  openingOverlay starts VISIBLE: the notebook covers its own first frame, so the launch reads as one
+  openingOverlay starts VISIBLE: the editor covers its own first frame, so the launch reads as one
   continuous "Opening…".
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -46,7 +46,7 @@
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
                 android:singleLine="true"
-                android:text="@string/app_name"
+                android:text="@string/sticky_editor_title"
                 android:textColor="@color/inkBlack"
                 android:textSize="16sp" />
 
@@ -81,39 +81,7 @@
                     style="@style/Widget.Soil.ToolbarButton"
                     android:contentDescription="@string/cd_tool_lasso"
                     android:src="@drawable/ic_lasso" />
-
-                <!-- Insert is a command, not a tool: what a page can be given that is not ink. -->
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnInsert"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_insert"
-                    android:src="@drawable/ic_plus" />
             </LinearLayout>
-
-            <!-- What is not a tool sits at the other edge: the Recents, whose panel comes in
-                 from that side. -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_gravity="end"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <!-- The Contents: absent while the notebook has no heading. -->
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnContents"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_contents"
-                    android:src="@drawable/ic_list"
-                    android:visibility="gone" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnRecents"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_recents"
-                    android:src="@drawable/ic_clock" />
-            </LinearLayout>
-
 
         </FrameLayout>
 
@@ -124,98 +92,10 @@
 
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/bottomBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="@color/paperWhite"
-        android:orientation="vertical">
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/inkBlack" />
-
-        <!-- Pages only, centred on the SCREEN. -->
-        <FrameLayout
-            android:id="@+id/bottomBarRow"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/toolbar_bar_thickness"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp">
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_gravity="center"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnPrevPage"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_prev_page"
-                    android:src="@drawable/ic_page_prev" />
-
-                <TextView
-                    android:id="@+id/pageIndicator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:minWidth="56dp"
-                    android:singleLine="true"
-                    android:textColor="@color/inkBlack"
-                    android:textSize="14sp" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnNextPage"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_next_page"
-                    android:src="@drawable/ic_page_next" />
-            </LinearLayout>
-
-        </FrameLayout>
-
-    </LinearLayout>
-
-    <!-- The selection's floating bar and its heading-level sub-bar. Placed by margins from
-         SelectionAnchor; their buttons are built in code. -->
+    <!-- The selection's floating bar. Placed by margins from SelectionAnchor.place; its buttons
+         are built in code. -->
     <LinearLayout
         android:id="@+id/selectionToolbar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
-        android:padding="4dp"
-        android:visibility="gone" />
-
-    <LinearLayout
-        android:id="@+id/selectionSubBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
-        android:padding="4dp"
-        android:visibility="gone" />
-
-    <!-- The shape transform bar: the aspect latch and Done, beside a shape under the engine's
-         handles. -->
-    <LinearLayout
-        android:id="@+id/transformBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
-        android:padding="4dp"
-        android:visibility="gone" />
-
-    <!-- The Insert button's sub-bar. -->
-    <LinearLayout
-        android:id="@+id/insertBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"

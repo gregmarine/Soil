@@ -46,6 +46,13 @@
                 android:value="notebook" />
         </activity>
 
+        <!-- A sticky note's editor, opened by the notebook over the notebook's own store. -->
+        <activity
+            android:name=".notebook.StickyEditorActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
     </application>
 
 </manifest>

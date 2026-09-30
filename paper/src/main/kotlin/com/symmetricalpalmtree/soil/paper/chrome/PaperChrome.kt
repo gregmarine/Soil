@@ -25,10 +25,13 @@ import com.symmetricalpalmtree.gpaper.core.PaperView
 class PaperChrome(
     private val paper: PaperView,
     private val topBar: View,
-    private val bottomStrip: View,
+    /** The bottom strip, or null on a screen that has none. */
+    private val bottomStrip: View?,
     private val extraRects: () -> List<Rect> = { emptyList() },
     private val extraContains: (Int, Int) -> Boolean = { _, _ -> false },
     private val blockAll: () -> Boolean = { false },
+    /** Rects already in **paper** coordinates: the bands beyond a page smaller than the surface. */
+    private val paperRects: () -> List<Rect> = { emptyList() },
 ) {
     fun pushExclusions() {
         val view = paper.asView()
@@ -37,14 +40,14 @@ class PaperChrome(
             return
         }
         val paperLoc = IntArray(2).also { view.getLocationInWindow(it) }
-        val rects = (listOfNotNull(PaperToolbar.rectOf(topBar), PaperToolbar.rectOf(bottomStrip)) + extraRects())
+        val rects = (listOfNotNull(PaperToolbar.rectOf(topBar), bottomStrip?.let { PaperToolbar.rectOf(it) }) + extraRects())
             .map { Rect(it.left - paperLoc[0], it.top - paperLoc[1], it.right - paperLoc[0], it.bottom - paperLoc[1]) }
-        paper.setExclusionRects(rects)
+        paper.setExclusionRects(rects + paperRects())
     }
 
     fun overChrome(ev: MotionEvent): Boolean {
         val top = PaperToolbar.rectOf(topBar)
-        val bottom = PaperToolbar.rectOf(bottomStrip)
+        val bottom = bottomStrip?.let { PaperToolbar.rectOf(it) }
         val x = ev.x.toInt(); val y = ev.y.toInt()
         return (top?.contains(x, y) == true) || (bottom?.contains(x, y) == true) || extraContains(x, y)
     }

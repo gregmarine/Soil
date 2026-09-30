@@ -2,8 +2,13 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import android.util.Log
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
+import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.ObjectRows
+import com.symmetricalpalmtree.soil.notesprout.objects.PageShape
+import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
+import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.ink.InkStore
-import com.symmetricalpalmtree.soil.paper.ink.PageInk
 import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.paper.store.Statement
 import java.util.UUID
@@ -57,17 +62,136 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         Loaded(pages, if (pages.any { it.id == last }) last!! else pages[0].id)
     }
 
-    /** One page's ink, in writing order. */
-    fun readPage(page: PageRef): PageInk = guard {
-        val rows = store.query(NotebookSql.selectStrokes(page.id)).rows
-        val strokes = ArrayList<Pair<Long, com.symmetricalpalmtree.gpaper.core.model.Stroke>>(rows.size)
+    /** One page: its ink in writing order, and every object on it. */
+    fun readPage(page: PageRef): PageContent = guard {
+        val headings = ArrayList<Heading>()
+        val texts = ArrayList<PageText>()
+        val shapes = ArrayList<PageShape>()
+        val stickies = ArrayList<PageSticky>()
+        var dropped = 0
+        for (row in store.query(NotebookSql.selectObjects(page.id)).rows) {
+            val kept = when (row.text("type")) {
+                NotebookSchema.TYPE_HEADING -> ObjectRows.toHeading(row)?.also { headings += it }
+                NotebookSchema.TYPE_TEXT -> ObjectRows.toText(row)?.also { texts += it }
+                NotebookSchema.TYPE_SHAPE -> ObjectRows.toShape(row)?.also { shapes += it }
+                NotebookSchema.TYPE_STICKY -> ObjectRows.toSticky(row)?.also { stickies += it }
+                else -> null
+            }
+            if (kept == null) dropped++
+        }
+        if (dropped > 0) Log.w(TAG, "a page had $dropped object row(s) that would not read")
+        PageContent(readStrokesOf(page.id), headings, texts, shapes, stickies)
+    }
+
+    /** The live strokes parented to [parentId]: a page's ink, or a sticky note's content. */
+    fun readStrokesOf(parentId: String): List<Pair<Long, Stroke>> {
+        val rows = store.query(NotebookSql.selectStrokes(parentId)).rows
+        val strokes = ArrayList<Pair<Long, Stroke>>(rows.size)
         var dropped = 0
         for (row in rows) {
             val decoded = NotebookStrokeRows.decode(row)
             if (decoded == null) dropped++ else strokes += decoded
         }
-        if (dropped > 0) Log.w(TAG, "a page had $dropped stroke row(s) that would not read")
-        PageInk(page.width, page.height, strokes)
+        if (dropped > 0) Log.w(TAG, "$dropped stroke row(s) would not read")
+        return strokes
+    }
+
+    /** Every live heading in the notebook with the id of what it hangs under, for the Contents. */
+    fun allHeadings(): List<Pair<Heading, String>> = guard {
+        store.query(NotebookSql.selectAllHeadings()).rows.mapNotNull { row ->
+            ObjectRows.toHeading(row)?.let { it to row.text("parentId") }
+        }
+    }
+
+    // ── Objects ──────
+
+    private fun nextOrder(parentId: String, type: String): Int =
+        store.query(NotebookSql.selectMaxOrder(parentId, type)).rows.firstOrNull()?.long("m")?.toInt()?.plus(1) ?: 0
+
+    fun createHeading(pageId: String, h: Heading): Heading = guard {
+        val placed = h.copy(order = nextOrder(pageId, NotebookSchema.TYPE_HEADING))
+        run(listOf(NotebookSql.insertHeading(placed, pageId, placed.order, System.currentTimeMillis())))
+        placed
+    }
+
+    fun createText(pageId: String, t: PageText): PageText = guard {
+        val placed = t.copy(order = nextOrder(pageId, NotebookSchema.TYPE_TEXT))
+        run(listOf(NotebookSql.insertText(placed, pageId, placed.order, System.currentTimeMillis())))
+        placed
+    }
+
+    fun createShape(pageId: String, sh: PageShape): PageShape = guard {
+        val placed = sh.copy(order = nextOrder(pageId, NotebookSchema.TYPE_SHAPE))
+        run(listOf(NotebookSql.insertShape(placed, pageId, placed.order, System.currentTimeMillis())))
+        placed
+    }
+
+    fun createSticky(pageId: String, st: PageSticky): PageSticky = guard {
+        val placed = st.copy(order = nextOrder(pageId, NotebookSchema.TYPE_STICKY))
+        run(listOf(NotebookSql.insertSticky(placed, pageId, placed.order, System.currentTimeMillis())))
+        placed
+    }
+
+    /** A row that was soft-deleted revives in place; one that is gone (a paste's undo) is put back. */
+    fun restoreHeading(pageId: String, h: Heading) =
+        execAll(listOf(NotebookSql.insertHeading(h, pageId, h.order, System.currentTimeMillis()), NotebookSql.restore(h.id)))
+
+    fun restoreText(pageId: String, t: PageText) =
+        execAll(listOf(NotebookSql.insertText(t, pageId, t.order, System.currentTimeMillis()), NotebookSql.restore(t.id)))
+
+    fun restoreShape(pageId: String, sh: PageShape) =
+        execAll(listOf(NotebookSql.insertShape(sh, pageId, sh.order, System.currentTimeMillis()), NotebookSql.restore(sh.id)))
+
+    /** The icon revives (or returns), and the snapshot's children with it. */
+    fun restoreSticky(pageId: String, st: PageSticky) = execAll(
+        listOf(NotebookSql.insertSticky(st, pageId, st.order, System.currentTimeMillis()), NotebookSql.restore(st.id)) +
+            st.childIds.map { NotebookSql.restore(it) },
+    )
+
+    fun moveBy(ids: Collection<String>, dx: Float, dy: Float) {
+        if (ids.isEmpty() || (dx == 0f && dy == 0f)) return
+        val now = System.currentTimeMillis()
+        execAll(ids.map { NotebookSql.moveBy(it, dx, dy, now) })
+    }
+
+    fun setHeadingContent(h: Heading) = execAll(listOf(NotebookSql.setHeadingContent(h, System.currentTimeMillis())))
+
+    fun setTextContent(t: PageText) = execAll(listOf(NotebookSql.setTextContent(t, System.currentTimeMillis())))
+
+    fun setShapeGeometry(sh: PageShape) = execAll(listOf(NotebookSql.setShapeGeometry(sh, System.currentTimeMillis())))
+
+    /** A note's content in writing order, in its own space. */
+    fun stickyContent(stickyId: String): List<Stroke> = guard { readStrokesOf(stickyId).map { it.second } }
+
+    /** Every sticky in [stickies] with its content read: the snapshot a delete carries. */
+    fun withContent(stickies: List<PageSticky>): List<PageSticky> = guard {
+        stickies.map { it.copy(strokes = readStrokesOf(it.id).map { s -> s.second }) }
+    }
+
+    /** Soft-delete [ids] and, for a sticky among them, its children too. */
+    fun deleteObjects(ids: Collection<String>, stickyIds: Collection<String>) = guard {
+        val now = System.currentTimeMillis()
+        val children = stickyIds.flatMap { id ->
+            store.query(NotebookSql.selectLiveChildIds(id, NotebookSchema.TYPE_STROKE)).rows.map { it.text("id") }
+        }
+        val all = ids + children
+        if (all.isNotEmpty()) run(all.map { NotebookSql.softDelete(it, now) })
+    }
+
+    /**
+     * Make [strokes] the note's whole content: live children not in the set are soft-deleted,
+     * every stroke in the set is put in the note's space with `"order"` = its index, one that
+     * exists reviving in place. One transaction: a note is never seen half-written.
+     */
+    fun setStickyContent(stickyId: String, strokes: List<Stroke>) = guard {
+        val now = System.currentTimeMillis()
+        val keep = strokes.mapTo(HashSet()) { it.id }
+        val gone = store.query(NotebookSql.selectLiveChildIds(stickyId, NotebookSchema.TYPE_STROKE)).rows
+            .map { it.text("id") }.filter { it !in keep }
+        val statements = ArrayList<Statement>(gone.size + strokes.size)
+        gone.forEach { statements += NotebookSql.softDelete(it, now) }
+        strokes.forEachIndexed { i, s -> statements += NotebookSql.putStroke(stickyId, i.toLong(), s, now) }
+        run(statements)
     }
 
     fun setLastOpened(pageId: String) =
