@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds only. Started over adb; see docs/encryption.md. -->
+        <activity
+            android:name=".dev.KeepFileCheckActivity"
+            android:exported="true"
+            android:label="Soil dev: keep-file check" />
+    </application>
+
+</manifest>

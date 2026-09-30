@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app grid and the side menu. Columns = floor(width / min width), rows =
+         floor(height / cell height): the space decides how many fit, and the rest is a page on. -->
+    <dimen name="app_cell_min_width">120dp</dimen>
+    <dimen name="app_cell_height">124dp</dimen>
+    <dimen name="app_icon_size">56dp</dimen>
+    <dimen name="app_cell_padding">10dp</dimen>
+
+    <!-- The side menu. -->
+    <dimen name="menu_width">280dp</dimen>
+    <dimen name="menu_row_height">60dp</dimen>
+    <dimen name="menu_icon_size">36dp</dimen>
+</resources>

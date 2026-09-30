@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Supernote tier. 180dp lands on four columns on the Nomad's 748dp-wide panel. -->
+    <dimen name="app_cell_min_width">180dp</dimen>
+    <dimen name="app_cell_height">150dp</dimen>
+    <dimen name="app_icon_size">72dp</dimen>
+    <dimen name="app_cell_padding">12dp</dimen>
+
+    <dimen name="menu_width">340dp</dimen>
+    <dimen name="menu_row_height">76dp</dimen>
+    <dimen name="menu_icon_size">44dp</dimen>
+</resources>

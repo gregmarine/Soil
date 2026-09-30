@@ -20,8 +20,22 @@ Soil replaces Notesprout SN and its extensions. It is the successor, not a compa
 
 ## Status
 
-**Design stage. There is no code and no plan yet.**
+**The first build is done**, and runs on the Supernote Nomad as its home screen. None of the
+Sprout apps exist yet.
 
+| Part | State |
+|---|---|
+| Home screen: the library (empty) and the app drawer, with apps that can be hidden | Built, walked on the Nomad |
+| Encryption: recovery key, unlock, lockout, change passphrase, forget | Built, walked on the Nomad |
+| Library index | Built; holds nothing yet |
+| Scratch Pad | Built, walked on the Nomad by hand |
+| Seam, handshake only | Built, walked on the Nomad |
+| Side menu and home screen role | Built, walked on the Nomad by hand |
+
+- [`docs/first-build.md`](docs/first-build.md) — the plan for the first build as it was granted, and what was decided. A record.
+- [`docs/building.md`](docs/building.md) — building, installing, turning the shell on and off.
+- [`docs/encryption.md`](docs/encryption.md), [`docs/shell.md`](docs/shell.md),
+  [`docs/scratchpad.md`](docs/scratchpad.md), [`docs/seam.md`](docs/seam.md) — each part as built.
 - [`docs/design.md`](docs/design.md) — the design as decided so far, with the device probes behind it.
 - [`docs/references.md`](docs/references.md) — where the supporting probes and documents live.
 - [`BACKLOG.md`](BACKLOG.md) — ideas deliberately set aside for later.

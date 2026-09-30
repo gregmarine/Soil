@@ -8,9 +8,22 @@ local.properties
 # Android Studio / IntelliJ
 .idea/
 *.iml
+*.ipr
+*.iws
+out/
 captures/
 .externalNativeBuild/
 .cxx/
+*.class
+
+# Editors
+.vscode/
+*.swp
+*.swo
+
+# Logs and dumps — a logcat capture can carry more than intended
+*.log
+*.hprof
 
 # Signing — never committed
 *.jks
