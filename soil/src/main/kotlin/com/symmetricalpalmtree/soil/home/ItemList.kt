@@ -14,8 +14,8 @@ import com.symmetricalpalmtree.soil.shell.Paging
 import java.util.Date
 
 /**
- * The library's items as **fixed pages** of rows: each item's name over the day it was last
- * written, as many rows as the space holds, turned with previous and next. Nothing scrolls.
+ * The library's items as **fixed pages** of rows: each item's name over its page count and the
+ * day it was last written, as many rows as the space holds, turned with previous and next. Nothing scrolls.
  *
  * The rows are rebuilt whenever the list, the page or the space changes.
  */
@@ -100,7 +100,11 @@ class ItemList(
             )
             addView(
                 AppCompatTextView(context).apply {
-                    text = dateFormat.format(Date(item.updatedAt))
+                    text = context.getString(
+                        R.string.library_row_detail,
+                        context.resources.getQuantityString(R.plurals.library_pages, item.pageCount, item.pageCount),
+                        dateFormat.format(Date(item.updatedAt)),
+                    )
                     textSize = 14f
                     maxLines = 1
                     setTextColor(ink())

@@ -1,5 +1,6 @@
 package com.symmetricalpalmtree.soil.seam;
 
+import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamHello;
 import com.symmetricalpalmtree.soil.seam.SeamItem;
@@ -22,6 +23,15 @@ interface ISoilSeam {
     /** The seam's version, and whether the library is unlocked. Never prompts. */
     SeamHello hello();
 
+    /**
+     * The app's paper screen is in front: Soil asks it to let the panel go before drawing over
+     * it. One client at a time; a later attach replaces an earlier one, and an app's death
+     * detaches it.
+     */
+    void attachClient(ISeamClient client);
+
+    void detachClient(ISeamClient client);
+
     /** Make a new item of the schema's kind, with its file, and answer it. */
     SeamItem createItem(String name, in SeamSchema schema);
 
@@ -32,6 +42,9 @@ interface ISoilSeam {
     SeamItem item(String itemId);
 
     void renameItem(String itemId, String name);
+
+    /** How many pages the item has, for the library. The app says; Soil does not read the file. */
+    void setPageCount(String itemId, int count);
 
     /** A delete is soft: the row is marked and the file is kept. Refused while the item is open. */
     void deleteItem(String itemId);

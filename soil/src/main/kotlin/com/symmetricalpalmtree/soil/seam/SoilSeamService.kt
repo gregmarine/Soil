@@ -39,6 +39,16 @@ class SoilSeamService : Service() {
             )
         }
 
+        override fun attachClient(client: ISeamClient) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            SeamClients.attach(client)
+        }
+
+        override fun detachClient(client: ISeamClient) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            SeamClients.detach(client)
+        }
+
         override fun createItem(name: String, schema: SeamSchema): SeamItem = answered {
             val clean = ItemNames.clean(name)
             val id = UUID.randomUUID().toString()
@@ -64,6 +74,12 @@ class SoilSeamService : Service() {
             val clean = ItemNames.clean(name)
             check(IndexStore().rename(itemId, clean, System.currentTimeMillis())) { NO_SUCH_ITEM }
             ItemSessions.rename(itemId, clean)
+            ItemSessions.changed()
+        }
+
+        override fun setPageCount(itemId: String, count: Int) = answered {
+            require(count >= 0) { "a page count is not negative" }
+            IndexStore().setPageCount(itemId, count)
             ItemSessions.changed()
         }
 
@@ -101,8 +117,10 @@ class SoilSeamService : Service() {
         }
     }
 
-    private fun seamItem(item: Item) =
-        SeamItem(id = item.id, kind = item.kind, name = item.name, createdAt = item.createdAt, updatedAt = item.updatedAt)
+    private fun seamItem(item: Item) = SeamItem(
+        id = item.id, kind = item.kind, name = item.name,
+        createdAt = item.createdAt, updatedAt = item.updatedAt, pageCount = item.pageCount,
+    )
 
     /** Unlocked, the recovery key saved, and no passphrase change standing unfinished. */
     private fun libraryOpen(): Boolean =

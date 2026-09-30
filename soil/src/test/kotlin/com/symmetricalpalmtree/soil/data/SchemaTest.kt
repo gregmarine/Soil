@@ -45,8 +45,9 @@ class SchemaTest {
     }
 
     @Test
-    fun theIndexIsAtVersionOne_withSoftDeletesAndStableIds() {
-        assertEquals(1, IndexSchema.SCHEMA.version)
+    fun theIndexIsAtVersionTwo_withSoftDeletesStableIdsAndAPageCount() {
+        assertEquals(2, IndexSchema.SCHEMA.version)
+        assertTrue(IndexSchema.SCHEMA.steps[1].single().contains("ADD COLUMN pageCount INTEGER NOT NULL DEFAULT 0"))
         val ddl = IndexSchema.SCHEMA.steps[0].joinToString("\n")
         assertTrue(ddl.contains("CREATE TABLE item"))
         assertTrue(ddl.contains("id TEXT PRIMARY KEY"))

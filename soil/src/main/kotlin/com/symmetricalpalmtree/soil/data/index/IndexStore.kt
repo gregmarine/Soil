@@ -11,6 +11,7 @@ data class Item(
     val keyScope: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val pageCount: Int = 0,
 )
 
 /**
@@ -59,6 +60,10 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
             listOf(Statement("UPDATE item SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL", now, itemId)),
         )[0] > 0
 
+    fun setPageCount(itemId: String, count: Int) {
+        rows.exec(listOf(Statement("UPDATE item SET pageCount = ? WHERE id = ?", count, itemId)))
+    }
+
     /** The item was written to at [at]. Never moved backwards. */
     fun touch(itemId: String, at: Long) {
         rows.exec(listOf(Statement("UPDATE item SET updatedAt = ? WHERE id = ? AND updatedAt < ?", at, itemId, at)))
@@ -71,6 +76,7 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         keyScope = row.text("keyScope"),
         createdAt = row.long("createdAt"),
         updatedAt = row.long("updatedAt"),
+        pageCount = row.long("pageCount").toInt(),
     )
 
     /** The items the global key opens — what a rotation re-keys. */
@@ -93,6 +99,6 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
     }
 
     private companion object {
-        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt FROM item"
+        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount FROM item"
     }
 }

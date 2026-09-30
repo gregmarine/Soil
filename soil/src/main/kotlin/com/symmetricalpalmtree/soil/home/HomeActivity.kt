@@ -22,6 +22,8 @@ import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.library.ItemApps
 import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
+import com.symmetricalpalmtree.soil.databinding.DialogNameBinding
+import com.symmetricalpalmtree.soil.data.index.IndexSchema
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.shell.AppEntry
@@ -63,6 +65,7 @@ class HomeActivity : AppCompatActivity() {
     private var itemPage = 0
     private var itemCount = 0
     private var route = KeyGate.Route.PREPARING
+    private var notebookApp = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +106,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnLibrary.setOnClickListener { show(Showing.LIBRARY) }
         binding.btnApps.setOnClickListener { show(Showing.APPS) }
         binding.btnHiddenApps.setOnClickListener { startActivity(Intent(this, HiddenAppsActivity::class.java)) }
+        binding.btnNewNotebook.setOnClickListener { askNewNotebookName() }
         // Through the gate: while the key is unsaved or the library locked, these lead to the
         // screen that opens it.
         binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
@@ -110,7 +114,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnScratchPad, binding.btnEncryption)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnScratchPad, binding.btnEncryption)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -141,6 +145,10 @@ class HomeActivity : AppCompatActivity() {
         super.onStart()
         // An app may have been installed or removed while Soil was away.
         lifecycleScope.launch { AppList.refresh(this@HomeActivity) }
+        lifecycleScope.launch {
+            notebookApp = withContext(Dispatchers.IO) { ItemApps.find(this@HomeActivity, IndexSchema.KIND_NOTEBOOK) != null }
+            renderLibrary()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -155,6 +163,7 @@ class HomeActivity : AppCompatActivity() {
         binding.libraryView.visibility = if (apps) View.GONE else View.VISIBLE
         binding.appsView.visibility = if (apps) View.VISIBLE else View.GONE
         binding.btnHiddenApps.visibility = if (apps) View.VISIBLE else View.GONE
+        renderLibrary()
         // The view that is showing wears a border; nothing is ever greyed.
         binding.btnLibrary.isSelected = !apps
         binding.btnApps.isSelected = apps
@@ -181,14 +190,42 @@ class HomeActivity : AppCompatActivity() {
 
     /** The list when there is something in it, the line when there is not. */
     private fun renderLibrary() {
-        val some = route == KeyGate.Route.OPEN && itemCount > 0
+        val open = route == KeyGate.Route.OPEN
+        val some = open && itemCount > 0
         binding.itemList.visibility = if (some) View.VISIBLE else View.GONE
         binding.libraryNote.visibility = if (some) View.GONE else View.VISIBLE
+        binding.btnNewNotebook.visibility = if (showing == Showing.LIBRARY && open && notebookApp) View.VISIBLE else View.GONE
         if (!some) {
             itemPages = 1
             itemPage = 0
             renderPager()
         }
+    }
+
+    /** A name, then the app makes the notebook and opens it. */
+    private fun askNewNotebookName() {
+        val field = DialogNameBinding.inflate(layoutInflater)
+        field.nameField.setText(getString(R.string.new_notebook_default))
+        field.nameField.selectAll()
+        val dialog = Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(R.string.new_notebook_title)
+                .setView(field.root)
+                .setPositiveButton(R.string.new_notebook_create) { _, _ ->
+                    val name = field.nameField.text?.toString()?.trim().orEmpty().ifEmpty { getString(R.string.new_notebook_default) }
+                    when (ItemApps.create(this, IndexSchema.KIND_NOTEBOOK, name)) {
+                        ItemApps.Opened.YES -> Unit
+                        ItemApps.Opened.NO_APP ->
+                            Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, name))
+                        ItemApps.Opened.FAILED ->
+                            Dialogs.problem(this, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, name))
+                    }
+                }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .create(),
+        )
+        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        dialog.show()
     }
 
     private fun open(item: Item) {

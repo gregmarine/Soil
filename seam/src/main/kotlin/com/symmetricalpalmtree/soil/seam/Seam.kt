@@ -26,6 +26,12 @@ object Seam {
     /** The id of the item to open. */
     const val EXTRA_ITEM_ID = "com.symmetricalpalmtree.soil.extra.ITEM_ID"
 
+    /**
+     * Instead of an id: the name of a **new** item. The app makes it through the seam, since
+     * only the app knows the shape of its own files, and opens it.
+     */
+    const val EXTRA_NEW_NAME = "com.symmetricalpalmtree.soil.extra.NEW_NAME"
+
     /** Whether [appPackage] and [hubPackage] are of the same build: a debug Soil opens debug apps
      *  and a release Soil release apps, so the two installs never cross. */
     fun sameBuild(hubPackage: String, appPackage: String): Boolean =

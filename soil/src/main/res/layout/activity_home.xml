@@ -36,6 +36,14 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
+        <!-- The library's own action; absent on the drawer, and while no app makes notebooks. -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNewNotebook"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="@string/cd_new_notebook"
+            android:visibility="gone" />
+
         <!-- The app drawer's own action; absent on the library. -->
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnHiddenApps"

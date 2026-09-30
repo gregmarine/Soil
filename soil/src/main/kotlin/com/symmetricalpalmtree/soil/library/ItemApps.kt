@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
 import android.util.Log
 import com.symmetricalpalmtree.soil.seam.Seam
 
@@ -50,22 +51,69 @@ object ItemApps {
         return choose(found, kind, context.packageName)
     }
 
+    /** One Sprout app: its name, its icon, and the screen its own icon opens. */
+    class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
+
+    /**
+     * Every trusted app that opens some kind of item, one entry per app, by name. What the side
+     * menu lists. Read off the main thread.
+     */
+    fun sproutApps(context: Context): List<SproutApp> {
+        val pm = context.packageManager
+        return try {
+            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA)
+                .map { it.activityInfo.packageName }
+                .distinct()
+                .filter {
+                    Seam.sameBuild(context.packageName, it) &&
+                        pm.checkSignatures(context.packageName, it) == PackageManager.SIGNATURE_MATCH
+                }
+                .map { pkg ->
+                    val info = pm.getApplicationInfo(pkg, 0)
+                    SproutApp(
+                        label = pm.getApplicationLabel(info).toString(),
+                        packageName = pkg,
+                        icon = runCatching { pm.getApplicationIcon(info) }.getOrNull(),
+                        launch = pm.getLaunchIntentForPackage(pkg),
+                    )
+                }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, SproutApp::label))
+        } catch (e: Exception) {
+            Log.w(TAG, "the Sprout apps could not be read: ${e.javaClass.simpleName}")
+            emptyList()
+        }
+    }
+
     enum class Opened { YES, NO_APP, FAILED }
+
+    /** Have the app for [kind] make a new item called [name] and open it. Only the app knows the
+     *  shape of its own files, so Soil asks rather than making the file itself. */
+    fun create(context: Context, kind: String, name: String): Opened {
+        val app = find(context, kind) ?: return Opened.NO_APP
+        return start(
+            context,
+            Intent(Seam.ACTION_OPEN_ITEM)
+                .setComponent(ComponentName(app.packageName, app.className))
+                .putExtra(Seam.EXTRA_NEW_NAME, name),
+        )
+    }
 
     /** Open the item in the app for its kind. What rides the Intent is the item's id. */
     fun open(context: Context, itemId: String, kind: String): Opened {
         val app = find(context, kind) ?: return Opened.NO_APP
-        return try {
-            context.startActivity(
-                Intent(Seam.ACTION_OPEN_ITEM)
-                    .setComponent(ComponentName(app.packageName, app.className))
-                    .putExtra(Seam.EXTRA_ITEM_ID, itemId)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            Opened.YES
-        } catch (e: Exception) {
-            Log.w(TAG, "an item could not be opened: ${e.javaClass.simpleName}")
-            Opened.FAILED
-        }
+        return start(
+            context,
+            Intent(Seam.ACTION_OPEN_ITEM)
+                .setComponent(ComponentName(app.packageName, app.className))
+                .putExtra(Seam.EXTRA_ITEM_ID, itemId),
+        )
+    }
+
+    private fun start(context: Context, intent: Intent): Opened = try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        Opened.YES
+    } catch (e: Exception) {
+        Log.w(TAG, "an item could not be opened: ${e.javaClass.simpleName}")
+        Opened.FAILED
     }
 }

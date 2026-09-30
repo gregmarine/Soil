@@ -31,6 +31,16 @@
     <string name="show_app_title">Show %1$s?</string>
     <string name="show_app_body">It will be back among the apps.</string>
     <string name="show_app_confirm">Show</string>
+    <string name="library_row_detail">%1$s · %2$s</string>
+    <plurals name="library_pages">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <string name="cd_new_notebook">New notebook</string>
+    <string name="new_notebook_title">New notebook</string>
+    <string name="new_notebook_hint">Name</string>
+    <string name="new_notebook_default">Notebook</string>
+    <string name="new_notebook_create">Create</string>
     <string name="item_no_app_title">No app for this</string>
     <string name="item_no_app_body">The app that opens %1$s is not installed.</string>
     <string name="item_open_failed_title">Can\'t open</string>

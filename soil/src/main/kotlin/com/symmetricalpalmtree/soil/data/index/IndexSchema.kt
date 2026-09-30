@@ -9,7 +9,7 @@ import com.symmetricalpalmtree.soil.data.Schema
  * An item is one kind of content — a notebook, a sketchbook or a document — in one `.soil` file
  * named by the row's id. Ids are stable and never reused; a delete is soft.
  *
- * Tags, links, covers and page counts are not here yet. Each arrives as a step of its own.
+ * Tags, links and covers are not here yet. Each arrives as a step of its own.
  */
 object IndexSchema {
 
@@ -37,5 +37,11 @@ object IndexSchema {
         """CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1))
+    /** The page count, so the library can say it without opening a file. The app that writes
+     *  the item keeps it honest through the seam. */
+    private val V2 = listOf(
+        """ALTER TABLE item ADD COLUMN pageCount INTEGER NOT NULL DEFAULT 0;""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2))
 }
