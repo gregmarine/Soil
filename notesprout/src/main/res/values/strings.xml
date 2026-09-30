@@ -3,6 +3,8 @@
     <string name="app_name">Notesprout</string>
     <string name="selftest_name">Notesprout self-test</string>
 
+    <string name="cd_close">Close</string>
+
     <string name="open_opening">Opening…</string>
     <string name="open_pages_one">1 page</string>
     <string name="open_pages_many">%1$d pages</string>

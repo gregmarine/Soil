@@ -24,7 +24,8 @@ import kotlinx.coroutines.withContext
  * **A notebook, opened by Soil.** For now it opens the notebook through the seam and says what it
  * found: its name and how many pages it has. The page itself arrives with the notebook screen.
  *
- * What arrives on the Intent is the notebook's id and nothing else.
+ * What arrives on the Intent is the notebook's id and nothing else. The device has no Back key:
+ * the top bar's close button is the way out, and closes the notebook in Soil.
  */
 class OpenItemActivity : AppCompatActivity() {
 
@@ -38,6 +39,7 @@ class OpenItemActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityOpenItemBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.btnClose.setOnClickListener { finish() }
         val itemId = intent.getStringExtra(Seam.EXTRA_ITEM_ID)
         if (itemId.isNullOrEmpty()) {
             finish()
