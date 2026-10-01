@@ -2,6 +2,9 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkTarget
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.notesprout.objects.StickyFlags
@@ -10,6 +13,7 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
 import com.symmetricalpalmtree.soil.paper.ink.StrokeBlob
 import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.seam.SeamLinks
 
 /**
  * Every statement Notesprout sends for a notebook, as a pure builder: SQL text and bound
@@ -127,10 +131,13 @@ object NotebookSql : InkDocument.StrokeSql {
     fun selectMaxOrder(parentId: String, type: String): Statement =
         Statement("SELECT COALESCE(MAX(\"order\"), -1) AS m FROM $TABLE WHERE parentId = ? AND type = ?", parentId, type)
 
-    /** Every live heading in the notebook with its parent, for the Contents. */
+    /** Every live heading in the notebook with the page it is on, for the Contents. A heading a
+     *  link wraps hangs under the link: the hop link → page is made here, so `parentId` is always
+     *  a page. */
     fun selectAllHeadings(): Statement = Statement(
-        "SELECT id, parentId, type, \"order\", text, refId, x, y, width, height, flags FROM $TABLE " +
-            "WHERE type = 'heading' AND deletedAt IS NULL",
+        "SELECT h.id, CASE WHEN p.type = 'link' THEN p.parentId ELSE h.parentId END AS parentId, h.type, h.\"order\", " +
+            "h.text, h.refId, h.x, h.y, h.width, h.height, h.flags FROM $TABLE h LEFT JOIN $TABLE p ON p.id = h.parentId " +
+            "WHERE h.type = 'heading' AND h.deletedAt IS NULL",
     )
 
     fun insertHeading(h: Heading, pageId: String, order: Int, now: Long): Statement = Statement(
@@ -173,4 +180,43 @@ object NotebookSql : InkDocument.StrokeSql {
     /** The live children of one parent, of one type, by id. */
     fun selectLiveChildIds(parentId: String, type: String): Statement =
         Statement("SELECT id FROM $TABLE WHERE parentId = ? AND type = ? AND deletedAt IS NULL", parentId, type)
+
+    // ── Links ──────
+
+    /** The page's links in z-order. What each wraps is read by parent: [selectStrokes] and
+     *  [selectObjects] with the link's id. */
+    fun selectLinks(pageId: String): Statement = Statement(
+        "SELECT id, \"order\", text, x, y, width, height FROM $TABLE WHERE parentId = ? AND type = 'link' AND deletedAt IS NULL ORDER BY \"order\"",
+        pageId,
+    )
+
+    /** The link row alone; what it wraps is re-parented to it with [reparent]. */
+    fun insertLink(l: PageLink, pageId: String, order: Int, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, x, y, width, height) " +
+            "VALUES (?, ?, 'link', ?, ?, ?, ?, ?, ?, ?, ?)",
+        l.id, pageId, order.toLong(), now, now, LinkPayload.cap(l.payload),
+        l.x.toDouble(), l.y.toDouble(), l.width.toDouble(), l.height.toDouble(),
+    )
+
+    /** A wrap moves a row under the link; an unlink moves it back under the page. Ids and
+     *  coordinates are untouched: the row only changes whose it is. */
+    fun reparent(id: String, parentId: String, now: Long): Statement =
+        Statement("UPDATE $TABLE SET parentId = ?, updatedAt = ? WHERE id = ?", parentId, now, id)
+
+    /** An edit of where the link points. The wrapped content is unchanged. */
+    fun setLinkPayload(id: String, payload: String, now: Long): Statement =
+        Statement("UPDATE $TABLE SET text = ?, updatedAt = ? WHERE id = ?", LinkPayload.cap(payload), now, id)
+
+    // ── The link mirror: Soil's table, written in the same batch as the link ──────
+
+    /** The mirror row for [l], or the drop of one it cannot have: a payload Soil cannot name
+     *  points nowhere in the library. */
+    fun mirror(l: PageLink, pageId: String, ownItemId: String): Statement {
+        val target = LinkTarget.of(l.payload, ownItemId) ?: return mirrorDrop(l.id)
+        return Statement(SeamLinks.PUT, l.id, pageId, target.itemId, target.pageId)
+    }
+
+    fun mirrorDrop(linkId: String): Statement = Statement(SeamLinks.DROP, linkId)
+
+    fun mirrorDropPage(pageId: String): Statement = Statement(SeamLinks.DROP_PAGE, pageId)
 }

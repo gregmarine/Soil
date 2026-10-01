@@ -33,7 +33,9 @@ object SeamNames {
  * - **Refused anywhere**: `ATTACH DETACH PRAGMA VACUUM CREATE DROP ALTER BEGIN COMMIT ROLLBACK
  *   SAVEPOINT RELEASE REINDEX ANALYZE load_extension`. DDL keeps its own head word, refuses a
  *   second, and refuses `DROP VIEW TRIGGER VIRTUAL TEMP TEMPORARY`.
- * - **Reserved names**: every identifier, bare or quoted, in a [SeamNames] reserved space.
+ * - **Reserved names**: every identifier, bare or quoted, in a [SeamNames] reserved space. The
+ *   one exception is the link mirror, `soil_link`, as the table of an exec's plain `INSERT INTO`
+ *   or `DELETE FROM` ([SeamLinks]).
  * - **Positional binds only** (`?`, `?NNN`).
  * - **DDL shape**: `CREATE TABLE`, `CREATE [UNIQUE] INDEX … ON`, `ALTER TABLE … ADD [COLUMN]`,
  *   each with its `IF NOT EXISTS`. The name made or altered is [SeamNames.isValid] and bare.
@@ -77,6 +79,9 @@ object SeamSql {
         }
         require(head.upper in heads) { "${kind.name.lowercase()} cannot start with ${head.text}" }
         val deny = if (kind == Kind.DDL) DDL_DENY else DENY
+        // The one reserved name an exec may carry: the link mirror, as the table of a plain
+        // INSERT or DELETE, at that one position. Anywhere else, it is refused like the rest.
+        val mirrorAt = if (kind == Kind.EXEC && writesLinkMirror(tokens)) 2 else -1
         for ((i, t) in tokens.withIndex()) {
             when (t.kind) {
                 T.WORD -> {
@@ -88,7 +93,7 @@ object SeamSql {
                             throw IllegalArgumentException("a query cannot REPLACE INTO")
                         }
                     }
-                    require(!SeamNames.isReserved(t.text)) { "${t.text} is a reserved name" }
+                    require(i == mirrorAt || !SeamNames.isReserved(t.text)) { "${t.text} is a reserved name" }
                 }
                 T.QUOTED -> require(!SeamNames.isReserved(t.text)) { "a quoted name is in a reserved space" }
                 T.NAMED_BIND -> throw IllegalArgumentException("named binds are not supported: use ?")
@@ -97,6 +102,19 @@ object SeamSql {
         }
         require(bindCount(sql) <= SeamLimits.MAX_ARGS) { "more than ${SeamLimits.MAX_ARGS} binds" }
         if (kind == Kind.DDL) checkDdlShape(tokens)
+    }
+
+    /**
+     * Whether [sql] is a write of the link mirror: `INSERT INTO soil_link …` or
+     * `DELETE FROM soil_link …`, the two shapes [SeamLinks] gives an app. Soil re-reads the
+     * mirror after a batch that holds one. Never throws: anything else is simply false.
+     */
+    fun writesLinkMirror(sql: String): Boolean =
+        runCatching { writesLinkMirror(statementTokens(sql)) }.getOrDefault(false)
+
+    private fun writesLinkMirror(t: List<Token>): Boolean {
+        if (t.size < 3 || t[2].kind != T.WORD || t[2].text.lowercase() != SeamLinks.TABLE) return false
+        return (t[0].isWord("INSERT") && t[1].isWord("INTO")) || (t[0].isWord("DELETE") && t[1].isWord("FROM"))
     }
 
     // ── DDL shape ──────

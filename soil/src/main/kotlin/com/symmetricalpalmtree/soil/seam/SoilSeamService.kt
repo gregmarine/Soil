@@ -95,6 +95,15 @@ class SoilSeamService : Service() {
             ItemSessions.changed()
         }
 
+        override fun backlinks(itemId: String): List<SeamBacklink> = answered {
+            IndexStore().backlinks(itemId).map {
+                SeamBacklink(
+                    linkId = it.linkId, sourceItemId = it.sourceItemId, sourceKind = it.sourceKind,
+                    sourceName = it.sourceName, sourcePageId = it.sourcePageId, targetPageId = it.targetPageId,
+                )
+            }
+        }
+
         override fun openItem(itemId: String, schema: SeamSchema, owner: IBinder): ISeamItem = answered {
             val item = IndexStore().aliveItem(itemId) ?: throw IllegalStateException(NO_SUCH_ITEM)
             // An app opens items of its own kind and no other.

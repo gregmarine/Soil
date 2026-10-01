@@ -9,7 +9,9 @@ import com.symmetricalpalmtree.soil.data.Schema
  * An item is one kind of content — a notebook, a sketchbook or a document — in one `.soil` file
  * named by the row's id. Ids are stable and never reused; a delete is soft.
  *
- * Tags, links and covers are not here yet. Each arrives as a step of its own.
+ * Links are here since step 4: one row per link in the library, mirrored from each file's
+ * `soil_link` table whenever an app writes it. Tags and covers are not here yet; each arrives as
+ * a step of its own.
  */
 object IndexSchema {
 
@@ -49,5 +51,22 @@ object IndexSchema {
         """ALTER TABLE item ADD COLUMN openedAt INTEGER;""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3))
+    /**
+     * The link index: every link in every item, by its own id, with the item and page it sits on
+     * and the item and page it points at (no page for a link to a whole item). Kept in step
+     * from each file's mirror table; a source item's delete leaves its rows, and the reads
+     * join the item table to leave them out.
+     */
+    private val V4 = listOf(
+        """CREATE TABLE link (
+               id TEXT PRIMARY KEY,
+               sourceItemId TEXT NOT NULL,
+               sourcePageId TEXT NOT NULL,
+               targetItemId TEXT NOT NULL,
+               targetPageId TEXT);""",
+        """CREATE INDEX link_target ON link(targetItemId);""",
+        """CREATE INDEX link_source ON link(sourceItemId);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4))
 }

@@ -10,6 +10,7 @@ import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.seam.SeamLimits
+import com.symmetricalpalmtree.soil.seam.SeamLinks
 import com.symmetricalpalmtree.soil.seam.SeamSchema
 import net.zetetic.database.sqlcipher.SQLiteDatabase as ZeticDB
 
@@ -40,6 +41,7 @@ object ItemFiles {
             for ((key, value) in ItemMeta.rows(id, schema.kind, name, createdAt)) {
                 db.execSQL(ItemMeta.PUT, arrayOf<Any>(key, value))
             }
+            ownTables(db)
             SoilDb.checkpoint(db)
         } finally {
             runCatching { db.close() }
@@ -71,8 +73,23 @@ object ItemFiles {
             if (e.message?.contains("newer than") == true) throw IllegalStateException(SeamLimits.SCHEMA_NEWER)
             throw e
         }
+        // A file made before the mirror existed is given it here: Soil's tables are not steps of
+        // the app's schema, and every one of them is made with IF NOT EXISTS.
+        try {
+            ownTables(db)
+        } catch (t: Throwable) {
+            runCatching { db.close() }
+            throw t
+        }
         OpenFiles.claim(file)
         return db
+    }
+
+    /** Soil's own tables beside the app's: the link mirror ([SeamLinks]). `soil_meta` is made at
+     *  [create] alone, since a file without it is not an item. */
+    private fun ownTables(db: ZeticDB) {
+        db.execSQL(SeamLinks.CREATE)
+        db.execSQL(SeamLinks.CREATE_INDEX)
     }
 
     /** Fold what is written into the file and close it. Never throws. */

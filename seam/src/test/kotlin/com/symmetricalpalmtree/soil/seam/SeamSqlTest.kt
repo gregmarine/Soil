@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.seam
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -81,7 +82,25 @@ class SeamSqlTest {
         refusedQuery("SELECT * FROM [soil_meta]")
         refusedQuery("SELECT * FROM `SOIL_META`")
         refusedQuery("SELECT * FROM sqlite_master")
-        refusedExec("DELETE FROM soil_link")
+        refusedExec("UPDATE soil_link SET pageId = ? WHERE id = ?")
+        refusedExec("DELETE FROM soil_meta WHERE key = ?")
+    }
+
+    @Test
+    fun `the link mirror admits its two writes and nothing else`() {
+        SeamSql.checkExec(SeamLinks.PUT)
+        SeamSql.checkExec(SeamLinks.DROP)
+        SeamSql.checkExec(SeamLinks.DROP_PAGE)
+        assertTrue(SeamSql.writesLinkMirror(SeamLinks.PUT))
+        assertTrue(SeamSql.writesLinkMirror(SeamLinks.DROP_PAGE))
+        assertFalse(SeamSql.writesLinkMirror("DELETE FROM notebook WHERE id = ?"))
+        assertFalse(SeamSql.writesLinkMirror("nonsense"))
+        // The name is admitted at the table's place alone.
+        refusedQuery(SeamLinks.READ)
+        refusedExec("INSERT INTO notebook (id) SELECT id FROM soil_link")
+        refusedExec("DELETE FROM notebook WHERE id IN (SELECT id FROM soil_link)")
+        refusedExec("INSERT INTO soil_meta (key, value) VALUES (?, ?)")
+        refusedExec("WITH x AS (SELECT 1) INSERT INTO soil_link (id, pageId, targetItemId) VALUES (?, ?, ?)")
     }
 
     @Test

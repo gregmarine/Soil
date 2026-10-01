@@ -4,6 +4,8 @@ import android.util.Log
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkRows
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.ObjectRows
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
@@ -61,13 +63,21 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         Loaded(pages, if (pages.any { it.id == last }) last!! else pages[0].id)
     }
 
-    /** One page: its ink in writing order, and every object on it. */
+    /** One page: its ink in writing order, every object on it, and its links with what they wrap. */
     fun readPage(page: PageRef): PageContent = guard {
+        val loose = readObjectsOf(page.id)
+        PageContent(readStrokesOf(page.id), loose.headings, loose.texts, loose.stickies, readLinksOf(page.id))
+    }
+
+    private class Objects(val headings: List<Heading>, val texts: List<PageText>, val stickies: List<PageSticky>)
+
+    /** The objects parented to [parentId]: a page's own, or what a link wraps. */
+    private fun readObjectsOf(parentId: String): Objects {
         val headings = ArrayList<Heading>()
         val texts = ArrayList<PageText>()
         val stickies = ArrayList<PageSticky>()
         var dropped = 0
-        for (row in store.query(NotebookSql.selectObjects(page.id)).rows) {
+        for (row in store.query(NotebookSql.selectObjects(parentId)).rows) {
             val kept = when (row.text("type")) {
                 NotebookSchema.TYPE_HEADING -> ObjectRows.toHeading(row)?.also { headings += it }
                 NotebookSchema.TYPE_TEXT -> ObjectRows.toText(row)?.also { texts += it }
@@ -76,8 +86,23 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
             }
             if (kept == null) dropped++
         }
-        if (dropped > 0) Log.w(TAG, "a page had $dropped object row(s) that would not read")
-        PageContent(readStrokesOf(page.id), headings, texts, stickies)
+        if (dropped > 0) Log.w(TAG, "$dropped object row(s) would not read")
+        return Objects(headings, texts, stickies)
+    }
+
+    /** The page's links in z-order, each with its wrapped ink and objects. A row that will not
+     *  read is dropped, and the page still shows. */
+    fun readLinksOf(pageId: String): List<PageLink> {
+        val links = ArrayList<PageLink>()
+        var dropped = 0
+        for (row in store.query(NotebookSql.selectLinks(pageId)).rows) {
+            val id = row.textOrNull("id") ?: run { dropped++; continue }
+            val under = readObjectsOf(id)
+            val link = LinkRows.toLink(row, readStrokesOf(id).map { it.second }, under.headings, under.texts, under.stickies)
+            if (link == null) dropped++ else links += link
+        }
+        if (dropped > 0) Log.w(TAG, "$dropped link row(s) would not read")
+        return links
     }
 
     /** The live strokes parented to [parentId]: a page's ink, or a sticky note's content. */
@@ -154,14 +179,90 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         stickies.map { it.copy(strokes = readStrokesOf(it.id).map { s -> s.second }) }
     }
 
-    /** Soft-delete [ids] and, for a sticky among them, its children too. */
-    fun deleteObjects(ids: Collection<String>, stickyIds: Collection<String>) = guard {
+    /**
+     * Soft-delete [ids]; for a sticky among them, its content too; for a link among [linkIds],
+     * everything under it at any depth, and its mirror row. One transaction.
+     */
+    fun deleteObjects(ids: Collection<String>, stickyIds: Collection<String>, linkIds: Collection<String> = emptyList()) = guard {
         val now = System.currentTimeMillis()
         val children = stickyIds.flatMap { id ->
             store.query(NotebookSql.selectLiveChildIds(id, NotebookSchema.TYPE_STROKE)).rows.map { it.text("id") }
+        } + linkIds.flatMap { id ->
+            store.query(NotebookSql.selectLiveDescendantIds(id)).rows.map { it.text("id") }
         }
-        val all = ids + children
-        if (all.isNotEmpty()) run(all.map { NotebookSql.softDelete(it, now) })
+        val all = (ids + children).distinct()
+        val statements = all.map { NotebookSql.softDelete(it, now) } + linkIds.map { NotebookSql.mirrorDrop(it) }
+        if (statements.isNotEmpty()) run(statements)
+    }
+
+    // ── Links ──────
+
+    /**
+     * Wrap: the link row at the next z-order and every child re-parented to it, with the mirror
+     * row, in one transaction. The children keep their ids and their page coordinates.
+     */
+    fun createLink(pageId: String, l: PageLink): PageLink = guard {
+        val now = System.currentTimeMillis()
+        val placed = l.copy(order = nextOrder(pageId, NotebookSchema.TYPE_LINK))
+        run(
+            listOf(NotebookSql.insertLink(placed, pageId, placed.order, now)) +
+                placed.childIds.map { NotebookSql.reparent(it, placed.id, now) } +
+                NotebookSql.mirror(placed, pageId, notebookId),
+        )
+        placed
+    }
+
+    /** Unwrap: the children are the page's again, the link row is soft-deleted, its mirror row goes. */
+    fun unlink(pageId: String, l: PageLink) {
+        val now = System.currentTimeMillis()
+        execAll(
+            l.childIds.map { NotebookSql.reparent(it, pageId, now) } +
+                NotebookSql.softDelete(l.id, now) + NotebookSql.mirrorDrop(l.id),
+        )
+    }
+
+    /** The redo of a wrap, or the undo of an unlink: the row revives in place at the order it
+     *  held (or is put back), and the same children come under it again. */
+    fun relink(pageId: String, l: PageLink) {
+        val now = System.currentTimeMillis()
+        execAll(
+            listOf(NotebookSql.insertLink(l, pageId, l.order, now), NotebookSql.restore(l.id)) +
+                l.childIds.map { NotebookSql.reparent(it, l.id, now) } +
+                NotebookSql.mirror(l, pageId, notebookId),
+        )
+    }
+
+    /** Where the link points, rewritten, and its mirror row with it. */
+    fun setLinkPayload(pageId: String, l: PageLink) = execAll(
+        listOf(NotebookSql.setLinkPayload(l.id, l.payload, System.currentTimeMillis()), NotebookSql.mirror(l, pageId, notebookId)),
+    )
+
+    /**
+     * Translate links by id, row and wrapped children alike: an undo replay has only ids. Box
+     * children shift by their columns; wrapped ink lives in a blob and is read, moved and put
+     * again. A wrapped sticky's content is in its own space and does not move.
+     */
+    fun moveLinks(linkIds: Collection<String>, dx: Float, dy: Float) = guard {
+        if (linkIds.isEmpty() || (dx == 0f && dy == 0f)) return@guard
+        val now = System.currentTimeMillis()
+        val statements = ArrayList<Statement>()
+        for (linkId in linkIds) {
+            statements += NotebookSql.moveBy(linkId, dx, dy, now)
+            for ((order, stroke) in readStrokesOf(linkId)) statements += NotebookSql.putStroke(linkId, order, stroke.translated(dx, dy), now)
+            for (row in store.query(NotebookSql.selectObjects(linkId)).rows) statements += NotebookSql.moveBy(row.text("id"), dx, dy, now)
+        }
+        run(statements)
+    }
+
+    /** Make the page's mirror rows exactly its live links: after a restore brought links back. */
+    fun remirrorPage(pageId: String) = guard {
+        val links = readLinksOf(pageId)
+        run(listOf(NotebookSql.mirrorDropPage(pageId)) + links.map { NotebookSql.mirror(it, pageId, notebookId) })
+    }
+
+    /** Every link in [links] with each wrapped sticky's content read: the snapshot a delete carries. */
+    fun linksWithContent(links: List<PageLink>): List<PageLink> = guard {
+        links.map { l -> if (l.stickies.isEmpty()) l else l.copy(stickies = withContent(l.stickies)) }
     }
 
     /**
@@ -217,6 +318,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         val statements = ArrayList<Statement>(under.size + pages.size + 4)
         statements += NotebookSql.softDelete(victim.id, now)
         under.forEach { statements += NotebookSql.softDelete(it, now) }
+        statements += NotebookSql.mirrorDropPage(victim.id)
         val next: List<PageRef>
         val landing: PageRef
         if (pages.size <= 1) {
@@ -238,7 +340,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     fun erasePage(pageId: String): List<String> = guard {
         val now = System.currentTimeMillis()
         val under = store.query(NotebookSql.selectLiveDescendantIds(pageId)).rows.map { it.text("id") }
-        if (under.isNotEmpty()) run(under.map { NotebookSql.softDelete(it, now) })
+        if (under.isNotEmpty()) run(under.map { NotebookSql.softDelete(it, now) } + NotebookSql.mirrorDropPage(pageId))
         under
     }
 
@@ -268,12 +370,17 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
             statements += NotebookSql.insertPage(page.id, notebookId, 0, page.width, page.height, page.templateId, now)
             statements += NotebookSql.restore(page.id)
         }
-        for (id in aliveIds) if (id !in targetIds) statements += NotebookSql.softDelete(id, now)
+        for (id in aliveIds) if (id !in targetIds) {
+            statements += NotebookSql.softDelete(id, now)
+            statements += NotebookSql.mirrorDropPage(id)
+        }
         restoreIds.forEach { statements += NotebookSql.restore(it) }
         deleteIds.forEach { statements += NotebookSql.softDelete(it, now) }
         target.forEachIndexed { i, page -> statements += NotebookSql.setOrder(page.id, i, now) }
         statements += NotebookSql.setLastOpened(notebookId, currentId, now)
         execAll(statements)
+        // A page brought back brings its links back: their mirror rows are written again.
+        for (page in target) if (page.id !in aliveIds) remirrorPage(page.id)
     }
 
     private fun renumber(pages: List<PageRef>, now: Long): List<Statement> =

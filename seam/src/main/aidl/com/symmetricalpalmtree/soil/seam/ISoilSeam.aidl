@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.seam;
 
 import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
+import com.symmetricalpalmtree.soil.seam.SeamBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamHello;
 import com.symmetricalpalmtree.soil.seam.SeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamSchema;
@@ -51,6 +52,13 @@ interface ISoilSeam {
 
     /** A delete is soft: the row is marked and the file is kept. Refused while the item is open. */
     void deleteItem(String itemId);
+
+    /**
+     * Every link into an item, from the library's link index: what an app shows as "links to
+     * here". Links from items that have been deleted are left out. The app narrows the list to
+     * a page itself.
+     */
+    List<SeamBacklink> backlinks(String itemId);
 
     /**
      * Open an item for rows. The item must be of the schema's kind. The file is brought to the

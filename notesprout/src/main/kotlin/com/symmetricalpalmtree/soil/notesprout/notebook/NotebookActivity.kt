@@ -28,6 +28,16 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookDocument
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
+import com.symmetricalpalmtree.soil.notesprout.data.PageContent
+import com.symmetricalpalmtree.soil.notesprout.data.PageRef
+import com.symmetricalpalmtree.soil.notesprout.links.LinkFollowFlow
+import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerActivity
+import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerRelay
+import com.symmetricalpalmtree.soil.notesprout.links.LinkTrail
+import com.symmetricalpalmtree.soil.notesprout.links.PickerSource
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
+import com.symmetricalpalmtree.soil.notesprout.objects.TrailEntry
+import com.symmetricalpalmtree.soil.seam.SeamBacklink
 import com.symmetricalpalmtree.soil.notesprout.objects.FreePlacement
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
 import com.symmetricalpalmtree.soil.notesprout.objects.OutlineTree
@@ -97,7 +107,18 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private lateinit var headingRenderer: HeadingRenderer
     private lateinit var textRenderer: TextRenderer
     private lateinit var stickyRenderer: StickyRenderer
+    private lateinit var linkRenderer: LinkRenderer
+    private lateinit var followFlow: LinkFollowFlow
+    private lateinit var backlinks: EdgeListPanel<SeamBacklink>
     private var document: NotebookDocument? = null
+    private var backlinksShowing = false
+
+    /** What the picker's answer applies to, captured at its launch: the selection may not survive the round trip. */
+    private var pendingWrap: Selection? = null
+    private var pendingEdit: PageLink? = null
+    private var pickerShowing = false
+    /** A page landed through the picker: the history's page snapshots name a list that is gone. */
+    private var pagesChangedUnderPicker = false
     private var recentsShowing = false
     private var contentsShowing = false
     private var contentsAvailable = false
@@ -118,6 +139,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private val scaledDensity: Float get() = resources.displayMetrics.scaledDensity
 
     private val editorLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onEditorClosed() }
+    private val pickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onPickerClosed(it.resultCode, it.data?.getStringExtra(LinkPickerActivity.EXTRA_RESULT_PAYLOAD)) }
 
     /** Any binder of this app's own: Soil watches it, and closes the notebook if the app dies. */
     private val owner = Binder()
@@ -168,13 +190,34 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         paper.scribbleEraseEnabled = true
         paper.directInk = true
         paper.setPaperListener(notebookListener)
-        // Draw order is registration order, below the ink: headings · texts · stickies.
+        // Draw order is registration order: headings · texts · links below the ink, stickies above it.
         headingRenderer = HeadingRenderer(density, scaledDensity)
         textRenderer = TextRenderer(density, scaledDensity)
-        stickyRenderer = StickyRenderer(checkNotNull(AppCompatResources.getDrawable(this, com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2)).mutate())
+        val stickyIcon = { checkNotNull(AppCompatResources.getDrawable(this, com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2)).mutate() }
+        stickyRenderer = StickyRenderer(stickyIcon())
+        linkRenderer = LinkRenderer(density, scaledDensity, stickyIcon())
         paper.addContentRenderer(headingRenderer)
         paper.addContentRenderer(textRenderer)
+        paper.addContentRenderer(linkRenderer)
         paper.addContentRenderer(stickyRenderer)
+        followFlow = LinkFollowFlow(
+            activity = this,
+            soil = (application as NotesproutApp).soil,
+            itemId = { itemId },
+            displayedPageId = { document?.pageId.orEmpty() },
+            pageIds = { document?.pages?.map { it.id }.orEmpty() },
+            liveLinks = { document?.links?.values.orEmpty() },
+            alive = { opened && !closing },
+            navigateToPage = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } },
+            leaveFor = ::leaveFor,
+            editLink = ::beginEdit,
+        )
+        backlinks = EdgeListPanel(
+            this, emptyRes = R.string.backlinks_empty,
+            rowTitle = { it.sourceName },
+            rowDetail = { getString(if (it.targetPageId == null) R.string.backlink_to_notebook else R.string.backlink_to_page) },
+            onPick = ::followBacklink,
+        )
 
         toolbar = NotebookToolbar(
             paper = paper,
@@ -234,6 +277,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             band = { chromeBand() }, releaseRender = { paper.releaseRender() },
             onLevelPicked = ::setHeadingLevel,
             onDelete = { currentSelection?.let { deleteSelected(it) } },
+            onLink = { currentSelection?.let { beginWrap(it) } },
+            onEditLink = { loneLink()?.let { beginEdit(it) } },
+            onUnlink = { loneLink()?.let { unlink(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -246,7 +292,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             bottomStrip = binding.bottomBar,
             extraRects = { floatingRects() },
             extraContains = { x, y -> floatingContains(x, y) },
-            blockAll = { !opened || recentsShowing || contentsShowing },
+            blockAll = { !opened || recentsShowing || contentsShowing || backlinksShowing },
         )
         gestures = PageGestures(
             host = paper.asView(),
@@ -320,9 +366,19 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPageCount(item.id, pages) } }
                 }
                 document.onObjectsChanged = ::syncRenderers
+                document.density = density
                 document.measureHeading = { h -> HeadingRenderer.measure(h.text, density, scaledDensity).let { (w, hh) -> if (w == h.width && hh == h.height) h else h.copy(width = w, height = hh) } }
                 document.measureText = { t, pageW -> TextRenderer.measure(t.text, (pageW - t.x).toInt(), density, scaledDensity).let { (w, hh) -> if (w == t.width && hh == t.height) t else t.copy(width = w, height = hh) } }
                 document.load(loaded)
+                // Opened via a link: land on the page the link named, once. Any other open
+                // starts a new story, and the old trail would walk back into someone else's.
+                val initialPage = intent.getStringExtra(EXTRA_INITIAL_PAGE_ID)
+                if (initialPage != null) {
+                    intent.removeExtra(EXTRA_INITIAL_PAGE_ID)
+                    document.pages.firstOrNull { it.id == initialPage }?.let { document.goTo(it) }
+                }
+                if (!intent.getBooleanExtra(EXTRA_VIA_LINK, false)) LinkTrail(this@NotebookActivity).clear()
+                intent.removeExtra(EXTRA_VIA_LINK)
                 prefs.lastNotebookId = item.id
                 document to item.name
             }
@@ -344,7 +400,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         if (isFinishing || isDestroyed || closing) return
         document = doc.first
         toolbar.setTitle(doc.second)
-        showPage(firstLoad = true)
+        showPage(firstLoad = true, prebuilt = linkRenderer.prebuild(doc.first.links.values.toList()))
         opened = true
         pushExclusions()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
@@ -385,7 +441,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         override fun onPageSheetRequested() = showPageSheet()
         override fun onTwoFingerSwipeDown() = showRecents()
         override fun onSwipeDown() = showContents()
-        override fun onFingerTap(x: Float, y: Float) { openStickyAt(x, y) }
+        /** A sticky's icon sits above everything, so it is asked first; then the links. */
+        override fun onFingerTap(x: Float, y: Float) { if (!openStickyAt(x, y)) followFlow.followAt(x, y) }
+        override fun onSwipeUp() { if (opened && !closing) followFlow.walkBack { } }
         override fun onFingerDoubleTap(x: Float, y: Float) = toggleChrome()
     }
 
@@ -452,8 +510,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         /**
          * A stylus tap inside the selection. On a lone heading or text it opens the words. On a
          * selection that holds more, a tap on one of its objects **narrows** the selection to that
-         * object alone, topmost first (a sticky, then a text, then a heading): the way to pick one
-         * thing out of a cluster the lasso caught whole.
+         * object alone, topmost first (a sticky, then a link, then a text, then a heading): the
+         * way to pick one thing out of a cluster the lasso caught whole.
          */
         override fun onSelectionTapped(x: Float, y: Float) {
             val sel = currentSelection ?: return
@@ -465,10 +523,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 return
             }
             val hit = sel.contentIds.firstOrNull { doc.stickies[it]?.bounds?.contains(x, y) == true }
+                ?: sel.contentIds.lastOrNull { doc.links[it]?.bounds?.contains(x, y) == true }
                 ?: sel.contentIds.lastOrNull { doc.texts[it]?.bounds?.contains(x, y) == true }
                 ?: sel.contentIds.lastOrNull { doc.headings[it]?.bounds?.contains(x, y) == true }
                 ?: return
-            val bounds = doc.stickies[hit]?.bounds ?: doc.texts[hit]?.bounds ?: doc.headings[hit]?.bounds ?: return
+            val bounds = doc.stickies[hit]?.bounds ?: doc.links[hit]?.bounds ?: doc.texts[hit]?.bounds ?: doc.headings[hit]?.bounds ?: return
             paper.setSelection(emptySet(), setOf(hit), bounds)
             val narrowed = Selection(emptySet(), setOf(hit), bounds)
             currentSelection = narrowed
@@ -477,19 +536,23 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     }
 
-    /** Hand the working copies to the renderers. The repaint is the caller's. */
-    private fun syncRenderers() {
+    /** Hand the working copies to the renderers. The repaint is the caller's. A link's composite
+     *  is built here when none was [prebuilt] off Main. */
+    private fun syncRenderers(prebuilt: Map<String, android.graphics.Bitmap> = emptyMap()) {
         val doc = document ?: return
         headingRenderer.headings = doc.headings.values.toList()
         textRenderer.texts = doc.texts.values.toList()
         stickyRenderer.stickies = doc.stickies.values.toList()
+        linkRenderer.update(doc.links.values.toList(), prebuilt)
     }
+
+    private fun syncRenderers() = syncRenderers(emptyMap())
 
     /** Every box already on the page, for a drop that must not land on what is there. */
     private fun occupied(): List<Bounds> {
         val doc = document ?: return emptyList()
         return doc.headings.values.map { it.bounds } + doc.texts.values.map { it.bounds } + doc.stickies.values.map { it.bounds } +
-            doc.strokes.map { it.bounds }
+            doc.links.values.map { it.bounds } + doc.strokes.map { it.bounds }
     }
 
     // ── Selection ──────
@@ -498,7 +561,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val doc = document ?: return
         val mode = SelectionModes.classify(
             strokeCount = sel.strokeIds.size, contentIds = sel.contentIds,
-            isHeading = { it in doc.headings }, isLink = { false }, isText = { it in doc.texts },
+            isHeading = { it in doc.headings }, isLink = { it in doc.links }, isText = { it in doc.texts },
             isSticky = { it in doc.stickies },
         )
         val level = sel.contentIds.singleOrNull()?.let { doc.headings[it]?.level }
@@ -779,6 +842,143 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private var storeRef: NotebookStore? = null
     private fun storeOf(@Suppress("UNUSED_PARAMETER") doc: NotebookDocument): NotebookStore? = storeRef
 
+    // ── Links ──────
+
+    private fun loneLink(): PageLink? {
+        val sel = currentSelection ?: return null
+        if (sel.strokeIds.isNotEmpty()) return null
+        return sel.contentIds.singleOrNull()?.let { document?.links?.get(it) }
+    }
+
+    /** Link on the bar: the picker, in create shape, for the selection as it stands. */
+    private fun beginWrap(sel: Selection) {
+        if (sel.contentIds.any { it in document?.links.orEmpty() }) return
+        launchPicker(wrap = sel, edit = null)
+    }
+
+    /** Edit link on the bar, or the dead-target dialog's Edit: the picker prefilled. */
+    private fun beginEdit(link: PageLink) = launchPicker(wrap = null, edit = link)
+
+    /**
+     * The relay carries this notebook's pages to the picker through the live store, never a
+     * second session on the file; the Intent carries only the prefill. What the answer applies
+     * to is captured here. The ink is flushed first, so the previews show what was just written.
+     */
+    private fun launchPicker(wrap: Selection?, edit: PageLink?) {
+        if (!opened || closing || pickerShowing) return
+        val doc = document ?: return
+        val store = storeRef ?: return
+        pickerShowing = true
+        runPageOp {
+            try {
+                doc.flushUntilClean()
+                pendingWrap = wrap
+                pendingEdit = edit
+                pagesChangedUnderPicker = false
+                LinkPickerRelay.showing = LinkPickerRelay.Showing(
+                    notebookId = requireNotNull(itemId), currentPageId = doc.pageId,
+                    source = object : PickerSource {
+                        override suspend fun pages(): List<PageRef> = doc.pages
+                        override suspend fun content(page: PageRef): PageContent? =
+                            withContext(Dispatchers.IO) { runCatching { store.readPage(page) }.getOrNull() }
+                        override suspend fun createPage(anchorId: String?, before: Boolean): PageRef? =
+                            createPageForPicker(anchorId, before)
+                    },
+                )
+                hideFloatingBars()
+                dismissCollapsed()
+                inAppHandoff = true
+                paper.releaseForHandoff()
+                pickerLauncher.launch(LinkPickerActivity.intent(this@NotebookActivity, edit?.payload))
+            } catch (e: Exception) {
+                Log.w(TAG, "the picker could not be opened: ${e.javaClass.simpleName}")
+                LinkPickerRelay.showing = null
+                pendingWrap = null
+                pendingEdit = null
+                pickerShowing = false
+                inAppHandoff = false
+                paper.resumeDrawing()
+            }
+        }
+    }
+
+    /** The picker's New page in this notebook: under the page-op lock, the showing page kept. */
+    private suspend fun createPageForPicker(anchorId: String?, before: Boolean): PageRef? {
+        val doc = document ?: return null
+        if (!opened || closing) return null
+        return try {
+            pageOps.withLock {
+                val page = doc.insertPageQuietly(anchorId, before)
+                pagesChangedUnderPicker = true
+                page
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "the picker's page could not be made: ${e.javaClass.simpleName}")
+            null
+        }
+    }
+
+    /** The result callback runs before `onResume`: the pipeline is reclaimed first of all. */
+    private fun onPickerClosed(resultCode: Int, payload: String?) {
+        pickerShowing = false
+        inAppHandoff = false
+        LinkPickerRelay.showing = null
+        if (opened) paper.resumeDrawing()
+        val wrap = pendingWrap.also { pendingWrap = null }
+        val edit = pendingEdit.also { pendingEdit = null }
+        val doc = document ?: return
+        if (pagesChangedUnderPicker) {
+            pagesChangedUnderPicker = false
+            undo.clear()
+            toolbar.setPage(doc.pageNumber, doc.pageCount)
+        }
+        if (resultCode != android.app.Activity.RESULT_OK || payload.isNullOrEmpty()) return
+        when {
+            wrap != null -> applyWrap(wrap, payload)
+            edit != null -> if (payload != edit.payload) applyEdit(edit, payload)
+            else -> Dialogs.problem(this, R.string.link_result_lost_title, R.string.link_result_lost_body)
+        }
+    }
+
+    /** The wrap: rows re-parented, the page read again, and shown with the link selected. */
+    private fun applyWrap(sel: Selection, payload: String) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val link = doc.wrap(sel.strokeIds, sel.contentIds, payload) ?: return@runPageOp
+            undo.record(NotebookAction.LinkCreated(pageId, link))
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+            doc.links[link.id]?.let { selectObject(it.id, it.bounds) }
+            refreshContents()
+        }
+    }
+
+    private fun applyEdit(link: PageLink, payload: String) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            if (doc.pageId != pageId || link.id !in doc.links) return@runPageOp
+            doc.setLinkPayload(link, payload)
+            undo.record(NotebookAction.LinkEdited(pageId, link.id, link.payload, payload))
+            paper.notifyContentChanged()
+            currentSelection?.let { showObjectBar(it) }
+        }
+    }
+
+    /** Unlink on the bar: the children are the page's again. */
+    private fun unlink(link: PageLink) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            if (doc.pageId != pageId || link.id !in doc.links) return@runPageOp
+            doc.unlink(link)
+            undo.record(NotebookAction.LinkUnlinked(pageId, link))
+            showPage()
+            refreshContents()
+        }
+    }
+
     // ── Contents ──────
 
     /** The button shows and the swipe acts only while the notebook holds a heading. */
@@ -939,15 +1139,70 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     // ── The page sheet ──────
 
-    /** A long press asks; it never acts. What can be done with this page. */
+    /** A long press asks; it never acts. What can be done with this page, and, when anything in
+     *  the library links to it, what links here. */
     private fun showPageSheet() {
         if (!opened || closing) return
+        val doc = document ?: return
+        val pageId = doc.pageId
         paper.releaseRender()
-        ActionSheetDialog(this)
-            .title(getString(R.string.page_sheet_title))
-            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_erase_page, getString(R.string.page_sheet_erase)) { confirmErasePage() }
-            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
-            .show()
+        lifecycleScope.launch {
+            val into = backlinksTo(pageId)
+            if (!opened || closing || doc.pageId != pageId) return@launch
+            val sheet = ActionSheetDialog(this@NotebookActivity)
+                .title(getString(R.string.page_sheet_title))
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_erase_page, getString(R.string.page_sheet_erase)) { confirmErasePage() }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
+            if (into.isNotEmpty()) {
+                sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, resources.getQuantityString(R.plurals.page_sheet_backlinks, into.size, into.size)) { showBacklinks(into) }
+            }
+            sheet.show()
+        }
+    }
+
+    // ── Backlinks ──────
+
+    /** What links to this page, and to the notebook as a whole, from Soil's link index. */
+    private suspend fun backlinksTo(pageId: String): List<SeamBacklink> {
+        val me = itemId ?: return emptyList()
+        return withContext(Dispatchers.IO) {
+            runCatching { (application as NotesproutApp).soil.seam().backlinks(me) }.getOrDefault(emptyList())
+        }.filter { it.targetPageId == null || it.targetPageId == pageId }
+            .sortedWith(compareBy({ it.targetPageId == null }, { it.sourceName.lowercase() }))
+    }
+
+    private fun showBacklinks(into: List<SeamBacklink>) {
+        if (!opened || closing || backlinksShowing) return
+        backlinksShowing = true
+        hideFloatingBars()
+        dismissCollapsed()
+        paper.releaseRender()
+        pushExclusions()
+        backlinks.show(into) { backlinksShowing = false; pushExclusions() }
+    }
+
+    /** Go to where the link was made: a page of this notebook, or another's. The origin is
+     *  pushed, so a swipe up comes back here. */
+    private fun followBacklink(b: SeamBacklink) {
+        val doc = document ?: return
+        val me = itemId ?: return
+        if (!opened || closing) return
+        LinkTrail(this).push(TrailEntry(me, doc.pageId))
+        if (b.sourceItemId == me) {
+            runPageOp { flipTo(doc.pages.indexOfFirst { it.id == b.sourcePageId }) }
+        } else {
+            leaveFor(b.sourceItemId, b.sourcePageId)
+        }
+    }
+
+    /** Leave this notebook for another, at [pageId] or at its own remembered page. The box
+     *  goes up, and the switch is a new ask of this screen ([onNewIntent]). */
+    private fun leaveFor(itemId: String, pageId: String?) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        binding.openingOverlay.visibility = View.VISIBLE
+        startActivity(intent(this, itemId, viaLink = true, initialPageId = pageId))
     }
 
     private fun confirmErasePage() {
@@ -975,7 +1230,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val doc = document ?: return
         if (index < 0 || index >= doc.pageCount) return
         doc.goToIndex(index)
-        showPage()
+        // The composites off Main, before the frame that paints the page.
+        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
     }
 
     private suspend fun doInsert(after: Boolean) {
@@ -991,7 +1247,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     }
 
     /** The page-swap order is g-paper's law: clear for the swap, size, template, then strokes. */
-    private fun showPage(firstLoad: Boolean) {
+    private fun showPage(firstLoad: Boolean, prebuilt: Map<String, android.graphics.Bitmap> = emptyMap()) {
         val doc = document ?: return
         paper.clearSelection()
         selectionActive = false
@@ -1003,7 +1259,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
         paper.setTemplate(null)   // the paper library arrives later
         // The objects are handed over before `loadStrokes`, which is the frame that paints the page.
-        syncRenderers()
+        syncRenderers(prebuilt)
         paper.loadStrokes(doc.strokes)
         toolbar.setPage(doc.pageNumber, doc.pageCount)
     }
@@ -1072,6 +1328,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         super.onScreenDestroyed()
         if (::recents.isInitialized) recents.dismiss()
         if (::contents.isInitialized) contents.dismiss()
+        if (::backlinks.isInitialized) backlinks.dismiss()
+        LinkPickerRelay.showing = null
         val open = session ?: return
         session = null
         appScope.launch(Dispatchers.IO + NonCancellable) {
@@ -1085,7 +1343,20 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         private const val RECENTS_LIMIT = 20
         private const val DEFAULT_HEADING_LEVEL = 1
 
+        /** The page to land on, for an open through a link. Consumed once. */
+        const val EXTRA_INITIAL_PAGE_ID = "initialPageId"
+
+        /** An open through a link keeps the trail; any other open starts a new story. */
+        const val EXTRA_VIA_LINK = "viaLink"
+
         /** Outlives the screen, so a park or a close in flight always completes. */
         private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+        fun intent(context: android.content.Context, itemId: String, viaLink: Boolean, initialPageId: String?): android.content.Intent =
+            android.content.Intent(context, NotebookActivity::class.java)
+                .setAction(Seam.ACTION_OPEN_ITEM)
+                .putExtra(Seam.EXTRA_ITEM_ID, itemId)
+                .putExtra(EXTRA_VIA_LINK, viaLink)
+                .putExtra(EXTRA_INITIAL_PAGE_ID, initialPageId)
     }
 }

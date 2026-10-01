@@ -2,6 +2,8 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -36,6 +38,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     val headings: MutableMap<String, Heading> = linkedMapOf()
     val texts: MutableMap<String, PageText> = linkedMapOf()
     val stickies: MutableMap<String, PageSticky> = linkedMapOf()
+    val links: MutableMap<String, PageLink> = linkedMapOf()
 
     /** Runs on Main after every change to the object maps: the screen re-hands them to the renderers. */
     var onObjectsChanged: () -> Unit = {}
@@ -45,6 +48,9 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
      *  corrected whenever the object is next written. */
     var measureHeading: ((Heading) -> Heading)? = null
     var measureText: ((PageText, Float) -> PageText)? = null
+
+    /** The screen's density, for a link's underline band. */
+    var density: Float = 1f
 
     override val pageId: String get() = ink.pageId
     override val strokes: List<Stroke> get() = ink.strokes
@@ -56,7 +62,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     val pageIndex: Int get() = pages.indexOfFirst { it.id == pageId }.coerceAtLeast(0)
     val pageNumber: Int get() = pageIndex + 1
 
-    fun holdsObject(id: String): Boolean = id in headings || id in texts || id in stickies
+    fun holdsObject(id: String): Boolean = id in headings || id in texts || id in stickies || id in links
 
     // ── Loading ──────
 
@@ -96,6 +102,24 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         applyPage(page, PageContent.EMPTY)
         onPagesChanged(pages.size)
         return NotebookAction.Page(before, next, emptyList(), beforeCurrent, page.id)
+    }
+
+    /**
+     * A blank page beside [anchorId] (before or after it; at the end with no anchor) without
+     * leaving the showing page: what the link picker's New page does. Not undoable; the caller
+     * clears its history, since every page snapshot in it now names a list that is gone.
+     */
+    suspend fun insertPageQuietly(anchorId: String?, before: Boolean): PageRef {
+        flushUntilClean()
+        val before0 = pages
+        val anchor = before0.firstOrNull { it.id == anchorId } ?: before0.last()
+        val showing = pageId
+        val (next, page) = withContext(Dispatchers.IO) {
+            store.insertPage(before0, anchor.id, after = anchorId == null || !before).also { store.setLastOpened(showing) }
+        }
+        pages = next
+        onPagesChanged(pages.size)
+        return page
     }
 
     suspend fun deleteCurrent(): NotebookAction.Page {
@@ -164,47 +188,97 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     }
 
     /** Take [contentIds] off the page, whatever kinds they are. Answers what went, with each
-     *  sticky's content read first so an undo can bring it back. */
+     *  sticky's content read first (a wrapped one's too) so an undo can bring it back. */
     suspend fun deleteObjects(contentIds: Collection<String>): DeletedObjects {
         val headingIds = contentIds.filter { it in headings }
         val textIds = contentIds.filter { it in texts }
         val stickyIcons = contentIds.mapNotNull { stickies[it] }
+        val linked = contentIds.mapNotNull { links[it] }
         val gone = withContext(Dispatchers.IO) {
             val full = store.withContent(stickyIcons)
-            store.deleteObjects(headingIds + textIds + stickyIcons.map { it.id }, stickyIcons.map { it.id })
-            DeletedObjects(headingIds, textIds, full)
+            val fullLinks = store.linksWithContent(linked)
+            store.deleteObjects(headingIds + textIds + stickyIcons.map { it.id } + linked.map { it.id }, stickyIcons.map { it.id }, linked.map { it.id })
+            DeletedObjects(headingIds, textIds, full, fullLinks)
         }
         headingIds.forEach { headings.remove(it) }
         textIds.forEach { texts.remove(it) }
         stickyIcons.forEach { stickies.remove(it.id) }
+        linked.forEach { links.remove(it.id) }
         onObjectsChanged()
         return gone
     }
 
     /** The objects among [contentIds], by kind. */
-    class Moved(val headingIds: List<String>, val textIds: List<String>, val stickyIds: List<String>) {
-        val isEmpty: Boolean get() = headingIds.isEmpty() && textIds.isEmpty() && stickyIds.isEmpty()
-        val ids: List<String> get() = headingIds + textIds + stickyIds
+    class Moved(val headingIds: List<String>, val textIds: List<String>, val stickyIds: List<String>, val linkIds: List<String> = emptyList()) {
+        val isEmpty: Boolean get() = headingIds.isEmpty() && textIds.isEmpty() && stickyIds.isEmpty() && linkIds.isEmpty()
+        /** The ids whose rows shift by their own columns; a link's children are the store's. */
+        val boxIds: List<String> get() = headingIds + textIds + stickyIds
     }
 
     /** The in-memory half of a finished drag, on Main, synchronous: the working copies shift so the
      *  engine's next record shows them where they landed. [writeMove] follows on IO. */
     fun translateObjects(contentIds: Collection<String>, dx: Float, dy: Float): Moved {
-        val moved = Moved(contentIds.filter { it in headings }, contentIds.filter { it in texts }, contentIds.filter { it in stickies })
-        if (!moved.isEmpty && !(dx == 0f && dy == 0f)) translateObjects(moved.headingIds, moved.textIds, moved.stickyIds, dx, dy)
+        val moved = Moved(
+            contentIds.filter { it in headings }, contentIds.filter { it in texts }, contentIds.filter { it in stickies },
+            contentIds.filter { it in links },
+        )
+        if (!moved.isEmpty && !(dx == 0f && dy == 0f)) translateObjects(moved.headingIds, moved.textIds, moved.stickyIds, moved.linkIds, dx, dy)
         return moved
     }
 
     /** The row half of [translateObjects]. */
     suspend fun writeMove(moved: Moved, dx: Float, dy: Float) {
         if (moved.isEmpty || (dx == 0f && dy == 0f)) return
-        withContext(Dispatchers.IO) { store.moveBy(moved.ids, dx, dy) }
+        withContext(Dispatchers.IO) {
+            store.moveBy(moved.boxIds, dx, dy)
+            store.moveLinks(moved.linkIds, dx, dy)
+        }
     }
 
-    private fun translateObjects(headingIds: List<String>, textIds: List<String>, stickyIds: List<String>, dx: Float, dy: Float) {
+    private fun translateObjects(headingIds: List<String>, textIds: List<String>, stickyIds: List<String>, linkIds: List<String>, dx: Float, dy: Float) {
         headingIds.forEach { id -> headings[id]?.let { headings[id] = it.translated(dx, dy) } }
         textIds.forEach { id -> texts[id]?.let { texts[id] = it.translated(dx, dy) } }
         stickyIds.forEach { id -> stickies[id]?.let { stickies[id] = it.translated(dx, dy) } }
+        linkIds.forEach { id -> links[id]?.let { links[id] = it.translated(dx, dy) } }
+        onObjectsChanged()
+    }
+
+    // ── Links ──────
+
+    /**
+     * Wrap a selection of the showing page into a link pointing at [payload]. The working copies
+     * are gathered here, on Main; the rows are re-parented on IO; then the page is read again,
+     * since the wrapped ink leaves the page's own ink. Null when the selection holds nothing of
+     * this page's.
+     */
+    suspend fun wrap(strokeIds: Collection<String>, contentIds: Collection<String>, payload: String): PageLink? {
+        val strokeSet = strokeIds.toHashSet()
+        val wrappedStrokes = strokes.filter { it.id in strokeSet }
+        val wrappedHeadings = contentIds.mapNotNull { headings[it] }
+        val wrappedTexts = contentIds.mapNotNull { texts[it] }
+        val wrappedStickies = contentIds.mapNotNull { stickies[it] }
+        val b = PageLink.unionBounds(wrappedStrokes, wrappedHeadings, wrappedTexts, wrappedStickies, density) ?: return null
+        val link = PageLink(
+            id = NotebookStore.newId(), payload = payload, chrome = LinkPayload.chromeOf(payload),
+            x = b.left, y = b.top, width = b.right - b.left, height = b.bottom - b.top, order = 0,
+            strokes = wrappedStrokes, headings = wrappedHeadings, texts = wrappedTexts, stickies = wrappedStickies,
+        )
+        flushUntilClean()
+        val placed = withContext(Dispatchers.IO) { store.createLink(pageId, link) }
+        reloadCurrent()
+        return placed
+    }
+
+    suspend fun unlink(link: PageLink) {
+        flushUntilClean()
+        withContext(Dispatchers.IO) { store.unlink(pageId, link) }
+        reloadCurrent()
+    }
+
+    suspend fun setLinkPayload(link: PageLink, payload: String) {
+        val after = link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload))
+        withContext(Dispatchers.IO) { store.setLinkPayload(pageId, after) }
+        links[after.id] = after
         onObjectsChanged()
     }
 
@@ -224,10 +298,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.Deleted -> objects(a.pageId) {
                 a.ink?.let { ink.revert(it) }
                 store.restoreIds(a.objects.ids)
+                if (a.objects.links.isNotEmpty()) store.remirrorPage(a.pageId)
             }
             is NotebookAction.Moved -> objects(a.pageId) {
                 a.ink?.let { ink.revert(it) }
                 store.moveBy(a.headingIds + a.textIds + a.stickyIds, -a.dx, -a.dy)
+                store.moveLinks(a.linkIds, -a.dx, -a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.heading.id), emptyList()) }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.before) }
@@ -235,7 +311,10 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.before) }
             is NotebookAction.StickyInserted -> objects(a.pageId) { store.deleteObjects(listOf(a.sticky.id), listOf(a.sticky.id)) }
             is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.before) }
-            is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids) }
+            is NotebookAction.LinkCreated -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
+            is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.relink(a.pageId, a.link) }
+            is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.before) }
+            is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
         }
     }
@@ -245,11 +324,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.Ink -> ink(a.action.pageId) { ink.reapply(a.action) }
             is NotebookAction.Deleted -> objects(a.pageId) {
                 a.ink?.let { ink.reapply(it) }
-                store.softDeleteIds(a.objects.ids)
+                store.deleteObjects(a.objects.ids, emptyList(), a.objects.links.map { it.id })
             }
             is NotebookAction.Moved -> objects(a.pageId) {
                 a.ink?.let { ink.reapply(it) }
                 store.moveBy(a.headingIds + a.textIds + a.stickyIds, a.dx, a.dy)
+                store.moveLinks(a.linkIds, a.dx, a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.restoreHeading(a.pageId, a.heading) }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.after) }
@@ -257,9 +337,18 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.after) }
             is NotebookAction.StickyInserted -> objects(a.pageId) { store.restoreSticky(a.pageId, a.sticky) }
             is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.after) }
-            is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids) }
+            is NotebookAction.LinkCreated -> objects(a.pageId) { store.relink(a.pageId, a.link) }
+            is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
+            is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.after) }
+            is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
         }
+    }
+
+    /** A replay of a payload edit: the link is on the page by now (the replay landed there). */
+    private fun setPayloadOf(linkId: String, payload: String) {
+        val link = links[linkId] ?: return
+        store.setLinkPayload(pageId, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)))
     }
 
     /** An ink-only replay: in memory on the page, then flushed. */
@@ -303,6 +392,14 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         headings.clear(); read.headings.forEach { headings[it.id] = measureHeading?.invoke(it) ?: it }
         texts.clear(); read.texts.forEach { texts[it.id] = measureText?.invoke(it, page.width) ?: it }
         stickies.clear(); read.stickies.forEach { stickies[it.id] = it }
+        links.clear()
+        read.links.forEach { l ->
+            links[l.id] = l.remeasured(
+                { h -> measureHeading?.invoke(h) ?: h },
+                { t -> measureText?.invoke(t, page.width) ?: t },
+                density,
+            )
+        }
         onObjectsChanged()
     }
 

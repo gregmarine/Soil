@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.notesprout.data
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.PageSticky
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
@@ -23,7 +24,8 @@ sealed interface NotebookAction {
      */
     class Deleted(val pageId: String, val ink: InkAction.Erased?, val objects: DeletedObjects) : NotebookAction
 
-    /** One selection drag, ink and objects together. A sticky's content does not move. */
+    /** One selection drag, ink and objects together. A sticky's content does not move; a link
+     *  moves with everything it wraps. */
     class Moved(
         val pageId: String,
         val ink: InkAction.Moved?,
@@ -32,6 +34,7 @@ sealed interface NotebookAction {
         val stickyIds: List<String>,
         val dx: Float,
         val dy: Float,
+        val linkIds: List<String> = emptyList(),
     ) : NotebookAction
 
     class HeadingCreated(val pageId: String, val heading: Heading) : NotebookAction
@@ -49,6 +52,15 @@ sealed interface NotebookAction {
     /** One showing of the sticky editor that changed the note: the content before and after, in
      *  the note's own space. Either direction makes one side the note's whole content. */
     class StickyContentEdited(val pageId: String, val stickyId: String, val before: List<Stroke>, val after: List<Stroke>) : NotebookAction
+
+    /** A selection wrapped into a link: the link as made, with everything it wraps. */
+    class LinkCreated(val pageId: String, val link: PageLink) : NotebookAction
+
+    /** A link unwrapped: the link as it was, so a redo of the wrap takes the same children. */
+    class LinkUnlinked(val pageId: String, val link: PageLink) : NotebookAction
+
+    /** Where a link points, rewritten. Both payloads, so either direction is one write. */
+    class LinkEdited(val pageId: String, val linkId: String, val before: String, val after: String) : NotebookAction
 
     /** Erase page: everything on [pageId] soft-deleted; the page stays. Undo restores [ids]. */
     class PageErased(val pageId: String, val ids: List<String>) : NotebookAction

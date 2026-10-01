@@ -46,6 +46,13 @@
                 android:value="notebook" />
         </activity>
 
+        <!-- Where a link points, opened by the notebook over the notebook's own store. -->
+        <activity
+            android:name=".links.LinkPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
         <!-- A sticky note's editor, opened by the notebook over the notebook's own store. -->
         <activity
             android:name=".notebook.StickyEditorActivity"

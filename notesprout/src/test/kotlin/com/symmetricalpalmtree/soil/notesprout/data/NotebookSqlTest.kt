@@ -19,6 +19,10 @@ class NotebookSqlTest {
         color = 0xFF808080.toInt(), width = 3f, style = StrokeStyle.PEN,
     )
 
+    private val link = com.symmetricalpalmtree.soil.notesprout.objects.PageLink(
+        id = "l1", payload = "L1|1|0||p2", chrome = 1, x = 1f, y = 2f, width = 3f, height = 4f, order = 0, strokes = emptyList(),
+    )
+
     private val writes = listOf(
         NotebookSql.insertRoot("nb", "Journal", 10L),
         NotebookSql.setLastOpened("nb", "p1", 10L),
@@ -29,13 +33,25 @@ class NotebookSqlTest {
         NotebookSql.restore("p1"),
         NotebookSql.putStroke("p1", 7L, stroke, 10L),
         NotebookSql.dropStroke("s1", 10L),
+        NotebookSql.insertLink(link, "p1", 0, 10L),
+        NotebookSql.reparent("s1", "l1", 10L),
+        NotebookSql.setLinkPayload("l1", "L1|1|0||p2", 10L),
+        NotebookSql.mirror(link, "p1", "nb"),
+        NotebookSql.mirrorDrop("l1"),
+        NotebookSql.mirrorDropPage("p1"),
     )
+
 
     private val reads = listOf(
         NotebookSql.selectRoot("nb"),
         NotebookSql.selectPages("nb"),
         NotebookSql.selectLiveDescendantIds("p1"),
         NotebookSql.selectStrokes("p1"),
+        NotebookSql.selectObjects("p1"),
+        NotebookSql.selectAllHeadings(),
+        NotebookSql.selectMaxOrder("p1", "link"),
+        NotebookSql.selectLinks("p1"),
+        NotebookSql.selectLiveChildIds("p1", "stroke"),
     )
 
     @Test
@@ -88,6 +104,22 @@ class NotebookSqlTest {
     fun `housekeeping never bumps updatedAt`() {
         assertFalse(NotebookSql.softDelete("x", 1L).sql.contains("updatedAt"))
         assertFalse(NotebookSql.restore("x").sql.contains("updatedAt"))
+    }
+
+    @Test
+    fun `the mirror is written in Soil's statements, and only the mirror names a soil table`() {
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirror(link, "p1", "nb").sql))
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDrop("l1").sql))
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDropPage("p1").sql))
+        assertEquals(3, writes.count { SeamSql.writesLinkMirror(it.sql) })
+        assertEquals(listOf<Cell>(Cell.Text("l1"), Cell.Text("p1"), Cell.Text("nb"), Cell.Text("p2")), NotebookSql.mirror(link, "p1", "nb").args)
+        assertEquals(Cell.Null, NotebookSql.mirror(link.copy(payload = "L1|0|1|other|"), "p1", "nb").args[3])
+    }
+
+    @Test
+    fun `a wrapped heading is listed for the Contents under its page, not its link`() {
+        val sql = NotebookSql.selectAllHeadings().sql
+        assertTrue(sql.contains("CASE WHEN p.type = 'link' THEN p.parentId ELSE h.parentId END AS parentId"))
     }
 
     @Test

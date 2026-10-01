@@ -21,6 +21,9 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *
  * - **H** on a lone heading: the H1–H6 sub-bar picks its level. (On ink it will convert the ink,
  *   once recognition arrives.)
+ * - **Link** on anything that holds no link: wrap it into one.
+ * - **Edit link** and **Unlink** on a lone link. A selection that holds a link among other
+ *   things can only be deleted: a link is never nested.
  * - **Delete** on anything.
  */
 class ObjectSelectionBar(
@@ -32,9 +35,15 @@ class ObjectSelectionBar(
     private val releaseRender: () -> Unit,
     private val onLevelPicked: (Int) -> Unit,
     private val onDelete: () -> Unit,
+    private val onLink: () -> Unit,
+    private val onEditLink: () -> Unit,
+    private val onUnlink: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
+    private val linkButton: AppCompatImageButton
+    private val editLinkButton: AppCompatImageButton
+    private val unlinkButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -44,6 +53,12 @@ class ObjectSelectionBar(
         val ctx = bar.context
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
         bar.addView(headingButton)
+        linkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, ctx.getString(R.string.link_action)) { onLink() }
+        bar.addView(linkButton)
+        editLinkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_edit, ctx.getString(R.string.link_edit_action)) { onEditLink() }
+        bar.addView(editLinkButton)
+        unlinkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link_off, ctx.getString(R.string.link_unlink_action)) { onUnlink() }
+        bar.addView(unlinkButton)
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, ctx.getString(R.string.delete_selection_action)) { onDelete() })
         val icons = listOf(
             com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_1, com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_2,
@@ -58,6 +73,10 @@ class ObjectSelectionBar(
     fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?) {
         val band = band() ?: return
         headingButton.visibility = if (mode == SelectionMode.HEADING) View.VISIBLE else View.GONE
+        val wrappable = mode != SelectionMode.LINK && mode != SelectionMode.MIXED_WITH_LINK
+        linkButton.visibility = if (wrappable) View.VISIBLE else View.GONE
+        editLinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
+        unlinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
         subBar.visibility = View.GONE
         levelButtons.forEachIndexed { i, b -> b.isSelected = (i + 1) == currentLevel }
 

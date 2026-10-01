@@ -45,8 +45,12 @@ class SchemaTest {
     }
 
     @Test
-    fun theIndexIsAtVersionThree_withSoftDeletesStableIdsAPageCountAndAnOpenedStamp() {
-        assertEquals(3, IndexSchema.SCHEMA.version)
+    fun theIndexIsAtVersionFour_withSoftDeletesStableIdsAPageCountAnOpenedStampAndLinks() {
+        assertEquals(4, IndexSchema.SCHEMA.version)
+        val links = IndexSchema.SCHEMA.steps[3].joinToString("\n")
+        assertTrue(links.contains("CREATE TABLE link"))
+        assertTrue(links.contains("targetItemId TEXT NOT NULL"))
+        assertTrue(links.contains("CREATE INDEX link_target ON link(targetItemId)"))
         assertTrue(IndexSchema.SCHEMA.steps[2].single().contains("ADD COLUMN openedAt INTEGER"))
         assertTrue(IndexSchema.SCHEMA.steps[1].single().contains("ADD COLUMN pageCount INTEGER NOT NULL DEFAULT 0"))
         val ddl = IndexSchema.SCHEMA.steps[0].joinToString("\n")

@@ -14,6 +14,19 @@ data class Item(
     val pageCount: Int = 0,
 )
 
+/** One link as the mirror in a file states it. */
+data class LinkRow(val id: String, val pageId: String, val targetItemId: String, val targetPageId: String?)
+
+/** One link into an item, with the source item's name and kind from the item table. */
+data class Backlink(
+    val linkId: String,
+    val sourceItemId: String,
+    val sourceKind: String,
+    val sourceName: String,
+    val sourcePageId: String,
+    val targetPageId: String?,
+)
+
 /**
  * Every read and write of the index's rows. **Blocking**: IO only, and only while
  * [SoilIndex.isReady].
@@ -81,6 +94,37 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
     fun touch(itemId: String, at: Long) {
         rows.exec(listOf(Statement("UPDATE item SET updatedAt = ? WHERE id = ? AND updatedAt < ?", at, itemId, at)))
     }
+
+    // ── Links ──────
+
+    /** Make the index's links from [itemId] exactly [links], in one transaction. */
+    fun replaceLinks(itemId: String, links: List<LinkRow>) {
+        val statements = ArrayList<Statement>(links.size + 1)
+        statements += Statement("DELETE FROM link WHERE sourceItemId = ?", itemId)
+        for (l in links) {
+            statements += Statement(
+                "INSERT OR REPLACE INTO link (id, sourceItemId, sourcePageId, targetItemId, targetPageId) VALUES (?, ?, ?, ?, ?)",
+                l.id, itemId, l.pageId, l.targetItemId, l.targetPageId,
+            )
+        }
+        rows.exec(statements)
+    }
+
+    /** Every link into [targetItemId] from an item that is alive, by source name then page. */
+    fun backlinks(targetItemId: String): List<Backlink> =
+        rows.query(
+            Statement(
+                "SELECT l.id, l.sourceItemId, i.kind, i.name, l.sourcePageId, l.targetPageId FROM link l " +
+                    "JOIN item i ON i.id = l.sourceItemId " +
+                    "WHERE l.targetItemId = ? AND i.deletedAt IS NULL ORDER BY i.name, l.sourcePageId, l.id",
+                targetItemId,
+            ),
+        ).rows.map {
+            Backlink(
+                linkId = it.text("id"), sourceItemId = it.text("sourceItemId"), sourceKind = it.text("kind"),
+                sourceName = it.text("name"), sourcePageId = it.text("sourcePageId"), targetPageId = it.textOrNull("targetPageId"),
+            )
+        }
 
     private fun item(row: com.symmetricalpalmtree.soil.paper.store.Row) = Item(
         id = row.text("id"),

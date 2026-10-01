@@ -30,6 +30,10 @@ object ObjectDialogs {
     fun text(activity: AppCompatActivity, initial: String, onSave: (String) -> Unit, onCancel: () -> Unit = {}) =
         show(activity, R.string.text_edit_title, initial, singleLine = false, onSave = { onSave(TextLines.typed(it)) }, onCancel = onCancel)
 
+    /** One line: a name for a new notebook. A blank answer is a cancel: a notebook has a name. */
+    fun name(activity: AppCompatActivity, titleRes: Int, initial: String, onSave: (String) -> Unit, onCancel: () -> Unit = {}) =
+        show(activity, titleRes, initial, singleLine = true, onSave = { val n = it.trim(); if (n.isEmpty()) onCancel() else onSave(n) }, onCancel = onCancel)
+
     private fun show(activity: AppCompatActivity, titleRes: Int, initial: String, singleLine: Boolean, onSave: (String) -> Unit, onCancel: () -> Unit) {
         if (activity.isFinishing || activity.isDestroyed) return
         val d = activity.resources.displayMetrics.density

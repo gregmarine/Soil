@@ -18,22 +18,37 @@ import java.util.Date
 
 /**
  * **The Recents**: the notebooks opened most recently, as a panel that comes in from the right
- * edge, and switches to the one tapped. No title and no close button: every row is something to
- * open, and a tap outside the panel closes it. The rows are built before the panel shows and
- * paged, never scrolled.
- *
- * The list is Soil's: the index keeps when each item was last opened. Nothing here is stored.
+ * edge, and switches to the one tapped. The list is Soil's: the index keeps when each item was
+ * last opened. Nothing here is stored.
  */
-class RecentsPanel(
+class RecentsPanel(activity: Activity, onPick: (SeamItem) -> Unit) : EdgeListPanel<SeamItem>(
+    activity,
+    emptyRes = R.string.recents_empty,
+    rowTitle = { it.name },
+    rowDetail = {
+        val at = Date(it.updatedAt)
+        activity.getString(R.string.recents_row_detail, DateFormat.getMediumDateFormat(activity).format(at), DateFormat.getTimeFormat(activity).format(at))
+    },
+    onPick = onPick,
+)
+
+/**
+ * A list as a panel that comes in from the right edge: one row per item, each something to
+ * open, and a tap on one opens it. No title and no close button: a tap outside the panel closes
+ * it. The rows are built before the panel shows and paged, never scrolled.
+ */
+open class EdgeListPanel<T>(
     private val activity: Activity,
-    private val onPick: (SeamItem) -> Unit,
+    private val emptyRes: Int,
+    private val rowTitle: (T) -> String,
+    private val rowDetail: (T) -> String,
+    private val onPick: (T) -> Unit,
 ) {
     private var dialog: Dialog? = null
 
     val isShowing: Boolean get() = dialog?.isShowing == true
 
-    /** Show [items], the notebook that is open already left out. */
-    fun show(items: List<SeamItem>, onDismiss: () -> Unit) {
+    fun show(items: List<T>, onDismiss: () -> Unit) {
         if (isShowing || activity.isFinishing || activity.isDestroyed) return
         val ctx = activity
         val d = ctx.resources.displayMetrics
@@ -73,7 +88,7 @@ class RecentsPanel(
             if (items.isEmpty()) {
                 body.addView(
                     AppCompatTextView(ctx).apply {
-                        text = ctx.getString(R.string.recents_empty)
+                        text = ctx.getString(emptyRes)
                         textSize = 16f
                         setTextColor(ink)
                         setPadding(pad, pad, pad, pad)
@@ -132,10 +147,9 @@ class RecentsPanel(
         dialog = null
     }
 
-    private fun row(item: SeamItem, ink: Int, pad: Int, dlg: Dialog): View {
+    private fun row(item: T, ink: Int, pad: Int, dlg: Dialog): View {
         val ctx = activity
-        val dateFormat = DateFormat.getMediumDateFormat(ctx)
-        val timeFormat = DateFormat.getTimeFormat(ctx)
+        val title = rowTitle(item)
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
@@ -143,11 +157,11 @@ class RecentsPanel(
             setBackgroundResource(com.symmetricalpalmtree.soil.paper.R.drawable.bg_toolbar_button)
             isClickable = true
             isFocusable = true
-            contentDescription = item.name
+            contentDescription = title
             setOnClickListener { dlg.dismiss(); onPick(item) }
             addView(
                 AppCompatTextView(ctx).apply {
-                    text = item.name
+                    text = title
                     textSize = 18f
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
@@ -156,8 +170,7 @@ class RecentsPanel(
             )
             addView(
                 AppCompatTextView(ctx).apply {
-                    val at = Date(item.updatedAt)
-                    text = ctx.getString(R.string.recents_row_detail, dateFormat.format(at), timeFormat.format(at))
+                    text = rowDetail(item)
                     textSize = 13f
                     maxLines = 1
                     setTextColor(ink)

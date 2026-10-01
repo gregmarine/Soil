@@ -2,12 +2,15 @@ package com.symmetricalpalmtree.soil.data.item
 
 import android.content.Context
 import com.symmetricalpalmtree.soil.data.index.IndexStore
+import com.symmetricalpalmtree.soil.data.index.LinkRow
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.store.Statement
 import com.symmetricalpalmtree.soil.seam.SeamLimits
+import com.symmetricalpalmtree.soil.seam.SeamLinks
 import com.symmetricalpalmtree.soil.seam.SeamSchema
+import com.symmetricalpalmtree.soil.seam.SeamSql
 import com.symmetricalpalmtree.soil.seamkit.RowsBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -83,7 +86,25 @@ object ItemSessions {
         val connection = live(itemId, holder)
         val changed = connection.rows.exec(statements)
         connection.writtenAt = System.currentTimeMillis()
+        if (statements.any { SeamSql.writesLinkMirror(it.sql) }) mirrorLinks(itemId, connection)
         return changed
+    }
+
+    /**
+     * The file's link mirror, read whole into the index. After the batch, outside its
+     * transaction: the batch has landed whatever happens here, and a mirror that could not be
+     * read is a mirror read at the next batch, or at a rebuild.
+     */
+    private fun mirrorLinks(itemId: String, connection: Connection) {
+        if (!SoilIndex.isReady()) return
+        try {
+            val links = connection.rows.query(Statement(SeamLinks.READ)).rows.map {
+                LinkRow(it.text("id"), it.text("pageId"), it.text("targetItemId"), it.textOrNull("targetPageId"))
+            }
+            IndexStore().replaceLinks(itemId, links)
+        } catch (t: Throwable) {
+            Slog.d(TAG) { "the link mirror was not indexed: ${t.javaClass.simpleName}" }
+        }
     }
 
     /** One SELECT, as the rows document that crosses the seam. A result too large to carry is

@@ -17,6 +17,9 @@ class FakeNotebookRows : RowStore {
     var pages: List<Page> = emptyList()
     var lastOpened: String? = null
 
+    /** `link` rows by page: `(id, payload)`; what each wraps is answered as empty. */
+    var links: Map<String, List<Pair<String, String>>> = emptyMap()
+
     val execs = ArrayList<List<Statement>>()
     val queries = ArrayList<Statement>()
     var failWith: (() -> Throwable)? = null
@@ -45,6 +48,18 @@ class FakeNotebookRows : RowStore {
                 StoreRows(listOf("id"), pages.firstOrNull { it.id == pageId }?.under.orEmpty().map { listOf<Cell>(Cell.Text(it)) })
             }
             sql.contains("type = 'stroke'") -> StoreRows(listOf("id", "order", "color", "strokeWidth", "style", "blob"), emptyList())
+            sql.contains("type = 'link'") -> {
+                val pageId = (statement.args[0] as Cell.Text).value
+                StoreRows(
+                    listOf("id", "order", "text", "x", "y", "width", "height"),
+                    links[pageId].orEmpty().mapIndexed { i, (id, payload) ->
+                        listOf(Cell.Text(id), Cell.Integer(i.toLong()), Cell.Text(payload), Cell.Real(1.0), Cell.Real(2.0), Cell.Real(30.0), Cell.Real(40.0))
+                    },
+                )
+            }
+            sql.contains("type IN (") -> StoreRows(listOf("id", "type", "order", "text", "refId", "x", "y", "width", "height", "flags"), emptyList())
+            sql.contains("MAX(\"order\")") -> StoreRows(listOf("m"), listOf(listOf<Cell>(Cell.Integer(2L))))
+            sql.contains("type = ? AND deletedAt IS NULL") -> StoreRows(listOf("id"), emptyList())
             else -> throw IllegalArgumentException("unexpected query: $sql")
         }
     }

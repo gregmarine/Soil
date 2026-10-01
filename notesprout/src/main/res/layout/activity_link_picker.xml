@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where a link points. Four bands under one another, none of them scrolling: the title with
+     Cancel and OK, the mode row, the card grid (paged, never scrolled), then the creates and the
+     style on one row and the pager under them. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/paperWhite">
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="8dp">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnUp"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_arrow_left"
+            android:contentDescription="@string/link_cd_up"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="16sp"
+            android:textColor="@color/inkBlack" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnCancel"
+            style="@style/Widget.Soil.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancel" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnOk"
+            style="@style/Widget.Soil.ElevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="@string/ok" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnModeThisNotebook"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="@string/link_mode_this_notebook" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnModeNotebook"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="@string/link_mode_notebook" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnModeNotebookPage"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/link_mode_notebook_page" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/gridContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/emptyState"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textSize="16sp"
+            android:textColor="@color/inkBlack"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNewPage"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="@string/link_new_page"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNewNotebook"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_notebook_plus"
+            android:contentDescription="@string/link_new_notebook"
+            android:visibility="gone" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/link_style_label"
+            android:textSize="14sp"
+            android:textColor="@color/inkBlack"
+            android:paddingEnd="12dp" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnStyleUnderline"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="@string/link_style_underline" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnStyleNone"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/link_style_none" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pager"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:visibility="invisible">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnFirst"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_page_first"
+            android:contentDescription="@string/cd_first_page" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnPrev"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_page_prev"
+            android:contentDescription="@string/cd_prev_page" />
+
+        <TextView
+            android:id="@+id/pageLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="56dp"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:textColor="@color/inkBlack" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNext"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_page_next"
+            android:contentDescription="@string/cd_next_page" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnLast"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_page_last"
+            android:contentDescription="@string/cd_last_page" />
+    </LinearLayout>
+
+</LinearLayout>
