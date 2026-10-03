@@ -12,6 +12,10 @@
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.action.OPEN_ITEM" />
         </intent>
+        <!-- The extensions: a recogniser is a service Soil binds on an app's behalf. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />
+        </intent>
         <!-- The firmware's launcher, bound to hold its side menu shut. -->
         <package android:name="com.ratta.supernote.launcher" />
     </queries>
