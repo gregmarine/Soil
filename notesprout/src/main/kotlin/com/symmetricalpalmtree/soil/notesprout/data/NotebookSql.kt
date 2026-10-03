@@ -135,8 +135,9 @@ object NotebookSql : InkDocument.StrokeSql {
      *  link wraps hangs under the link: the hop link → page is made here, so `parentId` is always
      *  a page. */
     fun selectAllHeadings(): Statement = Statement(
-        "SELECT h.id, CASE WHEN p.type = 'link' THEN p.parentId ELSE h.parentId END AS parentId, h.type, h.\"order\", " +
-            "h.text, h.refId, h.x, h.y, h.width, h.height, h.flags FROM $TABLE h LEFT JOIN $TABLE p ON p.id = h.parentId " +
+        "SELECT h.id AS id, CASE WHEN p.type = 'link' THEN p.parentId ELSE h.parentId END AS parentId, h.type AS type, " +
+            "h.\"order\" AS \"order\", h.text AS text, h.refId AS refId, h.x AS x, h.y AS y, h.width AS width, h.height AS height, " +
+            "h.flags AS flags FROM $TABLE h LEFT JOIN $TABLE p ON p.id = h.parentId " +
             "WHERE h.type = 'heading' AND h.deletedAt IS NULL",
     )
 

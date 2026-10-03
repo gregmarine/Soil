@@ -791,7 +791,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     /** A finger tap on a sticky icon opens the note; the topmost one under the finger. */
     private fun openStickyAt(x: Float, y: Float): Boolean {
         if (!opened || closing || stickyInFlight != null) return false
-        val hit = document?.stickies?.values?.lastOrNull { it.bounds.contains(x, y) } ?: return false
+        val hit = document?.stickyAt(x, y) ?: return false
         openSticky(hit.id, initialCreate = false)
         return true
     }
@@ -803,7 +803,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         stickyInFlight = stickyId to initialCreate
         runPageOp {
             try {
-                val sticky = doc.stickies[stickyId]
+                val sticky = doc.stickyById(stickyId)
                 if (sticky == null || !opened || closing || doc.pageId != pageId) { stickyInFlight = null; return@runPageOp }
                 doc.flushUntilClean()
                 val initial = withContext(Dispatchers.IO) { (storeOf(doc) ?: return@withContext emptyList()).readStrokesOf(stickyId) }
@@ -883,6 +883,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 pagesChangedUnderPicker = false
                 LinkPickerRelay.showing = LinkPickerRelay.Showing(
                     notebookId = requireNotNull(itemId), currentPageId = doc.pageId,
+                    pageWidth = doc.pageWidth, pageHeight = doc.pageHeight,
                     source = object : PickerSource {
                         override suspend fun pages(): List<PageRef> = doc.pages
                         override suspend fun content(page: PageRef): PageContent? =

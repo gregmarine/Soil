@@ -407,8 +407,7 @@ class LinkPickerActivity : AppCompatActivity() {
             creating = true
             lifecycleScope.launch {
                 try {
-                    val dm = resources.displayMetrics
-                    val item = withContext(Dispatchers.IO) { makeNotebook(name, dm.widthPixels.toFloat(), dm.heightPixels.toFloat()) }
+                    val item = withContext(Dispatchers.IO) { makeNotebook(name, showing.pageWidth, showing.pageHeight) }
                     if (item == null) {
                         Dialogs.problem(this@LinkPickerActivity, R.string.link_new_notebook_failed_title, R.string.link_new_notebook_failed_body)
                         return@launch

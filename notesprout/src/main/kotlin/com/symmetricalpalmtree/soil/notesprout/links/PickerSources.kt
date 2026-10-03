@@ -16,6 +16,8 @@ import com.symmetricalpalmtree.soil.seam.ISeamItem
 import com.symmetricalpalmtree.soil.seamkit.SeamConnection
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Where a page grid's pages come from: the open notebook through its live store, or another
@@ -35,7 +37,9 @@ interface PickerSource {
  * the way back; null means the process was rebuilt under the picker.
  */
 object LinkPickerRelay {
-    class Showing(val notebookId: String, val currentPageId: String, val source: PickerSource)
+    /** [pageWidth] and [pageHeight]: the showing page's paper, which a notebook made from the
+     *  picker inherits, as a page inserted here would. */
+    class Showing(val notebookId: String, val currentPageId: String, val pageWidth: Float, val pageHeight: Float, val source: PickerSource)
 
     @Volatile
     var showing: Showing? = null
@@ -53,11 +57,16 @@ class ForeignNotebook(private val soil: SeamConnection, val itemId: String) : Pi
     private var store: NotebookStore? = null
     private var pages: List<PageRef> = emptyList()
 
-    private suspend fun open(): NotebookStore = withContext(Dispatchers.IO) {
-        store ?: run {
-            val opened = soil.seam().openItem(itemId, NotebookSchema.SCHEMA, owner)
-            session = opened
-            NotebookStore(SeamRowStore(opened), itemId).also { store = it }
+    /** The previews read concurrently; the session is opened once, under this. */
+    private val opening = Mutex()
+
+    private suspend fun open(): NotebookStore = opening.withLock {
+        withContext(Dispatchers.IO) {
+            store ?: run {
+                val opened = soil.seam().openItem(itemId, NotebookSchema.SCHEMA, owner)
+                session = opened
+                NotebookStore(SeamRowStore(opened), itemId).also { store = it }
+            }
         }
     }
 

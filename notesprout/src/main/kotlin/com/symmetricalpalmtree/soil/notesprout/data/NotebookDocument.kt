@@ -64,6 +64,14 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
 
     fun holdsObject(id: String): Boolean = id in headings || id in texts || id in stickies || id in links
 
+    /** A sticky on the page, loose or wrapped in a link: a note is opened either way. */
+    fun stickyById(id: String): PageSticky? = stickies[id] ?: links.values.firstNotNullOfOrNull { l -> l.stickies.firstOrNull { it.id == id } }
+
+    /** The topmost sticky under ([x], [y]): a loose one sits above everything, a wrapped one draws with its link. */
+    fun stickyAt(x: Float, y: Float): PageSticky? =
+        stickies.values.lastOrNull { it.bounds.contains(x, y) }
+            ?: links.values.reversed().firstNotNullOfOrNull { l -> l.stickies.lastOrNull { it.bounds.contains(x, y) } }
+
     // ── Loading ──────
 
     suspend fun load(loaded: NotebookStore.Loaded) {
