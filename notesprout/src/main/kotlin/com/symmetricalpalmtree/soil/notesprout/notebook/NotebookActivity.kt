@@ -577,10 +577,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         toolbar.arm(Tool.LASSO)
     }
 
+    /** Only while the lasso is still armed (a tool picked meanwhile wins), and pen-idle: a tool
+     *  change under a gesture in flight leaves the engine with a selection no tool owns. */
     private fun restoreToolAfterLanding() {
         val tool = toolBeforeLanding ?: return
         toolBeforeLanding = null
-        toolbar.arm(tool)
+        if (paper.tool != Tool.LASSO) return
+        whenPenIdle {
+            if (isFinishing || isDestroyed || paper.tool != Tool.LASSO) return@whenPenIdle
+            toolbar.arm(tool)
+        }
     }
 
     /** Land the selection on one object, host-initiated: no `onSelectionCreated` echoes. */
@@ -940,7 +946,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         }
     }
 
-    /** The wrap: rows re-parented, the page read again, and shown with the link selected. */
+    /**
+     * The wrap: rows re-parented and the page read again, then the wrapped ink taken off the
+     * paper and the link landed as the **successor** of the selection that removal dismisses, so
+     * the lasso session stays one session and the pen comes back at the link's own dismissal,
+     * never in the middle of the wrap. One Main block: one frame.
+     */
     private fun applyWrap(sel: Selection, payload: String) {
         val doc = document ?: return
         val pageId = doc.pageId
@@ -948,8 +959,14 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             if (doc.pageId != pageId) return@runPageOp
             val link = doc.wrap(sel.strokeIds, sel.contentIds, payload) ?: return@runPageOp
             undo.record(NotebookAction.LinkCreated(pageId, link))
-            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
-            doc.links[link.id]?.let { selectObject(it.id, it.bounds) }
+            val prebuilt = linkRenderer.prebuild(doc.links.values.toList())
+            syncRenderers(prebuilt)
+            val landed = doc.links[link.id]
+            pendingSelection = landed?.let { l -> { selectObject(l.id, l.bounds) } }
+            if (sel.strokeIds.isNotEmpty()) paper.removeStrokes(sel.strokeIds.toList()) else paper.clearSelection()
+            // No dismissal fired: land it directly.
+            pendingSelection?.let { pendingSelection = null; it() }
+            paper.notifyContentChanged()
             refreshContents()
         }
     }
