@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.paper.chrome
 
 import android.graphics.Rect
+import com.symmetricalpalmtree.soil.paper.core.Slog
 import android.view.MotionEvent
 import android.view.View
 import com.symmetricalpalmtree.gpaper.core.PaperView
@@ -42,7 +43,9 @@ class PaperChrome(
         val paperLoc = IntArray(2).also { view.getLocationInWindow(it) }
         val rects = (listOfNotNull(PaperToolbar.rectOf(topBar), bottomStrip?.let { PaperToolbar.rectOf(it) }) + extraRects())
             .map { Rect(it.left - paperLoc[0], it.top - paperLoc[1], it.right - paperLoc[0], it.bottom - paperLoc[1]) }
-        paper.setExclusionRects(rects + paperRects())
+        val all = rects + paperRects()
+        Slog.d("PaperChrome") { "exclusions pushed: ${all.joinToString { it.toShortString() }}" }
+        paper.setExclusionRects(all)
     }
 
     fun overChrome(ev: MotionEvent): Boolean {

@@ -514,22 +514,23 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     private val gestureListener = object : PageGestures.Listener {
         override fun onFlipNext() = runPageOp {
+            Slog.d(TAG) { "trace: gesture flip next" }
             // Swiping past the last page makes one: the notebook grows where you write.
             val doc = document ?: return@runPageOp
             if (doc.pageIndex < doc.pageCount - 1) flipTo(doc.pageIndex + 1) else doInsert(after = true)
         }
-        override fun onFlipPrevious() = runPageOp { flipTo(pageIndex() - 1) }
-        override fun onInsertAfter() = runPageOp { doInsert(after = true) }
-        override fun onInsertBefore() = runPageOp { doInsert(after = false) }
-        override fun onUndo() = runPageOp { doUndo() }
-        override fun onRedo() = runPageOp { doRedo() }
-        override fun onPageSheetRequested() = showPageSheet()
-        override fun onTwoFingerSwipeDown() = showRecents()
-        override fun onSwipeDown() = showContents()
+        override fun onFlipPrevious() = runPageOp { Slog.d(TAG) { "trace: gesture flip previous" }; flipTo(pageIndex() - 1) }
+        override fun onInsertAfter() = runPageOp { Slog.d(TAG) { "trace: gesture insert after" }; doInsert(after = true) }
+        override fun onInsertBefore() = runPageOp { Slog.d(TAG) { "trace: gesture insert before" }; doInsert(after = false) }
+        override fun onUndo() = runPageOp { Slog.d(TAG) { "trace: gesture undo" }; doUndo() }
+        override fun onRedo() = runPageOp { Slog.d(TAG) { "trace: gesture redo" }; doRedo() }
+        override fun onPageSheetRequested() { Slog.d(TAG) { "trace: gesture long-press" }; showPageSheet() }
+        override fun onTwoFingerSwipeDown() { Slog.d(TAG) { "trace: gesture two-finger swipe down" }; showRecents() }
+        override fun onSwipeDown() { Slog.d(TAG) { "trace: gesture swipe down" }; showContents() }
         /** A sticky's icon sits above everything, so it is asked first; then the links. */
-        override fun onFingerTap(x: Float, y: Float) { if (!openStickyAt(x, y)) followFlow.followAt(x, y) }
-        override fun onSwipeUp() { if (opened && !closing) followFlow.walkBack { } }
-        override fun onFingerDoubleTap(x: Float, y: Float) = toggleChrome()
+        override fun onFingerTap(x: Float, y: Float) { Slog.d(TAG) { "trace: gesture finger tap" }; if (!openStickyAt(x, y)) followFlow.followAt(x, y) }
+        override fun onSwipeUp() { Slog.d(TAG) { "trace: gesture swipe up" }; if (opened && !closing) followFlow.walkBack { } }
+        override fun onFingerDoubleTap(x: Float, y: Float) { Slog.d(TAG) { "trace: gesture finger double tap" }; toggleChrome() }
     }
 
     // ── The paper's callbacks: ink to the base, objects here ──────
@@ -544,10 +545,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         override fun onContentErased(contentIds: List<String>) = erased(emptyList(), contentIds)
 
         /** One gesture that took ink and objects together is one undo step. */
-        override fun onScribbleErased(strokeIds: List<String>, contentIds: List<String>) = erased(strokeIds, contentIds)
-        override fun onLassoErased(strokeIds: List<String>, contentIds: List<String>) = erased(strokeIds, contentIds)
+        override fun onScribbleErased(strokeIds: List<String>, contentIds: List<String>) { Slog.d(TAG) { "trace: scribble erased $strokeIds $contentIds" }; erased(strokeIds, contentIds) }
+        override fun onLassoErased(strokeIds: List<String>, contentIds: List<String>) { Slog.d(TAG) { "trace: lasso erased $strokeIds $contentIds" }; erased(strokeIds, contentIds) }
 
         override fun onSelectionCreated(selection: Selection) {
+            Slog.d(TAG) { "trace: selection created strokes=${selection.strokeIds} content=${selection.contentIds}" }
             selectionActive = true
             currentSelection = selection
             // Shown at once, not through the pen-idle gate: a lasso ends with the pen hovering.
@@ -1998,6 +2000,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     /** The page-swap order is g-paper's law: clear for the swap, size, template, then strokes. */
     private fun showPage(firstLoad: Boolean, prebuilt: Map<String, android.graphics.Bitmap> = emptyMap()) {
         val doc = document ?: return
+        Slog.d(TAG) { "trace: page shown page=${doc.pageId} strokes=${doc.strokes.size} firstLoad=$firstLoad from ${Throwable().stackTrace.getOrNull(2)?.methodName}" }
         paper.clearSelection()
         selectionActive = false
         currentSelection = null

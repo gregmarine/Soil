@@ -38,8 +38,8 @@ dependencies {
     // `:soil`, and NEVER on `:seam`.
     // g-paper is `api` because consumers write against PaperView / Stroke. The version pin lives
     // here and nowhere else.
-    api("com.symmetricalpalmtree.gpaper:gpaper-core:0.1.65")
-    api("com.symmetricalpalmtree.gpaper:gpaper-ratta:0.1.65")
+    api("com.symmetricalpalmtree.gpaper:gpaper-core:0.1.66")
+    api("com.symmetricalpalmtree.gpaper:gpaper-ratta:0.1.66")
     // `InkScreenActivity` is an `AppCompatActivity` a consumer extends, so appcompat is `api`.
     api("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.13.1")
