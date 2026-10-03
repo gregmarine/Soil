@@ -25,7 +25,8 @@ when he is happy with it, not before.
 
 ## Testing on the device
 
-- Ink does not show in a screenshot, and a pen cannot be injected. Writing is walked by Greg.
+- Live ink does not show in a screenshot; committed ink does, once the page is on the window. A
+  pen cannot be injected. Writing is walked by Greg.
 - The side bars cannot be injected. Only a real swipe tests the menu.
 - `adb shell input text` is swallowed. Tap the on-screen keys, or use Copy and Paste.
 - Never tick "I've saved it" for Greg. A key acknowledged in a walk is a key nobody wrote down;

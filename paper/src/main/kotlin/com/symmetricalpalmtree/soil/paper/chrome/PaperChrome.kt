@@ -43,9 +43,7 @@ class PaperChrome(
         val paperLoc = IntArray(2).also { view.getLocationInWindow(it) }
         val rects = (listOfNotNull(PaperToolbar.rectOf(topBar), bottomStrip?.let { PaperToolbar.rectOf(it) }) + extraRects())
             .map { Rect(it.left - paperLoc[0], it.top - paperLoc[1], it.right - paperLoc[0], it.bottom - paperLoc[1]) }
-        val all = rects + paperRects()
-        Slog.d("PaperChrome") { "exclusions pushed: ${all.joinToString { it.toShortString() }}" }
-        paper.setExclusionRects(all)
+        paper.setExclusionRects(rects + paperRects())
     }
 
     fun overChrome(ev: MotionEvent): Boolean {

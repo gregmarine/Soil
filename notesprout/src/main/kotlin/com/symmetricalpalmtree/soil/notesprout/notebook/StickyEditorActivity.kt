@@ -41,6 +41,7 @@ import com.symmetricalpalmtree.soil.paper.ink.StoreUnavailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.symmetricalpalmtree.soil.notesprout.NotesproutApp
 
 /**
  * **A sticky note's editor**: its own paper, opened by the notebook over the notebook's own store.
@@ -51,7 +52,7 @@ import kotlinx.coroutines.withContext
  * from ink, or the pen would write outside the note. The top bar's close saves and closes: there
  * is no cancel, every stroke is already a row.
  */
-class StickyEditorActivity : InkScreenActivity<InkAction>() {
+class StickyEditorActivity : InkScreenActivity<InkAction>(), NotesproutApp.FrontPaper {
 
     private lateinit var binding: ActivityStickyEditorBinding
     private lateinit var tools: PaperToolbar
@@ -231,12 +232,24 @@ class StickyEditorActivity : InkScreenActivity<InkAction>() {
     override fun collapsedPenReTap(): ((anchor: View) -> Unit) = { anchor -> if (paletteBar.isShowing) hidePaletteBar() else showPaletteBar(anchor) }
 
     /** The bars reach Soil's shell from this window while it is in front (its own filter is off over paper). */
-    override fun onBarKey(event: android.view.KeyEvent) = (application as com.symmetricalpalmtree.soil.notesprout.NotesproutApp).barKey(event)
+    override fun onBarKey(event: android.view.KeyEvent) = (application as NotesproutApp).barKey(event)
 
     override fun onResume() {
         super.onResume()
         if (::penGlyph.isInitialized) applyPenShade()
+        (application as NotesproutApp).front(this)
     }
+
+    override fun onPause() {
+        (application as NotesproutApp).left(this)
+        super.onPause()
+    }
+
+    // ── What Soil asks of the paper in front ──────
+
+    override fun penIsActive(): Boolean = opened && penRecentlyActive()
+    override fun letPanelGo() { if (opened && !closing && !paper.isPenActive) paper.releaseRender() }
+    override fun letPipelineGo() { if (opened && !closing) paper.releaseForHandoff() }
 
     companion object {
         private const val TAG = "StickyEditor"

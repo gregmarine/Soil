@@ -110,7 +110,7 @@ While the service is off, the library view says "The side menu is off."
 | Risk | Consequence |
 |---|---|
 | The lock rests on the firmware launcher's internals | A firmware update could break it. The firmware's menu would simply open again |
-| The key filter is off over paper | A Sprout paper screen that never attaches its client, or a sticky editor over the notebook, is under the filter and can lose a stroke to a palm on the edge |
+| The key filter is off over paper | A Sprout paper screen that never attaches its client is under the filter and can lose a stroke to a palm on the edge |
 | The Scratch Pad opens over apps that hold the e-ink panel | Not yet walked |
 | The menu over Soil's own paper | The pad lets the panel go first. Not yet walked |
 

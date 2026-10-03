@@ -128,7 +128,6 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
 
         override fun onStrokeCommitted(stroke: Stroke) {
             lastPenLiftAt = android.os.SystemClock.uptimeMillis()
-            Slog.d(logTag) { "trace: stroke ${stroke.id} ${stroke.points.size} points committed opened=$opened closing=$closing page=${inkPage?.pageId}" }
             if (!opened || closing) return
             val page = inkPage ?: return
             // A page has no ceiling (arc 22 / X2): every committed stroke is taken.
@@ -138,7 +137,6 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
         }
 
         override fun onStrokesErased(strokeIds: List<String>) {
-            Slog.d(logTag) { "trace: strokes erased $strokeIds" }
             if (!opened || closing) return
             inkPage?.erase(strokeIds)?.let { record(it); scheduleSave() }
         }
@@ -166,7 +164,6 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
         }
 
         override fun onSelectionCreated(selection: Selection) {
-            Slog.d(logTag) { "trace: selection created strokes=${selection.strokeIds}" }
             selectionActive = true
             currentSelection = selection
             // Shown immediately, not through the pen-idle gate: a lasso ends with the pen still
