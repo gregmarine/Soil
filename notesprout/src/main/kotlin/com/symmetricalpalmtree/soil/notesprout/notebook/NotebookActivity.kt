@@ -162,7 +162,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private val templatePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK)) }
     private val saveTemplateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
     private val tagsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
-    private val padLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed(); takeIncomingInk() }
+
+    /** The pad is up over this notebook. It lives in a task of its own, so it cannot answer a
+     *  result: the pipeline is reclaimed on resume instead. */
+    private var padShowing = false
 
     /** The paper under the pages shown lately, by template row id: decoded off Main before the frame that paints it. */
     private val paperCache = LinkedHashMap<String, android.graphics.Bitmap>()
@@ -1541,10 +1544,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         }
     }
 
-    /** Soil's pad over this notebook, for a result: another process, handed over as any Soil screen. */
+    /** Soil's pad over this notebook: another process, handed over as any Soil screen. Not for a
+     *  result, since the pad's own task could not deliver one; [onResume] takes it up. */
     private fun openPad() {
         val intent = android.content.Intent(Seam.ACTION_SCRATCH_PAD).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
-        startSoilScreen { padLauncher.launch(intent) }
+        padShowing = true
+        startSoilScreen { startActivity(intent) }
     }
 
     /**
@@ -1944,7 +1949,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         // The shade is device-wide: another screen may have picked since.
         if (::toolbar.isInitialized) applyPenShade()
         (application as NotesproutApp).front(this)
-        // The pad may have been opened over this notebook from the side menu and sent ink back.
+        // Back from the pad: the pipeline first of all, then what it sent. The pad may also have
+        // been opened over this notebook from the side menu, and sent ink back the same way.
+        if (padShowing) { padShowing = false; onSoilScreenClosed() }
         if (!soilScreenShowing) takeIncomingInk()
     }
 

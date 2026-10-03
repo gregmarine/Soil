@@ -131,9 +131,11 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             finish()
             return
         }
-        // Started by a Sprout app for a result: the caller is checked, as every exported screen's is.
+        // Started by a Sprout app over its paper. The pad lives in a task of its own, so an app
+        // starts it plainly and names no caller: the manifest's seam permission, which only an app
+        // signed with Soil's key can hold, is the guard. A caller that did name itself is checked.
         val launchedByApp = intent.action == Seam.ACTION_SCRATCH_PAD
-        if (launchedByApp && runCatching { SeamCallerCheck.enforceCaller(this, callingPackage) }.isFailure) { finish(); return }
+        if (launchedByApp && callingPackage != null && runCatching { SeamCallerCheck.enforceCaller(this, callingPackage) }.isFailure) { finish(); return }
         appBehind = launchedByApp || SeamClients.appBehindPad
         isOpen = true
         binding = ActivityScratchPadBinding.inflate(layoutInflater)
