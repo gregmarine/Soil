@@ -398,6 +398,9 @@ class LibraryBrowser(
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_tag, activity.getString(R.string.action_tags)) {
                     tagsLauncher.launch(com.symmetricalpalmtree.soil.tags.TagsActivity.intent(activity, card.id, null, Seam.TAG_MODE_BROWSE))
                 }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, activity.getString(R.string.action_export)) {
+                    activity.startActivity(com.symmetricalpalmtree.soil.export.ExportActivity.intent(activity, card.id))
+                }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteItem(card.item) }
                 .show()
             is LibraryCard.PageCard -> Unit

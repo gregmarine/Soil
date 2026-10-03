@@ -56,6 +56,10 @@ class LibraryStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilI
         return id
     }
 
+    /** A folder under an id an import remembers; false when the id is taken, alive or not. */
+    fun createFolderWithId(id: String, name: String, parentId: String, now: Long = System.currentTimeMillis()): Boolean =
+        rows.exec(listOf(Statement("INSERT OR IGNORE INTO folder (id, parentId, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)", id, parentId, name, now, now)))[0] > 0
+
     fun renameFolder(id: String, name: String, now: Long = System.currentTimeMillis()) {
         rows.exec(listOf(Statement("UPDATE folder SET name = ?, updatedAt = ? WHERE id = ?", name, now, id)))
     }

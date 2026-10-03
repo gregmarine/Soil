@@ -63,6 +63,7 @@ android {
 dependencies {
     // `:seam` and `:paper` arrive through it, and g-paper through `:paper`.
     implementation(project(":seam-kit"))
+    implementation(project(":ext-api"))
     implementation(project(":markdown"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")

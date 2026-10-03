@@ -18,7 +18,9 @@ when he is happy with it, not before.
 
 - `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
 - Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
-  theme, chrome and ink), `:seam-stranger` (joins the build only where its key exists).
+  theme, chrome and ink), `:seam-kit`, `:markdown`, `:notesprout`, `:ext-api` (the extension
+  contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`, and
+  `:seam-stranger` (joins the build only where its key exists).
 - Debug installs as `com.symmetricalpalmtree.soil.dev`, release as `com.symmetricalpalmtree.soil`.
   Both are signed with `~/.android/debug.keystore`.
 - g-paper comes from `mavenLocal()`. Its version is pinned in `paper/build.gradle.kts` only.

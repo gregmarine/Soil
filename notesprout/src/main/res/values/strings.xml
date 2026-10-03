@@ -35,6 +35,8 @@
     <string name="sticky_editor_title">Sticky Note</string>
     <string name="page_sheet_title">This page</string>
     <string name="page_sheet_erase">Erase page</string>
+    <string name="export_page_action">Export page…</string>
+    <string name="export_notebook_action">Export notebook…</string>
     <string name="page_sheet_delete">Delete</string>
     <string name="erase_page_title">Erase this page?</string>
     <string name="erase_confirm">Erase</string>

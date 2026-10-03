@@ -64,6 +64,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var binding: ActivityHomeBinding
     private lateinit var grid: AppGrid
     private lateinit var browser: LibraryBrowser
+    private lateinit var importFlow: com.symmetricalpalmtree.soil.importing.ImportFlow
     private lateinit var libraryPrefs: LibraryPrefs
     private var showing = Showing.LIBRARY
     private var appPages = 1
@@ -132,6 +133,8 @@ class HomeActivity : AppCompatActivity() {
         binding.btnHiddenApps.setOnClickListener { startActivity(Intent(this, HiddenAppsActivity::class.java)) }
         binding.btnNewNotebook.setOnClickListener { startActivity(NewNotebookActivity.intent(this, browser.folderId)) }
         binding.btnNewFolder.setOnClickListener { browser.showNewFolderDialog() }
+        importFlow = com.symmetricalpalmtree.soil.importing.ImportFlow(this, { browser.folderId }, { browser.reload() }, { renderLibrary() })
+        binding.btnImport.setOnClickListener { importFlow.onTap() }
         binding.btnSearch.setOnClickListener { browser.openSearchDialog() }
         binding.btnRecents.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.RECENTS) }
         binding.btnPinned.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.PINNED) }
@@ -144,7 +147,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnSettings, binding.btnEncryption)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnImport, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnSettings, binding.btnEncryption)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -179,6 +182,7 @@ class HomeActivity : AppCompatActivity() {
             notebookApp = withContext(Dispatchers.IO) { ItemApps.find(this@HomeActivity, IndexSchema.KIND_NOTEBOOK) != null }
             renderLibrary()
         }
+        if (::importFlow.isInitialized) importFlow.refresh()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -218,6 +222,7 @@ class HomeActivity : AppCompatActivity() {
         val inShelf = ::browser.isInitialized && browser.inShelf
         binding.btnNewNotebook.visibility = if (library && notebookApp && !inShelf) View.VISIBLE else View.GONE
         binding.btnNewFolder.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
+        binding.btnImport.visibility = if (library && !inShelf && ::importFlow.isInitialized && importFlow.installed) View.VISIBLE else View.GONE
         binding.btnSearch.visibility = if (library) View.VISIBLE else View.GONE
         binding.btnRecents.visibility = if (library) View.VISIBLE else View.GONE
         binding.btnPinned.visibility = if (library) View.VISIBLE else View.GONE

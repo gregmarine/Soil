@@ -315,18 +315,25 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
      * pipeline off. **The flush is awaited before `finish()`**, so nothing written is left in
      * flight behind a screen that has gone.
      */
+    /** Run once the page is flushed and just before the screen finishes: a door the exit opens. */
+    protected var afterExit: (() -> Unit)? = null
+
     protected fun exit() {
         if (closing) return
         closing = true
         hideEraserBar()   // a floating bar belongs to a screen that is leaving
         dismissCollapsed()   // and so do the corner button's rows
         screenRoot?.removeCallbacks(saveRunnable)
-        val page = inkPage ?: run { finishWithHandoff(); return }
+        val page = inkPage ?: run { afterExit?.invoke(); afterExit = null; finishWithHandoff(); return }
         appScope.launch {
             withContext(NonCancellable) {
                 pageOps.withLock { runCatching { page.flushUntilClean() }.onFailure { Log.w(logTag, "final flush failed", it) } }
             }
-            if (!isFinishing && !isDestroyed) finishWithHandoff()
+            if (!isFinishing && !isDestroyed) {
+                afterExit?.invoke()
+                afterExit = null
+                finishWithHandoff()
+            }
         }
     }
 

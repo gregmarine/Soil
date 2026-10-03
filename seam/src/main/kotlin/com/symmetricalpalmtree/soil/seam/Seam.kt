@@ -23,6 +23,28 @@ object Seam {
     /** On that activity, as meta-data: the kind of item it opens. */
     const val META_KIND = "com.symmetricalpalmtree.soil.kind"
 
+    // ── Export: Soil's screen, and the app's renderer behind it ──────
+
+    /**
+     * The action of a Sprout app's `<service>` that renders its kind's pages for an export
+     * (`IItemRenderer`), guarded by [permissionFor]; [META_KIND] on it names the kind.
+     */
+    const val ACTION_RENDER = "com.symmetricalpalmtree.soil.action.RENDER"
+
+    /**
+     * The action of Soil's export screen, started by an app for one of its items: [EXTRA_ITEM_ID],
+     * [EXTRA_PAGE_ID] to offer that page as a scope, and [EXTRA_RETURN_TO_APP] when the app closed
+     * the item to export it and wants it reopened after. Explicit to Soil's package.
+     */
+    const val ACTION_EXPORT = "com.symmetricalpalmtree.soil.action.EXPORT"
+    const val EXTRA_RETURN_TO_APP = "com.symmetricalpalmtree.soil.extra.RETURN_TO_APP"
+
+    /** What a renderer says when it cannot: the exact messages of its IllegalStateException. */
+    const val RENDER_EMPTY = "render: no pages"
+    const val RENDER_TOO_LONG = "render: too many pages"
+    const val RENDER_DAMAGED = "render: a page has no size"
+    const val RENDER_FAILED = "render: failed"
+
     /** The id of the item to open. */
     const val EXTRA_ITEM_ID = "com.symmetricalpalmtree.soil.extra.ITEM_ID"
 

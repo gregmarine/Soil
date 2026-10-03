@@ -16,9 +16,15 @@ class SettingsPrefs(context: Context) {
         get() = prefs.getString(KEY_LANGUAGE, null)
         set(value) { prefs.edit().putString(KEY_LANGUAGE, value).apply() }
 
+    /** The exporter last used, by package, so the export screen opens on it. */
+    var lastExporter: String?
+        get() = prefs.getString(KEY_LAST_EXPORTER, null)
+        set(value) { prefs.edit().putString(KEY_LAST_EXPORTER, value).apply() }
+
     private companion object {
         const val FILE = "soil_settings"
         const val KEY_RECOGNIZER = "recognizer"
         const val KEY_LANGUAGE = "recognizerLanguage"
+        const val KEY_LAST_EXPORTER = "lastExporter"
     }
 }

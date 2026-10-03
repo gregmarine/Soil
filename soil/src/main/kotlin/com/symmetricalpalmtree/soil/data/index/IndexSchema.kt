@@ -156,5 +156,15 @@ object IndexSchema {
         """CREATE INDEX item_page_item ON item_page(itemId, position);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7))
+    /** Export presets: a name over which exporter and which option values, as JSON. */
+    private val V8 = listOf(
+        """CREATE TABLE export_preset (
+               id TEXT PRIMARY KEY,
+               name TEXT NOT NULL,
+               json TEXT NOT NULL,
+               createdAt INTEGER NOT NULL,
+               updatedAt INTEGER NOT NULL);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8))
 }

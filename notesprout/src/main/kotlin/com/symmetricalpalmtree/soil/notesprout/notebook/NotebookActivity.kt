@@ -1302,8 +1302,28 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             if (doc.pageWidth > 0f && doc.pageHeight > 0f) {
                 sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_photo_plus, getString(R.string.save_as_template_action)) { saveAsTemplate() }
             }
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(pageId) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_notebook_action)) { exportVia(null) }
             sheet.show()
         }
+    }
+
+    /**
+     * Soil's export screen for this notebook, or one page of it. The notebook closes first, so
+     * the file is free for a copy, and Soil opens it again on the way back.
+     */
+    private fun exportVia(pageId: String?) {
+        if (!opened || closing) return
+        val id = itemId ?: return
+        afterExit = {
+            startActivity(
+                android.content.Intent(Seam.ACTION_EXPORT).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, id)
+                    .putExtra(Seam.EXTRA_PAGE_ID, pageId)
+                    .putExtra(Seam.EXTRA_RETURN_TO_APP, true),
+            )
+        }
+        exit()
     }
 
     // ── The clipboard ──────

@@ -20,6 +20,14 @@ SeamHello hello()
 | `seamVersion` | The version of the seam this Soil speaks |
 | `libraryUnlocked` | Whether Soil holds the key right now |
 
+### Export
+
+`ACTION_EXPORT` opens Soil's export screen for one of the app's items (`EXTRA_ITEM_ID`,
+`EXTRA_PAGE_ID` to offer that page as a scope, `EXTRA_RETURN_TO_APP` when the app closed the
+item first). `ACTION_RENDER` is the app's side: a `<service>` guarded by Soil's permission,
+`META_KIND` naming the kind, answering `IItemRenderer` (pages, render into a descriptor,
+relabel statements). `docs/export.md` has the whole.
+
 ### The side bars
 
 `barKey(keyCode, action, eventTime, repeatCount)`: a bar key the app's paper screen received in

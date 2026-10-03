@@ -102,3 +102,21 @@ them whole).
 **For the converter from Notesprout SN** (design.md § 11): check every SN notebook for `shape` rows
 before converting. Greg believes he never used shapes but may have a few times and forgotten; if any
 are found, he decides then what becomes of them (dropped, or shapes brought back first).
+
+---
+
+## Export formats beyond today's
+
+**Set aside 2026-10-03, while building phase 11 of Notesprout.**
+
+- **Colour in a PDF.** Pages go into a PDF as 8-bit grayscale, losslessly, because the Nomad's
+  ink is grey on white and a page measured at a twentieth of the colour JPEG it used to be. When
+  a Sprout app draws in colour, the PDF extension's page encoding is the one place that changes.
+- **Vector ink in a PDF.** Strokes as paths would be crisp at any zoom. Not smaller: a page of
+  strokes compresses to about what the lossless picture does. The bundle would carry a stroke
+  form beside the picture, and the PDF extension a path renderer.
+- **Real text in a PDF.** Headings and text objects as PDF text, with a font, need the bundle to
+  carry positioned text runs. For a notebook they sit among ink; for Docsprout a document is
+  nothing but text, so a text PDF belongs with that app.
+- **The cloud destination** of the export screen, and the cloud source of import, come with
+  phase 12.

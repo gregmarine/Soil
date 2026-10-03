@@ -16,6 +16,16 @@
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />
         </intent>
+        <!-- The export and import points, and the Sprout apps' renderers. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.EXPORTER" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.IMPORTER" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.RENDER" />
+        </intent>
         <!-- The firmware's launcher, bound to hold its side menu shut. -->
         <package android:name="com.ratta.supernote.launcher" />
     </queries>
@@ -98,6 +108,20 @@
             <!-- A Sprout app opens the pad over its own paper, for a result: the pad then sends. -->
             <intent-filter>
                 <action android:name="com.symmetricalpalmtree.soil.action.SCRATCH_PAD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The export screen: Soil's own from the library, and an app's door for one of its
+             items, started behind the seam permission. -->
+        <activity
+            android:name=".export.ExportActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.EXPORT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
