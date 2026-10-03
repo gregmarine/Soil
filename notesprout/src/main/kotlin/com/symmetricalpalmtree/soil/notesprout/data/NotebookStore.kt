@@ -489,6 +489,16 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         plan
     }
 
+    /** Ink that arrived from the pad, appended after the page's current strokes in its own order,
+     *  in one transaction. The ids are the caller's, minted on this side. */
+    fun pasteStrokes(pageId: String, strokes: List<Stroke>) = guard {
+        if (strokes.isEmpty()) return@guard
+        val base = nextOrder(pageId, NotebookSchema.TYPE_STROKE)
+        val now = System.currentTimeMillis()
+        run(strokes.mapIndexed { i, s -> NotebookSql.putStroke(pageId, (base + i).toLong(), s, now) })
+        Slog.d(TAG) { "pasted ${strokes.size} transferred strokes" }
+    }
+
     /**
      * How this file reaches the payload's template: a row already here under that id (always,
      * for a same-notebook paste); the same paper under another id, by content; else the carried

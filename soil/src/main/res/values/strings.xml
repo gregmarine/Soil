@@ -371,4 +371,14 @@
     <string name="search_where_and_tag">%1$s · %2$s</string>
     <string name="search_page_card">%1$s · Page %2$d</string>
     <string name="search_page_card_unnumbered">%1$s · a page</string>
+
+    <!-- The Scratch Pad's Send -->
+    <string name="scratch_send_page">Send page to notebook</string>
+    <string name="scratch_send_selection">Send selection to notebook</string>
+    <string name="scratch_nothing_to_send_title">Nothing to send</string>
+    <string name="scratch_nothing_to_send_body">There is no ink here to send. Write something first, or lasso what you want to send.</string>
+    <string name="scratch_too_large_title">Too much to send</string>
+    <string name="scratch_too_large_body">This holds more ink than one send can carry. Send a smaller part of it.</string>
+    <string name="scratch_received_failed_title">Scratch Pad</string>
+    <string name="scratch_received_failed_body">The ink sent to the pad could not be placed. Nothing was changed.</string>
 </resources>

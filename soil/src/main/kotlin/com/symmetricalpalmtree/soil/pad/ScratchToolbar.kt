@@ -38,6 +38,10 @@ class ScratchToolbar(
     private val btnPrevPage: ImageButton,
     private val btnNextPage: ImageButton,
     private val pageIndicator: TextView,
+    /** Send the page to the notebook behind the pad: shown only when there is one. */
+    btnSend: ImageButton,
+    showSend: Boolean,
+    onSend: () -> Unit,
     onBack: () -> Unit,
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
@@ -71,9 +75,11 @@ class ScratchToolbar(
             onSynced = onSynced,
         )
 
-        listOf(btnPrevPage, btnNextPage).forEach {
+        listOf(btnPrevPage, btnNextPage, btnSend).forEach {
             TooltipCompat.setTooltipText(it, it.contentDescription)
         }
+        btnSend.visibility = if (showSend) View.VISIBLE else View.GONE
+        btnSend.setOnClickListener { releaseRenderIfIdle(); onSend() }
         btnPrevPage.setOnClickListener { releaseRenderIfIdle(); onPrevPage() }
         btnNextPage.setOnClickListener { releaseRenderIfIdle(); onNextPage() }
         pageIndicator.text = ""

@@ -183,6 +183,19 @@ class SoilSeamService : Service() {
             TextStaging.stage(text)
         }
 
+        // ── Ink between a notebook and the Scratch Pad ──────
+
+        override fun sendInkToPad(ink: SeamBytes, placement: Int) = answered {
+            val bytes = SeamShared.readAndClose(ink)
+            require(bytes.isNotEmpty() && bytes.size <= SeamLimits.MAX_VALUE_BYTES) { SeamLimits.VALUE_TOO_LARGE }
+            require(placement == Seam.PAD_PLACEMENT_NEW_PAGE || placement == Seam.PAD_PLACEMENT_CURRENT_PAGE) { "not a placement" }
+            com.symmetricalpalmtree.soil.pad.PadTransfer.parkIncoming(bytes, placement)
+        }
+
+        override fun takeIncomingInk(): SeamBytes? = answered {
+            com.symmetricalpalmtree.soil.pad.PadTransfer.takeOutgoing()?.let { SeamShared.write(it).also { region -> sent.set(region) } }
+        }
+
         /** Hand a region back once the reply that carries it has been written. */
         override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean =
             try {

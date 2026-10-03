@@ -11,6 +11,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
+import com.symmetricalpalmtree.gpaper.core.model.Selection
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
+import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.seam.SeamCallerCheck
+import com.symmetricalpalmtree.soil.seam.SeamClients
+import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.KeyGate
 import com.symmetricalpalmtree.soil.bootstrap.Library
@@ -51,8 +57,10 @@ import kotlinx.coroutines.withContext
  * a key that has not been saved, and nothing can be while the library is locked. A shut gate
  * leads to the screen that opens it, and back here afterwards.
  *
- * **Sending** — ink to a notebook, words to a document, a drawing to a sketchbook — arrives with
- * the first Sprout app, which is what gives it somewhere to go.
+ * **Send** goes to the notebook behind the pad, when there is one: the page from the top bar, the
+ * lasso's strokes from the selection bar. The ink is parked in Soil and the notebook takes it as it
+ * comes back to the front. Ink a notebook sends the other way lands here as the pad shows, where
+ * the notebook said, selected.
  *
  * Frame silence: no app frame while `paper.isPenActive`. The page indicator waits for the gate
  * ([ScratchToolbar]); the frames that do not are recorded exceptions — the delete confirm at a
@@ -65,6 +73,10 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     private lateinit var binding: ActivityScratchPadBinding
     private lateinit var toolbar: ScratchToolbar
     private var document: ScratchDocument? = null
+
+    /** Whether a notebook is behind the pad: started by an app over its paper, or opened from
+     *  the menu over an app's paper. That is what gives Send somewhere to go. */
+    private var appBehind = false
 
     // ── What the skeleton asks for ───────────────────────────────────────────
 
@@ -119,6 +131,10 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             finish()
             return
         }
+        // Started by a Sprout app for a result: the caller is checked, as every exported screen's is.
+        val launchedByApp = intent.action == Seam.ACTION_SCRATCH_PAD
+        if (launchedByApp && runCatching { SeamCallerCheck.enforceCaller(this, callingPackage) }.isFailure) { finish(); return }
+        appBehind = launchedByApp || SeamClients.appBehindPad
         isOpen = true
         binding = ActivityScratchPadBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -156,6 +172,9 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             btnPrevPage = binding.btnPrevPage,
             btnNextPage = binding.btnNextPage,
             pageIndicator = binding.pageIndicator,
+            btnSend = binding.btnSend,
+            showSend = appBehind,
+            onSend = { send(null) },
             onBack = { exit() },
             // No-op at a bound, never disabled: a greyed control is invisible on e-ink.
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
@@ -183,6 +202,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             releaseRender = { paper.releaseRender() },
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
+            sendHint = if (appBehind) getString(R.string.scratch_send_selection) else null,
+            onSend = { currentSelection?.strokeIds?.toHashSet()?.let { send(it) } },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -246,6 +267,84 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         // frame during writing — nothing has been drawn yet.
         binding.openingOverlay.visibility = View.GONE
         Slog.d(TAG) { "page loaded: ${doc.strokes.size} strokes, ${doc.pageCount} pages" }
+        consumeIncoming()
+    }
+
+    /** The pad is up and asked for again: a notebook may have parked ink since. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (opened && !closing) consumeIncoming()
+    }
+
+    // ── Send, and what arrives ──────
+
+    /**
+     * Ink a notebook parked for the pad, placed where the notebook said and landed selected with
+     * the lasso armed, as one undo step. Taken once: a parking that cannot be placed is explained,
+     * never re-applied at the next open.
+     */
+    private fun consumeIncoming() {
+        val parked = PadTransfer.takeIncoming() ?: return
+        val bundle = InkWire.decode(parked.bytes)
+        if (bundle == null || bundle.strokes.isEmpty()) {
+            Dialogs.problem(this, R.string.scratch_received_failed_title, R.string.scratch_received_failed_body)
+            return
+        }
+        runPageOp {
+            val doc = document ?: return@runPageOp
+            val placed = runCatching { doc.receive(bundle, newPage = parked.placement == Seam.PAD_PLACEMENT_NEW_PAGE) }
+                .onFailure { Log.w(TAG, "the sent ink could not be placed: ${it.javaClass.simpleName}") }
+                .getOrNull()
+            if (placed == null) {
+                Dialogs.problem(this, R.string.scratch_received_failed_title, R.string.scratch_received_failed_body)
+                return@runPageOp
+            }
+            undo.record(placed)
+            showPage()
+            landSelected(bundle.strokes)
+            Slog.d(TAG) { "received ${bundle.strokes.size} strokes (newPage=${parked.placement == Seam.PAD_PLACEMENT_NEW_PAGE})" }
+        }
+    }
+
+    /** What arrived, selected with the lasso armed, so the pen can drag it into place at once. */
+    private fun landSelected(strokes: List<Stroke>) {
+        if (strokes.isEmpty()) return
+        var box = strokes.first().bounds
+        for (i in 1 until strokes.size) box = box.union(strokes[i].bounds)
+        toolbar.arm(Tool.LASSO)
+        val ids = strokes.mapTo(HashSet()) { it.id }
+        paper.setSelection(ids, emptySet(), box)
+        selectionActive = true
+        currentSelection = Selection(ids, emptySet(), box)
+        selectionBar.show(box)
+        pushExclusions()
+    }
+
+    /**
+     * Send the page ([ids] null) or the lasso's strokes to the notebook behind the pad: parked
+     * for it to take as it comes back to the front, and the pad leaves. A copy: the pad keeps its
+     * ink, and nothing goes on its undo stack. The page is flushed first, under the page-op lock.
+     * An empty pick, or one over the caps, is a dialog, never silence.
+     */
+    private fun send(ids: Set<String>?) {
+        if (!opened || closing) return
+        runPageOp {
+            val doc = document ?: return@runPageOp
+            doc.flushUntilClean()
+            val picked = (if (ids == null) doc.strokes else doc.strokes.filter { it.id in ids }).filter { it.points.isNotEmpty() }
+            if (picked.isEmpty()) {
+                Dialogs.problem(this, R.string.scratch_nothing_to_send_title, R.string.scratch_nothing_to_send_body)
+                return@runPageOp
+            }
+            if (!InkWire.withinLimits(picked)) {
+                Dialogs.problem(this, R.string.scratch_too_large_title, R.string.scratch_too_large_body)
+                return@runPageOp
+            }
+            PadTransfer.parkOutgoing(InkWire.encode(picked, doc.pageWidth, doc.pageHeight))
+            Slog.d(TAG) { "send: ${picked.size} strokes" }
+            setResult(RESULT_OK)
+            exit()
+        }
     }
 
     // ── Page gestures → operations ───────────────────────────────────────────
@@ -346,6 +445,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     override fun onScreenDestroyed() {
         super.onScreenDestroyed()
         if (::binding.isInitialized) isOpen = false
+        SeamClients.padClosed()
     }
 
     companion object {

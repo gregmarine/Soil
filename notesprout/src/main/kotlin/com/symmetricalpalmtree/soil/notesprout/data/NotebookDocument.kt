@@ -198,6 +198,15 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         return plan
     }
 
+    /** Ink from the pad onto the showing page; the page is read again. Answers the ids written. */
+    suspend fun pasteStrokes(strokes: List<Stroke>): List<String> {
+        flushUntilClean()
+        val page = pageId
+        withContext(Dispatchers.IO) { store.pasteStrokes(page, strokes) }
+        reloadCurrent()
+        return strokes.map { it.id }
+    }
+
     // ── Paper ──────
 
     /** The showing page's paper as its token, `""` for blank, or null when its row has gone. */

@@ -64,6 +64,7 @@ import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
 import com.symmetricalpalmtree.soil.seam.TagRules
+import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
@@ -161,6 +162,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private val templatePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK)) }
     private val saveTemplateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
     private val tagsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
+    private val padLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed(); takeIncomingInk() }
 
     /** The paper under the pages shown lately, by template row id: decoded off Main before the frame that paints it. */
     private val paperCache = LinkedHashMap<String, android.graphics.Bitmap>()
@@ -323,6 +325,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             onUnlink = { loneLink()?.let { unlink(it) } },
             onCopy = { cut -> currentSelection?.let { doObjectCopy(it, cut) } },
             onTag = { currentSelection?.let { tagSelection(it) } },
+            onSend = { currentSelection?.let { askPadPlacement(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -478,6 +481,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         opened = true
         markClipboard(SoilClipboard.hasObjects)
         pushExclusions()
+        takeIncomingInk()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
         binding.openingOverlay.visibility = View.GONE
@@ -1493,6 +1497,97 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
     }
 
+    // ── The Scratch Pad ──────
+
+    /** Send on the bar: where the ink lands on the pad, then the send. The strokes are read now:
+     *  the selection can die between the tap and the lock. */
+    private fun askPadPlacement(sel: Selection) {
+        if (!opened || closing || soilScreenShowing) return
+        val ids = sel.strokeIds.toHashSet()
+        if (ids.isEmpty()) return
+        paper.releaseRender()
+        ActionSheetDialog(this)
+            .title(getString(R.string.scratch_placement_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_plus, getString(R.string.scratch_placement_new_page)) { sendToPad(ids, Seam.PAD_PLACEMENT_NEW_PAGE) }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_page, getString(R.string.scratch_placement_current_page)) { sendToPad(ids, Seam.PAD_PLACEMENT_CURRENT_PAGE) }
+            .show()
+    }
+
+    /**
+     * A copy of the lassoed ink to the pad: flushed, checked against the caps before anything
+     * crosses, parked in Soil, and the pad opened over this notebook to land it. The pad's own
+     * Send comes back through [takeIncomingInk] when it closes.
+     */
+    private fun sendToPad(ids: Set<String>, placement: Int) {
+        if (!opened || closing || soilScreenShowing) return
+        val doc = document ?: return
+        runPageOp {
+            doc.flushUntilClean()
+            val picked = doc.strokes.filter { it.id in ids && it.points.isNotEmpty() }
+            if (picked.isEmpty()) return@runPageOp
+            if (!InkWire.withinLimits(picked)) {
+                Dialogs.problem(this, R.string.scratch_too_large_title, R.string.scratch_too_large_body)
+                return@runPageOp
+            }
+            val bytes = InkWire.encode(picked, doc.pageWidth, doc.pageHeight)
+            val sent = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().sendInkToPad(com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes), placement) } }
+            if (sent.isFailure) {
+                Log.w(TAG, "send to the pad failed: ${sent.exceptionOrNull()?.javaClass?.simpleName}")
+                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_send_failed_body)
+                return@runPageOp
+            }
+            paper.clearSelection()
+            openPad()
+        }
+    }
+
+    /** Soil's pad over this notebook, for a result: another process, handed over as any Soil screen. */
+    private fun openPad() {
+        val intent = android.content.Intent(Seam.ACTION_SCRATCH_PAD).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+        startSoilScreen { padLauncher.launch(intent) }
+    }
+
+    /**
+     * Ink the pad sent to the notebook behind it, taken once from Soil and pasted onto the showing
+     * page: fresh ids, after the page's current strokes, one undo step, landed selected with the
+     * lasso armed. Nothing parked is silence; a parking that will not read is a dialog.
+     */
+    private fun takeIncomingInk() {
+        if (!opened || closing) return
+        val doc = document ?: return
+        runPageOp {
+            val region = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().takeIncomingInk() } }.getOrNull() ?: return@runPageOp
+            val bytes = runCatching { com.symmetricalpalmtree.soil.seam.SeamShared.readAndClose(region) }.getOrNull()
+            val bundle = InkWire.decode(bytes)
+            if (bundle == null || bundle.strokes.isEmpty()) {
+                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_drain_failed_body)
+                return@runPageOp
+            }
+            val pageId = doc.pageId
+            val written = runCatching { doc.pasteStrokes(bundle.strokes) }.onFailure { Log.w(TAG, "paste from the pad failed: ${it.javaClass.simpleName}") }
+            if (written.isFailure) {
+                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_paste_failed_body)
+                return@runPageOp
+            }
+            undo.record(NotebookAction.ObjectsPasted(pageId, bundle.strokes.map { it.id }))
+            preparePaper()
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+            val strokeIds = bundle.strokes.mapTo(HashSet()) { it.id }
+            var box: Bounds? = null
+            for (st in doc.strokes) if (st.id in strokeIds) box = box?.union(st.bounds) ?: st.bounds
+            box?.let { bounds ->
+                armLassoForLanding()
+                paper.setSelection(strokeIds, emptySet(), bounds)
+                val selection = Selection(strokeIds, emptySet(), bounds)
+                selectionActive = true
+                currentSelection = selection
+                showObjectBar(selection)
+            }
+            toast(getString(R.string.objects_pasted_toast))
+            Slog.d(TAG) { "pasted ${bundle.strokes.size} strokes from the pad" }
+        }
+    }
+
     // ── Tags ──────
 
     private fun showTagsPopup(anchor: View? = null) {
@@ -1849,6 +1944,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         // The shade is device-wide: another screen may have picked since.
         if (::toolbar.isInitialized) applyPenShade()
         (application as NotesproutApp).front(this)
+        // The pad may have been opened over this notebook from the side menu and sent ink back.
+        if (!soilScreenShowing) takeIncomingInk()
     }
 
     override fun onPause() {

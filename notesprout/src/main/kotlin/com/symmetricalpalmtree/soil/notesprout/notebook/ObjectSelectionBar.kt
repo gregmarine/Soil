@@ -27,6 +27,7 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *   things can only be deleted: a link is never nested.
  * - **Copy** and **Cut** on anything: the clipboard, which lives in Soil. A link copies whole.
  * - **Tag** on a lone heading: its words become a tag on the page.
+ * - **Send** on ink alone: a copy to the Scratch Pad, which opens over the notebook.
  * - **Delete** on anything.
  */
 class ObjectSelectionBar(
@@ -45,6 +46,8 @@ class ObjectSelectionBar(
     private val onCopy: (cut: Boolean) -> Unit,
     /** A lone heading's words become a tag on the page. */
     private val onTag: () -> Unit,
+    /** Ink alone: a copy to the Scratch Pad. */
+    private val onSend: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
@@ -52,6 +55,7 @@ class ObjectSelectionBar(
     private val editLinkButton: AppCompatImageButton
     private val unlinkButton: AppCompatImageButton
     private val tagButton: AppCompatImageButton
+    private val sendButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -71,6 +75,8 @@ class ObjectSelectionBar(
         bar.addView(unlinkButton)
         tagButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_tag, ctx.getString(R.string.tag_selection_action)) { onTag() }
         bar.addView(tagButton)
+        sendButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pen_down, ctx.getString(R.string.scratch_send_action)) { onSend() }
+        bar.addView(sendButton)
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, ctx.getString(R.string.delete_selection_action)) { onDelete() })
         val icons = listOf(
             com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_1, com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_2,
@@ -91,6 +97,7 @@ class ObjectSelectionBar(
         unlinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
         // Recognition is not here yet: only the silent flow, a lone heading, is offered.
         tagButton.visibility = if (TagSelection.offered(mode, recognitionAvailable = false)) View.VISIBLE else View.GONE
+        sendButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
         subBar.visibility = View.GONE
         levelButtons.forEachIndexed { i, b -> b.isSelected = (i + 1) == currentLevel }
 

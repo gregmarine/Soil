@@ -130,4 +130,19 @@ interface ISoilSeam {
      * Intent: the tag screen's prefill. Held in memory, one at a time.
      */
     String stageText(String text);
+
+    // ── Ink between a notebook and the Scratch Pad ──────
+
+    /**
+     * Park ink for the Scratch Pad, an `InkWire` document: the pad places it on a new page
+     * ([Seam.PAD_PLACEMENT_NEW_PAGE]) or its current page when it next shows. The app then opens
+     * the pad with [Seam.ACTION_SCRATCH_PAD]. Held in memory, one at a time; a copy, never a move.
+     */
+    void sendInkToPad(in SeamBytes ink, int placement);
+
+    /**
+     * The ink the Scratch Pad sent to the notebook behind it, an `InkWire` document, taken once;
+     * null when there is none. The notebook asks whenever it comes back to the front.
+     */
+    @nullable SeamBytes takeIncomingInk();
 }

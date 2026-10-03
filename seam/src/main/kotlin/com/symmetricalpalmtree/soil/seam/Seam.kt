@@ -92,6 +92,17 @@ object Seam {
     /** The item and every page of it, an overview to drill into. */
     const val TAG_MODE_MANAGE = 2
 
+    /**
+     * The action of Soil's Scratch Pad, started for a result by an app over its own paper: the pad
+     * opens with its Send buttons, and what it sends is taken with `takeIncomingInk` when the pad
+     * has closed. Ink parked with `sendInkToPad` just before lands on it as it opens.
+     */
+    const val ACTION_SCRATCH_PAD = "com.symmetricalpalmtree.soil.action.SCRATCH_PAD"
+
+    /** Where ink sent to the pad lands: a new page after the current one, or the current page. */
+    const val PAD_PLACEMENT_NEW_PAGE = 0
+    const val PAD_PLACEMENT_CURRENT_PAGE = 1
+
     /** Whether [appPackage] and [hubPackage] are of the same build: a debug Soil opens debug apps
      *  and a release Soil release apps, so the two installs never cross. */
     fun sameBuild(hubPackage: String, appPackage: String): Boolean =

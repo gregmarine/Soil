@@ -85,11 +85,18 @@
              in the recent apps. -->
         <activity
             android:name=".pad.ScratchPadActivity"
-            android:exported="false"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
             android:taskAffinity="${applicationId}.pad"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="portrait">
+            <!-- A Sprout app opens the pad over its own paper, for a result: the pad then sends. -->
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.SCRATCH_PAD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!-- The paper library. In browse mode it is Soil's own; in pick mode a Sprout app starts
              it for a result, so it is exported behind the seam permission, and it checks the
