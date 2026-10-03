@@ -290,4 +290,9 @@ class HomeActivity : AppCompatActivity() {
         const val KEY_SHOWING = "showing"
         const val KEY_FOLDER = "folder"
     }
+    override fun onDestroy() {
+        if (::importFlow.isInitialized) importFlow.close()
+        super.onDestroy()
+    }
+
 }

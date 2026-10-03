@@ -30,6 +30,8 @@ android {
 }
 
 dependencies {
-    // The extension contract: what Soil asks of an extension. It depends on nothing but the platform.
+    // The extension contract: what Soil asks of an extension. The cloud point lends an extension
+    // a store of Soil's through the seam's own item interface, so the seam is the one dependency.
+    api(project(":seam"))
     testImplementation("junit:junit:4.13.2")
 }

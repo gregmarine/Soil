@@ -26,6 +26,13 @@
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.action.RENDER" />
         </intent>
+        <!-- The cloud point: the storage service and its connect screen. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_STORAGE" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_SCREEN" />
+        </intent>
         <!-- The firmware's launcher, bound to hold its side menu shut. -->
         <package android:name="com.ratta.supernote.launcher" />
     </queries>

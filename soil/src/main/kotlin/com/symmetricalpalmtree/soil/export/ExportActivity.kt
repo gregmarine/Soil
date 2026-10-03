@@ -19,12 +19,20 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.TooltipCompat
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.cloud.CloudBrowserDialog
+import com.symmetricalpalmtree.soil.cloud.CloudBrowserRules
+import com.symmetricalpalmtree.soil.cloud.CloudClient
+import com.symmetricalpalmtree.soil.cloud.CloudConnectEntry
+import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
+import com.symmetricalpalmtree.soil.cloud.CloudNotConnected
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.LibraryStore
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.databinding.ActivityExportBinding
+import com.symmetricalpalmtree.soil.ext.CloudEntry
+import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.ext.ExportContract
 import com.symmetricalpalmtree.soil.ext.ExportSpec
 import com.symmetricalpalmtree.soil.ext.Extension
@@ -52,6 +60,12 @@ import java.io.File
  *
  * Reached from the library's item sheet, and from an app's page sheet with [Seam.ACTION_EXPORT]
  * for one page of the item; an app that closed its item to export it is reopened on the way out.
+ *
+ * With a cloud provider installed the screen has a Destination row ([ExportDestination]). On the
+ * cloud leg the exporter writes into a file in Soil's cache, verified as on the local leg, and
+ * that file is uploaded under `Exports/` through the browser's pick, replace-by-name after a
+ * *Replace?* that stands in for the picker's overwrite confirmation. Nothing in the cloud is ever
+ * deleted by a failure; every failure before the upload says so.
  */
 class ExportActivity : AppCompatActivity() {
 
@@ -80,6 +94,16 @@ class ExportActivity : AppCompatActivity() {
     private var discovering = false
     private var typedPassphrase: String? = null
     private var typedExportSecret: String? = null
+
+    // The cloud destination: the row's answer, the connect door, the provider as last found and
+    // what it said of itself (read again at each discovery; a stale "connected" would aim an
+    // export at a cloud since disconnected), and the browser while it is up.
+    private var destinationChoice = ExportDestination.Choice.LOCAL
+    private var cloud: CloudConnectEntry? = null
+    private var cloudRef: Extension? = null
+    private var cloudStatus: CloudStatus? = null
+    private var selectCloudOnDiscovery = false
+    private var browser: CloudBrowserDialog? = null
 
     private val saveLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
@@ -117,9 +141,17 @@ class ExportActivity : AppCompatActivity() {
         TooltipCompat.setTooltipText(binding.btnBack, binding.btnBack.contentDescription)
         binding.btnExport.setOnClickListener { onExportTap() }
 
+        // The sign-in came back: the person reached for the cloud answer, so the next discovery
+        // takes it for them when the fresh status agrees.
+        cloud = CloudConnectEntry(this) { wasConnected ->
+            if (wasConnected) selectCloudOnDiscovery = true
+            if (!busy) discover()
+        }
+
         savedInstanceState?.let { state ->
             chosenPackage = state.getString(KEY_PACKAGE)
             if (state.getBoolean(KEY_SCOPE_WHOLE)) scope = ExportScope.Whole
+            if (state.getBoolean(KEY_DESTINATION)) destinationChoice = ExportDestination.Choice.CLOUD
             state.getBundle(KEY_VALUES)?.let { b -> b.keySet().forEach { k -> b.getString(k)?.let { values[k] = it } } }
         }
         discover()
@@ -132,6 +164,10 @@ class ExportActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         hideProgress()
+        browser?.dismiss()
+        browser = null
+        cloud?.close()
+        cloud = null
         super.onDestroy()
     }
 
@@ -139,6 +175,7 @@ class ExportActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_PACKAGE, chosenPackage)
         outState.putBoolean(KEY_SCOPE_WHOLE, scope is ExportScope.Whole)
+        outState.putBoolean(KEY_DESTINATION, destinationChoice == ExportDestination.Choice.CLOUD)
         outState.putBundle(KEY_VALUES, Bundle().also { b -> values.forEach { (k, v) -> b.putString(k, v) } })
     }
 
@@ -163,6 +200,10 @@ class ExportActivity : AppCompatActivity() {
             candidates = kept
             Slog.d(TAG) { "${kept.size} usable exporter(s)" }
             if (kept.isEmpty()) { problemAndClose(R.string.export_none_title, R.string.export_none_body); return@launch }
+            if (selectCloudOnDiscovery) {
+                selectCloudOnDiscovery = false
+                if (cloudStatus?.connected == true) destinationChoice = ExportDestination.Choice.CLOUD
+            }
             reselect()
         }
     }
@@ -207,6 +248,7 @@ class ExportActivity : AppCompatActivity() {
             if (info.sourceKind == ExportContract.SOURCE_PAGES && renderer == null) { Slog.d(TAG) { "dropping ${ref.packageName}: no renderer for ${found.kind}" }; continue }
             kept += Candidate(ref, info)
         }
+        loadCloud()
         described = kept
         if (scope is ExportScope.Page && !ExportScope.offerable(kept.map { it.info.sourceKind })) scope = ExportScope.Whole
         return listedNow()
@@ -247,6 +289,7 @@ class ExportActivity : AppCompatActivity() {
             binding.scope.addView(panel.choice(getString(R.string.export_scope_page), page) { if (!page) setScope(ExportScope.seeded(pageId)) })
             binding.scope.addView(panel.choice(getString(R.string.export_scope_item), !page) { if (page) setScope(ExportScope.Whole) })
         }
+        renderDestination()
         binding.chooser.removeAllViews()
         if (candidates.size == 1) {
             binding.chooser.addView(panel.value(c.info.formatLabel))
@@ -336,6 +379,7 @@ class ExportActivity : AppCompatActivity() {
             if (protect && typed.length > ExportContract.MAX_EXPORT_SECRET_CHARS) { Dialogs.problem(this, R.string.export_password_long_title, R.string.export_password_long_body); return }
             if (protect) typedExportSecret = typed else typedPassphrase = typed
         }
+        if (destinationChoice == ExportDestination.Choice.CLOUD) { openCloudBrowser(c); return }
         if (perPage(c)) {
             busy = true
             try {
@@ -364,6 +408,192 @@ class ExportActivity : AppCompatActivity() {
     private sealed class Destination {
         class Saf(val uri: Uri) : Destination()
         class SafTree(val tree: Uri) : Destination()
+        /** One file, named, into a folder of the provider's tree. */
+        class Cloud(val path: List<String>, val name: String, val mime: String) : Destination()
+        /** One file per page into a folder of the provider's tree. */
+        class CloudFolder(val path: List<String>) : Destination()
+    }
+
+    // ── The destination ──────
+
+    /** The row exists only while a provider is installed: GONE otherwise, never disabled. */
+    private fun renderDestination() {
+        binding.destination.removeAllViews()
+        val visible = ExportDestination.rowVisible(cloudRef != null)
+        destinationChoice = ExportDestination.settled(destinationChoice, visible)
+        binding.destination.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) return
+        binding.destination.addView(panel.caption(getString(R.string.export_destination_caption)))
+        val local = destinationChoice == ExportDestination.Choice.LOCAL
+        binding.destination.addView(panel.choice(getString(R.string.export_destination_local), local) { if (!local) { destinationChoice = ExportDestination.Choice.LOCAL; render() } })
+        binding.destination.addView(panel.choice(cloudName(), !local) { if (local) onCloudDestinationTap() })
+    }
+
+    private fun onCloudDestinationTap() {
+        when (ExportDestination.onCloudTap(cloudStatus)) {
+            ExportDestination.Tap.SELECT -> { destinationChoice = ExportDestination.Choice.CLOUD; render() }
+            ExportDestination.Tap.NOT_CONFIGURED -> Dialogs.problem(this, R.string.cloud_not_configured_title, R.string.cloud_not_configured_body)
+            ExportDestination.Tap.OFFER_CONNECT -> offerConnect()
+        }
+    }
+
+    /** The inline Connect offer: Connect is the one thing that helps with no account or no answer. */
+    private fun offerConnect() {
+        val entry = cloud ?: return
+        if (!entry.isAvailable || isFinishing || isDestroyed) return
+        val name = cloudName()
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(getString(R.string.cloud_connect_offer_title, name)).setMessage(getString(R.string.cloud_connect_offer_body, name))
+                .setPositiveButton(R.string.cloud_connect) { _, _ -> entry.open() }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).show()
+    }
+
+    /** Is a provider installed, and what does it say of itself? A provider that will not answer keeps its row: "did not answer" is said at the tap. */
+    private suspend fun loadCloud() {
+        val ref = cloud?.discover()
+        cloudRef = ref
+        cloudStatus = if (ref == null) null else try {
+            CloudClient.status(this, ref)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Slog.d(TAG) { "cloud status unavailable: ${e.javaClass.simpleName}" }
+            null
+        }
+    }
+
+    private fun cloudName(): String = ExportDestination.providerName(cloudStatus, cloudRef?.label.orEmpty())
+
+    /** The cloud's stand-in for the pickers: the browser over `Exports/`, answering a folder. */
+    private fun openCloudBrowser(c: Candidate) {
+        val ref = cloudRef
+        if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
+        busy = true
+        browser?.dismiss()
+        val dialog = CloudBrowserDialog(
+            activity = this,
+            ref = ref,
+            providerName = cloudName(),
+            mode = CloudBrowserDialog.Mode.PICK_FOLDER,
+            basePath = listOf(ExportDestination.EXPORTS_FOLDER),
+            onPicked = { pick ->
+                browser = null
+                when (pick) {
+                    is CloudBrowserDialog.Pick.Folder -> if (perPage(c)) confirmFolderThenExport(pick.path) else confirmThenUpload(c, pick.path, pick.listing)
+                    is CloudBrowserDialog.Pick.File -> cancelledAtThePicker()
+                }
+            },
+            onNotConnected = {
+                browser = null
+                cancelledAtThePicker()
+                lifecycleScope.launch {
+                    loadCloud()
+                    if (!isFinishing && !isDestroyed) { render(); offerConnect() }
+                }
+            },
+            onCancelled = { browser = null; cancelledAtThePicker() },
+        )
+        browser = dialog
+        dialog.show()
+    }
+
+    /** An upload replaces by name, so a folder already holding the name gets the *Replace?* question first. */
+    private fun confirmThenUpload(c: Candidate, path: List<String>, listing: List<CloudEntry>) {
+        val name = ExportNaming.fileName(stem(), ExportOptions.fileExtension(c.info, values))
+        val destination = Destination.Cloud(path, name, ExportOptions.mimeType(c.info, values))
+        if (CloudBrowserRules.fileNamed(listing, name) == null) { runExport(destination); return }
+        if (isFinishing || isDestroyed) { cancelledAtThePicker(); return }
+        var replacing = false
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(getString(R.string.cloud_replace_title, name)).setMessage(R.string.cloud_replace_body)
+                .setPositiveButton(R.string.cloud_replace_confirm) { _, _ -> replacing = true; runExport(destination) }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).also { it.setOnDismissListener { if (!replacing) cancelledAtThePicker() } }.show()
+    }
+
+    /** The per-page leg's one question, asked once about the folder: the names are not known until the pages are rendered. */
+    private fun confirmFolderThenExport(path: List<String>) {
+        if (isFinishing || isDestroyed) { cancelledAtThePicker(); return }
+        val where = path.lastOrNull() ?: cloudName()
+        var uploading = false
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(getString(R.string.export_cloud_folder_title, where)).setMessage(R.string.export_cloud_folder_body)
+                .setPositiveButton(R.string.export_upload_confirm) { _, _ -> uploading = true; runExport(Destination.CloudFolder(path)) }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).also { it.setOnDismissListener { if (!uploading) cancelledAtThePicker() } }.show()
+    }
+
+    private suspend fun uploadAndConfirm(c: Candidate, cloud: Destination.Cloud, file: File) {
+        val ref = cloudRef
+        if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
+        if (!uploadOne(ref, cloud.path, cloud.name, cloud.mime, file, prefix = "")) return
+        prefs.lastExporter = c.extension.packageName
+        hideProgress()
+        if (isFinishing || isDestroyed) return
+        Dialogs.confirm(this, R.string.export_done_title, getString(R.string.export_cloud_done_body, cloudName())) { finish() }
+    }
+
+    /**
+     * One file up, and the honest sentence when it does not land. [prefix] is what the per-page
+     * loop puts before every sentence, empty for a single file; the "Nothing was uploaded" note
+     * is true of one file and said only then.
+     */
+    private suspend fun uploadOne(ref: Extension, path: List<String>, name: String, mime: String, file: File, prefix: String): Boolean {
+        val provider = cloudName()
+        fun report(@StringRes titleRes: Int, message: String, note: Boolean) {
+            if (note && prefix.isEmpty()) { failCloud(titleRes, message); return }
+            hideProgress()
+            if (isFinishing || isDestroyed) return
+            Dialogs.problem(this, titleRes, prefix + message)
+        }
+        stage(getString(R.string.export_uploading, provider))
+        val bytes = withContext(Dispatchers.IO) { file.length() }
+        val pfd = withContext(Dispatchers.IO) { runCatching { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
+        if (pfd == null) { report(R.string.export_failed_title, getString(R.string.export_prepare_failed_body), note = true); return false }
+        val entry = try {
+            CloudClient.upload(this, ref, path.toTypedArray(), name, mime, pfd, bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: CloudNotConnected) {
+            hideProgress()
+            if (isFinishing || isDestroyed) return false
+            Dialogs.style(
+                AlertDialog.Builder(this).setTitle(R.string.export_failed_title).setMessage(prefix + getString(R.string.export_cloud_not_connected_body, provider))
+                    .setPositiveButton(R.string.cloud_connect) { _, _ -> cloud?.open() }
+                    .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.ok, null).create(),
+            ).show()
+            return false
+        } catch (e: CloudNetworkFailed) {
+            report(R.string.export_failed_title, getString(R.string.export_cloud_network_body, provider), note = true)
+            return false
+        } catch (e: Exception) {
+            // No answer: the file may or may not have arrived. Said as such; nothing deleted.
+            Slog.d(TAG) { "upload failed: ${e.javaClass.simpleName}" }
+            report(R.string.export_failed_title, getString(R.string.export_cloud_unanswered_body, provider), note = false)
+            return false
+        }
+        if (ExportVerification.cloudVerdict(entry.sizeBytes, bytes) != ExportVerification.Verdict.OK) {
+            Log.w(TAG, "the provider reports ${entry.sizeBytes} for $bytes uploaded bytes")
+            report(R.string.export_verify_title, getString(R.string.export_cloud_verify_body, provider), note = false)
+            return false
+        }
+        Slog.d(TAG) { "uploaded $bytes bytes" }
+        return true
+    }
+
+    /** A cloud failure before anything reached the provider. */
+    private fun failCloud(@StringRes titleRes: Int, message: String) {
+        hideProgress()
+        if (isFinishing || isDestroyed) return
+        Dialogs.problem(this, titleRes, "$message ${getString(R.string.export_cloud_untouched_note)}")
+    }
+
+    /** The cache file the exporter writes on the cloud leg, wiped with the rest in `finally`. */
+    private fun openCacheSink(file: File): ParcelFileDescriptor? {
+        file.parentFile?.mkdirs()
+        return runCatching { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE) }
+            .onFailure { Log.w(TAG, "could not open the cache file: ${it.javaClass.simpleName}") }.getOrNull()
     }
 
     // ── The flow ──────
@@ -376,8 +606,11 @@ class ExportActivity : AppCompatActivity() {
             val sizesAtStart = if (saf != null) withContext(Dispatchers.IO) { destinationSizes(saf.uri) } else emptyList()
             val emptyAtStart = sizesAtStart.isNotEmpty() && sizesAtStart.all { it == 0L }
             var destinationTouched = false
-            suspend fun failed(@StringRes titleRes: Int, message: String) =
-                if (saf != null) fail(saf.uri, titleRes, message, mayDelete = destinationTouched || emptyAtStart) else failNothing(titleRes, message)
+            suspend fun failed(@StringRes titleRes: Int, message: String) = when {
+                saf != null -> fail(saf.uri, titleRes, message, mayDelete = destinationTouched || emptyAtStart)
+                destination is Destination.Cloud || destination is Destination.CloudFolder -> failCloud(titleRes, message)
+                else -> failNothing(titleRes, message)
+            }
             try {
                 val c = current() ?: reselectAfterRestore()
                 if (c == null) { failed(R.string.export_failed_title, getString(R.string.export_gone_body)); return@launch }
@@ -385,7 +618,7 @@ class ExportActivity : AppCompatActivity() {
                 val armedAtTap = values[ExportContract.OPTION_PROTECT] == "1"
                 if ((wantsSecret || armedAtTap) && (typedExportSecret == null || !wantsSecret)) { failed(R.string.export_failed_title, getString(R.string.export_password_lost_body)); return@launch }
                 val specValues = ExportOptions.specValues(c.info, values)
-                val perPage = destination is Destination.SafTree
+                val perPage = destination is Destination.SafTree || destination is Destination.CloudFolder
                 val spec = if (perPage) null else try {
                     ExportSpec(values = specValues, itemName = ExportNaming.specNameOf(stem()), exportSecret = if (wantsSecret) typedExportSecret else null)
                 } catch (e: IllegalArgumentException) {
@@ -399,18 +632,20 @@ class ExportActivity : AppCompatActivity() {
                     is StreamSource.Ready -> prepared.file
                 }
                 if (perPage) {
-                    exportPerPage(c, destination as Destination.SafTree, streamFile, (prepared as StreamSource.Ready).pageNames, specValues, if (wantsSecret) typedExportSecret else null)
+                    exportPerPage(c, destination, streamFile, (prepared as StreamSource.Ready).pageNames, specValues, if (wantsSecret) typedExportSecret else null)
                     return@launch
                 }
                 checkNotNull(spec)
-                checkNotNull(saf)
+                // On the cloud leg the exporter writes into Soil's cache; the upload follows the verdict.
+                val cloudDestination = destination as? Destination.Cloud
+                val cacheOut = if (cloudDestination != null) File(File(cacheDir, ExportArtifact.DIR), "out." + ExportOptions.fileExtension(c.info, values)) else null
                 val streamBytes = withContext(Dispatchers.IO) { streamFile.length() }
                 stage(if (spec.exportSecret != null) R.string.export_protecting else R.string.export_exporting)
                 val source = withContext(Dispatchers.IO) { runCatching { ParcelFileDescriptor.open(streamFile, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
                 if (source == null) { failed(R.string.export_failed_title, getString(R.string.export_prepare_failed_body)); return@launch }
-                val sink = withContext(Dispatchers.IO) { openDestination(saf.uri) }
+                val sink = withContext(Dispatchers.IO) { if (cacheOut != null) openCacheSink(cacheOut) else openDestination(checkNotNull(saf).uri) }
                 if (sink == null) { withContext(Dispatchers.IO) { runCatching { source.close() } }; failed(R.string.export_failed_title, getString(R.string.export_destination_body)); return@launch }
-                destinationTouched = true
+                if (cacheOut == null) destinationTouched = true
                 val result = try {
                     ExporterClient(this@ExportActivity, c.extension).export(source, sink, spec)
                 } catch (e: CancellationException) {
@@ -420,7 +655,7 @@ class ExportActivity : AppCompatActivity() {
                     failed(R.string.export_failed_title, getString(R.string.export_failed_body))
                     return@launch
                 }
-                val onDisk = withContext(Dispatchers.IO) { destinationSizes(saf.uri) }
+                val onDisk = withContext(Dispatchers.IO) { if (cacheOut != null) listOf(cacheOut.length()) else destinationSizes(checkNotNull(saf).uri) }
                 when (ExportVerification.verdict(c.info.sourceKind, result.bytesWritten, streamBytes, onDisk)) {
                     ExportVerification.Verdict.SHORT -> {
                         Log.w(TAG, "short export: ${result.bytesWritten} written, $streamBytes streamed, destination $onDisk")
@@ -436,6 +671,7 @@ class ExportActivity : AppCompatActivity() {
                     ExportVerification.Verdict.OK -> Unit
                 }
                 Slog.d(TAG) { "exported ${result.bytesWritten} bytes" }
+                if (cloudDestination != null) { uploadAndConfirm(c, cloudDestination, checkNotNull(cacheOut)); return@launch }
                 prefs.lastExporter = c.extension.packageName
                 hideProgress()
                 if (isFinishing || isDestroyed) return@launch
@@ -504,25 +740,37 @@ class ExportActivity : AppCompatActivity() {
         return pick
     }
 
-    private suspend fun exportPerPage(c: Candidate, destination: Destination.SafTree, bundle: File, pageNames: List<ExportNaming.PageName>, specValues: Map<String, String>, secret: String?) {
+    /**
+     * One file per page into a folder: a SAF tree, or a folder of the provider's tree. Everything
+     * about one file is the single-file flow's; this adds the arithmetic. A failure stops, keeps
+     * what is already written, removes the failing SAF document (never anything in the cloud) and
+     * leads with *N of M images were exported.*
+     */
+    private suspend fun exportPerPage(c: Candidate, destination: Destination, bundle: File, pageNames: List<ExportNaming.PageName>, specValues: Map<String, String>, secret: String?) {
+        val cloud = destination as? Destination.CloudFolder
+        val tree = destination as? Destination.SafTree
         val dir = File(cacheDir, ExportArtifact.DIR)
         val parts = withContext(Dispatchers.IO) {
             runCatching { BundleSplit.split(bundle, dir) }.onFailure { Log.w(TAG, "the bundle would not split: ${it.javaClass.simpleName}") }.getOrNull()
         }
-        if (parts.isNullOrEmpty()) { failNothing(R.string.export_failed_title, getString(R.string.export_render_failed_body)); return }
+        if (parts.isNullOrEmpty()) { stopPerPage(null, 0, 0, getString(R.string.export_render_failed_body), destination); return }
         val total = parts.size
         val extension = ExportOptions.fileExtension(c.info, values)
         val mime = ExportOptions.mimeType(c.info, values)
-        val treeRoot = runCatching { DocumentsContract.buildDocumentUriUsingTree(destination.tree, DocumentsContract.getTreeDocumentId(destination.tree)) }
-            .onFailure { Log.w(TAG, "the picked folder would not resolve: ${it.javaClass.simpleName}") }.getOrNull()
-        if (treeRoot == null) { failNothing(R.string.export_failed_title, getString(R.string.export_destination_body)); return }
+        val treeRoot = tree?.let { t ->
+            runCatching { DocumentsContract.buildDocumentUriUsingTree(t.tree, DocumentsContract.getTreeDocumentId(t.tree)) }
+                .onFailure { Log.w(TAG, "the picked folder would not resolve: ${it.javaClass.simpleName}") }.getOrNull()
+        }
+        if (tree != null && treeRoot == null) { failNothing(R.string.export_failed_title, getString(R.string.export_destination_body)); return }
+        val provider = cloudRef
+        if (cloud != null && provider == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
         val exporter = try {
             ExporterClient(this@ExportActivity, c.extension).hold()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Slog.d(TAG) { "exporter bind failed: ${e.javaClass.simpleName}" }
-            failNothing(R.string.export_failed_title, partialPrefix(0, total) + getString(R.string.export_failed_body))
+            stopPerPage(null, 0, total, getString(R.string.export_failed_body), destination)
             return
         }
         var written = 0
@@ -535,34 +783,39 @@ class ExportActivity : AppCompatActivity() {
                 val spec = try {
                     ExportSpec(values = specValues, itemName = ExportNaming.specNameOf(stemName), exportSecret = secret)
                 } catch (e: IllegalArgumentException) {
-                    failNothing(R.string.export_failed_title, partialPrefix(written, total) + getString(R.string.export_failed_body)); return
+                    stopPerPage(null, written, total, getString(R.string.export_failed_body), destination); return
                 }
                 val partBytes = withContext(Dispatchers.IO) { part.length() }
                 val source = withContext(Dispatchers.IO) { runCatching { ParcelFileDescriptor.open(part, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
-                if (source == null) { failNothing(R.string.export_failed_title, partialPrefix(written, total) + getString(R.string.export_prepare_failed_body)); return }
-                val document = withContext(Dispatchers.IO) {
+                if (source == null) { stopPerPage(null, written, total, getString(R.string.export_prepare_failed_body), destination); return }
+                val cacheOut = if (cloud != null) File(dir, "out-$index.$extension") else null
+                val document = if (treeRoot != null) withContext(Dispatchers.IO) {
                     runCatching { DocumentsContract.createDocument(contentResolver, treeRoot, mime, name) }
                         .onFailure { Log.w(TAG, "could not create the destination document: ${it.javaClass.simpleName}") }.getOrNull()
-                }
-                val sink = withContext(Dispatchers.IO) { document?.let { openDestination(it) } }
-                if (sink == null) { withContext(Dispatchers.IO) { runCatching { source.close() } }; stopPerPage(document, written, total, getString(R.string.export_destination_body)); return }
+                } else null
+                val sink = withContext(Dispatchers.IO) { if (cacheOut != null) openCacheSink(cacheOut) else document?.let { openDestination(it) } }
+                if (sink == null) { withContext(Dispatchers.IO) { runCatching { source.close() } }; stopPerPage(document, written, total, getString(R.string.export_destination_body), destination); return }
                 val result = try {
                     exporter.export(source, sink, spec)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     Slog.d(TAG) { "export call failed: ${e.javaClass.simpleName}: ${e.message}" }
-                    stopPerPage(document, written, total, getString(R.string.export_failed_body)); return
+                    stopPerPage(document, written, total, getString(R.string.export_failed_body), destination); return
                 }
-                val onDisk = withContext(Dispatchers.IO) { destinationSizes(document!!) }
+                val onDisk = withContext(Dispatchers.IO) { if (cacheOut != null) listOf(cacheOut.length()) else destinationSizes(checkNotNull(document)) }
                 when (ExportVerification.verdict(c.info.sourceKind, result.bytesWritten, partBytes, onDisk)) {
-                    ExportVerification.Verdict.SHORT -> { stopPerPage(document, written, total, getString(R.string.export_short_body)); return }
+                    ExportVerification.Verdict.SHORT -> { stopPerPage(document, written, total, getString(R.string.export_short_body), destination); return }
                     ExportVerification.Verdict.UNCONFIRMED -> {
                         hideProgress()
                         if (!isFinishing && !isDestroyed) Dialogs.problem(this@ExportActivity, R.string.export_verify_title, partialPrefix(written, total) + getString(R.string.export_verify_body))
                         return
                     }
                     ExportVerification.Verdict.OK -> Unit
+                }
+                if (cloud != null) {
+                    if (!uploadOne(checkNotNull(provider), cloud.path, name, mime, checkNotNull(cacheOut), prefix = partialPrefix(written, total))) return
+                    withContext(Dispatchers.IO) { cacheOut.delete() }
                 }
                 written++
             }
@@ -572,12 +825,22 @@ class ExportActivity : AppCompatActivity() {
         prefs.lastExporter = c.extension.packageName
         hideProgress()
         if (isFinishing || isDestroyed) return
-        Dialogs.confirm(this@ExportActivity, R.string.export_done_title, resources.getQuantityString(R.plurals.export_done_images, written, written)) { finish() }
+        val body = if (cloud != null) resources.getQuantityString(R.plurals.export_cloud_done_images, written, written, cloudName())
+        else resources.getQuantityString(R.plurals.export_done_images, written, written)
+        Dialogs.confirm(this@ExportActivity, R.string.export_done_title, body) { finish() }
     }
 
-    private suspend fun stopPerPage(document: Uri?, written: Int, total: Int, message: String) {
+    private suspend fun stopPerPage(document: Uri?, written: Int, total: Int, message: String, destination: Destination) {
         val body = partialPrefix(written, total) + message
-        if (document != null) fail(document, R.string.export_failed_title, body, mayDelete = true) else failNothing(R.string.export_failed_title, body)
+        when {
+            document != null -> fail(document, R.string.export_failed_title, body, mayDelete = true)
+            destination is Destination.CloudFolder -> {
+                hideProgress()
+                if (isFinishing || isDestroyed) return
+                Dialogs.problem(this, R.string.export_failed_title, if (written == 0) "$body ${getString(R.string.export_cloud_untouched_note)}" else body)
+            }
+            else -> failNothing(R.string.export_failed_title, body)
+        }
     }
 
     private fun partialPrefix(written: Int, total: Int): String = resources.getQuantityString(R.plurals.export_done_images_partial, written, written, total) + " "
@@ -627,6 +890,7 @@ class ExportActivity : AppCompatActivity() {
         private const val KEY_PACKAGE = "export.package"
         private const val KEY_VALUES = "export.values"
         private const val KEY_SCOPE_WHOLE = "export.scopeWhole"
+        private const val KEY_DESTINATION = "export.cloud"
 
         fun intent(context: Context, itemId: String, pageId: String? = null, returnToApp: Boolean = false): Intent =
             Intent(context, ExportActivity::class.java)

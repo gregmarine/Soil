@@ -515,4 +515,79 @@
     <string name="import_in_use_body">The item it would replace is open in its app. Close it and try again.</string>
     <string name="import_write_body">The item could not be written to the library.</string>
     <string name="import_no_app_body">No installed app opens items of that kind, so it cannot be relabelled for the library.</string>
+
+    <!-- Cloud. Every sentence names the provider by the name it gave for itself; none carries a
+         path, a folder name or the account. -->
+    <string name="settings_cloud">Cloud storage</string>
+    <string name="settings_cloud_none">No cloud extension is installed</string>
+    <string name="settings_cloud_none_body">Install the cloud extension to connect an account.</string>
+    <string name="cloud_status_line">%1$s: %2$s</string>
+    <string name="cloud_state_not_connected">not connected</string>
+    <string name="cloud_state_connected">connected</string>
+    <string name="cloud_state_not_configured">not configured</string>
+    <string name="cloud_state_unavailable">unavailable</string>
+    <string name="cloud_connect">Connect</string>
+    <string name="cloud_disconnect">Disconnect</string>
+    <string name="cloud_opening">Opening the sign-in…</string>
+    <string name="cloud_connect_failed_title">Couldn\'t open the sign-in</string>
+    <string name="cloud_connect_failed_body">The cloud extension did not answer, so its sign-in screen could not be opened. Nothing has been changed. Try again; if it keeps happening, check that the extension is still installed.</string>
+    <string name="cloud_not_configured_title">Not set up in this build</string>
+    <string name="cloud_not_configured_body">This build of the cloud extension was made without its sign-in credentials, so no account can be connected. Nothing has been changed.</string>
+    <string name="cloud_disconnect_title">Disconnect %1$s?</string>
+    <string name="cloud_disconnect_body">Exports to it will stop until you connect again. Nothing already there is removed.</string>
+    <string name="cloud_disconnecting">Disconnecting…</string>
+    <string name="cloud_disconnect_failed_title">Couldn\'t disconnect</string>
+    <string name="cloud_disconnect_failed_body">The cloud extension did not answer, so the account is still connected. Nothing has been changed. Try again.</string>
+    <string name="cloud_connect_offer_title">Connect to %1$s?</string>
+    <string name="cloud_connect_offer_body">Sign in to %1$s so Soil can put files there. Nothing is uploaded until you choose where to save.</string>
+    <string name="import_cloud_connect_offer_body">Sign in to %1$s so Soil can read the files it put there. Nothing is downloaded until you choose a file.</string>
+    <string name="cloud_replace_title">Replace %1$s?</string>
+    <string name="cloud_replace_body">A file of that name is already in this folder. Exporting will replace what it holds.</string>
+    <string name="cloud_replace_confirm">Replace</string>
+
+    <!-- The cloud browser -->
+    <string name="cd_cloud_up">Up one folder</string>
+    <string name="cloud_browser_save_here">Save here</string>
+    <string name="cloud_browser_crumb_separator">" › "</string>
+    <string name="cloud_browser_loading">Loading…</string>
+    <string name="cloud_browser_creating">Creating the folder…</string>
+    <string name="cloud_browser_empty">This folder is empty.</string>
+    <string name="cloud_browser_new_folder">New folder…</string>
+    <string name="cloud_browser_new_folder_title">New folder</string>
+    <string name="cloud_browser_new_folder_confirm">Create</string>
+    <string name="cloud_browser_new_folder_hint">Folder name</string>
+    <string name="cloud_browser_name_title">That name can\'t be used</string>
+    <string name="cloud_browser_name_body">A folder name can\'t be empty, can\'t contain a slash, and can\'t be longer than 255 characters. Folders can be eight deep at most. Nothing was created.</string>
+    <string name="cloud_browser_network_title">Couldn\'t reach %1$s</string>
+    <string name="cloud_browser_network_body">%1$s could not be reached just now. Nothing has been changed. Try again.</string>
+    <string name="cloud_browser_failed_title">No answer</string>
+    <string name="cloud_browser_failed_body">The cloud extension didn\'t answer, so this folder couldn\'t be read. Nothing has been changed.</string>
+
+    <!-- Export to the cloud -->
+    <string name="export_destination_caption">Destination</string>
+    <string name="export_destination_local">This device</string>
+    <string name="export_uploading">Uploading to %1$s…</string>
+    <string name="export_cloud_done_body">The file was uploaded to %1$s.</string>
+    <string name="export_cloud_untouched_note">Nothing was uploaded.</string>
+    <string name="export_cloud_gone_body">The cloud extension is no longer available on this device.</string>
+    <string name="export_cloud_not_connected_body">No account is connected to %1$s, so nothing was uploaded. Connect an account and export again.</string>
+    <string name="export_cloud_network_body">%1$s could not be reached, so nothing was uploaded. Try again.</string>
+    <string name="export_cloud_unanswered_body">%1$s didn\'t answer. The file may or may not have arrived; check %1$s before exporting again.</string>
+    <string name="export_cloud_verify_body">The whole file was uploaded, but %1$s reports a different size. Open it, or export it again, before relying on it.</string>
+    <string name="export_cloud_folder_title">Upload to %1$s?</string>
+    <string name="export_cloud_folder_body">Each page will be uploaded as its own image. Files with the same names will be replaced.</string>
+    <string name="export_upload_confirm">Upload</string>
+    <plurals name="export_cloud_done_images">
+        <item quantity="one">%1$d image was uploaded to %2$s.</item>
+        <item quantity="other">%1$d images were uploaded to %2$s.</item>
+    </plurals>
+
+    <!-- Import from the cloud -->
+    <string name="import_source_title">Import from</string>
+    <string name="import_source_device">This device</string>
+    <string name="import_stage_downloading">Downloading from %1$s…</string>
+    <string name="import_cloud_gone_body">The cloud extension is no longer available on this device. Nothing was imported.</string>
+    <string name="import_cloud_not_connected_body">No account is connected to %1$s, so nothing was downloaded. Connect an account and import again.</string>
+    <string name="import_cloud_network_body">%1$s could not be reached, so nothing was downloaded. Nothing was imported. Try again.</string>
+    <string name="import_cloud_unanswered_body">%1$s didn\'t answer, so nothing was imported. Try again.</string>
 </resources>

@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 /** An extension call that did not answer: not bound, timed out, or refused. */
-class ExtensionCallFailed(message: String, cause: Throwable? = null) : Exception(message, cause)
+open class ExtensionCallFailed(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * A bound extension, blocking: the signature re-checked at the bind, the connection awaited a

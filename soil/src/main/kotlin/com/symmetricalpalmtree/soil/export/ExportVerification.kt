@@ -21,4 +21,12 @@ object ExportVerification {
         }
         else -> Verdict.SHORT
     }
+
+    /**
+     * The cloud leg's one question: does the provider's account of what it now holds agree with
+     * what was sent? Corroboration, never authority: a provider's metadata can lag its own write,
+     * so a disagreement is "check the file" and never a delete. No SHORT here: the provider
+     * refuses a stream that does not match its expected length, and that arrives as a failure.
+     */
+    fun cloudVerdict(reportedBytes: Long, uploadedBytes: Long): Verdict = if (reportedBytes == uploadedBytes) Verdict.OK else Verdict.UNCONFIRMED
 }

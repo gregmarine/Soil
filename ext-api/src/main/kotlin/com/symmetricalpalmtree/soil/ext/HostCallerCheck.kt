@@ -11,6 +11,15 @@ import android.os.Process
  * `SecurityException`, the one marshalable refusal.
  */
 object HostCallerCheck {
+    /** A screen started for a result: the caller must be Soil, by package and signature. A screen
+     *  that fails is finished here; the answer says whether to go on. */
+    fun enforceActivity(activity: android.app.Activity, hostPackage: String): Boolean {
+        val caller = activity.callingPackage
+        val ok = caller == hostPackage && activity.packageManager.checkSignatures(caller, activity.packageName) == PackageManager.SIGNATURE_MATCH
+        if (!ok) activity.finish()
+        return ok
+    }
+
     fun enforce(context: Context, hostPackage: String) {
         val pm = context.packageManager
         val uid = Binder.getCallingUid()

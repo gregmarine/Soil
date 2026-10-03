@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The export screen: the item's name under a top bar with Back and Export, then the rows
-     built in code (scope, format, the format's options, the passphrase block). -->
+     built in code (scope, destination, format, the format's options, the passphrase block). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -68,6 +68,7 @@
                 android:textSize="18sp" />
 
             <LinearLayout android:id="@+id/scope" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+            <LinearLayout android:id="@+id/destination" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" />
             <LinearLayout android:id="@+id/chooser" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
             <LinearLayout android:id="@+id/options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
 

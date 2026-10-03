@@ -21,10 +21,12 @@ object ImportOverlay {
         overlay.invalidate()
     }
 
-    fun stage(activity: Activity, @StringRes textRes: Int) {
+    fun stage(activity: Activity, @StringRes textRes: Int) = stage(activity, activity.getString(textRes))
+
+    fun stage(activity: Activity, text: CharSequence) {
         val overlay = find(activity) ?: return
         if (overlay.visibility != View.VISIBLE) return
-        overlay.findViewById<TextView>(R.id.importStage)?.setText(textRes)
+        overlay.findViewById<TextView>(R.id.importStage)?.text = text
     }
 
     fun hide(activity: Activity) { find(activity)?.visibility = View.GONE }

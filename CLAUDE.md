@@ -47,7 +47,8 @@ when he is happy with it, not before.
 - `docs/first-build.md` — the first build's plan as granted, and its decisions. A record; never
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
-- `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md` — each part as built.
+- `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/export.md`,
+  `docs/cloud.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the

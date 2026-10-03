@@ -10,7 +10,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.appcompat.app.AlertDialog
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.cloud.CloudBrowserDialog
+import com.symmetricalpalmtree.soil.cloud.CloudClient
+import com.symmetricalpalmtree.soil.cloud.CloudConnectEntry
+import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
+import com.symmetricalpalmtree.soil.cloud.CloudNotConnected
 import com.symmetricalpalmtree.soil.crypto.AttemptLimiter
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.crypto.SoilCrypto
@@ -19,6 +25,9 @@ import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.LibraryStore
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.export.AppRenderers
+import com.symmetricalpalmtree.soil.export.ExportDestination
+import com.symmetricalpalmtree.soil.ext.CloudEntry
+import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.ext.ExportContract
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.ext.Extensions
@@ -44,6 +53,11 @@ import java.util.UUID
  * it, keys it to this device, reads what it says of itself, asks its three questions (the same
  * item already here, where to put it, the same name already there) and only then writes: the
  * file into the garden, the row into the index, and whatever Replace retires, last.
+ *
+ * With a cloud provider installed the tap first asks *Import from*: this device, or the
+ * provider, whose files the browser lists from its root. A cloud file is downloaded into the
+ * same cache and goes through the same importer and the same questions; nothing is downloaded
+ * before an importer has accepted the name.
  */
 class ImportFlow(
     private val activity: AppCompatActivity,
@@ -65,9 +79,17 @@ class ImportFlow(
     private var discovering = false
     private var folderPick: CompletableDeferred<String?>? = null
 
+    // The cloud source: the connect door, the provider as last found and what it said, the
+    // browser while it is up, and whether a sign-in was opened from here.
+    private val cloud = CloudConnectEntry(activity) { wasConnected -> onConnectResult(wasConnected) }
+    private var cloudRef: Extension? = null
+    private var cloudStatus: CloudStatus? = null
+    private var browser: CloudBrowserDialog? = null
+    private var connectPending = false
+
     private val openLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
-        if (result.resultCode == Activity.RESULT_OK && uri != null) runImport(uri) else { isBusy = false; Slog.d(TAG) { "document picker cancelled" } }
+        if (result.resultCode == Activity.RESULT_OK && uri != null) runImport(Origin.Document(uri)) else { isBusy = false; Slog.d(TAG) { "document picker cancelled" } }
     }
 
     private val folderLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -93,6 +115,13 @@ class ImportFlow(
 
     fun showBusyGuard() = Dialogs.problem(activity, R.string.import_busy_title, R.string.import_busy_body)
 
+    /** From the host's `onDestroy`: a sign-in's bind must not outlive the screen that opened it. */
+    fun close() {
+        browser?.dismiss()
+        browser = null
+        cloud.close()
+    }
+
     fun onTap() {
         if (isImporting) { showBusyGuard(); return }
         if (isBusy) return
@@ -102,19 +131,165 @@ class ImportFlow(
             try {
                 val cands = loadCandidates().also { candidates = it }
                 if (cands.isEmpty()) { problem(R.string.import_none_title, activity.getString(R.string.import_none_body)); refresh(); return@launch }
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(ImporterMatch.ANY_TYPE)
-                    .putExtra(Intent.EXTRA_MIME_TYPES, ImporterMatch.mimeFilter(cands.map { it.info.mimeTypes }))
-                handed = try {
-                    openLauncher.launch(intent); true
-                } catch (e: Exception) {
-                    Log.w(TAG, "no document picker: ${e.javaClass.simpleName}")
-                    problem(R.string.import_no_picker_title, activity.getString(R.string.import_no_picker_body))
-                    false
+                loadCloud()
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                val cloudInstalled = cloudRef != null
+                if (!ImportSource.asksSource(cloudInstalled)) { handed = launchDocumentPicker(cands); return@launch }
+                val answer = ImportDialogs.pickFromList(activity, R.string.import_source_title, listOf(activity.getString(R.string.import_source_device), cloudName()))
+                val source = answer?.let { ImportSource.sourceAt(it, cloudInstalled) } ?: return@launch
+                handed = when (source) {
+                    ImportSource.Source.LOCAL -> launchDocumentPicker(cands)
+                    ImportSource.Source.CLOUD -> onCloudSourceChosen()
                 }
             } finally {
                 if (!handed) isBusy = false
             }
         }
+    }
+
+    /** True when the picker is up and owns the latch. */
+    private fun launchDocumentPicker(cands: List<Candidate>): Boolean {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(ImporterMatch.ANY_TYPE)
+            .putExtra(Intent.EXTRA_MIME_TYPES, ImporterMatch.mimeFilter(cands.map { it.info.mimeTypes }))
+        return try {
+            openLauncher.launch(intent); true
+        } catch (e: Exception) {
+            Log.w(TAG, "no document picker: ${e.javaClass.simpleName}")
+            problem(R.string.import_no_picker_title, activity.getString(R.string.import_no_picker_body))
+            false
+        }
+    }
+
+    // ── The cloud source ──────
+
+    private suspend fun loadCloud() {
+        val ref = cloud.discover()
+        cloudRef = ref
+        cloudStatus = if (ref == null) null else try {
+            CloudClient.status(activity, ref)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Slog.d(TAG) { "cloud status unavailable: ${e.javaClass.simpleName}" }
+            null
+        }
+    }
+
+    private fun cloudName(): String = ExportDestination.providerName(cloudStatus, cloudRef?.label.orEmpty())
+
+    /** The Export screen's rule, reused: connected opens the browser; a build without credentials says so; anything else offers Connect. True when the latch was handed on. */
+    private fun onCloudSourceChosen(): Boolean = when (ExportDestination.onCloudTap(cloudStatus)) {
+        ExportDestination.Tap.SELECT -> { openCloudBrowser(); true }
+        ExportDestination.Tap.NOT_CONFIGURED -> { Dialogs.problem(activity, R.string.cloud_not_configured_title, R.string.cloud_not_configured_body); false }
+        ExportDestination.Tap.OFFER_CONNECT -> offerConnect()
+    }
+
+    private fun offerConnect(): Boolean {
+        if (!cloud.isAvailable || activity.isFinishing || activity.isDestroyed) return false
+        val name = cloudName()
+        var connecting = false
+        val dialog = Dialogs.style(
+            AlertDialog.Builder(activity).setTitle(activity.getString(R.string.cloud_connect_offer_title, name)).setMessage(activity.getString(R.string.import_cloud_connect_offer_body, name))
+                .setPositiveButton(R.string.cloud_connect) { _, _ -> connecting = true; connectPending = true; cloud.open() }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        )
+        dialog.setOnDismissListener { if (!connecting) isBusy = false }
+        dialog.show()
+        return true
+    }
+
+    /** The sign-in came back: a connected account continues into the browser; anything else lets the latch go. */
+    private fun onConnectResult(wasConnected: Boolean) {
+        if (!connectPending) return
+        connectPending = false
+        if (!wasConnected) { isBusy = false; return }
+        activity.lifecycleScope.launch {
+            loadCloud()
+            if (activity.isFinishing || activity.isDestroyed) { isBusy = false; return@launch }
+            if (cloudRef != null && cloudStatus?.connected == true) openCloudBrowser() else isBusy = false
+        }
+    }
+
+    /** The browser over the provider's root, nothing filtered: which importer reads the file is decided afterwards, by its name. */
+    private fun openCloudBrowser() {
+        val ref = cloudRef
+        if (ref == null) { isBusy = false; cloudProblem(CloudImportFailure.Kind.GONE); return }
+        browser?.dismiss()
+        val dialog = CloudBrowserDialog(
+            activity = activity,
+            ref = ref,
+            providerName = cloudName(),
+            mode = CloudBrowserDialog.Mode.PICK_FILE,
+            basePath = emptyList(),
+            onPicked = { pick ->
+                browser = null
+                when (pick) {
+                    is CloudBrowserDialog.Pick.File -> runImport(Origin.Cloud(ref, pick.entry))
+                    is CloudBrowserDialog.Pick.Folder -> isBusy = false
+                }
+            },
+            onNotConnected = {
+                browser = null
+                activity.lifecycleScope.launch {
+                    loadCloud()
+                    if (activity.isFinishing || activity.isDestroyed) { isBusy = false; return@launch }
+                    if (!offerConnect()) isBusy = false
+                }
+            },
+            onCancelled = { browser = null; isBusy = false; Slog.d(TAG) { "cloud browser cancelled" } },
+        )
+        browser = dialog
+        dialog.show()
+    }
+
+    private fun cloudProblem(kind: CloudImportFailure.Kind) {
+        ImportOverlay.hide(activity)
+        if (activity.isFinishing || activity.isDestroyed) return
+        val name = cloudName()
+        when (kind) {
+            CloudImportFailure.Kind.GONE -> Dialogs.problem(activity, R.string.import_failed_title, activity.getString(R.string.import_cloud_gone_body))
+            CloudImportFailure.Kind.NETWORK -> Dialogs.problem(activity, R.string.import_failed_title, activity.getString(R.string.import_cloud_network_body, name))
+            CloudImportFailure.Kind.UNANSWERED -> Dialogs.problem(activity, R.string.import_failed_title, activity.getString(R.string.import_cloud_unanswered_body, name))
+            CloudImportFailure.Kind.NOT_CONNECTED -> Dialogs.style(
+                AlertDialog.Builder(activity).setTitle(R.string.import_failed_title).setMessage(activity.getString(R.string.import_cloud_not_connected_body, name))
+                    .setPositiveButton(R.string.cloud_connect) { _, _ -> isBusy = true; connectPending = true; cloud.open() }
+                    .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+            ).show()
+        }
+    }
+
+    /** Where the bytes come from: the one thing a cloud import and a picked document do not share. */
+    private sealed class Origin {
+        class Document(val uri: Uri) : Origin()
+        class Cloud(val ref: Extension, val entry: CloudEntry) : Origin()
+    }
+
+    /** The provider streams the file into the import cache; what landed, what it reported and what the listing said are corroborated. */
+    private suspend fun download(origin: Origin.Cloud, incoming: File): File {
+        ImportOverlay.stage(activity, activity.getString(R.string.import_stage_downloading, cloudName()))
+        val file = File(incoming.parentFile, CLOUD_FILE)
+        val destination = withContext(Dispatchers.IO) {
+            runCatching { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE) }.getOrNull()
+        } ?: throw ItemImport.ImportProblem(ItemImport.Problem.WRITE)
+        val reported = try {
+            CloudClient.download(activity, origin.ref, origin.entry.id, destination)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: CloudNotConnected) {
+            throw CloudImportFailure(CloudImportFailure.Kind.NOT_CONNECTED, e)
+        } catch (e: CloudNetworkFailed) {
+            throw CloudImportFailure(CloudImportFailure.Kind.NETWORK, e)
+        } catch (e: Exception) {
+            throw CloudImportFailure(CloudImportFailure.Kind.UNANSWERED, e)
+        }
+        val landed = withContext(Dispatchers.IO) { file.length() }
+        when (CloudImportRules.downloadVerdict(reported, landed, origin.entry.sizeBytes)) {
+            CloudImportRules.Verdict.SHORT -> { Log.w(TAG, "download landed $landed of $reported reported (${origin.entry.sizeBytes} listed) bytes"); throw ItemImport.ImportProblem(ItemImport.Problem.SHORT) }
+            CloudImportRules.Verdict.DISAGREE -> Log.w(TAG, "the listing said ${origin.entry.sizeBytes} for $landed downloaded bytes")
+            CloudImportRules.Verdict.OK -> Unit
+        }
+        Slog.d(TAG) { "downloaded $landed bytes" }
+        return file
     }
 
     private suspend fun loadCandidates(): List<Candidate> {
@@ -134,16 +309,19 @@ class ImportFlow(
         return kept
     }
 
-    private fun runImport(uri: Uri) {
+    private fun runImport(origin: Origin) {
         isBusy = true
         isImporting = true
         ImportOverlay.show(activity, R.string.import_stage_reading)
         activity.lifecycleScope.launch {
             try {
-                import(uri)
+                import(origin)
             } catch (e: ItemImport.ImportProblem) {
                 Slog.d(TAG) { "import problem: ${e.problem}" }
                 problem(R.string.import_failed_title, activity.getString(problemBody(e.problem)))
+            } catch (e: CloudImportFailure) {
+                Slog.d(TAG) { "cloud import failed: ${e.kind}" }
+                cloudProblem(e.kind)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -159,13 +337,29 @@ class ImportFlow(
         }
     }
 
-    private suspend fun import(uri: Uri) {
-        val displayName = withContext(Dispatchers.IO) { displayNameOf(uri) }
+    private suspend fun import(origin: Origin) {
+        val displayName = when (origin) {
+            is Origin.Document -> withContext(Dispatchers.IO) { displayNameOf(origin.uri) }
+            is Origin.Cloud -> origin.entry.name
+        }
         val cands = candidates.ifEmpty { loadCandidates().also { candidates = it } }
         if (cands.isEmpty()) { problem(R.string.import_none_title, activity.getString(R.string.import_none_body)); return }
         val chosen = chooseImporter(cands, displayName) ?: return
         val incoming = withContext(Dispatchers.IO) { ItemImport.prepareCache(activity) }
-        deliver(chosen, uri, incoming, displayName)
+        when (origin) {
+            is Origin.Document -> {
+                val sizes = withContext(Dispatchers.IO) { sourceSizes(origin.uri) }
+                val source = withContext(Dispatchers.IO) { runCatching { activity.contentResolver.openFileDescriptor(origin.uri, "r") }.getOrNull() }
+                    ?: throw ItemImport.ImportProblem(ItemImport.Problem.DELIVERY)
+                deliver(chosen, source, sizes, incoming, displayName)
+            }
+            is Origin.Cloud -> {
+                val fetched = download(origin, incoming)
+                val source = withContext(Dispatchers.IO) { runCatching { ParcelFileDescriptor.open(fetched, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
+                    ?: throw ItemImport.ImportProblem(ItemImport.Problem.DELIVERY)
+                deliver(chosen, source, listOf(withContext(Dispatchers.IO) { fetched.length() }), incoming, displayName)
+            }
+        }
 
         val global = KeySession.get() ?: throw ItemImport.ImportProblem(ItemImport.Problem.NO_KEY)
         val opening = unlock(incoming, global) ?: return
@@ -233,10 +427,8 @@ class ImportFlow(
         }
     }
 
-    private suspend fun deliver(chosen: Candidate, uri: Uri, incoming: File, displayName: String) {
-        val sizes = withContext(Dispatchers.IO) { sourceSizes(uri) }
-        val source = withContext(Dispatchers.IO) { runCatching { activity.contentResolver.openFileDescriptor(uri, "r") }.getOrNull() }
-            ?: throw ItemImport.ImportProblem(ItemImport.Problem.DELIVERY)
+    /** The importer streams [source] into [incoming]; [sizes] are what the source said of itself, corroboration for the count. */
+    private suspend fun deliver(chosen: Candidate, source: ParcelFileDescriptor, sizes: List<Long>, incoming: File, displayName: String) {
         val destination = withContext(Dispatchers.IO) {
             runCatching { ParcelFileDescriptor.open(incoming, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE) }.getOrNull()
         }
@@ -390,5 +582,6 @@ class ImportFlow(
     private companion object {
         const val TAG = "ImportFlow"
         const val ATTEMPT_BUCKET = "IMPORT"
+        const val CLOUD_FILE = "cloud.download"
     }
 }
