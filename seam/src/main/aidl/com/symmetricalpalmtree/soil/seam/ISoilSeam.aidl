@@ -3,6 +3,8 @@ package com.symmetricalpalmtree.soil.seam;
 import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
+import com.symmetricalpalmtree.soil.seam.SeamBytes;
+import com.symmetricalpalmtree.soil.seam.SeamTemplate;
 import com.symmetricalpalmtree.soil.seam.SeamHello;
 import com.symmetricalpalmtree.soil.seam.SeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamSchema;
@@ -59,6 +61,22 @@ interface ISoilSeam {
      * a page itself.
      */
     List<SeamBacklink> backlinks(String itemId);
+
+    /** A template of the paper library, or null when there is none alive by that id. */
+    SeamTemplate template(String templateId);
+
+    /** The template's stored picture, the original bytes: what an app renders at a page's size. */
+    SeamBytes templateImage(String templateId);
+
+    /** The app applied the paper named by this card id to a page: Soil's Recents remember it. */
+    void templateUsed(String cardId);
+
+    /**
+     * Park a picture an app made of a page, to be named and filed on Soil's save-template screen,
+     * which the app starts next with the id answered here. Held in memory, one at a time; a
+     * parking never taken up is dropped.
+     */
+    String stageTemplate(in SeamBytes image);
 
     /**
      * Open an item for rows. The item must be of the schema's kind. The file is brought to the

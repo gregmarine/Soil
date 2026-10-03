@@ -37,6 +37,14 @@ import com.symmetricalpalmtree.soil.notesprout.links.LinkTrail
 import com.symmetricalpalmtree.soil.notesprout.links.PickerSource
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.TrailEntry
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLabels
+import com.symmetricalpalmtree.soil.paper.templates.Bitmaps
+import com.symmetricalpalmtree.soil.paper.templates.PaperSource
+import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
+import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
+import com.symmetricalpalmtree.soil.paper.templates.TemplateNames
+import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
+import com.symmetricalpalmtree.soil.seamkit.SeamUnavailable
 import com.symmetricalpalmtree.soil.seam.SeamBacklink
 import com.symmetricalpalmtree.soil.notesprout.objects.FreePlacement
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
@@ -70,7 +78,6 @@ import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamItem
 import com.symmetricalpalmtree.soil.seam.SeamLimits
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
-import com.symmetricalpalmtree.soil.seamkit.SeamUnavailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -140,6 +147,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     private val editorLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onEditorClosed() }
     private val pickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onPickerClosed(it.resultCode, it.data?.getStringExtra(LinkPickerActivity.EXTRA_RESULT_PAYLOAD)) }
+    private val templatePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK)) }
+    private val saveTemplateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
+
+    /** The paper under the pages shown lately, by template row id: decoded off Main before the frame that paints it. */
+    private val paperCache = LinkedHashMap<String, android.graphics.Bitmap>()
+    private var soilScreenShowing = false
 
     /** Any binder of this app's own: Soil watches it, and closes the notebook if the app dies. */
     private val owner = Binder()
@@ -166,8 +179,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     override fun syncTool(tool: Tool) = toolbar.sync(tool)
     override fun armTool(tool: Tool) = toolbar.arm(tool)
     override fun showPage() = showPage(firstLoad = false)
-    override suspend fun revert(action: NotebookAction) { document?.revert(action) }
-    override suspend fun reapply(action: NotebookAction) { document?.reapply(action) }
+    override suspend fun revert(action: NotebookAction) { document?.revert(action); preparePaper() }
+    override suspend fun reapply(action: NotebookAction) { document?.reapply(action); preparePaper() }
 
     // ── Create ──────
 
@@ -401,6 +414,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         if (isFinishing || isDestroyed || closing) return
         document = doc.first
         toolbar.setTitle(doc.second)
+        preparePaper()
         showPage(firstLoad = true, prebuilt = linkRenderer.prebuild(doc.first.links.values.toList()))
         opened = true
         pushExclusions()
@@ -1170,14 +1184,170 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             if (!opened || closing || doc.pageId != pageId) return@launch
             val sheet = ActionSheetDialog(this@NotebookActivity)
                 .title(getString(R.string.page_sheet_title))
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_erase_page, getString(R.string.page_sheet_erase)) { confirmErasePage() }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
             if (into.isNotEmpty()) {
                 sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, resources.getQuantityString(R.plurals.page_sheet_backlinks, into.size, into.size)) { showBacklinks(into) }
             }
+            if (doc.pageWidth > 0f && doc.pageHeight > 0f) {
+                sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_photo_plus, getString(R.string.save_as_template_action)) { saveAsTemplate() }
+            }
             sheet.show()
         }
     }
+
+    // ── Paper ──────
+
+    /** The showing page's paper decoded into [paperCache], off Main. Nothing to do for blank or a cached row. */
+    private suspend fun preparePaper() {
+        val doc = document ?: return
+        val id = doc.currentPage?.templateId?.takeIf { it.isNotEmpty() } ?: return
+        if (id in paperCache) return
+        val bitmap = withContext(Dispatchers.IO) { Bitmaps.decodeBounded(doc.templateBlobOf(id), MAX_TEMPLATE_EDGE) } ?: return
+        if (paperCache.size >= PAPER_CACHE_SIZE) paperCache.remove(paperCache.keys.first())
+        paperCache[id] = bitmap
+    }
+
+    /**
+     * Page template on the sheet: Soil's picker, started for a result with the page's token so
+     * the paper in force is ticked. Soil's screen is another process over this one, so the
+     * pipeline is handed over as for any Soil screen, and the session is not parked.
+     */
+    private fun openTemplatePicker() {
+        if (!opened || closing || soilScreenShowing) return
+        val doc = document ?: return
+        lifecycleScope.launch {
+            val token = runCatching { doc.currentTemplateToken() }.getOrNull()
+            if (!opened || closing || soilScreenShowing) return@launch
+            val intent = android.content.Intent(Seam.ACTION_PICK_TEMPLATE)
+                .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                .putExtra(Seam.EXTRA_CURRENT_TOKEN, token)
+            startSoilScreen { templatePickerLauncher.launch(intent) }
+        }
+    }
+
+    private fun startSoilScreen(launch: () -> Unit) {
+        soilScreenShowing = true
+        hideFloatingBars()
+        dismissCollapsed()
+        inAppHandoff = true
+        paper.releaseForHandoff()
+        try {
+            launch()
+        } catch (e: Exception) {
+            Log.w(TAG, "Soil's screen would not open: ${e.javaClass.simpleName}")
+            onSoilScreenClosed()
+            Dialogs.problem(this, R.string.open_failed_title, R.string.open_no_soil)
+        }
+    }
+
+    /** The result callback runs before `onResume`: the pipeline is reclaimed first of all. */
+    private fun onSoilScreenClosed() {
+        soilScreenShowing = false
+        inAppHandoff = false
+        if (opened) paper.resumeDrawing()
+    }
+
+    private fun onTemplatePicked(resultCode: Int, encoded: String?) {
+        onSoilScreenClosed()
+        if (resultCode != android.app.Activity.RESULT_OK) return
+        // A pick this build cannot read is a cancel, never Blank: the two are one from here and only one is safe.
+        val pick = TemplatePick.decode(encoded) ?: return
+        applyPick(pick)
+    }
+
+    /** The pick names a card; the pixels are read here, through the seam, and the page takes them. */
+    private fun applyPick(pick: TemplatePick) {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val paper = withContext(Dispatchers.IO) { paperOf(pick) }
+            if (paper == null) {
+                Dialogs.problem(this@NotebookActivity, R.string.template_gone_title, R.string.template_gone_body)
+                return@runPageOp
+            }
+            val change = try {
+                doc.changeTemplate(paper, resources.displayMetrics.densityDpi.toFloat())
+            } catch (e: NotebookDocument.PaperRenderFailed) {
+                Dialogs.problem(this@NotebookActivity, R.string.template_render_failed_title, R.string.template_render_failed_body)
+                return@runPageOp
+            }
+            // An apply is the one thing that makes paper recent, re-picking the paper in force included.
+            withContext(Dispatchers.IO) { runCatching { (application as NotesproutApp).soil.seam().templateUsed(pick.cardId) } }
+            if (change == null) return@runPageOp
+            undo.record(change)
+            preparePaper()
+            showPage()
+        }
+    }
+
+    private suspend fun paperOf(pick: TemplatePick): PaperSource? = when (pick) {
+        TemplatePick.Blank -> PaperSource.Blank
+        is TemplatePick.BuiltIn -> PaperSource.BuiltIn(pick.kind)
+        is TemplatePick.Static -> try {
+            val seam = (application as NotesproutApp).soil.seam()
+            val info = seam.template(pick.id)
+            if (info == null) null else PaperSource.Image(com.symmetricalpalmtree.soil.seam.SeamShared.readAndClose(seam.templateImage(pick.id)), TemplateFit.sanitize(info.fit))
+        } catch (e: Exception) {
+            Log.w(TAG, "the template could not be read: ${e.javaClass.simpleName}")
+            null
+        }
+    }
+
+    /**
+     * Save as template: the page rastered as it would export, capped as an import is, parked in
+     * Soil through the seam, then Soil's screen for the name and the folder. Nothing is written
+     * to the notebook, no undo step, nothing recorded as recent.
+     */
+    private fun saveAsTemplate() {
+        if (!opened || closing || soilScreenShowing) return
+        val doc = document ?: return
+        val store = storeRef ?: return
+        val page = doc.currentPage ?: return
+        val pageNumber = doc.pageNumber
+        runPageOp {
+            doc.flushUntilClean()
+            if (doc.pageId != page.id) return@runPageOp
+            val staged = try {
+                withContext(Dispatchers.IO) {
+                    val content = store.readPage(page)
+                    val template = Bitmaps.decodeBounded(store.templateBlob(page.templateId), MAX_TEMPLATE_EDGE)
+                    val bytes = try {
+                        PageRaster.toWebp(
+                            page.width.toInt(), page.height.toInt(), template, content, density,
+                            PagePaints.of(scaledDensity, AppCompatResources.getDrawable(this@NotebookActivity, com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2)?.mutate()),
+                        )
+                    } finally {
+                        template?.recycle()
+                    }
+                    val seed = TemplateNames.seedFor(PageLabels.titleOf(content.headings + content.links.flatMap { it.headings }), pageNumber)
+                    if (TemplateImport.overCap(bytes.size)) throw TooBig(bytes.size)
+                    (application as NotesproutApp).soil.seam().stageTemplate(com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes)) to seed
+                }
+            } catch (e: TooBig) {
+                Dialogs.problem(
+                    this@NotebookActivity, R.string.template_import_too_big_title,
+                    getString(R.string.template_import_too_big_body, TemplateImport.megabytes(e.bytes), TemplateImport.megabytes(TemplateImport.MAX_BLOB_BYTES)),
+                )
+                return@runPageOp
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the page could not be rastered: ${e.javaClass.simpleName}")
+                Dialogs.problem(this@NotebookActivity, R.string.template_save_failed_title, R.string.template_save_failed_body)
+                return@runPageOp
+            }
+            val intent = android.content.Intent(Seam.ACTION_SAVE_TEMPLATE)
+                .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                .putExtra(Seam.EXTRA_STAGED_ID, staged.first)
+                .putExtra(Seam.EXTRA_SEED_NAME, staged.second)
+            startSoilScreen { saveTemplateLauncher.launch(intent) }
+        }
+    }
+
+    private class TooBig(val bytes: Int) : Exception()
 
     // ── Backlinks ──────
 
@@ -1249,19 +1419,22 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val doc = document ?: return
         if (index < 0 || index >= doc.pageCount) return
         doc.goToIndex(index)
-        // The composites off Main, before the frame that paints the page.
+        // The paper and the composites off Main, before the frame that paints the page.
+        preparePaper()
         showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
     }
 
     private suspend fun doInsert(after: Boolean) {
         val doc = document ?: return
         undo.record(doc.insert(after))
+        preparePaper()
         showPage()
     }
 
     private suspend fun doDelete() {
         val doc = document ?: return
         undo.record(doc.deleteCurrent())
+        preparePaper()
         showPage()
     }
 
@@ -1276,7 +1449,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         dismissCollapsed()
         if (!firstLoad) paper.clearForContentSwap()
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
-        paper.setTemplate(null)   // the paper library arrives later
+        paper.setTemplate(doc.currentPage?.templateId?.takeIf { it.isNotEmpty() }?.let { paperCache[it] })
         // The objects are handed over before `loadStrokes`, which is the frame that paints the page.
         syncRenderers(prebuilt)
         paper.loadStrokes(doc.strokes)
@@ -1360,6 +1533,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         private const val TAG = "NotebookActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
         private const val RECENTS_LIMIT = 20
+        /** A page's paper is authored at the page's size; the bound only guards a foreign blob. */
+        private const val MAX_TEMPLATE_EDGE = 4096
+        private const val PAPER_CACHE_SIZE = 3
         private const val DEFAULT_HEADING_LEVEL = 1
 
         /** The page to land on, for an open through a link. Consumed once. */

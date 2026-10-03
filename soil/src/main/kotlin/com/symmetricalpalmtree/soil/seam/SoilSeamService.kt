@@ -9,6 +9,10 @@ import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
+import com.symmetricalpalmtree.soil.data.index.TemplateStore
+import com.symmetricalpalmtree.soil.templates.TemplatePrefs
+import com.symmetricalpalmtree.soil.templates.TemplateStaging
+import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
 import com.symmetricalpalmtree.soil.data.item.ItemFiles
 import com.symmetricalpalmtree.soil.data.item.ItemNames
 import com.symmetricalpalmtree.soil.data.item.ItemRefused
@@ -104,6 +108,37 @@ class SoilSeamService : Service() {
             }
         }
 
+        override fun template(templateId: String): SeamTemplate? = answered {
+            TemplateStore().template(templateId)?.let { SeamTemplate(it.id, it.name, it.fit) }
+        }
+
+        override fun templateImage(templateId: String): SeamBytes = answered {
+            val bytes = TemplateStore().image(templateId) ?: throw IllegalStateException(NO_SUCH_TEMPLATE)
+            SeamShared.write(bytes).also { sent.set(it) }
+        }
+
+        override fun templateUsed(cardId: String) = answered {
+            require(cardId.isNotBlank() && cardId.length <= 64) { "not a card id" }
+            TemplatePrefs(this@SoilSeamService).recordUse(cardId)
+        }
+
+        override fun stageTemplate(image: SeamBytes): String = answered {
+            val bytes = SeamShared.readAndClose(image)
+            require(bytes.isNotEmpty() && !TemplateImport.overCap(bytes.size)) { "a template is at most ${TemplateImport.MAX_BLOB_BYTES} bytes" }
+            TemplateStaging.stage(bytes)
+        }
+
+        /** Hand a region back once the reply that carries it has been written. */
+        override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean =
+            try {
+                super.onTransact(code, data, reply, flags)
+            } finally {
+                sent.get()?.let { runCatching { it.memory.close() } }
+                sent.remove()
+            }
+
+        private val sent = ThreadLocal<SeamBytes?>()
+
         override fun openItem(itemId: String, schema: SeamSchema, owner: IBinder): ISeamItem = answered {
             val item = IndexStore().aliveItem(itemId) ?: throw IllegalStateException(NO_SUCH_ITEM)
             // An app opens items of its own kind and no other.
@@ -176,5 +211,6 @@ class SoilSeamService : Service() {
     private companion object {
         const val TAG = "SoilSeam"
         const val NO_SUCH_ITEM = "there is no such item"
+        const val NO_SUCH_TEMPLATE = "there is no such template"
     }
 }

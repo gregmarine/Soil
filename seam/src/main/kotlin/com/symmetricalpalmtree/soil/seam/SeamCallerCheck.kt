@@ -40,4 +40,19 @@ object SeamCallerCheck {
             throw SecurityException("the caller is not signed with Soil's certificate")
         }
     }
+
+    /**
+     * The same guard for a screen started for a result: [callerPackage] (the activity's
+     * `callingPackage`) must be Soil itself or signed with Soil's certificate. Throws
+     * [SecurityException] otherwise, and when there is no caller at all.
+     */
+    fun enforceCaller(context: Context, callerPackage: String?) {
+        if (callerPackage == null) throw SecurityException("no calling package")
+        if (callerPackage == context.packageName) return
+        val signatures = context.packageManager.checkSignatures(context.packageName, callerPackage)
+        if (!trusted(sameUid = false, signatures = signatures)) {
+            Log.w(TAG, "refused a screen for $callerPackage: not signed with Soil's certificate")
+            throw SecurityException("the caller is not signed with Soil's certificate")
+        }
+    }
 }

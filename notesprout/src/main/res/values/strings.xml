@@ -85,6 +85,18 @@
     <string name="link_target_unreadable_body">This link was made by a newer or different app, so where it points can\'t be read here.</string>
     <string name="link_target_other_kind_body">This link opens a %1$s, and no app for that is installed.</string>
 
+    <!-- Paper -->
+    <string name="page_template_action">Page template</string>
+    <string name="save_as_template_action">Save as template</string>
+    <string name="template_gone_title">Couldn\'t use that template</string>
+    <string name="template_gone_body">That template is no longer in the library. Nothing has been changed.</string>
+    <string name="template_render_failed_title">Couldn\'t draw that paper</string>
+    <string name="template_render_failed_body">The template could not be rendered at this page\'s size. The page has been left as it was.</string>
+    <string name="template_import_too_big_title">That page is too large</string>
+    <string name="template_import_too_big_body">It comes to %1$s once stored, and a template can be at most %2$s.</string>
+    <string name="template_save_failed_title">Couldn\'t save the template</string>
+    <string name="template_save_failed_body">The page could not be drawn. Try again.</string>
+
     <!-- Backlinks -->
     <plurals name="page_sheet_backlinks">
         <item quantity="one">%1$d link to here</item>

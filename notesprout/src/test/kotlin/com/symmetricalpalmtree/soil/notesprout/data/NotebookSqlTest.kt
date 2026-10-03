@@ -39,6 +39,8 @@ class NotebookSqlTest {
         NotebookSql.mirror(link, "p1", "nb"),
         NotebookSql.mirrorDrop("l1"),
         NotebookSql.mirrorDropPage("p1"),
+        NotebookSql.insertTemplate("t1", "nb", "LINED", 1404, 1872, byteArrayOf(1, 2), 10L),
+        NotebookSql.setPageTemplate("p1", "t1", 10L),
     )
 
 
@@ -52,6 +54,8 @@ class NotebookSqlTest {
         NotebookSql.selectMaxOrder("p1", "link"),
         NotebookSql.selectLinks("p1"),
         NotebookSql.selectLiveChildIds("p1", "stroke"),
+        NotebookSql.selectTemplateDigests("nb"),
+        NotebookSql.selectTemplateBlob("t1"),
     )
 
     @Test
@@ -114,6 +118,16 @@ class NotebookSqlTest {
         assertEquals(3, writes.count { SeamSql.writesLinkMirror(it.sql) })
         assertEquals(listOf<Cell>(Cell.Text("l1"), Cell.Text("p1"), Cell.Text("nb"), Cell.Text("p2")), NotebookSql.mirror(link, "p1", "nb").args)
         assertEquals(Cell.Null, NotebookSql.mirror(link.copy(payload = "L1|0|1|other|"), "p1", "nb").args[3])
+    }
+
+    @Test
+    fun `a template row carries its token and size, and a page points at it by refId`() {
+        val t = NotebookSql.insertTemplate("t1", "nb", "IMG#0a1b2c3d", 1404, 1872, byteArrayOf(1), 10L)
+        assertTrue(t.sql.contains("'template'"))
+        assertEquals(Cell.Text("IMG#0a1b2c3d"), t.args[4])
+        assertEquals(Cell.Real(1404.0), t.args[5])
+        assertTrue(NotebookSql.setPageTemplate("p1", "", 10L).sql.contains("SET refId = ?"))
+        assertTrue(NotebookSql.selectTemplateDigests("nb").sql.contains("length(blob) AS blobLength"))
     }
 
     @Test

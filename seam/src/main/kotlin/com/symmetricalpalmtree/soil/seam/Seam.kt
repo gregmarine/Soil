@@ -32,6 +32,26 @@ object Seam {
      */
     const val EXTRA_NEW_NAME = "com.symmetricalpalmtree.soil.extra.NEW_NAME"
 
+    // ── The paper library's two screens, which Soil shows on an app's behalf ──────
+
+    /**
+     * The action of Soil's template picker, started for a result by an app that needs paper for
+     * a page. Explicit to Soil's package. [EXTRA_CURRENT_TOKEN] names the paper in force so its
+     * card is ticked; the answer is [EXTRA_PICK], a `TemplatePick` as encoded, never pixels.
+     */
+    const val ACTION_PICK_TEMPLATE = "com.symmetricalpalmtree.soil.action.PICK_TEMPLATE"
+    const val EXTRA_CURRENT_TOKEN = "com.symmetricalpalmtree.soil.extra.CURRENT_TOKEN"
+    const val EXTRA_PICK = "com.symmetricalpalmtree.soil.extra.PICK"
+
+    /**
+     * The action of Soil's save-template screen: a picture an app parked with `stageTemplate`
+     * gets a name and a folder here. [EXTRA_STAGED_ID] is the parking id; [EXTRA_SEED_NAME] the
+     * name to offer. `RESULT_OK` means saved.
+     */
+    const val ACTION_SAVE_TEMPLATE = "com.symmetricalpalmtree.soil.action.SAVE_TEMPLATE"
+    const val EXTRA_STAGED_ID = "com.symmetricalpalmtree.soil.extra.STAGED_ID"
+    const val EXTRA_SEED_NAME = "com.symmetricalpalmtree.soil.extra.SEED_NAME"
+
     /** Whether [appPackage] and [hubPackage] are of the same build: a debug Soil opens debug apps
      *  and a release Soil release apps, so the two installs never cross. */
     fun sameBuild(hubPackage: String, appPackage: String): Boolean =

@@ -10,6 +10,10 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
+import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
+import com.symmetricalpalmtree.soil.paper.templates.PagePaper
+import com.symmetricalpalmtree.soil.paper.templates.PageTemplate
+import com.symmetricalpalmtree.soil.paper.templates.PaperSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -149,6 +153,52 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         if (gone.isEmpty()) return null
         applyPage(page, PageContent.EMPTY)
         return NotebookAction.PageErased(page.id, gone)
+    }
+
+    // ── Paper ──────
+
+    /** The showing page's paper as its token, `""` for blank, or null when its row has gone. */
+    suspend fun currentTemplateToken(): String? {
+        val page = current ?: return null
+        return withContext(Dispatchers.IO) { PageTemplate.tokenOf(store.templateDigests(), page.templateId) }
+    }
+
+    /** The pixels under the showing page, or null for blank or a row that will not read. */
+    suspend fun templateBlobOf(templateId: String): ByteArray? = withContext(Dispatchers.IO) { store.templateBlob(templateId) }
+
+    class PaperRenderFailed : IllegalStateException("the paper would not draw")
+
+    /**
+     * Re-paper the showing page: reuse a row this file already holds for this paper at the
+     * page's size, else render and mint one, then point the page at it. Null when the page
+     * already shows that paper: a true no-op, no undo step. Paper that will not draw throws
+     * [PaperRenderFailed] and writes nothing: the paper on the glass is never wiped for it.
+     */
+    suspend fun changeTemplate(paper: PaperSource, dpi: Float): NotebookAction.TemplateChanged? {
+        val page = current ?: return null
+        val token = PagePaper.token(paper)
+        val target = if (token.isEmpty()) "" else withContext(Dispatchers.IO) {
+            val w = page.width.toInt()
+            val h = page.height.toInt()
+            PageTemplate.reusableId(store.templateDigests(), token, w, h, prefer = page.templateId)?.also { Slog.d(TAG) { "re-paper reuses a template row" } }
+                ?: run {
+                    val bitmap = PagePaper.render(paper, w, h, dpi) ?: throw PaperRenderFailed()
+                    val blob = try { BuiltInTemplates.toWebp(bitmap) } finally { bitmap.recycle() }
+                    Slog.d(TAG) { "re-paper mints a template row (${blob.size} B)" }
+                    store.mintTemplate(token, w, h, blob)
+                }
+        }
+        if (target == page.templateId) return null
+        applyTemplate(page.id, target)
+        return NotebookAction.TemplateChanged(page.id, page.templateId, target)
+    }
+
+    /** Point [pageId] at [templateId] (`""` = blank) in the file and in the page list. The
+     *  screen reloads the paper on its next show. */
+    suspend fun applyTemplate(pageId: String, templateId: String) {
+        withContext(Dispatchers.IO) { store.setPageTemplate(pageId, templateId) }
+        pages = pages.map { if (it.id == pageId) it.copy(templateId = templateId) else it }
+        if (current?.id == pageId) current = current?.copy(templateId = templateId)
     }
 
     // ── Ink (Main, synchronous) ──────
@@ -322,6 +372,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkCreated -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.relink(a.pageId, a.link) }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.before) }
+            is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.from)
             is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
         }
@@ -348,6 +399,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkCreated -> objects(a.pageId) { store.relink(a.pageId, a.link) }
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.after) }
+            is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.to)
             is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
         }

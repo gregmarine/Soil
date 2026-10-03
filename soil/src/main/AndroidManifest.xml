@@ -91,6 +91,42 @@
             android:excludeFromRecents="true"
             android:screenOrientation="portrait" />
 
+        <!-- The paper library. In browse mode it is Soil's own; in pick mode a Sprout app starts
+             it for a result, so it is exported behind the seam permission, and it checks the
+             caller's certificate again itself. -->
+        <activity
+            android:name=".templates.TemplatesActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.PICK_TEMPLATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Save as template, Soil's half: a Sprout app parks a picture through the seam and
+             starts this for the name and the folder. -->
+        <activity
+            android:name=".templates.SaveTemplateActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Soil.Translucent"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.SAVE_TEMPLATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".templates.TemplateFolderPickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
         <!-- The shell: the side bars, in every app. Turned on over adb (see README.md); Soil
              works without it. -->
         <service

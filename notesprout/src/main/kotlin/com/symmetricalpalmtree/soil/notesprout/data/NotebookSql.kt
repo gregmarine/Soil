@@ -182,6 +182,27 @@ object NotebookSql : InkDocument.StrokeSql {
     fun selectLiveChildIds(parentId: String, type: String): Statement =
         Statement("SELECT id FROM $TABLE WHERE parentId = ? AND type = ? AND deletedAt IS NULL", parentId, type)
 
+    // ── Templates: a page's paper, shared rows under the notebook ──────
+
+    /** Every template row, blob-free: what the reuse rule reads. */
+    fun selectTemplateDigests(notebookId: String): Statement = Statement(
+        "SELECT id, text, width, height, length(blob) AS blobLength FROM $TABLE WHERE parentId = ? AND type = 'template' AND deletedAt IS NULL",
+        notebookId,
+    )
+
+    fun selectTemplateBlob(id: String): Statement =
+        Statement("SELECT blob FROM $TABLE WHERE id = ? AND type = 'template' AND deletedAt IS NULL", id)
+
+    /** Paper stored for this notebook: the token in `text`, the size it was rendered at, the pixels. */
+    fun insertTemplate(id: String, notebookId: String, token: String, width: Int, height: Int, blob: ByteArray, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, width, height, blob) VALUES (?, ?, 'template', 0, ?, ?, ?, ?, ?, ?)",
+        id, notebookId, now, now, token, width.toDouble(), height.toDouble(), blob,
+    )
+
+    /** Point a page at a template row, or at nothing (`""`): the one write of a re-papering. */
+    fun setPageTemplate(pageId: String, templateId: String, now: Long): Statement =
+        Statement("UPDATE $TABLE SET refId = ?, updatedAt = ? WHERE id = ? AND type = 'page'", templateId, now, pageId)
+
     // ── Links ──────
 
     /** The page's links in z-order. What each wraps is read by parent: [selectStrokes] and

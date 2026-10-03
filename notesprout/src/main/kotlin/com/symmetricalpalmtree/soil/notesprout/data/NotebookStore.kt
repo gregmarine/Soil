@@ -12,6 +12,7 @@ import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.paper.ink.InkStore
 import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.paper.templates.TemplateDigest
 import java.util.UUID
 
 /** One page as the notebook lists it. [templateId] is a template row's id, or `""` for blank. */
@@ -286,6 +287,29 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
 
     fun setTitle(name: String) =
         execAll(listOf(NotebookSql.setTitle(notebookId, name, System.currentTimeMillis())))
+
+    // ── Paper ──────
+
+    /** The notebook's template rows, blob-free. */
+    fun templateDigests(): List<TemplateDigest> = guard {
+        store.query(NotebookSql.selectTemplateDigests(notebookId)).rows.map {
+            TemplateDigest(it.text("id"), it.textOrNull("text"), it.realOrNull("width")?.toFloat(), it.realOrNull("height")?.toFloat(), it.longOrNull("blobLength"))
+        }
+    }
+
+    /** A template row's pixels, or null when the row is gone or holds none. */
+    fun templateBlob(id: String): ByteArray? = guard {
+        if (id.isEmpty()) null else store.query(NotebookSql.selectTemplateBlob(id)).rows.firstOrNull()?.blobOrNull("blob")
+    }
+
+    fun mintTemplate(token: String, width: Int, height: Int, blob: ByteArray): String {
+        val id = newId()
+        execAll(listOf(NotebookSql.insertTemplate(id, notebookId, token, width, height, blob, System.currentTimeMillis())))
+        return id
+    }
+
+    fun setPageTemplate(pageId: String, templateId: String) =
+        execAll(listOf(NotebookSql.setPageTemplate(pageId, templateId, System.currentTimeMillis())))
 
     // ── Structure ──────
 

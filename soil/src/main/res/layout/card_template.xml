@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One template: the paper in true miniature over its name. The 1 px edge is drawn on the
+     miniature itself, since a background on the band is overpainted by the fit-centred page. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_selectable_card"
+    android:padding="4dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ImageView
+            android:id="@+id/templatePreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/pinBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:background="@drawable/bg_pin_badge"
+            android:src="@drawable/ic_pinned"
+            android:padding="2dp"
+            android:visibility="gone"
+            android:contentDescription="@string/cd_pinned_badge" />
+
+        <!-- The paper in force, on the thing it is about, on white so it reads against a dense grid. -->
+        <ImageView
+            android:id="@+id/templateTick"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:src="@drawable/ic_check"
+            android:background="@color/paperWhite"
+            android:padding="2dp"
+            android:visibility="gone"
+            android:contentDescription="@string/cd_template_current" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/templateName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="@color/inkBlack"
+        android:gravity="center"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:paddingTop="4dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingBottom="2dp" />
+</LinearLayout>

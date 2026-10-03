@@ -68,5 +68,33 @@ object IndexSchema {
         """CREATE INDEX link_source ON link(sourceItemId);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4))
+    /**
+     * The paper library: templates (a picture, the original bytes, under a fit), their folders, and
+     * the pins. `parentId` is `''` at the root. Blank, the Default folder and the three built-in
+     * papers are sentinels, never rows. A delete is soft and the blob is cleared with it: a dead
+     * row's six megabytes are nothing anyone can read again.
+     */
+    private val V5 = listOf(
+        """CREATE TABLE template (
+               id TEXT PRIMARY KEY,
+               parentId TEXT NOT NULL DEFAULT '',
+               name TEXT NOT NULL,
+               fit INTEGER NOT NULL DEFAULT 0,
+               createdAt INTEGER NOT NULL,
+               updatedAt INTEGER NOT NULL,
+               deletedAt INTEGER,
+               blob BLOB);""",
+        """CREATE INDEX template_parent ON template(parentId, deletedAt);""",
+        """CREATE TABLE template_folder (
+               id TEXT PRIMARY KEY,
+               parentId TEXT NOT NULL DEFAULT '',
+               name TEXT NOT NULL,
+               createdAt INTEGER NOT NULL,
+               updatedAt INTEGER NOT NULL,
+               deletedAt INTEGER);""",
+        """CREATE INDEX template_folder_parent ON template_folder(parentId, deletedAt);""",
+        """CREATE TABLE template_pin (id TEXT PRIMARY KEY, pinnedAt INTEGER NOT NULL);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5))
 }

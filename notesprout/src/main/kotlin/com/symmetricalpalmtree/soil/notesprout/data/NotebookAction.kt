@@ -62,6 +62,9 @@ sealed interface NotebookAction {
     /** Where a link points, rewritten. Both payloads, so either direction is one write. */
     class LinkEdited(val pageId: String, val linkId: String, val before: String, val after: String) : NotebookAction
 
+    /** The page re-papered: the template row ids before and after (`""` is blank). Either direction is one write. */
+    class TemplateChanged(val pageId: String, val from: String, val to: String) : NotebookAction
+
     /** Erase page: everything on [pageId] soft-deleted; the page stays. Undo restores [ids]. */
     class PageErased(val pageId: String, val ids: List<String>) : NotebookAction
 

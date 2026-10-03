@@ -47,6 +47,7 @@ class FakeNotebookRows : RowStore {
                 val pageId = (statement.args[0] as Cell.Text).value
                 StoreRows(listOf("id"), pages.firstOrNull { it.id == pageId }?.under.orEmpty().map { listOf<Cell>(Cell.Text(it)) })
             }
+            sql.contains("type = 'template'") -> StoreRows(listOf("id", "text", "width", "height", "blobLength"), emptyList())
             sql.contains("type = 'stroke'") -> StoreRows(listOf("id", "order", "color", "strokeWidth", "style", "blob"), emptyList())
             sql.contains("type = 'link'") -> {
                 val pageId = (statement.args[0] as Cell.Text).value
