@@ -298,6 +298,7 @@
     <string name="scheme_preview_none">No scheme: the date and time name new notebooks.</string>
     <string name="scheme_literal_hint">Text</string>
     <string name="scheme_add_text">Add text</string>
+    <string name="scheme_edit_text">Edit text</string>
     <string name="scheme_clear">Clear</string>
     <string name="scheme_save">Save</string>
     <string name="scheme_token_date">Date</string>
