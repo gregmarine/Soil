@@ -174,8 +174,8 @@ class LinkFollowFlow(
                 .setTitle(R.string.link_target_gone_title)
                 .setMessage(body)
                 .setPositiveButton(R.string.link_edit_action) { _, _ -> editLink(link) }
-                .setNeutralButton(R.string.link_remove_action) { _, _ -> removeLink(link) }
-                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .setNeutralButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .setNegativeButton(R.string.link_remove_action) { _, _ -> removeLink(link) }
                 .create(),
         ).show()
     }
