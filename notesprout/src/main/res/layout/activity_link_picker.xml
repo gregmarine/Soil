@@ -128,11 +128,12 @@
             android:contentDescription="@string/link_new_page"
             android:visibility="gone" />
 
+        <!-- The Notebook shelves' own ask: which notebook, from Soil's library. -->
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnNewNotebook"
             style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_notebook_plus"
-            android:contentDescription="@string/link_new_notebook"
+            android:src="@drawable/ic_books"
+            android:contentDescription="@string/link_choose_notebook"
             android:visibility="gone" />
 
         <Space

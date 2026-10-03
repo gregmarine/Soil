@@ -16,13 +16,19 @@ import com.symmetricalpalmtree.soil.bootstrap.RecoveryKeyActivity
 import com.symmetricalpalmtree.soil.bootstrap.Screen
 import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.bootstrap.UnlockActivity
-import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.Item
+import com.symmetricalpalmtree.soil.data.index.LibraryStore
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.library.ItemApps
+import com.symmetricalpalmtree.soil.library.LibraryBrowser
+import com.symmetricalpalmtree.soil.library.LibraryPrefs
+import com.symmetricalpalmtree.soil.library.NewNotebookActivity
 import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
-import com.symmetricalpalmtree.soil.databinding.DialogNameBinding
+import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
+import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.templates.TemplatesActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import com.symmetricalpalmtree.soil.data.index.IndexSchema
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -38,8 +44,8 @@ import kotlinx.coroutines.withContext
 /**
  * **The home screen**: two views under one top bar.
  *
- *  - **The library**, which it opens on: every item, newest first, in fixed pages. An item
- *    opens in the app for its kind.
+ *  - **The library**, which it opens on: folders and items as cards, a page at a time, with the
+ *    Pinned, Recents and Search shelves ([LibraryBrowser]). An item opens in the app for its kind.
  *  - **The app drawer**: the installed apps the person has not hidden, each with its own icon,
  *    in fixed pages. A long press on an app asks whether to hide it; the hidden apps screen
  *    brings it back.
@@ -57,15 +63,27 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityHomeBinding
     private lateinit var grid: AppGrid
-    private lateinit var list: ItemList
+    private lateinit var browser: LibraryBrowser
+    private lateinit var libraryPrefs: LibraryPrefs
     private var showing = Showing.LIBRARY
     private var appPages = 1
     private var appPage = 0
-    private var itemPages = 1
-    private var itemPage = 0
-    private var itemCount = 0
     private var route = KeyGate.Route.PREPARING
     private var notebookApp = false
+
+    /** The folder whose default paper the template picker is up for. */
+    private var templateFor: String? = null
+    private val templateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val folderId = templateFor
+        templateFor = null
+        if (result.resultCode != android.app.Activity.RESULT_OK || folderId == null) return@registerForActivityResult
+        val encoded = result.data?.getStringExtra(Seam.EXTRA_PICK) ?: return@registerForActivityResult
+        val pick = TemplatePick.decode(encoded) ?: return@registerForActivityResult
+        lifecycleScope.launch {
+            // Blank is the absence of a say: a folder whose default is Blank says nothing.
+            withContext(Dispatchers.IO) { LibraryStore().setDefaultTemplate(folderId, if (pick is TemplatePick.Blank) null else encoded) }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,26 +105,36 @@ class HomeActivity : AppCompatActivity() {
                 renderPager()
             },
         )
-        list = ItemList(
-            container = binding.itemList,
+        libraryPrefs = LibraryPrefs(this)
+        browser = LibraryBrowser(
+            activity = this,
+            binding = binding.browser,
             onOpen = ::open,
-            onPaged = { page, pages ->
-                itemPage = page
-                itemPages = pages
-                renderPager()
-            },
+            onFolderChanged = { libraryPrefs.folderId = it },
         )
-        binding.btnPrev.setOnClickListener { if (showing == Showing.APPS) grid.previous() else list.previous() }
-        binding.btnNext.setOnClickListener { if (showing == Showing.APPS) grid.next() else list.next() }
+        browser.onShelfChanged = { renderLibrary() }
+        browser.onDefaultTemplate = { folderId, _ ->
+            templateFor = folderId
+            templateLauncher.launch(
+                android.content.Intent(Seam.ACTION_PICK_TEMPLATE).setPackage(packageName)
+                    .putExtra(Seam.EXTRA_CURRENT_TOKEN, null as String?),
+            )
+        }
+        browser.startIn(savedInstanceState?.getString(KEY_FOLDER) ?: libraryPrefs.folderId)
+        binding.btnPrev.setOnClickListener { grid.previous() }
+        binding.btnNext.setOnClickListener { grid.next() }
         binding.appGrid.onPrevious = { grid.previous() }
         binding.appGrid.onNext = { grid.next() }
-        binding.itemList.onPrevious = { list.previous() }
-        binding.itemList.onNext = { list.next() }
 
         binding.btnLibrary.setOnClickListener { show(Showing.LIBRARY) }
         binding.btnApps.setOnClickListener { show(Showing.APPS) }
         binding.btnHiddenApps.setOnClickListener { startActivity(Intent(this, HiddenAppsActivity::class.java)) }
-        binding.btnNewNotebook.setOnClickListener { askNewNotebookName() }
+        binding.btnNewNotebook.setOnClickListener { startActivity(NewNotebookActivity.intent(this, browser.folderId)) }
+        binding.btnNewFolder.setOnClickListener { browser.showNewFolderDialog() }
+        binding.btnSearch.setOnClickListener { browser.openSearchDialog() }
+        binding.btnRecents.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.RECENTS) }
+        binding.btnPinned.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.PINNED) }
+        binding.btnSort.setOnClickListener { browser.showSortSheet() }
         // Through the gate: while the key is unsaved or the library locked, these lead to the
         // screen that opens it.
         binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
@@ -114,7 +142,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnScratchPad, binding.btnEncryption)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnEncryption)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -122,9 +150,9 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { Library.status.collect(::render) }
-                // The items are read again whenever the library opens or one of them changes.
+                // The cards are read again whenever the library opens or an item changes.
                 launch {
-                    combine(Library.status, ItemSessions.changes) { status, _ -> status.route }.collect { loadItems(it) }
+                    combine(Library.status, ItemSessions.changes) { status, _ -> status.route }.collect { if (it == KeyGate.Route.OPEN) browser.reload() }
                 }
                 launch {
                     SoilBarService.running.collect { on ->
@@ -154,6 +182,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_SHOWING, showing.name)
+        if (::browser.isInitialized) outState.putString(KEY_FOLDER, browser.folderId)
     }
 
     /** One of the two views, and what of the bars belongs to it. */
@@ -170,62 +199,32 @@ class HomeActivity : AppCompatActivity() {
         renderPager()
     }
 
-    /** The pager belongs to the view that is showing. A pager over one page is two buttons that
-     *  do nothing, so it is not shown. */
+    /** The drawer's pager: the library browser carries its own. A pager over one page is two
+     *  buttons that do nothing, so it is not shown. */
     private fun renderPager() {
-        val (page, pages) = if (showing == Showing.APPS) appPage to appPages else itemPage to itemPages
-        binding.pageText.text = getString(R.string.page_of, page + 1, pages)
-        binding.bottomBar.visibility = if (pages > 1) View.VISIBLE else View.GONE
+        binding.pageText.text = getString(R.string.page_of, appPage + 1, appPages)
+        binding.bottomBar.visibility = if (showing == Showing.APPS && appPages > 1) View.VISIBLE else View.GONE
     }
 
-    /** The items, read off the main thread. While the library is not open there are none to show. */
-    private suspend fun loadItems(route: KeyGate.Route) {
-        val items = if (route != KeyGate.Route.OPEN) emptyList() else withContext(Dispatchers.IO) {
-            runCatching { IndexStore().aliveItems() }.getOrDefault(emptyList())
-        }
-        itemCount = items.size
-        list.show(items)
-        renderLibrary()
-    }
-
-    /** The list when there is something in it, the line when there is not. */
+    /** The browser while the library is open, the line when it is not; and the library's own
+     *  buttons, which stand down on a shelf (a shelf is not a place to create into). */
     private fun renderLibrary() {
         val open = route == KeyGate.Route.OPEN
-        val some = open && itemCount > 0
-        binding.itemList.visibility = if (some) View.VISIBLE else View.GONE
-        binding.libraryNote.visibility = if (some) View.GONE else View.VISIBLE
-        binding.btnNewNotebook.visibility = if (showing == Showing.LIBRARY && open && notebookApp) View.VISIBLE else View.GONE
-        if (!some) {
-            itemPages = 1
-            itemPage = 0
-            renderPager()
+        val library = showing == Showing.LIBRARY && open
+        binding.browser.root.visibility = if (open) View.VISIBLE else View.GONE
+        binding.libraryNote.visibility = if (open) View.GONE else View.VISIBLE
+        val inShelf = ::browser.isInitialized && browser.inShelf
+        binding.btnNewNotebook.visibility = if (library && notebookApp && !inShelf) View.VISIBLE else View.GONE
+        binding.btnNewFolder.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
+        binding.btnSearch.visibility = if (library) View.VISIBLE else View.GONE
+        binding.btnRecents.visibility = if (library) View.VISIBLE else View.GONE
+        binding.btnPinned.visibility = if (library) View.VISIBLE else View.GONE
+        binding.btnSort.visibility = if (library && (!inShelf || browser.shelf != LibraryBrowser.Shelf.SEARCH)) View.VISIBLE else View.GONE
+        if (::browser.isInitialized) {
+            binding.btnRecents.isSelected = browser.shelf == LibraryBrowser.Shelf.RECENTS
+            binding.btnPinned.isSelected = browser.shelf == LibraryBrowser.Shelf.PINNED
+            binding.btnSearch.isSelected = browser.shelf == LibraryBrowser.Shelf.SEARCH
         }
-    }
-
-    /** A name, then the app makes the notebook and opens it. */
-    private fun askNewNotebookName() {
-        val field = DialogNameBinding.inflate(layoutInflater)
-        field.nameField.setText(getString(R.string.new_notebook_default))
-        field.nameField.selectAll()
-        val dialog = Dialogs.style(
-            AlertDialog.Builder(this)
-                .setTitle(R.string.new_notebook_title)
-                .setView(field.root)
-                .setPositiveButton(R.string.new_notebook_create) { _, _ ->
-                    val name = field.nameField.text?.toString()?.trim().orEmpty().ifEmpty { getString(R.string.new_notebook_default) }
-                    when (ItemApps.create(this, IndexSchema.KIND_NOTEBOOK, name)) {
-                        ItemApps.Opened.YES -> Unit
-                        ItemApps.Opened.NO_APP ->
-                            Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, name))
-                        ItemApps.Opened.FAILED ->
-                            Dialogs.problem(this, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, name))
-                    }
-                }
-                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
-                .create(),
-        )
-        dialog.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        dialog.show()
     }
 
     private fun open(item: Item) {
@@ -273,9 +272,15 @@ class HomeActivity : AppCompatActivity() {
         binding.btnUnlock.visibility = if (route == KeyGate.Route.UNLOCK) View.VISIBLE else View.GONE
     }
 
-    /** A home screen has nowhere to go back to. */
+    /** Back peels one layer of the library: out of a shelf, up a folder. A home screen has
+     *  nowhere else to go back to. */
     @Deprecated("Deprecated in Java")
-    override fun onBackPressed() = Unit
+    override fun onBackPressed() {
+        if (showing == Showing.LIBRARY && ::browser.isInitialized) browser.onBackPressed()
+    }
 
-    private companion object { const val KEY_SHOWING = "showing" }
+    private companion object {
+        const val KEY_SHOWING = "showing"
+        const val KEY_FOLDER = "folder"
+    }
 }

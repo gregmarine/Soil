@@ -50,18 +50,22 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
      * The page list and the page last open. A notebook with no pages is refused: nothing is
      * fabricated here. A last-open page that is gone lands on the first.
      */
-    fun load(): Loaded = guard {
-        val pages = store.query(NotebookSql.selectPages(notebookId)).rows.map {
-            PageRef(
-                id = it.text("id"),
-                width = it.realOrNull("width")?.toFloat() ?: 0f,
-                height = it.realOrNull("height")?.toFloat() ?: 0f,
-                templateId = it.textOrNull("refId").orEmpty(),
-            )
+    fun load(): Loaded {
+        val pages = guard {
+            store.query(NotebookSql.selectPages(notebookId)).rows.map {
+                PageRef(
+                    id = it.text("id"),
+                    width = it.realOrNull("width")?.toFloat() ?: 0f,
+                    height = it.realOrNull("height")?.toFloat() ?: 0f,
+                    templateId = it.textOrNull("refId").orEmpty(),
+                )
+            }
         }
+        // Its own exception, outside the guard: a file Soil made and no app has written yet is
+        // not a store that failed, it is a notebook waiting for its first page.
         if (pages.isEmpty()) throw NoPages()
-        val last = store.query(NotebookSql.selectRoot(notebookId)).rows.firstOrNull()?.textOrNull("refId")
-        Loaded(pages, if (pages.any { it.id == last }) last!! else pages[0].id)
+        val last = guard { store.query(NotebookSql.selectRoot(notebookId)).rows.firstOrNull()?.textOrNull("refId") }
+        return Loaded(pages, if (pages.any { it.id == last }) last!! else pages[0].id)
     }
 
     /** One page: its ink in writing order, every object on it, and its links with what they wrap. */
@@ -410,7 +414,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     private fun renumber(pages: List<PageRef>, now: Long): List<Statement> =
         pages.mapIndexed { i, page -> NotebookSql.setOrder(page.id, i, now) }
 
-    /** The file holds no page: it is not a notebook this app can show. */
+    /** The file holds no page: one Soil made for this app to fill, or damage. */
     class NoPages : IllegalStateException("the notebook has no pages")
 
     companion object {

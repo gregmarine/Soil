@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
-import android.os.Binder
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -14,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.AppCompatTextView
@@ -21,11 +21,9 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.notesprout.NotesproutApp
 import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
-import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.data.PageRef
 import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityLinkPickerBinding
 import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerModel.PickMode
-import com.symmetricalpalmtree.soil.notesprout.notebook.ObjectDialogs
 import com.symmetricalpalmtree.soil.notesprout.notebook.PagePaints
 import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLabels
@@ -33,8 +31,8 @@ import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
+import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamItem
-import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,8 +57,9 @@ import kotlinx.coroutines.withContext
  *
  * Nothing here is disabled or greyed. An OK with nothing chosen explains.
  *
- * The library is flat for now; folders come with the library work, and where this browse lives
- * then is decided then.
+ * There is one library, in Soil: the Notebook shelves do not browse it here. Entering either
+ * opens **Soil's item picker** over this screen, folders and all, and the notebook it answers
+ * is the one shown; a tap on it, or the shelf's own button, asks again.
  */
 class LinkPickerActivity : AppCompatActivity() {
 
@@ -95,6 +94,36 @@ class LinkPickerActivity : AppCompatActivity() {
     private var creating = false
 
     private val soil get() = (application as NotesproutApp).soil
+
+    /** Soil's item picker, for the two Notebook shelves. A cancel with nothing chosen yet goes
+     *  back to This notebook: a shelf with nothing on it is not a place to wait. */
+    private val itemPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val id = result.data?.getStringExtra(Seam.EXTRA_ITEM_ID)
+        if (result.resultCode != Activity.RESULT_OK || id == null) {
+            if (selectedNotebookId == null && drilled == null) setMode(PickMode.THIS_NOTEBOOK)
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch {
+            val item = aliveNotebook(id) ?: return@launch
+            when (mode) {
+                PickMode.NOTEBOOK -> { selectedNotebookId = item.id; refresh(jumpToSelection = true) }
+                PickMode.NOTEBOOK_PAGE -> { drill(item); pageIndex = 0; refresh() }
+                PickMode.THIS_NOTEBOOK -> Unit
+            }
+        }
+    }
+
+    private fun launchItemPicker() {
+        val intent = Intent(Seam.ACTION_PICK_ITEM)
+            .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+            .putExtra(Seam.EXTRA_KIND, NotebookSchema.KIND)
+            .putExtra(Seam.EXTRA_EXCLUDE_ITEM_ID, showing.notebookId)
+        try {
+            itemPickerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Soil's picker would not open: ${e.javaClass.simpleName}")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,7 +201,7 @@ class LinkPickerActivity : AppCompatActivity() {
         btnStyleUnderline.setOnClickListener { chrome = LinkPayload.CHROME_UNDERLINE; renderStyle() }
         btnStyleNone.setOnClickListener { chrome = LinkPayload.CHROME_NONE; renderStyle() }
         btnNewPage.setOnClickListener { onNewPage() }
-        btnNewNotebook.setOnClickListener { onNewNotebook() }
+        btnNewNotebook.setOnClickListener { launchItemPicker() }
         btnFirst.setOnClickListener { goToPage(0) }
         btnPrev.setOnClickListener { goToPage(pageIndex - 1) }
         btnNext.setOnClickListener { goToPage(pageIndex + 1) }
@@ -220,14 +249,13 @@ class LinkPickerActivity : AppCompatActivity() {
         bindCurrentPage()
     }
 
+    /** The Notebook shelf holds the one notebook Soil's picker answered, or nothing yet. */
     private suspend fun refreshBrowse(jumpToSelection: Boolean) {
         pageItems = emptyList()
-        notebooks = withContext(Dispatchers.IO) {
-            runCatching { soil.seam().listItems(NotebookSchema.KIND) }.getOrDefault(emptyList())
-        }.filter { it.id != showing.notebookId }.sortedBy { it.name.lowercase() }
-        showEmpty(notebooks.isEmpty(), R.string.link_picker_no_notebooks)
-        pageCount = LinkPickerModel.pageCount(notebooks.size, grid.cardsPerPage)
-        pageIndex = if (jumpToSelection) selectedPage(notebooks.indexOfFirst { it.id == selectedNotebookId }) else LinkPickerModel.clampPage(pageIndex, pageCount)
+        notebooks = listOfNotNull(selectedNotebookId?.let { aliveNotebook(it) })
+        showEmpty(notebooks.isEmpty(), R.string.link_picker_choose_notebook)
+        pageCount = 1
+        pageIndex = 0
         bindCurrentPage()
     }
 
@@ -301,20 +329,8 @@ class LinkPickerActivity : AppCompatActivity() {
 
     // ── Taps ──────
 
-    private fun onNotebookTap(item: SeamItem) {
-        when (mode) {
-            PickMode.NOTEBOOK -> {
-                selectedNotebookId = if (selectedNotebookId == item.id) null else item.id
-                bindCurrentPage()
-            }
-            PickMode.NOTEBOOK_PAGE -> {
-                drill(item)
-                pageIndex = 0
-                lifecycleScope.launch { refresh() }
-            }
-            PickMode.THIS_NOTEBOOK -> Unit
-        }
-    }
+    /** The chosen notebook's card: a tap asks Soil for another. */
+    private fun onNotebookTap(@Suppress("UNUSED_PARAMETER") item: SeamItem) = launchItemPicker()
 
     private fun onPageTap(page: PageRef) {
         selectedPageId = if (selectedPageId == page.id) null else page.id
@@ -330,6 +346,8 @@ class LinkPickerActivity : AppCompatActivity() {
         leaveDrill()
         pageIndex = 0
         lifecycleScope.launch { refresh() }
+        // The two Notebook shelves begin by asking Soil which notebook.
+        if (newMode != PickMode.THIS_NOTEBOOK) launchItemPicker()
     }
 
     private fun drill(item: SeamItem) {
@@ -396,48 +414,6 @@ class LinkPickerActivity : AppCompatActivity() {
                 creating = false
             }
         }
-    }
-
-    /** A new notebook, named here, made in Soil with one blank page the size of this screen,
-     *  and chosen: in Notebook mode as the target, in Notebook-page mode opened into its page. */
-    private fun onNewNotebook() {
-        if (creating) return
-        ObjectDialogs.name(this, R.string.link_new_notebook, "", onSave = { name ->
-            if (creating) return@name
-            creating = true
-            lifecycleScope.launch {
-                try {
-                    val item = withContext(Dispatchers.IO) { makeNotebook(name, showing.pageWidth, showing.pageHeight) }
-                    if (item == null) {
-                        Dialogs.problem(this@LinkPickerActivity, R.string.link_new_notebook_failed_title, R.string.link_new_notebook_failed_body)
-                        return@launch
-                    }
-                    when (mode) {
-                        PickMode.NOTEBOOK -> { selectedNotebookId = item.id; refresh(jumpToSelection = true) }
-                        PickMode.NOTEBOOK_PAGE -> { drill(item); pageIndex = 0; refresh() }
-                        PickMode.THIS_NOTEBOOK -> Unit
-                    }
-                } finally {
-                    creating = false
-                }
-            }
-        })
-    }
-
-    private suspend fun makeNotebook(name: String, width: Float, height: Float): SeamItem? = try {
-        val seam = soil.seam()
-        val item = seam.createItem(name, NotebookSchema.SCHEMA)
-        val session = seam.openItem(item.id, NotebookSchema.SCHEMA, Binder())
-        try {
-            NotebookStore(SeamRowStore(session), item.id).initialize(item.name, width, height)
-            seam.setPageCount(item.id, 1)
-        } finally {
-            runCatching { session.close(false) }
-        }
-        item
-    } catch (e: Exception) {
-        Log.w(TAG, "a notebook could not be made: ${e.javaClass.simpleName}")
-        null
     }
 
     // ── OK ──────

@@ -56,6 +56,12 @@ interface ISoilSeam {
     void deleteItem(String itemId);
 
     /**
+     * The item's cover for the library: a small picture of its last-shown page, which the app
+     * writes when it puts the item down. Lossy WEBP, at most 512 px on the long edge.
+     */
+    void setCover(String itemId, in SeamBytes cover);
+
+    /**
      * Every link into an item, from the library's link index: what an app shows as "links to
      * here". Links from items that have been deleted are left out. The app narrows the list to
      * a page itself.

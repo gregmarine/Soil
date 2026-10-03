@@ -34,6 +34,19 @@ object SoilDb {
     fun create(file: File, passphrase: String, schema: Schema): ZeticDB =
         prepared(SoilCrypto.createRaw(file, passphrase), schema, NO_CHECK)
 
+    /** Create [file] under [passphrase] with no steps run: version 0, for the app that owns the
+     *  kind to bring to its own schema at its first open. Refuses an existing non-empty file. */
+    fun createUnversioned(file: File, passphrase: String): ZeticDB {
+        val db = SoilCrypto.createRaw(file, passphrase)
+        return try {
+            configure(db)
+            db
+        } catch (t: Throwable) {
+            runCatching { db.close() }
+            throw t
+        }
+    }
+
     /**
      * Open the existing [file]. The header is probed first and the file is opened only when it
      * reads as encrypted: a plaintext or unreadable file is refused, never opened to find out.

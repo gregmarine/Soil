@@ -38,7 +38,7 @@ class NotebookStoreTest {
 
     @Test
     fun `a notebook with no pages is refused, not fabricated`() {
-        assertThrows(StoreUnavailable::class.java) { store.load() }
+        assertThrows(NotebookStore.NoPages::class.java) { store.load() }
         assertTrue(rows.execs.isEmpty())
     }
 

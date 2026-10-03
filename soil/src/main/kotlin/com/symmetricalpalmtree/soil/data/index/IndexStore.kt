@@ -12,6 +12,10 @@ data class Item(
     val createdAt: Long,
     val updatedAt: Long,
     val pageCount: Int = 0,
+    /** The folder it is in; `''` at the root. */
+    val parentId: String = "",
+    /** When it was last opened; null for one never opened. */
+    val openedAt: Long? = null,
 )
 
 /** One link as the mirror in a file states it. */
@@ -60,13 +64,13 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
     fun aliveItem(itemId: String): Item? =
         rows.query(Statement("$SELECT WHERE deletedAt IS NULL AND id = ?", itemId)).rows.firstOrNull()?.let(::item)
 
-    /** A new item under the global key. The id is never one that was used before. */
-    fun insert(id: String, kind: String, name: String, now: Long) {
+    /** A new item under the global key, in [parentId] (`''` = the root). The id is never one that was used before. */
+    fun insert(id: String, kind: String, name: String, now: Long, parentId: String = "") {
         rows.exec(
             listOf(
                 Statement(
-                    "INSERT INTO item (id, kind, name, keyScope, flags, createdAt, updatedAt) VALUES (?, ?, ?, ?, 0, ?, ?)",
-                    id, kind, name, IndexSchema.KEY_SCOPE_GLOBAL, now, now,
+                    "INSERT INTO item (id, kind, name, keyScope, flags, createdAt, updatedAt, parentId) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
+                    id, kind, name, IndexSchema.KEY_SCOPE_GLOBAL, now, now, parentId,
                 ),
             ),
         )
@@ -134,6 +138,8 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         createdAt = row.long("createdAt"),
         updatedAt = row.long("updatedAt"),
         pageCount = row.long("pageCount").toInt(),
+        parentId = row.text("parentId"),
+        openedAt = row.longOrNull("openedAt"),
     )
 
     /** The items the global key opens — what a rotation re-keys. */
@@ -156,6 +162,6 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
     }
 
     private companion object {
-        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount FROM item"
+        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt FROM item"
     }
 }

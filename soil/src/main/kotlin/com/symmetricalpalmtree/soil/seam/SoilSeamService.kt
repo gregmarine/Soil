@@ -99,6 +99,13 @@ class SoilSeamService : Service() {
             ItemSessions.changed()
         }
 
+        override fun setCover(itemId: String, cover: SeamBytes) = answered {
+            val bytes = SeamShared.readAndClose(cover)
+            require(bytes.isNotEmpty() && bytes.size <= MAX_COVER_BYTES) { "a cover is at most $MAX_COVER_BYTES bytes" }
+            com.symmetricalpalmtree.soil.data.index.LibraryStore().setCover(itemId, bytes)
+            ItemSessions.changed()
+        }
+
         override fun backlinks(itemId: String): List<SeamBacklink> = answered {
             IndexStore().backlinks(itemId).map {
                 SeamBacklink(
@@ -212,5 +219,6 @@ class SoilSeamService : Service() {
         const val TAG = "SoilSeam"
         const val NO_SUCH_ITEM = "there is no such item"
         const val NO_SUCH_TEMPLATE = "there is no such template"
+        const val MAX_COVER_BYTES = 1024 * 1024
     }
 }

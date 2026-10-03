@@ -96,5 +96,27 @@ object IndexSchema {
         """CREATE TABLE template_pin (id TEXT PRIMARY KEY, pinnedAt INTEGER NOT NULL);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5))
+    /**
+     * The library's shape: folders, an item's folder (`''` at the root), each item's cover (a
+     * small picture of its last-shown page, written by its app on close), the pinned items, and
+     * what a folder says of what is made inside it: a naming scheme and a default template. The
+     * root's own say is the `folder_prefs` row whose `folderId` is `''`.
+     */
+    private val V6 = listOf(
+        """ALTER TABLE item ADD COLUMN parentId TEXT NOT NULL DEFAULT '';""",
+        """ALTER TABLE item ADD COLUMN cover BLOB;""",
+        """CREATE INDEX item_parent ON item(parentId, deletedAt);""",
+        """CREATE TABLE folder (
+               id TEXT PRIMARY KEY,
+               parentId TEXT NOT NULL DEFAULT '',
+               name TEXT NOT NULL,
+               createdAt INTEGER NOT NULL,
+               updatedAt INTEGER NOT NULL,
+               deletedAt INTEGER);""",
+        """CREATE INDEX folder_parent ON folder(parentId, deletedAt);""",
+        """CREATE TABLE item_pin (id TEXT PRIMARY KEY, pinnedAt INTEGER NOT NULL);""",
+        """CREATE TABLE folder_prefs (folderId TEXT PRIMARY KEY, scheme TEXT, template TEXT);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6))
 }

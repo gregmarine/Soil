@@ -122,7 +122,27 @@
         </activity>
 
         <activity
-            android:name=".templates.TemplateFolderPickerActivity"
+            android:name=".library.NewNotebookActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustNothing" />
+
+        <!-- An item of the library for a Sprout app: the link picker's notebook shelves. -->
+        <activity
+            android:name=".library.ItemPickerActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.PICK_ITEM" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".library.FolderPickerActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:screenOrientation="portrait" />

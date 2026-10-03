@@ -36,12 +36,48 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- The library's own action; absent on the drawer, and while no app makes notebooks. -->
+        <!-- The library's own actions; absent on the drawer. New notebook needs an app that makes
+             notebooks, and is absent without one. -->
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnNewNotebook"
             style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_plus"
+            android:src="@drawable/ic_notebook_plus"
             android:contentDescription="@string/cd_new_notebook"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNewFolder"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_folder_plus"
+            android:contentDescription="@string/cd_new_folder_library"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnSearch"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_search"
+            android:contentDescription="@string/cd_search"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnRecents"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_clock"
+            android:contentDescription="@string/cd_recents"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnPinned"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_pinned"
+            android:contentDescription="@string/cd_pinned"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnSort"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_sort"
+            android:contentDescription="@string/cd_sort"
             android:visibility="gone" />
 
         <!-- The app drawer's own action; absent on the library. -->
@@ -100,9 +136,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <!-- Turned by a sideways swipe, and by the pager below. -->
-            <com.symmetricalpalmtree.soil.home.PageSwipeLayout
-                android:id="@+id/itemList"
+            <!-- The library browser: the path, the cards, its own pager. -->
+            <include
+                android:id="@+id/browser"
+                layout="@layout/view_library_browser"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:visibility="gone" />

@@ -30,7 +30,7 @@ class SaveTemplateActivity : AppCompatActivity() {
     private var name: String = ""
 
     private val folderLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val folder = result.data?.getStringExtra(TemplateFolderPickerActivity.EXTRA_PICKED_FOLDER)
+        val folder = result.data?.getStringExtra(com.symmetricalpalmtree.soil.library.FolderPickerActivity.EXTRA_PICKED_FOLDER)
         if (result.resultCode != Activity.RESULT_OK || folder == null) { finish(); return@registerForActivityResult }
         place(folder)
     }
@@ -60,7 +60,7 @@ class SaveTemplateActivity : AppCompatActivity() {
             accepting = true
             name = typed
             dismiss()
-            if (folder == null) folderLauncher.launch(TemplateFolderPickerActivity.saveIntent(this)) else place(folder)
+            if (folder == null) folderLauncher.launch(com.symmetricalpalmtree.soil.library.FolderPickerActivity.saveIntent(this, com.symmetricalpalmtree.soil.library.FolderPickerActivity.Hierarchy.TEMPLATES)) else place(folder)
         }
     }
 

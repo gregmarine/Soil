@@ -1,0 +1,489 @@
+package com.symmetricalpalmtree.soil.library
+
+import android.app.Activity
+import android.os.Bundle
+import android.view.View
+import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.data.index.Folder
+import com.symmetricalpalmtree.soil.data.index.Item
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
+import com.symmetricalpalmtree.soil.data.index.LibraryStore
+import com.symmetricalpalmtree.soil.databinding.ViewLibraryBrowserBinding
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.paper.core.Dialogs
+import com.symmetricalpalmtree.soil.paper.core.FuzzyRank
+import com.symmetricalpalmtree.soil.paper.core.GridMath
+import com.symmetricalpalmtree.soil.paper.core.Slog
+import com.symmetricalpalmtree.soil.paper.templates.TemplateNames
+import com.symmetricalpalmtree.soil.templates.NameDialog
+import com.symmetricalpalmtree.soil.templates.SortField
+import com.symmetricalpalmtree.soil.templates.SortOrder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * **The library browser**: the path, the paged card grid of folders and items, the three shelves
+ * (Pinned, Recents, Search), and the long-press sheets. One component for every host; a host
+ * supplies what a tap on an item means ([onOpen]), whether the sheets are offered, and a kind
+ * to narrow to. The actions on the folder you stand in (New notebook, New folder, Search,
+ * Recents, Pinned, Sort) are the host's buttons, wired to the entry points here.
+ *
+ * A shelf is a glance across the tree, not a place: nothing about it persists, and closing it
+ * returns to the folder underneath. Construct in `onCreate`: launchers are registered here.
+ */
+class LibraryBrowser(
+    private val activity: AppCompatActivity,
+    private val binding: ViewLibraryBrowserBinding,
+    private val onOpen: (Item) -> Unit,
+    /** Null narrows nothing; a kind lists only its items. */
+    private val kind: String? = null,
+    /** An item left out of every listing: the one the asking app has open. */
+    private val excludeId: String? = null,
+    private val sheets: Boolean = true,
+    /** Where a new notebook is made and where a created folder lands: told the folder standing. */
+    private val onFolderChanged: (String) -> Unit = {},
+) {
+    enum class Shelf { NONE, PINNED, RECENTS, SEARCH }
+
+    private val store = LibraryStore()
+    private val prefs = LibraryPrefs(activity)
+
+    var folderId: String = ""
+        private set
+    var shelf: Shelf = Shelf.NONE
+        private set
+    private var query = ""
+    private var pinnedIds: Set<String> = emptySet()
+    private var pageIndex = 0
+    private var pageCount = 1
+    private var items: List<LibraryCard> = emptyList()
+    private var grid: LibraryGrid? = null
+    private val coverCache = HashMap<String, ByteArray?>()
+    private var selectedId: String? = null
+
+    private val moveLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) reload()
+    }
+
+    init {
+        with(binding) {
+            btnBack.setOnClickListener { onBackPressed() }
+            btnFirst.setOnClickListener { goToPage(0) }
+            btnPrev.setOnClickListener { goToPage(pageIndex - 1) }
+            btnNext.setOnClickListener { goToPage(pageIndex + 1) }
+            btnLast.setOnClickListener { goToPage(pageCount - 1) }
+            gridContainer.onNext = { goToPage(pageIndex + 1) }
+            gridContainer.onPrevious = { goToPage(pageIndex - 1) }
+        }
+        var measured = false
+        binding.gridContainer.viewTreeObserver.addOnGlobalLayoutListener {
+            if (measured) return@addOnGlobalLayoutListener
+            val w = binding.gridContainer.width
+            val h = binding.gridContainer.height
+            if (w <= 0 || h <= 0) return@addOnGlobalLayoutListener
+            measured = true
+            grid = LibraryGrid(binding.gridContainer, ::onCardTap, if (sheets) ::onCardLongPress else null).also { it.measure(activity, w, h) }
+            reload()
+        }
+    }
+
+    // ── Host API ──────
+
+    /** Start in [id], or at the root when it is gone. */
+    fun startIn(id: String) {
+        folderId = id
+    }
+
+    fun reload() { activity.lifecycleScope.launch { refresh() } }
+
+    /** The item ticked in a picker; the host redraws the page. */
+    fun select(id: String?) {
+        selectedId = id
+        activity.lifecycleScope.launch { bindCurrentPage() }
+    }
+
+    fun toggleShelf(next: Shelf) {
+        shelf = if (shelf == next) Shelf.NONE else next
+        pageIndex = 0
+        onShelfChanged()
+        reload()
+    }
+
+    /** A dialog asks for the query; the shelf wears it as its title. */
+    fun openSearchDialog() {
+        NameDialog.show(activity, R.string.library_search_title, R.string.template_search_confirm, query, R.string.library_search_hint) { typed, dismiss ->
+            if (!FuzzyRank.isRunnable(typed)) {
+                Dialogs.problem(activity, R.string.template_search_empty_title, R.string.template_search_empty_body)
+                return@show
+            }
+            query = typed.trim()
+            dismiss()
+            shelf = Shelf.SEARCH
+            pageIndex = 0
+            onShelfChanged()
+            reload()
+        }
+    }
+
+    fun showSortSheet() {
+        val field = prefs.sortField
+        val order = prefs.sortOrder
+        fun tick(f: SortField, o: SortOrder) = if (field == f && order == o) com.symmetricalpalmtree.soil.paper.R.drawable.ic_check else null
+        ActionSheetDialog(activity)
+            .title(activity.getString(R.string.cd_sort))
+            .addAction(tick(SortField.NAME, SortOrder.ASC), activity.getString(R.string.sort_name_asc)) { applySort(SortField.NAME, SortOrder.ASC) }
+            .addAction(tick(SortField.NAME, SortOrder.DESC), activity.getString(R.string.sort_name_desc)) { applySort(SortField.NAME, SortOrder.DESC) }
+            .addAction(tick(SortField.MODIFIED, SortOrder.ASC), activity.getString(R.string.sort_modified_asc)) { applySort(SortField.MODIFIED, SortOrder.ASC) }
+            .addAction(tick(SortField.MODIFIED, SortOrder.DESC), activity.getString(R.string.sort_modified_desc)) { applySort(SortField.MODIFIED, SortOrder.DESC) }
+            .show()
+    }
+
+    fun showNewFolderDialog() {
+        val parentId = folderId
+        var accepting = false
+        NameDialog.show(activity, R.string.new_folder_title, R.string.new_folder_create, "", R.string.new_folder_hint) { name, dismiss ->
+            if (accepting) return@show
+            TemplateNames.validate(name)?.let { problem ->
+                Dialogs.problem(activity, R.string.name_problem_title, NameDialog.problemMessage(activity, problem))
+                return@show
+            }
+            accepting = true
+            activity.lifecycleScope.launch {
+                try {
+                    if (withContext(Dispatchers.IO) { store.folderNameTaken(parentId, name) }) {
+                        Dialogs.problem(activity, R.string.name_problem_title, activity.getString(R.string.folder_duplicate_name, name))
+                        return@launch
+                    }
+                    withContext(Dispatchers.IO) { store.createFolder(name, parentId) }
+                    dismiss()
+                    refresh()
+                } finally {
+                    accepting = false
+                }
+            }
+        }
+    }
+
+    /** Whether the shelves are up: what a host's chrome stands down for. */
+    val inShelf: Boolean get() = shelf != Shelf.NONE
+
+    /** Back peels one layer: out of a shelf, up a folder. False with nothing to peel. */
+    fun onBackPressed(): Boolean {
+        if (shelf != Shelf.NONE) { closeShelf(); return true }
+        if (folderId.isEmpty()) return false
+        navigateUp()
+        return true
+    }
+
+    // ── Listing ──────
+
+    private suspend fun refresh() {
+        val listed = withContext(Dispatchers.IO) {
+            if (folderId.isNotEmpty() && store.folder(folderId) == null) folderId = ""
+            pinnedIds = store.pinnedIds().toSet()
+            val field = prefs.sortField
+            val order = prefs.sortOrder
+            when (shelf) {
+                Shelf.NONE -> LibraryListing.folderCards(store.folders(folderId), itemsIn(folderId), pinnedIds, field, order)
+                Shelf.PINNED -> LibraryListing.pinnedCards(pinnedIds.toList(), store.aliveItems(pinnedIds).filterValues { wanted(it) }, field, order, ::placeOf)
+                Shelf.RECENTS -> LibraryListing.recentCards(store.allItems().filter { wanted(it) }, pinnedIds, ::placeOf)
+                Shelf.SEARCH -> LibraryListing.searchCards(query, store.allFolders(), store.allItems().filter { wanted(it) }, pinnedIds, ::placeOfFolder, ::placeOf)
+            }
+        }
+        renderChrome()
+        items = listed
+        coverCache.clear()
+        binding.emptyState.setText(emptyTextRes())
+        binding.emptyState.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        pageCount = GridMath.pageCount(items.size, grid?.cardsPerPage ?: 1)
+        pageIndex = GridMath.clampPage(pageIndex, pageCount)
+        bindCurrentPage()
+    }
+
+    private fun itemsIn(parentId: String): List<Item> = store.items(parentId).filter { wanted(it) }
+
+    private fun wanted(item: Item): Boolean = (kind == null || item.kind == kind) && item.id != excludeId
+
+    /** Where an item is, for a flat shelf's second line. */
+    private fun placeOf(item: Item): String = placeOfFolderId(item.parentId)
+    private fun placeOfFolder(folder: Folder): String = placeOfFolderId(folder.parentId)
+    private fun placeOfFolderId(parentId: String): String =
+        if (parentId.isEmpty()) activity.getString(R.string.library_root) else store.folder(parentId)?.name ?: activity.getString(R.string.library_root)
+
+    private fun emptyTextRes(): Int = when (shelf) {
+        Shelf.PINNED -> R.string.library_pinned_empty
+        Shelf.RECENTS -> R.string.library_recents_empty
+        Shelf.SEARCH -> R.string.library_search_empty
+        Shelf.NONE -> if (kind != null) R.string.item_picker_none else R.string.library_empty
+    }
+
+    /** Covers for the visible slice only, read on IO, merged on Main. */
+    private suspend fun bindCurrentPage() {
+        val g = grid ?: return
+        val range = GridMath.pageRange(pageIndex, g.cardsPerPage, items.size)
+        val missing = range.mapNotNull { (items[it] as? LibraryCard.ItemCard)?.id }.filter { it !in coverCache }
+        if (missing.isNotEmpty()) {
+            val fetched = withContext(Dispatchers.IO) { missing.associateWith { runCatching { store.cover(it) }.getOrNull() } }
+            coverCache.putAll(fetched)
+        }
+        g.bind(items, pageIndex, coverCache, selectedId)
+        binding.pager.visibility = if (pageCount > 1) View.VISIBLE else View.INVISIBLE
+        binding.pageLabel.text = activity.getString(R.string.page_indicator, pageIndex + 1, pageCount)
+    }
+
+    // ── Chrome ──────
+
+    private fun renderChrome() = with(binding) {
+        val inShelf = shelf != Shelf.NONE
+        breadcrumbScroll.visibility = if (inShelf) View.GONE else View.VISIBLE
+        shelfTitle.visibility = if (inShelf) View.VISIBLE else View.GONE
+        btnBack.visibility = if (inShelf || folderId.isNotEmpty()) View.VISIBLE else View.GONE
+        if (inShelf) {
+            shelfTitle.text = when (shelf) {
+                Shelf.PINNED -> activity.getString(R.string.shelf_title_pinned)
+                Shelf.RECENTS -> activity.getString(R.string.shelf_title_recent)
+                else -> activity.getString(R.string.shelf_title_search, query)
+            }
+        } else {
+            renderBreadcrumb()
+        }
+    }
+
+    private fun renderBreadcrumb() {
+        val ink = ContextCompat.getColor(activity, com.symmetricalpalmtree.soil.paper.R.color.inkBlack)
+        activity.lifecycleScope.launch {
+            val ancestry = if (folderId.isEmpty()) emptyList() else withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            val container = binding.breadcrumbContainer
+            container.removeAllViews()
+            container.addView(crumb(activity.getString(R.string.library_root), ink, "", activity.getString(R.string.library_root)))
+            for (f in ancestry) {
+                container.addView(separator(ink))
+                container.addView(crumb(f.name, ink, f.id, f.name))
+            }
+            binding.breadcrumbScroll.post { binding.breadcrumbScroll.fullScroll(View.FOCUS_RIGHT) }
+        }
+    }
+
+    /** A crumb navigates; held, it opens the folder's say (the root's only way in). */
+    private fun crumb(label: String, color: Int, id: String, name: String): TextView {
+        val d = activity.resources.displayMetrics.density
+        return TextView(activity).apply {
+            text = label
+            textSize = 16f
+            setTextColor(color)
+            setPadding((6 * d).toInt(), (8 * d).toInt(), (6 * d).toInt(), (8 * d).toInt())
+            setOnClickListener { navigateTo(id) }
+            if (sheets) setOnLongClickListener { showFolderSaySheet(id, name); true }
+        }
+    }
+
+    private fun separator(color: Int): TextView = TextView(activity).apply { text = " / "; textSize = 16f; setTextColor(color) }
+
+    // ── Navigation ──────
+
+    fun navigateTo(id: String) {
+        folderId = id
+        val wasShelf = shelf != Shelf.NONE
+        shelf = Shelf.NONE
+        pageIndex = 0
+        onFolderChanged(id)
+        if (wasShelf) onShelfChanged()
+        reload()
+    }
+
+    private fun navigateUp() {
+        if (folderId.isEmpty()) return
+        activity.lifecycleScope.launch {
+            val ancestry = withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            navigateTo(if (ancestry.size >= 2) ancestry[ancestry.size - 2].id else "")
+        }
+    }
+
+    private fun closeShelf() {
+        shelf = Shelf.NONE
+        pageIndex = 0
+        onShelfChanged()
+        reload()
+    }
+
+    private fun goToPage(index: Int) {
+        val clamped = GridMath.clampPage(index, pageCount)
+        if (clamped == pageIndex) return
+        pageIndex = clamped
+        activity.lifecycleScope.launch { bindCurrentPage() }
+    }
+
+    private fun applySort(field: SortField, order: SortOrder) {
+        prefs.sortField = field
+        prefs.sortOrder = order
+        pageIndex = 0
+        reload()
+    }
+
+    // ── Cards ──────
+
+    private fun onCardTap(card: LibraryCard) {
+        when (card) {
+            is LibraryCard.FolderCard -> navigateTo(card.id)
+            is LibraryCard.ItemCard -> onOpen(card.item)
+        }
+    }
+
+    private fun onCardLongPress(card: LibraryCard) {
+        val sheet = ActionSheetDialog(activity).title(card.name)
+        when (card) {
+            is LibraryCard.FolderCard -> sheet
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_edit, activity.getString(R.string.action_rename)) { showRenameFolder(card.folder) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_move_folder, activity.getString(R.string.action_move)) {
+                    moveLauncher.launch(FolderPickerActivity.moveIntent(activity, FolderPickerActivity.Hierarchy.LIBRARY, card.id, true, card.name, card.folder.parentId))
+                }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, store, card.id, card.name) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, activity.getString(R.string.default_template_action)) { onDefaultTemplate?.invoke(card.id, card.name) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteFolder(card.folder) }
+                .show()
+            is LibraryCard.ItemCard -> sheet
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pinned, activity.getString(if (card.pinned) R.string.action_unpin else R.string.action_pin)) { togglePin(card.id, card.pinned) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_edit, activity.getString(R.string.action_rename)) { showRenameItem(card.item) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_move_folder, activity.getString(R.string.action_move)) {
+                    moveLauncher.launch(FolderPickerActivity.moveIntent(activity, FolderPickerActivity.Hierarchy.LIBRARY, card.id, false, card.name, card.item.parentId))
+                }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteItem(card.item) }
+                .show()
+        }
+    }
+
+    /** The host's door to the template picker for a folder's default paper. */
+    var onDefaultTemplate: ((folderId: String, folderName: String) -> Unit)? = null
+
+    /** Told whenever a shelf opens or closes: the host's own buttons stand down on a shelf. */
+    var onShelfChanged: () -> Unit = {}
+
+    /** The root crumb's and any crumb's long press: the folder's say, as a sheet of its two rows. */
+    private fun showFolderSaySheet(id: String, name: String) {
+        ActionSheetDialog(activity).title(name)
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, store, id, name) }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, activity.getString(R.string.default_template_action)) { onDefaultTemplate?.invoke(id, name) }
+            .show()
+    }
+
+    private fun togglePin(id: String, pinned: Boolean) {
+        activity.lifecycleScope.launch {
+            withContext(Dispatchers.IO) { if (pinned) store.unpin(id) else store.pin(id) }
+            refresh()
+        }
+    }
+
+    private fun showRenameFolder(folder: Folder) {
+        var accepting = false
+        NameDialog.show(activity, R.string.rename_title, R.string.action_rename, folder.name) { name, dismiss ->
+            if (accepting) return@show
+            if (name == folder.name) { dismiss(); return@show }
+            TemplateNames.validate(name)?.let { problem ->
+                Dialogs.problem(activity, R.string.name_problem_title, NameDialog.problemMessage(activity, problem))
+                return@show
+            }
+            accepting = true
+            activity.lifecycleScope.launch {
+                try {
+                    if (withContext(Dispatchers.IO) { store.folderNameTaken(folder.parentId, name, folder.id) }) {
+                        Dialogs.problem(activity, R.string.name_problem_title, activity.getString(R.string.folder_duplicate_name, name))
+                        return@launch
+                    }
+                    withContext(Dispatchers.IO) { store.renameFolder(folder.id, name) }
+                    dismiss()
+                    refresh()
+                } finally {
+                    accepting = false
+                }
+            }
+        }
+    }
+
+    /** An item's name is its own words: through the seam's rule, into the file too. */
+    private fun showRenameItem(item: Item) {
+        var accepting = false
+        NameDialog.show(activity, R.string.rename_title, R.string.action_rename, item.name) { name, dismiss ->
+            if (accepting) return@show
+            if (name == item.name) { dismiss(); return@show }
+            val clean = runCatching { com.symmetricalpalmtree.soil.data.item.ItemNames.clean(name) }.getOrNull()
+            if (clean == null) {
+                Dialogs.problem(activity, R.string.name_problem_title, R.string.name_empty)
+                return@show
+            }
+            accepting = true
+            activity.lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        com.symmetricalpalmtree.soil.data.index.IndexStore().rename(item.id, clean, System.currentTimeMillis())
+                        ItemSessions.rename(item.id, clean)
+                    }
+                    ItemSessions.changed()
+                    dismiss()
+                    refresh()
+                } finally {
+                    accepting = false
+                }
+            }
+        }
+    }
+
+    private fun confirmDeleteItem(item: Item) {
+        if (ItemSessions.isHeld(item.id)) {
+            Dialogs.problem(activity, R.string.delete_item_open_title, activity.getString(R.string.delete_item_open_body, item.name))
+            return
+        }
+        confirm(R.string.delete_item_title, R.string.delete_item_body, item.name) {
+            activity.lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    if (store.deleteItem(item.id)) LibraryFiles.deleteItemFile(activity, item.id)
+                }
+                ItemSessions.changed()
+                refresh()
+            }
+        }
+    }
+
+    private fun confirmDeleteFolder(folder: Folder) = confirm(R.string.delete_folder_title, R.string.delete_folder_body, folder.name) {
+        activity.lifecycleScope.launch {
+            val gone = withContext(Dispatchers.IO) {
+                val ids = store.deleteFolderRecursive(folder.id)
+                ids.forEach { LibraryFiles.deleteItemFile(activity, it) }
+                ids
+            }
+            Slog.d(TAG) { "deleted a folder with ${gone.size} items" }
+            ItemSessions.changed()
+            if (folderId == folder.id) navigateTo(folder.parentId) else refresh()
+        }
+    }
+
+    private fun confirm(titleRes: Int, bodyRes: Int, name: String, onConfirm: () -> Unit) {
+        Dialogs.style(
+            AlertDialog.Builder(activity)
+                .setTitle(activity.getString(titleRes, name))
+                .setMessage(bodyRes)
+                .setPositiveButton(R.string.delete_confirm) { _, _ -> onConfirm() }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .create(),
+        ).show()
+    }
+
+    fun saveState(outState: Bundle) {
+        outState.putString(KEY_FOLDER, folderId)
+    }
+
+    fun restoreState(saved: Bundle?) {
+        saved?.getString(KEY_FOLDER)?.let { folderId = it }
+    }
+
+    private companion object {
+        const val TAG = "LibraryBrowser"
+        const val KEY_FOLDER = "libraryBrowser.folder"
+    }
+}

@@ -52,6 +52,22 @@ object Seam {
     const val EXTRA_STAGED_ID = "com.symmetricalpalmtree.soil.extra.STAGED_ID"
     const val EXTRA_SEED_NAME = "com.symmetricalpalmtree.soil.extra.SEED_NAME"
 
+    /**
+     * With [EXTRA_ITEM_ID] on an open: the paper Soil's New Notebook screen chose for the item's
+     * first page, a `TemplatePick` as encoded. The app resolves it as it resolves any pick.
+     */
+    const val EXTRA_TEMPLATE_PICK = "com.symmetricalpalmtree.soil.extra.TEMPLATE_PICK"
+
+    /**
+     * The action of Soil's item picker, started for a result by an app that needs an item of the
+     * library: the link picker's notebook shelves. [EXTRA_KIND] narrows it to one kind;
+     * [EXTRA_EXCLUDE_ITEM_ID] hides one item (the one the asking app has open). The answer is
+     * [EXTRA_ITEM_ID].
+     */
+    const val ACTION_PICK_ITEM = "com.symmetricalpalmtree.soil.action.PICK_ITEM"
+    const val EXTRA_KIND = "com.symmetricalpalmtree.soil.extra.KIND"
+    const val EXTRA_EXCLUDE_ITEM_ID = "com.symmetricalpalmtree.soil.extra.EXCLUDE_ITEM_ID"
+
     /** Whether [appPackage] and [hubPackage] are of the same build: a debug Soil opens debug apps
      *  and a release Soil release apps, so the two installs never cross. */
     fun sameBuild(hubPackage: String, appPackage: String): Boolean =

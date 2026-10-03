@@ -45,8 +45,14 @@ class SchemaTest {
     }
 
     @Test
-    fun theIndexIsAtVersionFive_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksAndTemplates() {
-        assertEquals(5, IndexSchema.SCHEMA.version)
+    fun theIndexIsAtVersionSix_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesAndFolders() {
+        assertEquals(6, IndexSchema.SCHEMA.version)
+        val library = IndexSchema.SCHEMA.steps[5].joinToString("\n")
+        assertTrue(library.contains("ADD COLUMN parentId TEXT NOT NULL DEFAULT ''"))
+        assertTrue(library.contains("ADD COLUMN cover BLOB"))
+        assertTrue(library.contains("CREATE TABLE folder ("))
+        assertTrue(library.contains("CREATE TABLE item_pin ("))
+        assertTrue(library.contains("CREATE TABLE folder_prefs ("))
         val templates = IndexSchema.SCHEMA.steps[4].joinToString("\n")
         assertTrue(templates.contains("CREATE TABLE template ("))
         assertTrue(templates.contains("CREATE TABLE template_folder ("))

@@ -31,14 +31,25 @@ object ItemFiles {
     private const val TAG = "ItemFiles"
 
     /** Make the file of a new item, at [schema], and close it. */
-    fun create(context: Context, id: String, name: String, createdAt: Long, schema: SeamSchema) {
+    fun create(context: Context, id: String, name: String, createdAt: Long, schema: SeamSchema) =
+        create(context, id, name, createdAt, schema.kind) { file, passphrase -> SoilDb.create(file, passphrase, Schema(schema.kind, schema.steps)) }
+
+    /**
+     * Make the file of a new item of [kind] with **no** steps of the app's run: Soil's own tables
+     * and nothing else, at version 0. The app that owns the kind brings it to its schema at its
+     * first open and writes the first page. What Soil's own screens make.
+     */
+    fun createEmpty(context: Context, id: String, name: String, createdAt: Long, kind: String) =
+        create(context, id, name, createdAt, kind) { file, passphrase -> SoilDb.createUnversioned(file, passphrase) }
+
+    private fun create(context: Context, id: String, name: String, createdAt: Long, kind: String, open: (java.io.File, String) -> ZeticDB) {
         val app = context.applicationContext
         val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
         val file = SoilFiles.itemFile(app, id)
-        val db = SoilDb.create(file, passphrase, Schema(schema.kind, schema.steps))
+        val db = open(file, passphrase)
         try {
             db.execSQL(ItemMeta.CREATE)
-            for ((key, value) in ItemMeta.rows(id, schema.kind, name, createdAt)) {
+            for ((key, value) in ItemMeta.rows(id, kind, name, createdAt)) {
                 db.execSQL(ItemMeta.PUT, arrayOf<Any>(key, value))
             }
             ownTables(db)
@@ -48,7 +59,7 @@ object ItemFiles {
         }
         // The file now has a salt: derive its key once, so every open after this is quick.
         KeyOpener.warm(app, id, file, passphrase)
-        Slog.d(TAG) { "made an item of kind ${schema.kind}" }
+        Slog.d(TAG) { "made an item of kind $kind" }
     }
 
     /**

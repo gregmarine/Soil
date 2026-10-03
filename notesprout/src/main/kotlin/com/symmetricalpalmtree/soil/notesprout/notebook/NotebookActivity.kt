@@ -371,10 +371,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 itemId = item.id
                 val store = NotebookStore(SeamRowStore(opened), item.id)
                 storeRef = store
+                // A file Soil made and nobody has written yet has no pages: it gets its first here,
+                // the size of this surface, like a notebook made by name.
                 val loaded = if (!newName.isNullOrBlank()) {
                     store.initialize(item.name, w, h).also { seam.setPageCount(item.id, 1) }
                 } else {
-                    store.load()
+                    try {
+                        store.load()
+                    } catch (e: NotebookStore.NoPages) {
+                        store.initialize(item.name, w, h).also { seam.setPageCount(item.id, 1) }
+                    }
                 }
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPageCount(item.id, pages) } }
@@ -384,6 +390,21 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 document.measureHeading = { h -> HeadingRenderer.measure(h.text, density, scaledDensity).let { (w, hh) -> if (w == h.width && hh == h.height) h else h.copy(width = w, height = hh) } }
                 document.measureText = { t, pageW -> TextRenderer.measure(t.text, (pageW - t.x).toInt(), density, scaledDensity).let { (w, hh) -> if (w == t.width && hh == t.height) t else t.copy(width = w, height = hh) } }
                 document.load(loaded)
+                // Soil's New Notebook chose the paper: the first page takes it, as any pick is
+                // taken, and not as an undo step. Consumed once.
+                intent.getStringExtra(Seam.EXTRA_TEMPLATE_PICK)?.let { encoded ->
+                    intent.removeExtra(Seam.EXTRA_TEMPLATE_PICK)
+                    val pick = TemplatePick.decode(encoded)
+                    if (pick != null && pick !is TemplatePick.Blank) {
+                        runCatching {
+                            val paper = paperOf(pick)
+                            if (paper != null) {
+                                document.changeTemplate(paper, resources.displayMetrics.densityDpi.toFloat())
+                                runCatching { seam.templateUsed(pick.cardId) }
+                            }
+                        }.onFailure { Log.w(TAG, "the new notebook's paper could not be laid: ${it.javaClass.simpleName}") }
+                    }
+                }
                 // Opened via a link: land on the page the link named, once. Any other open
                 // starts a new story, and the old trail would walk back into someone else's.
                 val initialPage = intent.getStringExtra(EXTRA_INITIAL_PAGE_ID)
@@ -1505,6 +1526,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     override fun onStop() {
         super.onStop()
         val open = session ?: return
+        // The cover on every way out but a hand-off to a screen of this app's own, the close
+        // included: a notebook put down shows the library what it last showed.
+        if (!inAppHandoff) captureCover()
         if (closing || inAppHandoff) return
         // After the pause flush, which holds the same lock and was queued first.
         appScope.launch {
@@ -1512,6 +1536,27 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 pageOps.withLock {
                     withContext(Dispatchers.IO) { runCatching { open.park() }.onFailure { Log.w(TAG, "park failed: ${it.javaClass.simpleName}") } }
                 }
+            }
+        }
+    }
+
+    /**
+     * The library card's cover: the showing page as the engine has it, rendered here on Main
+     * (a frame of the window, not of the panel), encoded and sent off it. Never while the pen is
+     * down, and never worth failing a park for.
+     */
+    private fun captureCover() {
+        if (!opened || paper.isPenActive) return
+        val id = itemId ?: return
+        val full = runCatching { paper.renderToBitmap() }.getOrNull() ?: return
+        appScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = CoverSnapshot.encode(full)
+                (application as NotesproutApp).soil.seam().setCover(id, com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes))
+            } catch (e: Exception) {
+                Log.w(TAG, "the cover was not written: ${e.javaClass.simpleName}")
+            } finally {
+                full.recycle()
             }
         }
     }

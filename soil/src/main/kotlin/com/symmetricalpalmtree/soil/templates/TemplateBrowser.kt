@@ -455,7 +455,7 @@ class TemplateBrowser(
     }
 
     private fun showMovePicker(row: TemplateRow) =
-        moveLauncher.launch(TemplateFolderPickerActivity.moveIntent(activity, row.id, row.isFolder, row.name, row.parentId))
+        moveLauncher.launch(com.symmetricalpalmtree.soil.library.FolderPickerActivity.moveIntent(activity, com.symmetricalpalmtree.soil.library.FolderPickerActivity.Hierarchy.TEMPLATES, row.id, row.isFolder, row.name, row.parentId))
 
     // ── Sort ──────
 
