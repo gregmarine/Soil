@@ -121,10 +121,26 @@ object SchemeBuilderDialog {
             setOnClickListener { onTap() }
         }
 
+        /** A text part is edited in place: emptied, it goes; a token part goes at a tap. */
+        fun editLiteral(index: Int) {
+            val current = (parts.getOrNull(index) as? SchemeEngine.Part.Literal)?.text ?: return
+            com.symmetricalpalmtree.soil.templates.NameDialog.show(activity, R.string.scheme_literal_hint, R.string.scheme_save, current, R.string.scheme_literal_hint) { typed, dismiss ->
+                if (typed.isEmpty()) { parts.removeAt(index); render(); dismiss(); return@show }
+                if (!TemplateNames.CHARSET.matches(typed)) { Dialogs.problem(activity, R.string.scheme_problem_title, R.string.err_scheme_illegal_char); return@show }
+                val next = parts.toMutableList().also { it[index] = SchemeEngine.Part.Literal(typed) }
+                val problem = SchemeEngine.validate(encode(next))
+                if (problem != null) { Dialogs.problem(activity, R.string.scheme_problem_title, message(activity, problem)); return@show }
+                parts[index] = SchemeEngine.Part.Literal(typed)
+                render()
+                dismiss()
+            }
+        }
+
         fun render() {
             schemeRow.removeAllViews()
             parts.forEachIndexed { i, p ->
-                schemeRow.addView(chip(label(activity, p) + "  ×") { parts.removeAt(i); render() })
+                if (p is SchemeEngine.Part.Literal) schemeRow.addView(chip(label(activity, p)) { editLiteral(i) })
+                else schemeRow.addView(chip(label(activity, p) + "  ×") { parts.removeAt(i); render() })
             }
             val scheme = encode(parts)
             preview.text = if (parts.isEmpty()) activity.getString(R.string.scheme_preview_none) else {
