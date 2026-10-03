@@ -166,5 +166,8 @@ object IndexSchema {
                updatedAt INTEGER NOT NULL);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8))
+    /** Export presets were set aside before they shipped (2026-10-03, `BACKLOG.md`); the table goes. */
+    private val V9 = listOf("DROP TABLE IF EXISTS export_preset;")
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8, V9))
 }

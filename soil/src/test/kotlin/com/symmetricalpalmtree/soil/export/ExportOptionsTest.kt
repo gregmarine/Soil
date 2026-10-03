@@ -80,16 +80,6 @@ class ExportOptionsTest {
         org.junit.Assert.assertThrows(IllegalArgumentException::class.java) { ExportKeying.plan("other", false) }
     }
 
-    @Test fun `a preset round-trips and lists for the formats in front`() {
-        val p = ExportPreset(exporter = "com.x.pdf", values = mapOf("template" to "0"))
-        assertEquals(p, ExportPreset.decode(ExportPreset.encode(p)))
-        assertEquals(null, ExportPreset.decode("{\"exporter\":\"\"}"))
-        assertEquals(null, ExportPreset.decode("nonsense"))
-        val rows = listOf(ExportPresets.Row("1", "A", p), ExportPresets.Row("2", "B", ExportPreset(exporter = "com.x.png")))
-        assertEquals(listOf("1"), ExportPresets.listable(rows, setOf("com.x.pdf")).map { it.id })
-        assertEquals(p, ExportPresets.capture(ExportPresets.apply(p)))
-    }
-
     @Test fun `a bundle splits into one-page bundles`() {
         val out = java.io.ByteArrayOutputStream()
         PageBundle.Writer(out, 2, listOf(PageBundle.Link(1, 0f, 0f, 1f, 1f, 2))).use { it.writePage(1, 1, byteArrayOf(1)); it.writePage(2, 2, byteArrayOf(2)) }

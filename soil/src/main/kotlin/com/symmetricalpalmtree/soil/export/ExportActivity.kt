@@ -53,11 +53,10 @@ import java.io.File
  * Reached from the library's item sheet, and from an app's page sheet with [Seam.ACTION_EXPORT]
  * for one page of the item; an app that closed its item to export it is reopened on the way out.
  */
-class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
+class ExportActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityExportBinding
     private lateinit var panel: ExportPanel
-    private lateinit var presets: ExportPresetRow
     private val prefs by lazy { SettingsPrefs(this) }
 
     private lateinit var itemId: String
@@ -76,7 +75,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
     private var candidates: List<Candidate> = emptyList()
     private var chosenPackage: String? = null
     private val values = LinkedHashMap<String, String>()
-    private var applyingPreset = false
 
     private var busy = false
     private var discovering = false
@@ -112,7 +110,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
         setContentView(binding.root)
         TopGuard.applyInsetPadding(binding.root)
         panel = ExportPanel(this)
-        presets = ExportPresetRow(this, panel, binding.presets, this)
         binding.btnBack.setOnClickListener { if (busy) showBusyGuard() else finish() }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { if (busy) showBusyGuard() else finish() }
@@ -124,7 +121,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
             chosenPackage = state.getString(KEY_PACKAGE)
             if (state.getBoolean(KEY_SCOPE_WHOLE)) scope = ExportScope.Whole
             state.getBundle(KEY_VALUES)?.let { b -> b.keySet().forEach { k -> b.getString(k)?.let { values[k] = it } } }
-            presets.selectedId = state.getString(KEY_PRESET)
         }
         discover()
     }
@@ -144,7 +140,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
         outState.putString(KEY_PACKAGE, chosenPackage)
         outState.putBoolean(KEY_SCOPE_WHOLE, scope is ExportScope.Whole)
         outState.putBundle(KEY_VALUES, Bundle().also { b -> values.forEach { (k, v) -> b.putString(k, v) } })
-        if (::presets.isInitialized) outState.putString(KEY_PRESET, presets.selectedId)
     }
 
     /** An app that closed its item for this export gets it back, at the page it was on. */
@@ -166,7 +161,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
             val kept = try { loadCandidates() } finally { discovering = false }
             if (busy || isFinishing || isDestroyed) return@launch
             candidates = kept
-            presets.reload()
             Slog.d(TAG) { "${kept.size} usable exporter(s)" }
             if (kept.isEmpty()) { problemAndClose(R.string.export_none_title, R.string.export_none_body); return@launch }
             reselect()
@@ -185,7 +179,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
         if (next == scope) return
         scope = next
         candidates = listedNow()
-        presets.recut()
         if (candidates.isEmpty()) { problemAndClose(R.string.export_none_title, R.string.export_none_body); return }
         reselect()
     }
@@ -245,7 +238,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
 
     private fun render() {
         val c = current() ?: return
-        presets.render()
         binding.scope.removeAllViews()
         val scopeVisible = scopeRowVisible()
         binding.scope.visibility = if (scopeVisible) View.VISIBLE else View.GONE
@@ -261,7 +253,7 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
         } else {
             for (candidate in candidates) {
                 val checked = candidate.extension.packageName == chosenPackage
-                binding.chooser.addView(panel.choice(candidate.info.formatLabel, checked) { if (!checked) { handChanged(); select(candidate, keepValues = false) } })
+                binding.chooser.addView(panel.choice(candidate.info.formatLabel, checked) { if (!checked) select(candidate, keepValues = false) })
             }
         }
         binding.options.removeAllViews()
@@ -275,12 +267,12 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
                 d.kind == ExportContract.KIND_SINGLE_CHOICE -> {
                     binding.options.addView(panel.caption(d.label))
                     d.choiceIds.forEachIndexed { i, choiceId ->
-                        binding.options.addView(panel.choice(d.choiceLabels[i], values[d.id] == choiceId) { handChanged(); values[d.id] = choiceId; render() })
+                        binding.options.addView(panel.choice(d.choiceLabels[i], values[d.id] == choiceId) { values[d.id] = choiceId; render() })
                     }
                 }
                 d.kind == ExportContract.KIND_TOGGLE -> {
                     val on = values[d.id] == "1"
-                    binding.options.addView(panel.toggle(d.label, on) { handChanged(); values[d.id] = if (on) "0" else "1"; render() })
+                    binding.options.addView(panel.toggle(d.label, on) { values[d.id] = if (on) "0" else "1"; render() })
                 }
             }
         }
@@ -292,8 +284,6 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
         binding.editPassphraseConfirm.setHint(if (protect) R.string.export_password_confirm_hint else R.string.export_passphrase_confirm_hint)
         binding.plainWarning.visibility = if (ExportOptions.showsPlainWarning(info, values)) View.VISIBLE else View.GONE
     }
-
-    private fun handChanged() { if (!applyingPreset) presets.onHandChange() }
 
     // ── Progress ──────
 
@@ -632,32 +622,11 @@ class ExportActivity : AppCompatActivity(), ExportPresetRow.Host {
             .also { it.setOnDismissListener { finish() } }.show()
     }
 
-    // ── Presets ──────
-
-    override fun currentState(): ExportPresets.State? = current()?.let { ExportPresets.State(it.extension.packageName, LinkedHashMap(values)) }
-    override fun listedPackages(): Set<String> = candidates.map { it.extension.packageName }.toSet()
-    override fun applyPreset(state: ExportPresets.State) {
-        applyingPreset = true
-        try {
-            chosenPackage = state.exporter
-            values.clear()
-            values.putAll(state.values)
-            binding.editPassphrase.setText("")
-            binding.editPassphraseConfirm.setText("")
-            val c = current() ?: return
-            select(c, keepValues = true)
-        } finally {
-            applyingPreset = false
-        }
-    }
-    override fun presetsChanged() = render()
-
     companion object {
         private const val TAG = "ExportActivity"
         private const val KEY_PACKAGE = "export.package"
         private const val KEY_VALUES = "export.values"
         private const val KEY_SCOPE_WHOLE = "export.scopeWhole"
-        private const val KEY_PRESET = "export.preset"
 
         fun intent(context: Context, itemId: String, pageId: String? = null, returnToApp: Boolean = false): Intent =
             Intent(context, ExportActivity::class.java)

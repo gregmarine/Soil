@@ -120,3 +120,15 @@ are found, he decides then what becomes of them (dropped, or shapes brought back
   nothing but text, so a text PDF belongs with that app.
 - **The cloud destination** of the export screen, and the cloud source of import, come with
   phase 12.
+
+---
+
+## Export presets
+
+**Set aside 2026-10-03, at the phase 11 walk.**
+
+Built as in Notesprout SN (a named set of exporter and option values, a row of radios above the
+formats, a long press to rename or delete) and taken out before it was walked: the SN shape was
+never liked, and the direction is undecided. Nothing of it remains but the index step that made
+its table and the one that drops it. When it comes back it starts from the question of what a
+preset is for, not from the SN screen.

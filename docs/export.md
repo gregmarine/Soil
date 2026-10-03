@@ -9,7 +9,7 @@ Soil keys and prepares; an extension only ever streams bytes between two file de
 | Part | Where | What it does |
 |---|---|---|
 | The exporter and importer points | `:ext-api` | `IExporter` (describe, export) and `IImporter` (describe, importDocument), their descriptors, the page bundle |
-| `ExportActivity` | `:soil` | The export screen: presets, scope, format, the format's options, the password block |
+| `ExportActivity` | `:soil` | The export screen: scope, format, the format's options, the password block |
 | `ImportFlow` | `:soil` | The library's Import button and the whole import pipeline |
 | `IItemRenderer` | `:seam` | What a Sprout app offers Soil: its pages as names, as a rendered bundle, and the statements that relabel its file |
 | `RenderService` | `:notesprout` | Notesprout's renderer |
@@ -54,12 +54,11 @@ to another page of the same item becomes a jump too.
 
 Reached from an item's long-press sheet in the library, and from an app's page sheet with
 `Seam.ACTION_EXPORT`; an app closes its item first so the file is free, and Soil reopens it on
-the way back (`EXTRA_RETURN_TO_APP`). Rows, top to bottom: presets (None and every saved preset
-for the formats in front, a long press to rename or delete, Save under them); the scope (this
+the way back (`EXTRA_RETURN_TO_APP`). Rows, top to bottom: the scope (this
 page or the whole item, only from a page sheet and only when a pages exporter is installed);
 the format, a plain label with one exporter; the format's options; the passphrase or password
-block; the plain-text warning. The last exporter used is remembered. Presets are rows of the
-index (`export_preset`, schema version 8).
+block; the plain-text warning. The last exporter used is remembered. Export presets were set aside before the walk
+(`BACKLOG.md`); the index step that made their table is followed by one that drops it.
 
 The file export: the item is refused while an app holds it open; its meta table is stamped
 with the library's name for it and the folders it is in; the file is checkpointed, copied into

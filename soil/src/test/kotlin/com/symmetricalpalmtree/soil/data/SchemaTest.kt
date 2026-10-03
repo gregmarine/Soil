@@ -46,7 +46,7 @@ class SchemaTest {
 
     @Test
     fun theIndexIsAtVersionSeven_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesFoldersClipboardTagsAndPages() {
-        assertEquals(8, IndexSchema.SCHEMA.version)
+        assertEquals(9, IndexSchema.SCHEMA.version)
         val held = IndexSchema.SCHEMA.steps[6].joinToString("\n")
         assertTrue(held.contains("CREATE TABLE clipboard ("))
         assertTrue(held.contains("kind TEXT PRIMARY KEY"))
