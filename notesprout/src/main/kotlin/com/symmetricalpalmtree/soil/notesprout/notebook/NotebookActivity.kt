@@ -2026,8 +2026,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
 
     // ── The app in front ──────
 
-    /** Whether the pen is down or hovering; the menu stays away while it is. */
-    fun penIsActive(): Boolean = opened && paper.isPenActive
+    /** Whether the pen is down, hovering, or just lifted; the menu stays away while it is. */
+    fun penIsActive(): Boolean = opened && penRecentlyActive()
 
     /** Let the panel go for a frame: the side menu is about to be drawn over this screen. */
     fun letPanelGo() {
