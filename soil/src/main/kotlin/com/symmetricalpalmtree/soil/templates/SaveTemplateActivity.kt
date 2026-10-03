@@ -75,8 +75,9 @@ class SaveTemplateActivity : AppCompatActivity() {
                 }
             }
             if (problem != null) {
-                Dialogs.problem(this@SaveTemplateActivity, R.string.name_problem_title, getString(problem, name))
-                askName(name, folder)
+                // The refusal first, the name again only once it has been read: the two in one
+                // beat left the name dialog over the words that explained it.
+                Dialogs.confirm(this@SaveTemplateActivity, getString(R.string.name_problem_title), getString(problem, name)) { askName(name, folder) }
                 return@launch
             }
             withContext(Dispatchers.IO) { TemplateStore().createTemplate(name, folder, TemplateFit.FIT, image) }
