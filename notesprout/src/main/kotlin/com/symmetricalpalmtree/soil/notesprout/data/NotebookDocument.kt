@@ -416,6 +416,10 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
                 store.moveLinks(a.linkIds, -a.dx, -a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.heading.id), emptyList()) }
+            is NotebookAction.Converted -> objects(a.pageId) {
+                a.ink?.let { ink.revert(it) }
+                store.deleteObjects(listOfNotNull(a.heading?.id, a.text?.id), emptyList())
+            }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.before) }
             is NotebookAction.TextCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.text.id), emptyList()) }
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.before) }
@@ -445,6 +449,11 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
                 store.moveLinks(a.linkIds, a.dx, a.dy)
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { store.restoreHeading(a.pageId, a.heading) }
+            is NotebookAction.Converted -> objects(a.pageId) {
+                a.ink?.let { ink.reapply(it) }
+                a.heading?.let { store.restoreHeading(a.pageId, it) }
+                a.text?.let { store.restoreText(a.pageId, it) }
+            }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.after) }
             is NotebookAction.TextCreated -> objects(a.pageId) { store.restoreText(a.pageId, a.text) }
             is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.after) }

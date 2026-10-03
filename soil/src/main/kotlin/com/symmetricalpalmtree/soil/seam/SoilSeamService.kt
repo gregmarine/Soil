@@ -13,6 +13,12 @@ import com.symmetricalpalmtree.soil.data.index.TemplateStore
 import com.symmetricalpalmtree.soil.data.index.ClipStore
 import com.symmetricalpalmtree.soil.data.index.TagStore
 import com.symmetricalpalmtree.soil.templates.TextStaging
+import com.symmetricalpalmtree.soil.ext.ExtContract
+import com.symmetricalpalmtree.soil.ext.InkStroke
+import com.symmetricalpalmtree.soil.ext.RecognizerBinder
+import com.symmetricalpalmtree.soil.ext.RecognizerCallFailed
+import com.symmetricalpalmtree.soil.ext.Recognizers
+import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.templates.TemplatePrefs
 import com.symmetricalpalmtree.soil.templates.TemplateStaging
 import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
@@ -196,6 +202,82 @@ class SoilSeamService : Service() {
             com.symmetricalpalmtree.soil.pad.PadTransfer.takeOutgoing()?.let { SeamShared.write(it).also { region -> sent.set(region) } }
         }
 
+        // ── Recognition, relayed to the chosen recogniser ──────
+
+        override fun recognizer(): SeamRecognizer? = answered {
+            Recognizers.chosen(this@SoilSeamService)?.let { SeamRecognizer(it.recognizer.label, it.languageTag) }
+        }
+
+        override fun recognizerStatus(): Int = answered {
+            val choice = Recognizers.chosen(this@SoilSeamService) ?: throw IllegalStateException(SeamLimits.NO_RECOGNIZER)
+            relay { RecognizerBinder.call(this@SoilSeamService, choice.recognizer.component, STATUS_TIMEOUT_MS) { ExtContract.status(it.status(choice.languageTag)) } }
+        }
+
+        override fun prepareRecognizer() = answered {
+            val choice = Recognizers.chosen(this@SoilSeamService) ?: throw IllegalStateException(SeamLimits.NO_RECOGNIZER)
+            relay { RecognizerBinder.call(this@SoilSeamService, choice.recognizer.component, STATUS_TIMEOUT_MS) { it.prepare(choice.languageTag) } }
+        }
+
+        override fun recognizeInk(ink: SeamBytes, areaWidth: Float, areaHeight: Float, preContext: String): String = answered {
+            val choice = Recognizers.chosen(this@SoilSeamService) ?: throw IllegalStateException(SeamLimits.NO_RECOGNIZER)
+            val strokes = inkOf(ink)
+            require(areaWidth > 0f && areaHeight > 0f) { "non-positive writing area" }
+            val pre = preContext.takeLast(ExtContract.MAX_PRECONTEXT_CHARS)
+            relay {
+                RecognizerBinder.call(this@SoilSeamService, choice.recognizer.component, INK_TIMEOUT_MS) {
+                    it.recognizeInk(choice.languageTag, strokes, areaWidth, areaHeight, pre)
+                }
+            }.orEmpty().take(ExtContract.MAX_RECOGNIZED_CHARS)
+        }
+
+        override fun recognizePage(ink: SeamBytes, pageWidth: Float, pageHeight: Float): String = answered {
+            val choice = Recognizers.chosen(this@SoilSeamService) ?: throw IllegalStateException(SeamLimits.NO_RECOGNIZER)
+            val strokes = inkOf(ink)
+            require(pageWidth > 0f && pageHeight > 0f) { "non-positive page size" }
+            relay {
+                RecognizerBinder.call(this@SoilSeamService, choice.recognizer.component, PAGE_TIMEOUT_MS) {
+                    it.recognizePage(choice.languageTag, strokes, pageWidth, pageHeight)
+                }
+            }.orEmpty().take(ExtContract.MAX_RECOGNIZED_CHARS)
+        }
+
+        /** The geometry of an `InkWire` document as the recogniser takes it, under the caps. */
+        private fun inkOf(ink: SeamBytes): List<InkStroke> {
+            val bundle = InkWire.decode(SeamShared.readAndClose(ink)) ?: throw IllegalArgumentException("unreadable ink")
+            require(bundle.strokes.size <= ExtContract.MAX_INK_STROKES) { SeamLimits.INK_TOO_LARGE }
+            var points = 0
+            val out = ArrayList<InkStroke>(bundle.strokes.size)
+            for (s in bundle.strokes) {
+                val n = s.points.size
+                if (n == 0) continue
+                points += n
+                require(points <= ExtContract.MAX_INK_POINTS) { SeamLimits.INK_TOO_LARGE }
+                val x = FloatArray(n)
+                val y = FloatArray(n)
+                for (i in 0 until n) { x[i] = s.points[i].x; y[i] = s.points[i].y }
+                out += InkStroke(x, y)
+            }
+            require(out.isNotEmpty()) { SeamLimits.INK_TOO_LARGE }
+            return out
+        }
+
+        /** A recogniser's refusals as the seam's: not ready by its exact message, too much ink, else failed. */
+        private fun <T> relay(block: () -> T): T = try {
+            block()
+        } catch (e: IllegalStateException) {
+            if (e.message == ExtContract.NOT_READY) throw IllegalStateException(SeamLimits.RECOGNIZER_NOT_READY)
+            Slog.d(TAG) { "the recogniser failed: ${e.message}" }
+            throw IllegalStateException(SeamLimits.RECOGNITION_FAILED)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException(SeamLimits.INK_TOO_LARGE)
+        } catch (e: SecurityException) {
+            Slog.d(TAG) { "the recogniser refused Soil" }
+            throw IllegalStateException(SeamLimits.RECOGNITION_FAILED)
+        } catch (e: RecognizerCallFailed) {
+            Slog.d(TAG) { "the recogniser did not answer: ${e.message}" }
+            throw IllegalStateException(SeamLimits.RECOGNITION_FAILED)
+        }
+
         /** Hand a region back once the reply that carries it has been written. */
         override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean =
             try {
@@ -283,5 +365,9 @@ class SoilSeamService : Service() {
         const val MAX_COVER_BYTES = 1024 * 1024
         /** Pages one item may list: far past any real notebook, and a bound on one call's parcel. */
         const val MAX_PAGES = 20_000
+        const val STATUS_TIMEOUT_MS = 2_000L
+        const val INK_TIMEOUT_MS = 10_000L
+        /** One call per line, and the first call after the recogniser's start also loads the model. */
+        const val PAGE_TIMEOUT_MS = 30_000L
     }
 }

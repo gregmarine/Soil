@@ -140,10 +140,11 @@ class HomeActivity : AppCompatActivity() {
         // screen that opens it.
         binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
         binding.btnEncryption.setOnClickListener { Screens.open(this, Screen.ENCRYPTION) }
+        binding.btnSettings.setOnClickListener { startActivity(Intent(this, com.symmetricalpalmtree.soil.settings.SettingsActivity::class.java)) }
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnEncryption)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnSettings, binding.btnEncryption)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)

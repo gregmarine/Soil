@@ -39,6 +39,9 @@ sealed interface NotebookAction {
 
     class HeadingCreated(val pageId: String, val heading: Heading) : NotebookAction
 
+    /** Ink recognised into a heading or a text: the strokes it consumed and the object made, one step. */
+    class Converted(val pageId: String, val ink: InkAction.Erased?, val heading: Heading?, val text: PageText?) : NotebookAction
+
     /** An edit of the words or the level; both sides carry the whole heading. */
     class HeadingEdited(val pageId: String, val before: Heading, val after: Heading) : NotebookAction
 

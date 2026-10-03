@@ -164,6 +164,12 @@
         </activity>
 
         <activity
+            android:name=".settings.SettingsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".library.FolderPickerActivity"
             android:exported="false"
             android:excludeFromRecents="true"

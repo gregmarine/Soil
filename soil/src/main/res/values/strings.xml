@@ -381,4 +381,15 @@
     <string name="scratch_too_large_body">This holds more ink than one send can carry. Send a smaller part of it.</string>
     <string name="scratch_received_failed_title">Scratch Pad</string>
     <string name="scratch_received_failed_body">The ink sent to the pad could not be placed. Nothing was changed.</string>
+
+    <!-- Settings -->
+    <string name="cd_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_recognizer">Handwriting recognition</string>
+    <string name="settings_recognizer_value">%1$s · %2$s</string>
+    <string name="settings_recognizer_none">None</string>
+    <string name="settings_recognizer_none_installed">No recogniser is installed</string>
+    <string name="settings_recognizer_none_installed_body">Install Soil · Handwriting to recognise ink. It appears here once it is installed.</string>
+    <string name="settings_templates">Templates</string>
+    <string name="settings_templates_detail">The paper library: browse, import and export</string>
 </resources>

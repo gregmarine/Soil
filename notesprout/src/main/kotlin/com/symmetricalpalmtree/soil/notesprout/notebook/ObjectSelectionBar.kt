@@ -20,8 +20,8 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  * The lasso's bar over the notebook: what can be done with what was caught. The buttons that do
  * not apply to a selection are absent, never greyed.
  *
- * - **H** on a lone heading: the H1–H6 sub-bar picks its level. (On ink it will convert the ink,
- *   once recognition arrives.)
+ * - **H** on a lone heading: the H1–H6 sub-bar picks its level. On ink alone, the level the ink
+ *   is recognised into a heading at. **Make text** on ink alone: recognised into a text object.
  * - **Link** on anything that holds no link: wrap it into one.
  * - **Edit link** and **Unlink** on a lone link. A selection that holds a link among other
  *   things can only be deleted: a link is never nested.
@@ -48,6 +48,8 @@ class ObjectSelectionBar(
     private val onTag: () -> Unit,
     /** Ink alone: a copy to the Scratch Pad. */
     private val onSend: () -> Unit,
+    /** Ink alone: recognised into a text object. */
+    private val onMakeText: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
@@ -56,6 +58,7 @@ class ObjectSelectionBar(
     private val unlinkButton: AppCompatImageButton
     private val tagButton: AppCompatImageButton
     private val sendButton: AppCompatImageButton
+    private val textButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -67,6 +70,8 @@ class ObjectSelectionBar(
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cut, ctx.getString(R.string.cut_objects_action)) { onCopy(true) })
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
         bar.addView(headingButton)
+        textButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, ctx.getString(R.string.text_convert_action)) { onMakeText() }
+        bar.addView(textButton)
         linkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, ctx.getString(R.string.link_action)) { onLink() }
         bar.addView(linkButton)
         editLinkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_edit, ctx.getString(R.string.link_edit_action)) { onEditLink() }
@@ -90,13 +95,15 @@ class ObjectSelectionBar(
 
     fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?) {
         val band = band() ?: return
-        headingButton.visibility = if (mode == SelectionMode.HEADING) View.VISIBLE else View.GONE
+        // H on a heading changes its level; on ink alone it recognises the ink into one.
+        headingButton.visibility = if (mode == SelectionMode.HEADING || mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
+        textButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
         val wrappable = mode != SelectionMode.LINK && mode != SelectionMode.MIXED_WITH_LINK
         linkButton.visibility = if (wrappable) View.VISIBLE else View.GONE
         editLinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
         unlinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
         // Recognition is not here yet: only the silent flow, a lone heading, is offered.
-        tagButton.visibility = if (TagSelection.offered(mode, recognitionAvailable = false)) View.VISIBLE else View.GONE
+        tagButton.visibility = if (TagSelection.offered(mode, recognitionAvailable = true)) View.VISIBLE else View.GONE
         sendButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
         subBar.visibility = View.GONE
         levelButtons.forEachIndexed { i, b -> b.isSelected = (i + 1) == currentLevel }

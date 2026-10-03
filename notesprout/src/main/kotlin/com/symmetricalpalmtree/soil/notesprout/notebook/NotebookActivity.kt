@@ -65,6 +65,8 @@ import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
 import com.symmetricalpalmtree.soil.seam.TagRules
 import com.symmetricalpalmtree.soil.paper.ink.InkWire
+import com.symmetricalpalmtree.soil.notesprout.recognition.InkRecognition
+import com.symmetricalpalmtree.soil.notesprout.recognition.SeamRecognizerPort
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
@@ -329,6 +331,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             onCopy = { cut -> currentSelection?.let { doObjectCopy(it, cut) } },
             onTag = { currentSelection?.let { tagSelection(it) } },
             onSend = { currentSelection?.let { askPadPlacement(it) } },
+            onMakeText = { currentSelection?.let { convertToText(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -834,9 +837,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         })
     }
 
+    /** An H1–H6 tap: a lone heading changes level; ink alone is recognised into a heading at that level. */
     private fun setHeadingLevel(level: Int) {
         val doc = document ?: return
-        val id = currentSelection?.contentIds?.singleOrNull() ?: return
+        val sel = currentSelection ?: return
+        if (sel.contentIds.isEmpty() && sel.strokeIds.isNotEmpty()) { convertToHeading(sel, level); return }
+        val id = sel.contentIds.singleOrNull() ?: return
         val before = doc.headings[id] ?: return
         if (before.level == level) return
         val text = HeadingPrefix.applyLevel(HeadingPrefix.stripHeadingPrefix(before.text), level)
@@ -1500,6 +1506,91 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
     }
 
+    // ── Recognition ──────
+
+    private val recognizerPort by lazy { SeamRecognizerPort { (application as NotesproutApp).soil.seam() } }
+
+    /** The selection's ink in writing order: the recogniser reads a sequence. */
+    private fun inkOf(doc: NotebookDocument, sel: Selection): List<Stroke> = doc.strokes.filter { it.id in sel.strokeIds }
+
+    /**
+     * H on ink: recognise the lassoed handwriting into a heading at [level]. Everything the
+     * creation needs is captured now, since the selection may die before the answer comes. On
+     * failure the ink is left as it was, and the flow has said why.
+     */
+    private fun convertToHeading(sel: Selection, level: Int) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val strokes = inkOf(doc, sel)
+        if (strokes.isEmpty()) return
+        val bounds = sel.bounds
+        InkRecognition.run(this, recognizerPort, strokes, bounds.width, bounds.height, onRecognized = { title ->
+            val text = HeadingPrefix.applyLevel(title, level)
+            val (w, h) = HeadingRenderer.measure(text, density, scaledDensity)
+            val heading = Heading(UUID.randomUUID().toString(), text, level, bounds.left, bounds.top, w, h, 0)
+            placeConverted(pageId, strokes.map { it.id }, heading = heading, text = null)
+        })
+    }
+
+    /** Make text: the same flow, the recogniser's line breaks kept, into a text object at the ink's top-left. */
+    private fun convertToText(sel: Selection) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val strokes = inkOf(doc, sel)
+        if (strokes.isEmpty()) return
+        val bounds = sel.bounds
+        InkRecognition.run(this, recognizerPort, strokes, bounds.width, bounds.height, multiLine = true, onRecognized = { source ->
+            val pageW = doc.pageWidth
+            val (w, h) = TextRenderer.measure(source, (pageW - bounds.left).toInt().coerceAtLeast(1), density, scaledDensity)
+            val text = PageText(UUID.randomUUID().toString(), source, bounds.left, bounds.top, w, h, 0)
+            placeConverted(pageId, strokes.map { it.id }, heading = null, text = text)
+        })
+    }
+
+    /**
+     * The success half of a conversion: the consumed ink erased, the object made, one undo step,
+     * and the object landed selected through the dismissal the stroke removal performs, so a
+     * smart-lasso session stays alive across it (the wrap's rule).
+     */
+    private fun placeConverted(pageId: String, strokeIds: List<String>, heading: Heading?, text: PageText?) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val ink = doc.erase(strokeIds)
+            val placedHeading = heading?.let { doc.createHeading(it) }
+            val placedText = text?.let { doc.createText(it) }
+            undo.record(NotebookAction.Converted(pageId, ink, placedHeading, placedText))
+            doc.flushUntilClean()
+            val landed: Pair<String, Bounds>? = placedHeading?.let { it.id to it.bounds } ?: placedText?.let { it.id to it.bounds }
+            pendingSelection = landed?.let { (id, b) -> { selectObject(id, b) } }
+            if (strokeIds.isNotEmpty()) paper.removeStrokes(strokeIds) else paper.clearSelection()
+            pendingSelection?.let { pendingSelection = null; it() }
+            paper.notifyContentChanged()
+            refreshContents()
+            Slog.d(TAG) { "converted ${strokeIds.size} strokes" }
+        }
+    }
+
+    /** Tag on ink: recognised, then the tag screen opens prefilled for the person to correct. */
+    private fun tagFromInk(sel: Selection) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val strokes = inkOf(doc, sel)
+        if (strokes.isEmpty()) return
+        val bounds = sel.bounds
+        InkRecognition.run(this, recognizerPort, strokes, bounds.width, bounds.height, onRecognized = { words ->
+            val prefill = TagRules.prefill(words)
+            lifecycleScope.launch {
+                val staged = if (prefill == null) null else runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().stageText(prefill) } }.getOrNull()
+                paper.clearSelection()
+                openTags(pageTarget = true, mode = Seam.TAG_MODE_ADD, stagedId = staged)
+            }
+        })
+    }
+
     // ── The Scratch Pad ──────
 
     /** Send on the bar: where the ink lands on the pad, then the send. The strokes are read now:
@@ -1635,7 +1726,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         val me = itemId ?: return
         val pageId = doc.pageId
         val lone = if (sel.strokeIds.isEmpty()) sel.contentIds.singleOrNull() else null
-        val heading = lone?.let { doc.headings[it] } ?: return
+        val heading = lone?.let { doc.headings[it] }
+        if (heading == null) {
+            if (sel.contentIds.isEmpty() && sel.strokeIds.isNotEmpty()) tagFromInk(sel)
+            return
+        }
         val title = PageLabels.titleOf(listOf(heading)).orEmpty()
         if (!TagRules.isValid(title)) {
             val prefill = TagRules.prefill(title)

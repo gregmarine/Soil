@@ -48,6 +48,18 @@ object SeamLimits {
     /** A staged text, in characters. */
     const val MAX_STAGED_TEXT_CHARS = 1_000
 
+    /** What a recognition call is refused with while no recogniser is installed or chosen. */
+    const val NO_RECOGNIZER = "no recogniser"
+
+    /** What a recognition call is refused with while the model is not there yet. */
+    const val RECOGNIZER_NOT_READY = "recognizer not ready"
+
+    /** What a recognition call is refused with over the recogniser's caps. */
+    const val INK_TOO_LARGE = "too much ink to recognise at once"
+
+    /** What a recognition call is refused with when the recogniser failed or did not answer. */
+    const val RECOGNITION_FAILED = "recognition failed"
+
     /** What a file written by a later build than the app's schema is refused with. */
     const val SCHEMA_NEWER = "the file is newer than this app"
 }

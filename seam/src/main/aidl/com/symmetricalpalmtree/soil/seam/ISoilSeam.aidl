@@ -5,6 +5,7 @@ import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
 import com.symmetricalpalmtree.soil.seam.SeamClip;
+import com.symmetricalpalmtree.soil.seam.SeamRecognizer;
 import com.symmetricalpalmtree.soil.seam.SeamTemplate;
 import com.symmetricalpalmtree.soil.seam.SeamHello;
 import com.symmetricalpalmtree.soil.seam.SeamItem;
@@ -145,4 +146,26 @@ interface ISoilSeam {
      * null when there is none. The notebook asks whenever it comes back to the front.
      */
     @nullable SeamBytes takeIncomingInk();
+
+    // ── Recognition, relayed to the recogniser chosen in Soil's Settings ──────
+
+    /** The chosen recogniser and language, or null when none is installed or chosen. */
+    @nullable SeamRecognizer recognizer();
+
+    /** One of `SeamRecognizer.STATUS_*`. Refused with `SeamLimits.NO_RECOGNIZER` when there is none. */
+    int recognizerStatus();
+
+    /** Start acquiring the model. The person has been asked by the app; nothing else may start it. */
+    void prepareRecognizer();
+
+    /**
+     * Recognise one writing area: [ink] an `InkWire` document (only the geometry is read),
+     * [areaWidth]/[areaHeight] > 0, [preContext] the text just before it. The text, lines joined
+     * by '\n', or "". Refused with `SeamLimits.RECOGNIZER_NOT_READY` when the model is not there
+     * yet, `SeamLimits.INK_TOO_LARGE` over the caps, and `SeamLimits.RECOGNITION_FAILED` otherwise.
+     */
+    String recognizeInk(in SeamBytes ink, float areaWidth, float areaHeight, String preContext);
+
+    /** Recognise a whole page: the recogniser finds lines and paragraphs itself. Same refusals. */
+    String recognizePage(in SeamBytes ink, float pageWidth, float pageHeight);
 }
