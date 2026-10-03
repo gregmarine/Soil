@@ -6,7 +6,9 @@ import android.graphics.drawable.ColorDrawable
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.widget.AppCompatCheckBox
+import android.view.Gravity
+import android.widget.ImageView
+import androidx.appcompat.widget.AppCompatImageView
 import androidx.appcompat.widget.AppCompatRadioButton
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
@@ -49,18 +51,29 @@ class ExportPanel(private val context: Context) {
             layoutParams = wrapRow()
         }
 
-    fun toggle(text: String, on: Boolean, onToggle: () -> Unit): View =
-        AppCompatCheckBox(android.view.ContextThemeWrapper(context, com.symmetricalpalmtree.soil.paper.R.style.Widget_Soil_Toggle), null, 0).apply {
-            this.text = text
-            textSize = 16f
-            setTextColor(ink)
-            background = ColorDrawable(Color.TRANSPARENT)
-            stateListAnimator = null
-            isChecked = on
-            setOnClickListener { onToggle() }
-            setPadding(padV, padV, padV, padV)
-            layoutParams = wrapRow()
-        }
+    /** A tick that shows or hides beside its label, the whole row the target: a box drawn by
+     *  the platform is not an e-ink shape. */
+    fun toggle(text: String, on: Boolean, onToggle: () -> Unit): View = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(padV, padV, padV, padV)
+        isClickable = true
+        isFocusable = true
+        background = ColorDrawable(Color.TRANSPARENT)
+        setOnClickListener { onToggle() }
+        val iconSize = (24 * density).toInt()
+        addView(
+            AppCompatImageView(context).apply {
+                setImageResource(com.symmetricalpalmtree.soil.paper.R.drawable.ic_check)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                visibility = if (on) View.VISIBLE else View.INVISIBLE
+                contentDescription = null
+            },
+            LinearLayout.LayoutParams(iconSize, iconSize).also { it.marginEnd = (12 * density).toInt() },
+        )
+        addView(AppCompatTextView(context).apply { this.text = text; textSize = 16f; setTextColor(ink) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        layoutParams = wrapRow()
+    }
 
     private fun wrapRow() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 }
