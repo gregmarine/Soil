@@ -70,7 +70,7 @@ class ObjectSelectionBar(
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cut, ctx.getString(R.string.cut_objects_action)) { onCopy(true) })
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
         bar.addView(headingButton)
-        textButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, ctx.getString(R.string.text_convert_action)) { onMakeText() }
+        textButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_text_recognition, ctx.getString(R.string.text_convert_action)) { onMakeText() }
         bar.addView(textButton)
         linkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, ctx.getString(R.string.link_action)) { onLink() }
         bar.addView(linkButton)
