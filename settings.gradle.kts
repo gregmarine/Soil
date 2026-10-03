@@ -25,6 +25,9 @@ include(":markdown")
 include(":notesprout")
 include(":ext-api")
 include(":ext-mlkit")
+include(":ext-soilfile")
+include(":ext-pdf")
+include(":ext-image")
 // The stranger is signed with a key that is never committed (`*.keystore` is ignored), so it
 // joins the build only where that key has been generated. See seam-stranger/README.md.
 if (file("seam-stranger/stranger.keystore").exists()) {
