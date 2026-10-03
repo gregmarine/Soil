@@ -28,6 +28,7 @@ import com.symmetricalpalmtree.soil.data.item.ItemRefused
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import java.util.UUID
+import com.symmetricalpalmtree.soil.shell.SoilBarService
 
 /**
  * **Soil's end of the seam** — the service the Sprout apps bind to.
@@ -239,6 +240,13 @@ class SoilSeamService : Service() {
                     it.recognizePage(choice.languageTag, strokes, pageWidth, pageHeight)
                 }
             }.orEmpty().take(ExtContract.MAX_RECOGNIZED_CHARS)
+        }
+
+        // ── The side bars ──────
+
+        override fun barKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            SoilBarService.barKey(keyCode, action, eventTime, repeatCount)
         }
 
         /** The geometry of an `InkWire` document as the recogniser takes it, under the caps. */

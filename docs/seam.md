@@ -20,6 +20,14 @@ SeamHello hello()
 | `seamVersion` | The version of the seam this Soil speaks |
 | `libraryUnlocked` | Whether Soil holds the key right now |
 
+### The side bars
+
+`barKey(keyCode, action, eventTime, repeatCount)`: a bar key the app's paper screen received in
+its window, sent as it came. Soil's shell turns its own system-wide key filter off while an app's
+paper is in front (the filter let a resting palm cut the pen's stream; `shell.md`), so this is
+how a swipe reaches Soil's menu there. The app consumes nothing; `PaperScreenActivity` in
+`:paper` already forwards, so a Sprout app only overrides `onBarKey`.
+
 ## The version
 
 `Seam.VERSION` is 1. It does not change during development. It is frozen at the first release

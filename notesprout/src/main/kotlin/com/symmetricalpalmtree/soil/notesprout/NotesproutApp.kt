@@ -66,6 +66,12 @@ class NotesproutApp : Application() {
         appScope.launch(Dispatchers.IO) { runCatching { soil.seam().detachClient(client) } }
     }
 
+    /** A side-bar key a paper screen of this app received: Soil's shell reads the swipe from it. */
+    fun barKey(event: android.view.KeyEvent) {
+        val keyCode = event.keyCode; val action = event.action; val eventTime = event.eventTime; val repeatCount = event.repeatCount
+        appScope.launch(Dispatchers.IO) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
+    }
+
     companion object {
         /** Outlives every screen, so work that must finish always does. */
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

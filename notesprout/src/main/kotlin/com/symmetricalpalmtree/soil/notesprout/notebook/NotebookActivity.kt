@@ -2042,6 +2042,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         if (opened && !closing) paper.releaseForHandoff()
     }
 
+    /** The bars reach Soil's shell from this window while it is in front (its own filter is off over paper). */
+    override fun onBarKey(event: android.view.KeyEvent) = (application as NotesproutApp).barKey(event)
+
     override fun onResume() {
         super.onResume()
         // The shade is device-wide: another screen may have picked since.

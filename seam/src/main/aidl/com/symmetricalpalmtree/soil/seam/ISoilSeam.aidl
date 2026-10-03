@@ -168,4 +168,14 @@ interface ISoilSeam {
 
     /** Recognise a whole page: the recogniser finds lines and paragraphs itself. Same refusals. */
     String recognizePage(in SeamBytes ink, float pageWidth, float pageHeight);
+
+    // ── The side bars ──────
+
+    /**
+     * A side-bar key the app's paper screen received in its window, as it came: Soil's shell
+     * reads the swipe from it and opens its menu over the app. The shell's own system-wide key
+     * filter is off while an app's paper is in front (it let a resting palm cut the pen's
+     * stream), so this is how the bars reach Soil there. Observed only; the app consumes nothing.
+     */
+    void barKey(int keyCode, int action, long eventTime, int repeatCount);
 }

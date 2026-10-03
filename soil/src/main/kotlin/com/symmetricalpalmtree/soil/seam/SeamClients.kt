@@ -5,6 +5,7 @@ import android.util.Log
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import com.symmetricalpalmtree.soil.shell.PaperFront
 
 /**
  * **The app in front**, as far as the panel is concerned. A Sprout app attaches its client while
@@ -35,6 +36,7 @@ object SeamClients {
         }
         client = newClient
         death = recipient
+        PaperFront.appPaper(true)
         Slog.d(TAG) { "an app's paper is in front" }
     }
 
@@ -42,6 +44,7 @@ object SeamClients {
     fun detach(oldClient: ISeamClient) {
         if (client?.asBinder() != oldClient.asBinder()) return
         detachCurrent()
+        PaperFront.appPaper(false)
         Slog.d(TAG) { "the app's paper has left" }
     }
 

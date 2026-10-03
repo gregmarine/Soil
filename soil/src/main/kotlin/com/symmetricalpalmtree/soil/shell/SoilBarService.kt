@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.symmetricalpalmtree.soil.bootstrap.Screen
@@ -20,6 +21,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import android.accessibilityservice.AccessibilityServiceInfo
 
 /**
  * **The shell**: Soil's hold on the side bars, in every app.
@@ -81,11 +83,29 @@ class SoilBarService : AccessibilityService() {
             },
         )
         firmwareMenu.connect()
+        instance = this
+        // The key filter follows the paper (PaperFront): off while a paper screen is in front,
+        // on everywhere else. Changing the service's own info is enough — the system installs
+        // and removes its filter with the flag.
+        scope.launch { PaperFront.inFront.collect { paper -> setKeyFilter(on = !paper) } }
         Slog.d(TAG) { "the shell is on" }
+    }
+
+    private var keyFilterOn = true
+
+    private fun setKeyFilter(on: Boolean) {
+        if (on == keyFilterOn) return
+        keyFilterOn = on
+        val info = serviceInfo ?: return
+        info.flags = if (on) info.flags or AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+        else info.flags and AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS.inv()
+        serviceInfo = info
+        Slog.d(TAG) { if (on) "key filter on" else "key filter off: paper is in front" }
     }
 
     override fun onDestroy() {
         _running.value = false
+        instance = null
         if (::menu.isInitialized) menu.hide()
         if (::firmwareMenu.isInitialized) firmwareMenu.disconnect()
         runCatching { unregisterReceiver(firmware) }
@@ -118,22 +138,30 @@ class SoilBarService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (!BarGesture.isBarKey(event.keyCode)) return false
-        if (event.keyCode == BarGesture.RIGHT_FIRST) {
-            when (event.action) {
-                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) {
-                    rightDownAt = event.eventTime
+        onBarKey(event.keyCode, event.action, event.eventTime, event.repeatCount)
+        // Observed only: the firmware must still see the swipe, so that its refresh says "up".
+        return false
+    }
+
+    /**
+     * One bar key, from the filter or from a paper screen's window ([barKey]): the same reading
+     * either way. The [eventTime] is the system's, so a held bar measures the same from both.
+     */
+    private fun onBarKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
+        if (!BarGesture.isBarKey(keyCode)) return
+        if (keyCode == BarGesture.RIGHT_FIRST) {
+            when (action) {
+                KeyEvent.ACTION_DOWN -> if (repeatCount == 0) {
+                    rightDownAt = eventTime
                     refreshHeard = false
                     firmwareMenu.lock()
                 }
                 KeyEvent.ACTION_UP -> {
-                    val held = event.eventTime - rightDownAt
+                    val held = eventTime - rightDownAt
                     main.postDelayed({ act(held) }, BarGesture.SETTLE_MS)
                 }
             }
         }
-        // Observed only: the firmware must still see the swipe, so that its refresh says "up".
-        return false
     }
 
     private fun act(heldMs: Long) {
@@ -149,6 +177,18 @@ class SoilBarService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SoilBars"
+
+        @Volatile
+        private var instance: SoilBarService? = null
+
+        /**
+         * A bar key a paper screen received in its window — Soil's own pad directly, a Sprout
+         * app's paper over the seam. Nothing happens with the shell off. Any thread.
+         */
+        fun barKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
+            val service = instance ?: return
+            service.main.post { service.onBarKey(keyCode, action, eventTime, repeatCount) }
+        }
 
         private val _running = MutableStateFlow(false)
 

@@ -41,6 +41,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.symmetricalpalmtree.soil.shell.PaperFront
+import com.symmetricalpalmtree.soil.shell.SoilBarService
 
 /**
  * **The Scratch Pad** — for the quick thought that has no place yet. It is part of Soil, tied to
@@ -436,12 +438,19 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         // `opened` says the paper exists and has its page.
         MenuSignals.beforeMenuShows = { if (opened && !closing && !paper.isPenActive) paper.releaseRender() }
         MenuSignals.penActive = { opened && !closing && penRecentlyActive() }
+        PaperFront.ownPaper(true)
     }
 
     override fun onPause() {
+        PaperFront.ownPaper(false)
         MenuSignals.beforeMenuShows = null
         MenuSignals.penActive = null
         super.onPause()
+    }
+
+    /** The bars reach the shell from this window while the pad is in front (see [PaperFront]). */
+    override fun onBarKey(event: android.view.KeyEvent) {
+        SoilBarService.barKey(event.keyCode, event.action, event.eventTime, event.repeatCount)
     }
 
     override fun onScreenDestroyed() {

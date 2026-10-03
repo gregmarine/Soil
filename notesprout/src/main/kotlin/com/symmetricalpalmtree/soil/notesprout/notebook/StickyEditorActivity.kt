@@ -230,6 +230,9 @@ class StickyEditorActivity : InkScreenActivity<InkAction>() {
     override fun collapsedPenIcon(): (() -> CollapsedChrome.PenIcon) = { val ink = penGlyph.ink; CollapsedChrome.PenIcon(ink) { ShadeIcon.pen(this, ink) } }
     override fun collapsedPenReTap(): ((anchor: View) -> Unit) = { anchor -> if (paletteBar.isShowing) hidePaletteBar() else showPaletteBar(anchor) }
 
+    /** The bars reach Soil's shell from this window while it is in front (its own filter is off over paper). */
+    override fun onBarKey(event: android.view.KeyEvent) = (application as com.symmetricalpalmtree.soil.notesprout.NotesproutApp).barKey(event)
+
     override fun onResume() {
         super.onResume()
         if (::penGlyph.isInitialized) applyPenShade()

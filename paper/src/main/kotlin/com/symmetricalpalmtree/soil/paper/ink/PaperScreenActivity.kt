@@ -24,6 +24,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
 import com.symmetricalpalmtree.soil.paper.chrome.asBar
 import com.symmetricalpalmtree.soil.paper.R
+import android.view.KeyEvent
 
 /**
  * The **chrome and handoff half** of a paper screen — everything a screen with a g-paper surface
@@ -72,6 +73,22 @@ abstract class PaperScreenActivity : AppCompatActivity() {
 
     protected var opened = false
     protected var closing = false
+
+    /**
+     * The Supernote's side bars are keys, and a paper screen in front receives them in its own
+     * window like any other key. They are handed to [onBarKey] and left unconsumed, so nothing
+     * else that listens for them is blinded. The subclass decides where they go: Soil's own paper
+     * hands them to the shell in its process, a Sprout app's paper sends them over the seam.
+     * (The shell's own system-wide key filter is off while a paper screen is in front, because
+     * that filter is what let a resting palm cut the pen's stream, 2026-10-03.)
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode in BAR_KEY_FIRST..BAR_KEY_LAST) onBarKey(event)
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** A side-bar key, as the window received it. Observed only; nothing is consumed. */
+    protected open fun onBarKey(event: KeyEvent) {}
 
     private var problemShowing = false
 
@@ -486,9 +503,13 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         finish()
     }
 
-    private companion object {
+    companion object {
 
         /** Where [onSaveInstanceState] parks the chrome state (arc 34 / L19). */
-        const val KEY_CHROME_HIDDEN = "chromeHidden"
+        private const val KEY_CHROME_HIDDEN = "chromeHidden"
+
+        /** The Supernote's bar keys: Ratta's `KEYCODE_F13..F30` (293..310); 300/301 and 309/310 are the bars. */
+        const val BAR_KEY_FIRST = 293
+        const val BAR_KEY_LAST = 310
     }
 }
