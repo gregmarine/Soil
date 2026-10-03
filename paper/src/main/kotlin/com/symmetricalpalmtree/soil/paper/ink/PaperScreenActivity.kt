@@ -207,6 +207,11 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         if (::collapsed.isInitialized) collapsed.sync()
     }
 
+    /** The collapsed chrome's lasso wears the clipboard mark while objects are on the clipboard. */
+    protected fun collapsedClipboardLoaded(loaded: Boolean) {
+        if (::collapsed.isInitialized) collapsed.showClipboardLoaded(loaded)
+    }
+
     /** Both of the corner button's rows down. Idempotent, and safe before the chrome is built —
      *  every page swap and every exit calls it beside [hideEraserBar], for the same reason. */
     /** Whether ([x], [y]) lands on the corner button or its rows. */

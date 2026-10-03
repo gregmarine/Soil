@@ -107,6 +107,13 @@
                     android:src="@drawable/ic_list"
                     android:visibility="gone" />
 
+                <!-- The tag doors: a sub-bar hangs under it. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnTag"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tags"
+                    android:src="@drawable/ic_tag" />
+
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btnRecents"
                     style="@style/Widget.Soil.ToolbarButton"
@@ -306,5 +313,26 @@
         android:padding="4dp"
         android:visibility="gone" />
 
+    <!-- The lasso button's clipboard popup (Paste · Clear), hung under the armed lasso by its
+         re-tap, and the tag button's sub-bar. The same lifecycle as the eraser's sub-bar. -->
+    <LinearLayout
+        android:id="@+id/lassoPopup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/tagsPopup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
 
 </FrameLayout>

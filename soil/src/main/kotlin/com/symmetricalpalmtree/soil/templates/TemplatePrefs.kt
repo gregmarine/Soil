@@ -82,3 +82,29 @@ object TemplateStaging {
         return out
     }
 }
+
+/**
+ * A short text an app parked for a screen of Soil's: the tag screen's prefill. One at a time,
+ * in memory, taken once, so what a person wrote never rides an Intent.
+ */
+object TextStaging {
+    private var id: String? = null
+    private var text: String? = null
+
+    @Synchronized
+    fun stage(value: String): String {
+        val fresh = java.util.UUID.randomUUID().toString()
+        id = fresh
+        text = value
+        return fresh
+    }
+
+    @Synchronized
+    fun take(stagedId: String?): String? {
+        if (stagedId == null || stagedId != id) return null
+        val out = text
+        id = null
+        text = null
+        return out
+    }
+}

@@ -32,7 +32,7 @@ class NotebookToolbar(
     btnBack: ImageButton,
     btnPen: ImageButton,
     btnEraser: ImageButton,
-    btnLasso: ImageButton,
+    private val btnLasso: ImageButton,
     private val btnPrevPage: ImageButton,
     private val btnNextPage: ImageButton,
     btnRecents: ImageButton,
@@ -45,6 +45,7 @@ class NotebookToolbar(
     onRecents: () -> Unit,
     onPenReTap: () -> Unit,
     onEraserReTap: () -> Unit,
+    onLassoReTap: () -> Unit,
     onToolTapped: () -> Unit,
     onSynced: () -> Unit = {},
 ) {
@@ -69,6 +70,7 @@ class NotebookToolbar(
             onBack = onBack,
             onPenReTap = { onPenReTap() },
             onEraserReTap = onEraserReTap,
+            onLassoReTap = onLassoReTap,
             onToolTapped = onToolTapped,
             onSynced = onSynced,
         )
@@ -82,6 +84,18 @@ class NotebookToolbar(
     }
 
     fun sync(tool: Tool) = tools.sync(tool)
+
+    /** The lasso wears the clipboard mark while objects are on the clipboard: the one hint that a
+     *  bare-paper pen tap will paste. Idempotent. */
+    fun showClipboardLoaded(loaded: Boolean) {
+        if (clipboardLoaded == loaded) return
+        clipboardLoaded = loaded
+        btnLasso.setImageResource(
+            if (loaded) com.symmetricalpalmtree.soil.paper.R.drawable.ic_lasso_clipboard else com.symmetricalpalmtree.soil.paper.R.drawable.ic_lasso,
+        )
+    }
+
+    private var clipboardLoaded = false
 
     fun arm(tool: Tool) = tools.arm(tool)
 

@@ -83,6 +83,9 @@ class PaperToolbar(
      *  screen without one. A plain tool with no kinds and no sub-bar: a tap arms it, a re-tap is
      *  nothing. Defaulted and last, so every existing caller compiles unchanged. */
     private val btnSmudge: ImageButton? = null,
+    /** A tap on the **already-armed** lasso: the notebook opens its clipboard popup under the
+     *  button. The eraser re-tap's rule exactly: [onToolTapped] does not fire with it. */
+    private val onLassoReTap: () -> Unit = {},
 ) {
     init {
         listOfNotNull(btnBack, btnPen, btnEraser, btnLasso, btnAltPen, btnSmudge).forEach {
@@ -115,6 +118,10 @@ class PaperToolbar(
         releaseRenderIfIdle()
         if (tool == Tool.ERASER && (paper.tool == Tool.ERASER || paper.tool == Tool.LASSO_ERASER)) {
             onEraserReTap()
+            return
+        }
+        if (tool == Tool.LASSO && paper.tool == Tool.LASSO) {
+            onLassoReTap()
             return
         }
         if (paper.tool == tool) return

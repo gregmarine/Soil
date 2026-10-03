@@ -61,6 +61,7 @@ class LibraryGrid(
             val view = when (card) {
                 is LibraryCard.FolderCard -> folderCard(inflater, card)
                 is LibraryCard.ItemCard -> itemCard(inflater, context, card, covers[card.id])
+                is LibraryCard.PageCard -> pageCard(inflater, context, card, covers[card.item.id])
             }
             view.layoutParams = GridLayout.LayoutParams().apply {
                 width = cardWidth
@@ -69,7 +70,8 @@ class LibraryGrid(
             }
             view.isSelected = selectedId != null && card.id == selectedId
             view.setOnClickListener { onTap(card) }
-            onLongPress?.let { handler -> view.setOnLongClickListener { handler(card); true } }
+            // A page card names a page; the sheet acts on an item. No long press on it.
+            if (card !is LibraryCard.PageCard) onLongPress?.let { handler -> view.setOnLongClickListener { handler(card); true } }
             grid.addView(view)
         }
         container.addView(grid)
@@ -89,6 +91,27 @@ class LibraryGrid(
         view.findViewById<TextView>(R.id.cardDate).text = card.subtitle
             ?: "${DateFormat.getMediumDateFormat(context).format(d)} ${DateFormat.getTimeFormat(context).format(d)}"
         view.findViewById<View>(R.id.pinBadge).visibility = if (card.pinned) View.VISIBLE else View.GONE
+        view.findViewById<ImageView>(R.id.kindGlyph).setImageResource(kindGlyph(item.kind))
+        val cover = view.findViewById<ImageView>(R.id.coverImage)
+        val bmp = Bitmaps.decodeBounded(coverBytes, COVER_DECODE_EDGE)
+        if (bmp != null) {
+            cover.scaleType = ImageView.ScaleType.CENTER_CROP
+            cover.setImageBitmap(bmp)
+        } else {
+            cover.setImageDrawable(null)
+        }
+        return view
+    }
+
+    /** A tagged page: the item's cover and kind, `Name · Page N` on the name line, the place and the tag under it. */
+    private fun pageCard(inflater: LayoutInflater, context: Context, card: LibraryCard.PageCard, coverBytes: ByteArray?): View {
+        val view = inflater.inflate(R.layout.card_notebook, container, false)
+        val item = card.item
+        view.findViewById<TextView>(R.id.cardName).text =
+            if (card.pageNumber != null) context.getString(R.string.search_page_card, item.name, card.pageNumber)
+            else context.getString(R.string.search_page_card_unnumbered, item.name)
+        view.findViewById<TextView>(R.id.cardDate).text = card.subtitle
+        view.findViewById<View>(R.id.pinBadge).visibility = View.GONE
         view.findViewById<ImageView>(R.id.kindGlyph).setImageResource(kindGlyph(item.kind))
         val cover = view.findViewById<ImageView>(R.id.coverImage)
         val bmp = Bitmaps.decodeBounded(coverBytes, COVER_DECODE_EDGE)

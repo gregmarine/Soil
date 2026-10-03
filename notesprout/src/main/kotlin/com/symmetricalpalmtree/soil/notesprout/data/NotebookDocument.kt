@@ -1,6 +1,10 @@
 package com.symmetricalpalmtree.soil.notesprout.data
 
+import com.symmetricalpalmtree.gpaper.core.model.Bounds
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
+import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectClip
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
 import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
@@ -29,7 +33,7 @@ import kotlinx.coroutines.withContext
  * [goTo] reads the target page **first** and flushes the departing one **second**, so the swap
  * itself has no suspension point for a commit to fall into.
  */
-class NotebookDocument(private val store: NotebookStore, private val onPagesChanged: suspend (Int) -> Unit) : InkPage {
+class NotebookDocument(private val store: NotebookStore, private val onPagesChanged: suspend (List<PageRef>) -> Unit) : InkPage {
 
     private val ink = InkDocument(NotebookSql, TAG)
 
@@ -112,7 +116,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         val (next, page) = withContext(Dispatchers.IO) { store.insertPage(before, beforeCurrent, after) }
         pages = next
         applyPage(page, PageContent.EMPTY)
-        onPagesChanged(pages.size)
+        onPagesChanged(pages)
         return NotebookAction.Page(before, next, emptyList(), beforeCurrent, page.id)
     }
 
@@ -130,7 +134,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             store.insertPage(before0, anchor.id, after = anchorId == null || !before).also { store.setLastOpened(showing) }
         }
         pages = next
-        onPagesChanged(pages.size)
+        onPagesChanged(pages)
         return page
     }
 
@@ -141,7 +145,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         val (next, landing, taken) = withContext(Dispatchers.IO) { store.deletePage(before, victim) }
         pages = next
         applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) })
-        onPagesChanged(pages.size)
+        onPagesChanged(pages)
         return NotebookAction.Page(before, next, taken, victim.id, landing.id)
     }
 
@@ -153,6 +157,45 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         if (gone.isEmpty()) return null
         applyPage(page, PageContent.EMPTY)
         return NotebookAction.PageErased(page.id, gone)
+    }
+
+    // ── The clipboard ──────
+
+    /** The showing page and everything on it, flushed first. Null when its row has gone. */
+    suspend fun copyPage(): ClipEnvelope? {
+        flushUntilClean()
+        val page = current ?: return null
+        return withContext(Dispatchers.IO) { store.capturePage(page) }
+    }
+
+    /** Paste [env]'s page before or after the showing one, and land on it. */
+    suspend fun pastePage(env: ClipEnvelope, before: Boolean): NotebookAction.PagePasted {
+        flushUntilClean()
+        val before0 = pages
+        val beforeCurrent = pageId
+        val (next, page, contentIds) = withContext(Dispatchers.IO) { store.pasteAt(before0, beforeCurrent, env, before) }
+        pages = next
+        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) })
+        onPagesChanged(pages)
+        return NotebookAction.PagePasted(before0, next, contentIds, beforeCurrent, page.id)
+    }
+
+    /** The selection as rows, flushed first: the selected ink and objects of this page. */
+    suspend fun copyObjects(strokeIds: Collection<String>, contentIds: Collection<String>): ClipEnvelope? {
+        flushUntilClean()
+        val strokeSet = strokeIds.toHashSet()
+        val top = strokes.filter { it.id in strokeSet }.map { it.id } + contentIds.filter { holdsObject(it) }
+        if (top.isEmpty()) return null
+        return withContext(Dispatchers.IO) { store.captureObjects(top) }
+    }
+
+    /** Paste [env]'s objects onto the showing page, placed by [place]; the page is read again. */
+    suspend fun pasteObjects(env: ClipEnvelope, place: (Bounds) -> ObjectPlacement.Offset): ObjectClip.Plan? {
+        flushUntilClean()
+        val page = pageId
+        val plan = withContext(Dispatchers.IO) { store.pasteObjects(page, env, place) } ?: return null
+        reloadCurrent()
+        return plan
     }
 
     // ── Paper ──────
@@ -375,6 +418,8 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.from)
             is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
+            is NotebookAction.PagePasted -> reconcile(a.before, restore = emptyList(), delete = a.contentIds, currentId = a.beforeCurrent)
+            is NotebookAction.ObjectsPasted -> objects(a.pageId) { store.softDeleteIds(a.contentIds); store.remirrorPage(a.pageId) }
         }
     }
 
@@ -402,6 +447,8 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.to)
             is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
+            is NotebookAction.PagePasted -> reconcile(a.after, restore = a.contentIds, delete = emptyList(), currentId = a.afterCurrent)
+            is NotebookAction.ObjectsPasted -> objects(a.pageId) { store.restoreIds(a.contentIds); store.remirrorPage(a.pageId) }
         }
     }
 
@@ -443,7 +490,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         pages = target
         val landing = target.first { it.id == currentId }
         applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) })
-        onPagesChanged(pages.size)
+        onPagesChanged(pages)
     }
 
     private fun applyPage(page: PageRef, read: PageContent) {

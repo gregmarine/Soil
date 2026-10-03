@@ -18,6 +18,7 @@ import com.symmetricalpalmtree.soil.databinding.ViewLibraryBrowserBinding
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.FuzzyRank
+import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.paper.core.GridMath
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.templates.TemplateNames
@@ -42,6 +43,8 @@ class LibraryBrowser(
     private val activity: AppCompatActivity,
     private val binding: ViewLibraryBrowserBinding,
     private val onOpen: (Item) -> Unit,
+    /** A page found by its tag: the item, opened at that page. Null leaves page cards out of the search. */
+    private val onOpenPage: ((Item, String) -> Unit)? = null,
     /** Null narrows nothing; a kind lists only its items. */
     private val kind: String? = null,
     /** An item left out of every listing: the one the asking app has open. */
@@ -72,6 +75,11 @@ class LibraryBrowser(
 
     private val moveLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) reload()
+    }
+
+    /** The tag screen, for a result: a changed tag may change what a search shelf shows. */
+    private val tagsLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && shelf == Shelf.SEARCH) reload()
     }
 
     init {
@@ -197,7 +205,7 @@ class LibraryBrowser(
                 Shelf.NONE -> LibraryListing.folderCards(store.folders(folderId), itemsIn(folderId), pinnedIds, field, order)
                 Shelf.PINNED -> LibraryListing.pinnedCards(pinnedIds.toList(), store.aliveItems(pinnedIds).filterValues { wanted(it) }, field, order, ::placeOf)
                 Shelf.RECENTS -> LibraryListing.recentCards(store.allItems().filter { wanted(it) }, pinnedIds, ::placeOf)
-                Shelf.SEARCH -> LibraryListing.searchCards(query, store.allFolders(), store.allItems().filter { wanted(it) }, pinnedIds, ::placeOfFolder, ::placeOf)
+                Shelf.SEARCH -> searchCards()
             }
         }
         renderChrome()
@@ -211,6 +219,28 @@ class LibraryBrowser(
     }
 
     private fun itemsIn(parentId: String): List<Item> = store.items(parentId).filter { wanted(it) }
+
+    /**
+     * The search shelf's read: names and tags together. The tags the query touches are matched
+     * first, and only their assignments are fetched; page numbers come from the index's page
+     * order. Pages are left out where the host opens no page ([onOpenPage] null). IO.
+     */
+    private fun searchCards(): List<LibraryCard> {
+        val folders = store.allFolders()
+        val items = store.allItems().filter { wanted(it) }
+        val tagStore = com.symmetricalpalmtree.soil.data.index.TagStore()
+        val matches = SearchMerge.matchTags(tagStore.tags(), query)
+        val assignments = if (matches.ids.isEmpty()) emptyList() else tagStore.assignmentsOf(matches.ids)
+        var shelf = SearchMerge.rank(folders, items, query, matches, assignments)
+        if (onOpenPage == null) shelf = SearchMerge.Shelf(shelf.folders, shelf.items, emptyList())
+        val numbers = HashMap<String, Map<String, Int>>()
+        val index = com.symmetricalpalmtree.soil.data.index.IndexStore()
+        return LibraryListing.searchCards(
+            shelf, pinnedIds, ::placeOfFolder, ::placeOf,
+            pageNumber = { itemId, pageId -> numbers.getOrPut(itemId) { index.pageNumbers(itemId) }[pageId] },
+            withTag = { place, tag -> activity.getString(R.string.search_where_and_tag, place, tag) },
+        )
+    }
 
     private fun wanted(item: Item): Boolean = (kind == null || item.kind == kind) && item.id != excludeId
 
@@ -231,7 +261,7 @@ class LibraryBrowser(
     private suspend fun bindCurrentPage() {
         val g = grid ?: return
         val range = GridMath.pageRange(pageIndex, g.cardsPerPage, items.size)
-        val missing = range.mapNotNull { (items[it] as? LibraryCard.ItemCard)?.id }.filter { it !in coverCache }
+        val missing = range.mapNotNull { coverIdOf(items[it]) }.distinct().filter { it !in coverCache }
         if (missing.isNotEmpty()) {
             val fetched = withContext(Dispatchers.IO) { missing.associateWith { runCatching { store.cover(it) }.getOrNull() } }
             coverCache.putAll(fetched)
@@ -239,6 +269,13 @@ class LibraryBrowser(
         g.bind(items, pageIndex, coverCache, selectedId)
         binding.pager.visibility = if (pageCount > 1) View.VISIBLE else View.INVISIBLE
         binding.pageLabel.text = activity.getString(R.string.page_indicator, pageIndex + 1, pageCount)
+    }
+
+    /** Whose cover a card shows: an item's own, a page's the item's. */
+    private fun coverIdOf(card: LibraryCard): String? = when (card) {
+        is LibraryCard.ItemCard -> card.id
+        is LibraryCard.PageCard -> card.item.id
+        is LibraryCard.FolderCard -> null
     }
 
     // ── Chrome ──────
@@ -336,6 +373,7 @@ class LibraryBrowser(
         when (card) {
             is LibraryCard.FolderCard -> navigateTo(card.id)
             is LibraryCard.ItemCard -> onOpen(card.item)
+            is LibraryCard.PageCard -> onOpenPage?.invoke(card.item, card.pageId)
         }
     }
 
@@ -357,8 +395,12 @@ class LibraryBrowser(
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_move_folder, activity.getString(R.string.action_move)) {
                     moveLauncher.launch(FolderPickerActivity.moveIntent(activity, FolderPickerActivity.Hierarchy.LIBRARY, card.id, false, card.name, card.item.parentId))
                 }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_tag, activity.getString(R.string.action_tags)) {
+                    tagsLauncher.launch(com.symmetricalpalmtree.soil.tags.TagsActivity.intent(activity, card.id, null, Seam.TAG_MODE_BROWSE))
+                }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteItem(card.item) }
                 .show()
+            is LibraryCard.PageCard -> Unit
         }
     }
 

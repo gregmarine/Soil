@@ -10,6 +10,7 @@ import androidx.appcompat.widget.AppCompatImageButton
 import com.symmetricalpalmtree.gpaper.core.model.Bounds
 import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.notesprout.objects.SelectionMode
+import com.symmetricalpalmtree.soil.notesprout.objects.TagSelection
 import com.symmetricalpalmtree.soil.paper.chrome.AnchoredBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.SelectionAnchor
@@ -24,6 +25,8 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  * - **Link** on anything that holds no link: wrap it into one.
  * - **Edit link** and **Unlink** on a lone link. A selection that holds a link among other
  *   things can only be deleted: a link is never nested.
+ * - **Copy** and **Cut** on anything: the clipboard, which lives in Soil. A link copies whole.
+ * - **Tag** on a lone heading: its words become a tag on the page.
  * - **Delete** on anything.
  */
 class ObjectSelectionBar(
@@ -38,12 +41,17 @@ class ObjectSelectionBar(
     private val onLink: () -> Unit,
     private val onEditLink: () -> Unit,
     private val onUnlink: () -> Unit,
+    /** Copy, or cut, what is caught: the clipboard. */
+    private val onCopy: (cut: Boolean) -> Unit,
+    /** A lone heading's words become a tag on the page. */
+    private val onTag: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
     private val linkButton: AppCompatImageButton
     private val editLinkButton: AppCompatImageButton
     private val unlinkButton: AppCompatImageButton
+    private val tagButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -51,6 +59,8 @@ class ObjectSelectionBar(
 
     init {
         val ctx = bar.context
+        bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, ctx.getString(R.string.copy_objects_action)) { onCopy(false) })
+        bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cut, ctx.getString(R.string.cut_objects_action)) { onCopy(true) })
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
         bar.addView(headingButton)
         linkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, ctx.getString(R.string.link_action)) { onLink() }
@@ -59,6 +69,8 @@ class ObjectSelectionBar(
         bar.addView(editLinkButton)
         unlinkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link_off, ctx.getString(R.string.link_unlink_action)) { onUnlink() }
         bar.addView(unlinkButton)
+        tagButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_tag, ctx.getString(R.string.tag_selection_action)) { onTag() }
+        bar.addView(tagButton)
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, ctx.getString(R.string.delete_selection_action)) { onDelete() })
         val icons = listOf(
             com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_1, com.symmetricalpalmtree.soil.paper.R.drawable.ic_h_2,
@@ -77,6 +89,8 @@ class ObjectSelectionBar(
         linkButton.visibility = if (wrappable) View.VISIBLE else View.GONE
         editLinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
         unlinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE
+        // Recognition is not here yet: only the silent flow, a lone heading, is offered.
+        tagButton.visibility = if (TagSelection.offered(mode, recognitionAvailable = false)) View.VISIBLE else View.GONE
         subBar.visibility = View.GONE
         levelButtons.forEachIndexed { i, b -> b.isSelected = (i + 1) == currentLevel }
 

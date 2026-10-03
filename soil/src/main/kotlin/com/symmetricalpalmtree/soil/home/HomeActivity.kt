@@ -110,6 +110,7 @@ class HomeActivity : AppCompatActivity() {
             activity = this,
             binding = binding.browser,
             onOpen = ::open,
+            onOpenPage = { item, pageId -> open(item, pageId) },
             onFolderChanged = { libraryPrefs.folderId = it },
         )
         browser.onShelfChanged = { renderLibrary() }
@@ -227,8 +228,8 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun open(item: Item) {
-        when (ItemApps.open(this, item.id, item.kind)) {
+    private fun open(item: Item, pageId: String? = null) {
+        when (ItemApps.open(this, item.id, item.kind, pageId = pageId)) {
             ItemApps.Opened.YES -> Unit
             ItemApps.Opened.NO_APP ->
                 Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))

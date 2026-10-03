@@ -68,6 +68,30 @@ object Seam {
     const val EXTRA_KIND = "com.symmetricalpalmtree.soil.extra.KIND"
     const val EXTRA_EXCLUDE_ITEM_ID = "com.symmetricalpalmtree.soil.extra.EXCLUDE_ITEM_ID"
 
+    /**
+     * With [EXTRA_ITEM_ID] on an open: the page to land on, for an open from the library's search
+     * (a tagged page). Consumed once by the app.
+     */
+    const val EXTRA_PAGE_ID = "com.symmetricalpalmtree.soil.extra.PAGE_ID"
+
+    /**
+     * The action of Soil's tag screen, started for a result by an app for one of its items:
+     * [EXTRA_ITEM_ID], [EXTRA_PAGE_ID] for a page of it (absent for the item itself), and
+     * [EXTRA_TAG_MODE]. A prefill for the field is parked with `stageText` and named by
+     * [EXTRA_STAGED_ID]: what a person wrote never rides an Intent.
+     */
+    const val ACTION_TAGS = "com.symmetricalpalmtree.soil.action.TAGS"
+    const val EXTRA_TAG_MODE = "com.symmetricalpalmtree.soil.extra.TAG_MODE"
+
+    /** The target's tags, for reading and editing. */
+    const val TAG_MODE_BROWSE = 0
+
+    /** The same, with the field focused and the keyboard up. */
+    const val TAG_MODE_ADD = 1
+
+    /** The item and every page of it, an overview to drill into. */
+    const val TAG_MODE_MANAGE = 2
+
     /** Whether [appPackage] and [hubPackage] are of the same build: a debug Soil opens debug apps
      *  and a release Soil release apps, so the two installs never cross. */
     fun sameBuild(hubPackage: String, appPackage: String): Boolean =

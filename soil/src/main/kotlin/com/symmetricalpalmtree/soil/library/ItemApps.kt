@@ -100,14 +100,15 @@ object ItemApps {
 
     /** Open the item in the app for its kind. What rides the Intent is the item's id, and for a
      *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). */
-    fun open(context: Context, itemId: String, kind: String, templatePick: String? = null): Opened {
+    fun open(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
         val app = find(context, kind) ?: return Opened.NO_APP
         return start(
             context,
             Intent(Seam.ACTION_OPEN_ITEM)
                 .setComponent(ComponentName(app.packageName, app.className))
                 .putExtra(Seam.EXTRA_ITEM_ID, itemId)
-                .putExtra(Seam.EXTRA_TEMPLATE_PICK, templatePick),
+                .putExtra(Seam.EXTRA_TEMPLATE_PICK, templatePick)
+                .putExtra(Seam.EXTRA_PAGE_ID, pageId),
         )
     }
 

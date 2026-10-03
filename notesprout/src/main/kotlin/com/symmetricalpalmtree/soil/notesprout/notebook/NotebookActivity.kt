@@ -59,6 +59,11 @@ import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBindi
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
+import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
+import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
+import com.symmetricalpalmtree.soil.seam.TagRules
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
@@ -108,6 +113,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private lateinit var paletteBar: PaletteBar
     private lateinit var insertBar: InsertBar
     private lateinit var objectBar: ObjectSelectionBar
+    private lateinit var lassoPopup: LassoPopup
+    private lateinit var tagsPopup: TagsPopup
+
+    /** Whether the contact going down took the lasso popup with it: rewritten at every pointer
+     *  down, read by `onPaperTapped`, so a tap spent on a dismissal is never also a paste. */
+    private var tapDismissedPopup = false
     private lateinit var recents: RecentsPanel
     private lateinit var contents: ContentsPanel
     private lateinit var prefs: NotebookPrefs
@@ -149,6 +160,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
     private val pickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onPickerClosed(it.resultCode, it.data?.getStringExtra(LinkPickerActivity.EXTRA_RESULT_PAYLOAD)) }
     private val templatePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK)) }
     private val saveTemplateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
+    private val tagsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { onSoilScreenClosed() }
 
     /** The paper under the pages shown lately, by template row id: decoded off Main before the frame that paints it. */
     private val paperCache = LinkedHashMap<String, android.graphics.Bitmap>()
@@ -255,8 +267,23 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             // sub-bar. Arming a different tool takes any bar with it.
             onPenReTap = { if (paletteBar.isShowing) hidePaletteBar() else showPaletteBar() },
             onEraserReTap = { hidePaletteBar(); toggleEraserBar() },
+            onLassoReTap = { if (lassoPopup.isShowing) hideLassoPopup() else showLassoPopup() },
             onToolTapped = { hideFloatingBars() },
         )
+        lassoPopup = LassoPopup(
+            root = binding.root, bar = binding.lassoPopup, anchor = binding.btnLasso, bandBottom = { chromeBand()?.last },
+            releaseRender = { paper.releaseRender() },
+            onPaste = { hideLassoPopup(); doObjectPaste(tapX = null, tapY = null) },
+            onClear = { hideLassoPopup(); doClipboardClear() },
+        )
+        tagsPopup = TagsPopup(
+            root = binding.root, bar = binding.tagsPopup, anchor = binding.btnTag, bandBottom = { chromeBand()?.last },
+            releaseRender = { paper.releaseRender() },
+            onTagNotebook = { hideTagsPopup(); openTags(pageTarget = false, mode = Seam.TAG_MODE_ADD) },
+            onTagPage = { hideTagsPopup(); openTags(pageTarget = true, mode = Seam.TAG_MODE_ADD) },
+            onManage = { hideTagsPopup(); openTags(pageTarget = false, mode = Seam.TAG_MODE_MANAGE) },
+        )
+        binding.btnTag.setOnClickListener { paper.releaseRender(); if (tagsPopup.isShowing) hideTagsPopup() else showTagsPopup() }
         eraserBar = EraserBar(
             root = binding.root,
             bar = binding.eraserBar,
@@ -294,6 +321,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             onLink = { currentSelection?.let { beginWrap(it) } },
             onEditLink = { loneLink()?.let { beginEdit(it) } },
             onUnlink = { loneLink()?.let { unlink(it) } },
+            onCopy = { cut -> currentSelection?.let { doObjectCopy(it, cut) } },
+            onTag = { currentSelection?.let { tagSelection(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -334,7 +363,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         super.onNewIntent(intent)
         val askedId = intent.getStringExtra(Seam.EXTRA_ITEM_ID)
         val newName = intent.getStringExtra(Seam.EXTRA_NEW_NAME)
-        if (newName.isNullOrBlank() && askedId != null && askedId == itemId) return
+        if (newName.isNullOrBlank() && askedId != null && askedId == itemId) {
+            // The library's search landed on a page of the notebook already showing.
+            intent.getStringExtra(Seam.EXTRA_PAGE_ID)?.let { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } }
+            return
+        }
         setIntent(intent)
         if (closing) return
         closing = true
@@ -374,16 +407,20 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 // A file Soil made and nobody has written yet has no pages: it gets its first here,
                 // the size of this surface, like a notebook made by name.
                 val loaded = if (!newName.isNullOrBlank()) {
-                    store.initialize(item.name, w, h).also { seam.setPageCount(item.id, 1) }
+                    store.initialize(item.name, w, h)
                 } else {
                     try {
                         store.load()
                     } catch (e: NotebookStore.NoPages) {
-                        store.initialize(item.name, w, h).also { seam.setPageCount(item.id, 1) }
+                        store.initialize(item.name, w, h)
                     }
                 }
+                // The library learns the page order at every open and every change: it names a
+                // tagged page by it without ever opening the file.
+                runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
+                SoilClipboard.ensureLoaded(seam)
                 val document = NotebookDocument(store) { pages ->
-                    withContext(Dispatchers.IO) { runCatching { soil.seam().setPageCount(item.id, pages) } }
+                    withContext(Dispatchers.IO) { runCatching { soil.seam().setPages(item.id, pages.map { it.id }) } }
                 }
                 document.onObjectsChanged = ::syncRenderers
                 document.density = density
@@ -407,9 +444,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 }
                 // Opened via a link: land on the page the link named, once. Any other open
                 // starts a new story, and the old trail would walk back into someone else's.
-                val initialPage = intent.getStringExtra(EXTRA_INITIAL_PAGE_ID)
+                val initialPage = intent.getStringExtra(EXTRA_INITIAL_PAGE_ID) ?: intent.getStringExtra(Seam.EXTRA_PAGE_ID)
                 if (initialPage != null) {
                     intent.removeExtra(EXTRA_INITIAL_PAGE_ID)
+                    intent.removeExtra(Seam.EXTRA_PAGE_ID)
                     document.pages.firstOrNull { it.id == initialPage }?.let { document.goTo(it) }
                 }
                 if (!intent.getBooleanExtra(EXTRA_VIA_LINK, false)) LinkTrail(this@NotebookActivity).clear()
@@ -438,6 +476,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         preparePaper()
         showPage(firstLoad = true, prebuilt = linkRenderer.prebuild(doc.first.links.values.toList()))
         opened = true
+        markClipboard(SoilClipboard.hasObjects)
         pushExclusions()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
@@ -503,6 +542,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             currentSelection = selection
             // Shown at once, not through the pen-idle gate: a lasso ends with the pen hovering.
             showObjectBar(selection)
+        }
+
+        /** A stylus tap on bare paper under the lasso with nothing selected: paste here, centred
+         *  on the tap. Silent when the clipboard holds no objects: nothing was offering a paste. A
+         *  contact spent taking the popup down is not a placement. */
+        override fun onPaperTapped(x: Float, y: Float) {
+            if (!opened || closing) return
+            if (tapDismissedPopup) return
+            if (!SoilClipboard.hasObjects) return
+            doObjectPaste(tapX = x, tapY = y)
         }
 
         override fun onSelectionDragStarted() {
@@ -1097,6 +1146,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         super.hideFloatingBars()
         hidePaletteBar()
         hideInsertBar()
+        hideLassoPopup()
+        hideTagsPopup()
     }
 
     override fun onCollapsedClosing() {
@@ -1115,28 +1166,45 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
         if (::insertBar.isInitialized && insertBar.isShowing) {
             if (PaperToolbar.rectOf(binding.btnInsert)?.contains(x, y) != true && !insertBar.contains(x, y) && !collapsedContains(x, y)) hideInsertBar()
         }
+        if (::tagsPopup.isInitialized && tagsPopup.isShowing) {
+            if (PaperToolbar.rectOf(binding.btnTag)?.contains(x, y) != true && !tagsPopup.contains(x, y) && !collapsedContains(x, y)) hideTagsPopup()
+        }
+        // The lasso popup's latch is rewritten at every pointer down, so it can never go stale: a
+        // contact that took the popup down is not also a paste. The lasso button is excluded, or
+        // its re-tap would close the popup here and reopen it in the toolbar.
+        val dismissedLasso = ::lassoPopup.isInitialized && lassoPopup.isShowing &&
+            PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)
+        tapDismissedPopup = dismissedLasso
+        if (dismissedLasso) hideLassoPopup()
     }
 
     override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
         (::paletteBar.isInitialized && paletteBar.isShowing && paletteBar.contains(x, y)) ||
-            (::insertBar.isInitialized && insertBar.isShowing && insertBar.contains(x, y))
+            (::insertBar.isInitialized && insertBar.isShowing && insertBar.contains(x, y)) ||
+            (::tagsPopup.isInitialized && tagsPopup.isShowing && tagsPopup.contains(x, y)) ||
+            (::lassoPopup.isInitialized && lassoPopup.isShowing && lassoPopup.contains(x, y))
 
     override fun extraFloatingRects(): List<android.graphics.Rect> =
         super.extraFloatingRects() +
             (if (::paletteBar.isInitialized) paletteBar.rects() else emptyList()) +
             (if (::insertBar.isInitialized) insertBar.rects() else emptyList()) +
-            (if (::objectBar.isInitialized) objectBar.rects() else emptyList())
+            (if (::objectBar.isInitialized) objectBar.rects() else emptyList()) +
+            (if (::lassoPopup.isInitialized) lassoPopup.rects() else emptyList()) +
+            (if (::tagsPopup.isInitialized) tagsPopup.rects() else emptyList())
 
     override fun extraFloatingContains(x: Int, y: Int): Boolean =
         super.extraFloatingContains(x, y) ||
             (::paletteBar.isInitialized && paletteBar.contains(x, y)) ||
             (::insertBar.isInitialized && insertBar.contains(x, y)) ||
-            (::objectBar.isInitialized && objectBar.contains(x, y))
+            (::objectBar.isInitialized && objectBar.contains(x, y)) ||
+            (::lassoPopup.isInitialized && lassoPopup.contains(x, y)) ||
+            (::tagsPopup.isInitialized && tagsPopup.contains(x, y))
 
     /** The corner button's overflow row: Back, and Insert, whose bar hangs under the row's own button. */
     override fun collapsedOverflow(): List<CollapsedChrome.Entry> = listOfNotNull(
         backEntry(),
         CollapsedChrome.Entry(com.symmetricalpalmtree.soil.paper.R.drawable.ic_plus, getString(R.string.cd_insert)) { anchor -> if (insertBar.isShowing) hideInsertBar() else showInsertBar(anchor) },
+        CollapsedChrome.Entry(com.symmetricalpalmtree.soil.paper.R.drawable.ic_tag, getString(R.string.cd_tags)) { anchor -> if (tagsPopup.isShowing) hideTagsPopup() else showTagsPopup(anchor) },
     )
 
     /** The mini toolbar's pen wears the shade too, and its re-tap hangs the panel under it. */
@@ -1205,7 +1273,14 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             if (!opened || closing || doc.pageId != pageId) return@launch
             val sheet = ActionSheetDialog(this@NotebookActivity)
                 .title(getString(R.string.page_sheet_title))
-                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.copy_page_action)) { runPageOp { doCopyPage(cut = false) } }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cut, getString(R.string.cut_page_action)) { runPageOp { doCopyPage(cut = true) } }
+            // Absent, never disabled, while the clipboard holds no page: a sheet whose row count is
+            // its content is simply one row shorter.
+            if (SoilClipboard.hasPage) {
+                sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.paste_page_action)) { showPasteSheet() }
+            }
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_erase_page, getString(R.string.page_sheet_erase)) { confirmErasePage() }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
             if (into.isNotEmpty()) {
@@ -1215,6 +1290,272 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_photo_plus, getString(R.string.save_as_template_action)) { saveAsTemplate() }
             }
             sheet.show()
+        }
+    }
+
+    // ── The clipboard ──────
+
+    private suspend fun seam() = withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam() }
+
+    /** The lasso's clipboard mark, on the bar and on the collapsed chrome alike. */
+    private fun markClipboard(loaded: Boolean) {
+        if (::toolbar.isInitialized) toolbar.showClipboardLoaded(loaded)
+        collapsedClipboardLoaded(loaded)
+    }
+
+    /** Where the pasted page goes. From a row of the page sheet, so the pen is idle. */
+    private fun showPasteSheet() {
+        if (!opened || closing) return
+        ActionSheetDialog(this)
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_page_prev, getString(R.string.paste_before_action)) { runPageOp { doPastePage(before = true) } }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_page_next, getString(R.string.paste_after_action)) { runPageOp { doPastePage(before = false) } }
+            .show()
+    }
+
+    /**
+     * Copy the page, or cut it: a copy followed by the ordinary delete, so undo puts the page and
+     * its ink back exactly as Delete page would. Anything that did not work is a dialog: a copy
+     * that failed silently would leave a stale clipboard standing ready to paste the wrong page.
+     */
+    private suspend fun doCopyPage(cut: Boolean) {
+        val doc = document ?: return
+        val env = runCatching { doc.copyPage() }.onFailure { Log.w(TAG, "page capture failed: ${it.javaClass.simpleName}") }.getOrNull()
+        if (env == null) {
+            Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_capture_failed)
+            return
+        }
+        val write = runCatching { withContext(Dispatchers.IO) { SoilClipboard.write((application as NotesproutApp).soil.seam(), env) } }
+            .onFailure { Log.w(TAG, "clipboard write failed: ${it.javaClass.simpleName}") }
+        if (write.getOrNull() == null) {
+            Dialogs.problem(this, R.string.clip_failed_title, if (write.isSuccess) R.string.clip_too_large else R.string.clip_write_failed)
+            return
+        }
+        // One slot, kind wins: the lasso's mark stops promising a paste it no longer holds.
+        markClipboard(false)
+        hideLassoPopup()
+        if (cut) doDelete()
+        toast(getString(if (cut) R.string.page_cut_toast else R.string.page_copied_toast))
+    }
+
+    /** Paste the clipboard's page beside this one and land on it. */
+    private suspend fun doPastePage(before: Boolean) {
+        val doc = document ?: return
+        val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
+        if (env == null || env.kind != ClipEnvelope.KIND_PAGE || env.rows.none { it.type == NotebookSchema.TYPE_PAGE }) {
+            // Gone, foreign, or claiming a page it does not carry: stop advertising a Paste that
+            // cannot work, in memory and in Soil.
+            retireClipboard()
+            Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
+            return
+        }
+        // The anchor's number as it reads once the paste has landed: what the indicator shows.
+        val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before)
+        undo.record(doc.pastePage(env, before))
+        preparePaper()
+        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        refreshContents()
+        toast(getString(if (before) R.string.pasted_before_toast else R.string.pasted_after_toast, anchor))
+    }
+
+    /**
+     * Copy or cut what is caught. Three orderings, each a bug designed out: the ink is flushed
+     * before the rows are read; the clipboard is written before anything is deleted; and the lasso
+     * is armed again afterwards, since the dismissal of a selection can hand the pen back and the
+     * placement tap that follows would ink the page.
+     */
+    private fun doObjectCopy(sel: Selection, cut: Boolean) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            val env = runCatching { doc.copyObjects(sel.strokeIds, sel.contentIds) }.onFailure { Log.w(TAG, "selection capture failed: ${it.javaClass.simpleName}") }.getOrNull()
+            if (env == null) {
+                Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_capture_failed)
+                return@runPageOp
+            }
+            val write = runCatching { withContext(Dispatchers.IO) { SoilClipboard.write((application as NotesproutApp).soil.seam(), env) } }
+                .onFailure { Log.w(TAG, "clipboard write failed: ${it.javaClass.simpleName}") }
+            if (write.getOrNull() == null) {
+                Dialogs.problem(this, R.string.clip_failed_title, if (write.isSuccess) R.string.clip_objects_too_large else R.string.clip_objects_write_failed)
+                return@runPageOp
+            }
+            markClipboard(true)
+            if (cut) {
+                if (doc.pageId != pageId) {
+                    Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_cut_moved)
+                    return@runPageOp
+                }
+                deleteSelected(sel)
+            } else {
+                paper.clearSelection()
+            }
+            armLassoAfterCopy()
+            toast(getString(if (cut) R.string.objects_cut_toast else R.string.objects_copied_toast))
+        }
+    }
+
+    /** The lasso stays armed after a copy, whatever the dismissal handed back, once the pen is idle. */
+    private fun armLassoAfterCopy() {
+        toolBeforeLanding = null
+        whenPenIdle {
+            if (isFinishing || isDestroyed || closing || paper.tool == Tool.LASSO) return@whenPenIdle
+            toolbar.arm(Tool.LASSO)
+        }
+    }
+
+    /**
+     * Paste the clipboard's objects onto the showing page: centred on the pen tap, or at the
+     * source coordinates for the popup's Paste; both clamp onto the page. The pasted set lands
+     * selected, bar up, so the pen can drag it into place.
+     */
+    private fun doObjectPaste(tapX: Float?, tapY: Float?) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val pageId = doc.pageId
+        runPageOp {
+            val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
+            if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS || env.rows.isEmpty()) {
+                retireClipboard()
+                Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
+                return@runPageOp
+            }
+            if (doc.pageId != pageId) return@runPageOp
+            val w = doc.pageWidth
+            val h = doc.pageHeight
+            val written = runCatching {
+                doc.pasteObjects(env) { box ->
+                    if (tapX != null && tapY != null) ObjectPlacement.centredOn(box, tapX, tapY, w, h) else ObjectPlacement.atSource(box, w, h)
+                }
+            }.onFailure { Log.w(TAG, "object paste failed: ${it.javaClass.simpleName}") }
+            val plan = written.getOrNull()
+            if (plan == null || plan.isEmpty) {
+                // A payload that decoded but carries nothing this build can place is retired; a
+                // write that threw is this attempt failing, and the clipboard is kept for a retry.
+                if (written.isSuccess) retireClipboard()
+                Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
+                return@runPageOp
+            }
+            undo.record(NotebookAction.ObjectsPasted(pageId, plan.contentIds))
+            preparePaper()
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+            refreshContents()
+            // The pasted set, as the page now holds it (re-measured for this device), selected.
+            val contentIds = (plan.headings.map { it.id } + plan.links.map { it.id } + plan.texts.map { it.id } + plan.stickies.map { it.id }).toSet()
+            val strokeIds = plan.strokes.mapTo(HashSet()) { it.id }
+            var box: Bounds? = null
+            for (id in contentIds) {
+                val b = doc.headings[id]?.bounds ?: doc.links[id]?.bounds ?: doc.texts[id]?.bounds ?: doc.stickies[id]?.bounds ?: continue
+                box = box?.union(b) ?: b
+            }
+            for (st in doc.strokes) if (st.id in strokeIds) box = box?.union(st.bounds) ?: st.bounds
+            box?.let { bounds ->
+                armLassoForLanding()
+                paper.setSelection(strokeIds, contentIds, bounds)
+                val selection = Selection(strokeIds, contentIds, bounds)
+                selectionActive = true
+                currentSelection = selection
+                showObjectBar(selection)
+            }
+            toast(getString(R.string.objects_pasted_toast))
+        }
+    }
+
+    /** The popup's Clear: the clipboard goes, in memory and in Soil. */
+    private fun doClipboardClear() {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            retireClipboard()
+            toast(getString(R.string.clipboard_cleared_toast))
+        }
+    }
+
+    /** Retire the clipboard and everything that advertises it. Never throws. */
+    private suspend fun retireClipboard() {
+        markClipboard(false)
+        runCatching { withContext(Dispatchers.IO) { SoilClipboard.clear((application as NotesproutApp).soil.seam()) } }
+    }
+
+    /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with nothing of ours to offer. */
+    private fun showLassoPopup(anchor: View? = null) {
+        if (!opened || closing || !SoilClipboard.hasObjects) return
+        hideFloatingBars()
+        if (lassoPopup.show(anchor)) pushExclusions()
+    }
+
+    private fun hideLassoPopup() {
+        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
+        lassoPopup.hide()
+        pushExclusions()
+    }
+
+    private fun toast(text: String) {
+        if (isFinishing || isDestroyed) return
+        android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    // ── Tags ──────
+
+    private fun showTagsPopup(anchor: View? = null) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        if (tagsPopup.show(anchor)) pushExclusions()
+    }
+
+    private fun hideTagsPopup() {
+        if (!::tagsPopup.isInitialized || !tagsPopup.isShowing) return
+        tagsPopup.hide()
+        pushExclusions()
+    }
+
+    /** Soil's tag screen, on this notebook or on the page whose ink is on the paper, with a text
+     *  parked for its field when there is one. Another process over this one: handed over as any
+     *  Soil screen is. */
+    private fun openTags(pageTarget: Boolean, mode: Int, stagedId: String? = null) {
+        if (!opened || closing || soilScreenShowing) return
+        val me = itemId ?: return
+        val pageId = if (pageTarget) document?.pageId ?: return else null
+        val intent = android.content.Intent(Seam.ACTION_TAGS)
+            .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+            .putExtra(Seam.EXTRA_ITEM_ID, me)
+            .putExtra(Seam.EXTRA_PAGE_ID, pageId)
+            .putExtra(Seam.EXTRA_TAG_MODE, mode)
+            .putExtra(Seam.EXTRA_STAGED_ID, stagedId)
+        startSoilScreen { tagsLauncher.launch(intent) }
+    }
+
+    /**
+     * The bar's Tag on a lone heading: its words become a tag on the page, silently, with a toast
+     * once the write has landed. A title that is not a tag as it stands (blank, or over the cap)
+     * opens the screen prefilled instead, so the act still finishes in one more gesture. The page
+     * is captured at the tap: a flip racing the write still lands the tag on the right page.
+     */
+    private fun tagSelection(sel: Selection) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val me = itemId ?: return
+        val pageId = doc.pageId
+        val lone = if (sel.strokeIds.isEmpty()) sel.contentIds.singleOrNull() else null
+        val heading = lone?.let { doc.headings[it] } ?: return
+        val title = PageLabels.titleOf(listOf(heading)).orEmpty()
+        if (!TagRules.isValid(title)) {
+            val prefill = TagRules.prefill(title)
+            lifecycleScope.launch {
+                val staged = if (prefill == null) null else runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().stageText(prefill) } }.getOrNull()
+                paper.clearSelection()
+                openTags(pageTarget = true, mode = Seam.TAG_MODE_ADD, stagedId = staged)
+            }
+            return
+        }
+        lifecycleScope.launch {
+            val result = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().assignTag(me, pageId, title) } }
+            if (isFinishing || isDestroyed) return@launch
+            result.onSuccess { display ->
+                paper.clearSelection()
+                toast(getString(R.string.tag_applied_toast, display))
+            }.onFailure { e ->
+                Log.w(TAG, "tag failed: ${e.javaClass.simpleName}")
+                Dialogs.problem(this@NotebookActivity, R.string.tags_failed_title, if (e.message == SeamLimits.TAGS_FULL) R.string.tags_full_body else R.string.tags_assign_failed_body)
+            }
         }
     }
 

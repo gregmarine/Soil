@@ -41,6 +41,13 @@ object SeamLimits {
     /** What a call on a session that Soil has ended is refused with. */
     const val SESSION_ENDED = "the session has ended"
 
+    /** What a tag assign is refused with when the library holds as many tags, or as many
+     *  assignments, as it may. Compared verbatim. */
+    const val TAGS_FULL = TagRules.TAGS_FULL
+
+    /** A staged text, in characters. */
+    const val MAX_STAGED_TEXT_CHARS = 1_000
+
     /** What a file written by a later build than the app's schema is refused with. */
     const val SCHEMA_NEWER = "the file is newer than this app"
 }

@@ -93,6 +93,7 @@ class LibraryStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilI
         for (i in items) {
             statements += Statement("UPDATE item SET deletedAt = ?, cover = NULL WHERE id = ? AND deletedAt IS NULL", now, i)
             statements += Statement("DELETE FROM item_pin WHERE id = ?", i)
+            statements += IndexStore.forgetItem(i)
         }
         rows.exec(statements)
         return items
@@ -123,13 +124,13 @@ class LibraryStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilI
         rows.exec(listOf(Statement("UPDATE item SET parentId = ?, updatedAt = ? WHERE id = ?", parentId, now, id)))
     }
 
-    /** Soft-delete one item, its cover and its pin with it. False when it was not alive. */
+    /** Soft-delete one item, its cover, its pin, its tags and its page order with it. False when it was not alive. */
     fun deleteItem(id: String, now: Long = System.currentTimeMillis()): Boolean =
         rows.exec(
             listOf(
                 Statement("UPDATE item SET deletedAt = ?, cover = NULL WHERE id = ? AND deletedAt IS NULL", now, id),
                 Statement("DELETE FROM item_pin WHERE id = ?", id),
-            ),
+            ) + IndexStore.forgetItem(id),
         )[0] > 0
 
     /** The item's cover, or null when it has none. */

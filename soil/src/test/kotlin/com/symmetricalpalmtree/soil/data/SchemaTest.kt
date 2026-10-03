@@ -45,8 +45,16 @@ class SchemaTest {
     }
 
     @Test
-    fun theIndexIsAtVersionSix_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesAndFolders() {
-        assertEquals(6, IndexSchema.SCHEMA.version)
+    fun theIndexIsAtVersionSeven_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesFoldersClipboardTagsAndPages() {
+        assertEquals(7, IndexSchema.SCHEMA.version)
+        val held = IndexSchema.SCHEMA.steps[6].joinToString("\n")
+        assertTrue(held.contains("CREATE TABLE clipboard ("))
+        assertTrue(held.contains("kind TEXT PRIMARY KEY"))
+        assertTrue(held.contains("CREATE TABLE tag ("))
+        assertTrue(held.contains("identityKey TEXT NOT NULL UNIQUE"))
+        assertTrue(held.contains("CREATE TABLE tag_assignment ("))
+        assertTrue(held.contains("PRIMARY KEY (tagId, itemId, pageId)"))
+        assertTrue(held.contains("CREATE TABLE item_page ("))
         val library = IndexSchema.SCHEMA.steps[5].joinToString("\n")
         assertTrue(library.contains("ADD COLUMN parentId TEXT NOT NULL DEFAULT ''"))
         assertTrue(library.contains("ADD COLUMN cover BLOB"))

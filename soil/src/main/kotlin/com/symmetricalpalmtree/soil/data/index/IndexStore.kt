@@ -84,15 +84,38 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
             ),
         )[0] > 0
 
-    /** A delete is soft: the row is marked, and the file is not touched. */
+    /** A delete is soft: the row is marked, and the file is not touched. What the library held
+     *  for the item (its tags, its page order) goes with it. */
     fun softDelete(itemId: String, now: Long): Boolean =
         rows.exec(
-            listOf(Statement("UPDATE item SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL", now, itemId)),
+            listOf(Statement("UPDATE item SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL", now, itemId)) + forgetItem(itemId),
         )[0] > 0
 
     fun setPageCount(itemId: String, count: Int) {
         rows.exec(listOf(Statement("UPDATE item SET pageCount = ? WHERE id = ?", count, itemId)))
     }
+
+    // ── Pages ──────
+
+    /** Make the index's page order for [itemId] exactly [pageIds], and the count with it. One transaction. */
+    fun setPages(itemId: String, pageIds: List<String>) {
+        val statements = ArrayList<Statement>(pageIds.size + 2)
+        statements += Statement("DELETE FROM item_page WHERE itemId = ?", itemId)
+        pageIds.forEachIndexed { i, pageId ->
+            statements += Statement("INSERT OR REPLACE INTO item_page (itemId, pageId, position) VALUES (?, ?, ?)", itemId, pageId, i.toLong())
+        }
+        statements += Statement("UPDATE item SET pageCount = ? WHERE id = ?", pageIds.size, itemId)
+        rows.exec(statements)
+    }
+
+    /** The item's pages in order, as its app last told them. */
+    fun pagesOf(itemId: String): List<String> =
+        rows.query(Statement("SELECT pageId FROM item_page WHERE itemId = ? ORDER BY position", itemId)).rows.map { it.text("pageId") }
+
+    /** Each page's 1-based number, for the pages the index knows. */
+    fun pageNumbers(itemId: String): Map<String, Int> =
+        rows.query(Statement("SELECT pageId, position FROM item_page WHERE itemId = ?", itemId)).rows
+            .associate { it.text("pageId") to it.long("position").toInt() + 1 }
 
     /** The item was written to at [at]. Never moved backwards. */
     fun touch(itemId: String, at: Long) {
@@ -161,7 +184,13 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         )
     }
 
-    private companion object {
-        const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt FROM item"
+    companion object {
+        private const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt FROM item"
+
+        /** The statements that drop what the library holds for an item: its assignments and its pages. */
+        fun forgetItem(itemId: String): List<Statement> = listOf(
+            Statement("DELETE FROM tag_assignment WHERE itemId = ?", itemId),
+            Statement("DELETE FROM item_page WHERE itemId = ?", itemId),
+        )
     }
 }

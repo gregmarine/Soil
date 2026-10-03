@@ -274,7 +274,7 @@
     <string name="shelf_title_recent">Recent</string>
     <string name="shelf_title_search">\"%1$s\"</string>
     <string name="library_search_title">Search the library</string>
-    <string name="library_search_hint">Name</string>
+    <string name="library_search_hint">Folder, notebook or tag</string>
     <string name="cd_search">Search</string>
     <string name="cd_recents">Recent</string>
     <string name="cd_pinned">Pinned</string>
@@ -325,4 +325,50 @@
     <string name="new_notebook_failed_body">Nothing has been changed.</string>
     <string name="item_picker_title">Choose a notebook</string>
     <string name="item_picker_none">No notebooks here</string>
+
+    <!-- Tags -->
+    <string name="action_tags">Tags…</string>
+    <string name="cd_tags_back">Back</string>
+    <string name="cd_tags_add">Add tag</string>
+    <string name="cd_tags_remove">Remove</string>
+    <string name="tags_on_item">Tags on this notebook</string>
+    <string name="tags_on_page">Tags on this page</string>
+    <string name="tags_on_named">Tags on %1$s</string>
+    <string name="tags_page_title">%1$s · %2$s</string>
+    <string name="tags_page_label">Page %1$d</string>
+    <string name="tags_page_unnumbered">a page</string>
+    <string name="tags_target_empty">No tags yet — add one below.</string>
+    <string name="tags_all">All tags</string>
+    <string name="tags_matching">Matching tags</string>
+    <string name="tags_all_empty">No tags in this library yet.</string>
+    <string name="tags_no_match">No tag matches that. Add it with ⊕.</string>
+    <string name="tags_add_hint">Add a tag…</string>
+    <string name="tags_manage_targets">Notebook and pages</string>
+    <string name="tags_manage_item_row">Notebook</string>
+    <string name="tags_manage_no_tags">No tags</string>
+    <string name="tags_manage_separator">", "</string>
+    <string name="tags_added_toast">Tagged “%1$s”</string>
+    <string name="tags_removed_toast">Removed “%1$s”</string>
+    <string name="tags_deleted_toast">Deleted “%1$s”</string>
+    <string name="tags_delete_title">Delete “%1$s”?</string>
+    <string name="tags_delete_unused">This tag is not on anything. It will be removed from the list.</string>
+    <string name="tags_delete_body">Remove it from %1$s? The tag itself is deleted too.</string>
+    <plurals name="tags_delete_items">
+        <item quantity="one">%1$d notebook</item>
+        <item quantity="other">%1$d notebooks</item>
+    </plurals>
+    <plurals name="tags_delete_pages">
+        <item quantity="one">%1$d page</item>
+        <item quantity="other">%1$d pages</item>
+    </plurals>
+    <string name="tags_delete_and">%1$s and %2$s</string>
+    <string name="tags_delete_confirm">Delete</string>
+    <string name="tags_problem_title">Tags</string>
+    <string name="tags_unavailable">Tags could not be opened just now.</string>
+    <string name="tags_save_failed">That change could not be saved.</string>
+    <string name="tags_invalid">A tag needs some text, and no more than 64 characters.</string>
+    <string name="tags_full">This library is holding as many tags as it can. Delete one to add another.</string>
+    <string name="search_where_and_tag">%1$s · %2$s</string>
+    <string name="search_page_card">%1$s · Page %2$d</string>
+    <string name="search_page_card_unnumbered">%1$s · a page</string>
 </resources>

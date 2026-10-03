@@ -86,6 +86,40 @@ object NotebookSql : InkDocument.StrokeSql {
         pageId,
     )
 
+    // ── Whole rows: what the clipboard captures and what a paste writes ──────
+
+    private const val ROW_COLUMNS = "id, parentId, type, \"order\", text, refId, x, y, width, height, color, strokeWidth, style, flags, blob"
+
+    /** The live rows by id, every column. One `?` per id; the caller chunks under the bind cap. */
+    fun selectRows(ids: List<String>): Statement {
+        require(ids.isNotEmpty()) { "no ids" }
+        val marks = ids.joinToString(", ") { "?" }
+        return Statement("SELECT $ROW_COLUMNS FROM $TABLE WHERE id IN ($marks) AND deletedAt IS NULL", *ids.toTypedArray())
+    }
+
+    /** Everything alive under [pageId] at any depth, every column, in the order the rows were written. */
+    fun selectLiveDescendantRows(pageId: String): Statement = Statement(
+        "WITH RECURSIVE under(id) AS (" +
+            "SELECT id FROM $TABLE WHERE parentId = ? AND deletedAt IS NULL " +
+            "UNION SELECT n.id FROM $TABLE n JOIN under u ON n.parentId = u.id WHERE n.deletedAt IS NULL" +
+            ") SELECT $ROW_COLUMNS FROM $TABLE WHERE id IN (SELECT id FROM under) ORDER BY createdAt, rowid",
+        pageId,
+    )
+
+    /** The live children of one parent, of one type, every column, in z-order. */
+    fun selectChildRows(parentId: String, type: String): Statement = Statement(
+        "SELECT $ROW_COLUMNS FROM $TABLE WHERE parentId = ? AND type = ? AND deletedAt IS NULL ORDER BY \"order\"",
+        parentId, type,
+    )
+
+    /** A pasted row, whole and alive, stamped now. Never a replace: a row that exists is left. */
+    fun insertRow(r: NotebookRow, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE ($ROW_COLUMNS, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        r.id, r.parentId, r.type, r.order.toLong(), r.text, r.refId,
+        r.x?.toDouble(), r.y?.toDouble(), r.width?.toDouble(), r.height?.toDouble(),
+        r.color, r.strokeWidth?.toDouble(), r.style, r.flags, r.blob, now, now,
+    )
+
     // ── Strokes ──────
 
     /**
@@ -233,9 +267,12 @@ object NotebookSql : InkDocument.StrokeSql {
 
     /** The mirror row for [l], or the drop of one it cannot have: a payload Soil cannot name
      *  points nowhere in the library. */
-    fun mirror(l: PageLink, pageId: String, ownItemId: String): Statement {
-        val target = LinkTarget.of(l.payload, ownItemId) ?: return mirrorDrop(l.id)
-        return Statement(SeamLinks.PUT, l.id, pageId, target.itemId, target.pageId)
+    fun mirror(l: PageLink, pageId: String, ownItemId: String): Statement = mirrorRow(l.id, l.payload, pageId, ownItemId)
+
+    /** The same, for a link row a paste writes: its id, its payload, the page it lands on. */
+    fun mirrorRow(linkId: String, payload: String?, pageId: String, ownItemId: String): Statement {
+        val target = LinkTarget.of(payload.orEmpty(), ownItemId) ?: return mirrorDrop(linkId)
+        return Statement(SeamLinks.PUT, linkId, pageId, target.itemId, target.pageId)
     }
 
     fun mirrorDrop(linkId: String): Statement = Statement(SeamLinks.DROP, linkId)

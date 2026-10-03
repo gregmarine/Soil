@@ -10,8 +10,8 @@ import com.symmetricalpalmtree.soil.data.Schema
  * named by the row's id. Ids are stable and never reused; a delete is soft.
  *
  * Links are here since step 4: one row per link in the library, mirrored from each file's
- * `soil_link` table whenever an app writes it. Tags and covers are not here yet; each arrives as
- * a step of its own.
+ * `soil_link` table whenever an app writes it. Covers and the library's shape since step 6; the
+ * clipboard, tags and each item's page order since step 7.
  */
 object IndexSchema {
 
@@ -118,5 +118,43 @@ object IndexSchema {
         """CREATE TABLE folder_prefs (folderId TEXT PRIMARY KEY, scheme TEXT, template TEXT);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6))
+    /**
+     * Three things the apps need the library to hold for them:
+     *
+     *  - the **clipboard**: one slot per kind of item, the app's own bytes under a header Soil can
+     *    answer blob-free, so a copy outlives the app and travels between items;
+     *  - **tags**: a tag is one row under a locale-neutral identity (`identityKey`, unique), and
+     *    an assignment names an item and, for a page tag, the page (`''` for the item itself, and
+     *    in the key, since `NULL` is not equal to `NULL`); the cascade is done by hand;
+     *  - each item's **pages in order**, told by its app, so the library can say "Page 3" of a
+     *    file it never opens.
+     */
+    private val V7 = listOf(
+        """CREATE TABLE clipboard (
+               kind TEXT PRIMARY KEY,
+               payloadKind TEXT NOT NULL,
+               sourceItemId TEXT NOT NULL,
+               copiedAt INTEGER NOT NULL,
+               blob BLOB NOT NULL);""",
+        """CREATE TABLE tag (
+               id TEXT PRIMARY KEY,
+               display TEXT NOT NULL,
+               identityKey TEXT NOT NULL UNIQUE,
+               createdAt INTEGER NOT NULL);""",
+        """CREATE TABLE tag_assignment (
+               tagId TEXT NOT NULL,
+               itemId TEXT NOT NULL,
+               pageId TEXT NOT NULL DEFAULT '',
+               createdAt INTEGER NOT NULL,
+               PRIMARY KEY (tagId, itemId, pageId));""",
+        """CREATE INDEX tag_assignment_target ON tag_assignment(itemId, pageId);""",
+        """CREATE TABLE item_page (
+               itemId TEXT NOT NULL,
+               pageId TEXT NOT NULL,
+               position INTEGER NOT NULL,
+               PRIMARY KEY (itemId, pageId));""",
+        """CREATE INDEX item_page_item ON item_page(itemId, position);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7))
 }

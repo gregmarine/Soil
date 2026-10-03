@@ -10,6 +10,9 @@ import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.index.TemplateStore
+import com.symmetricalpalmtree.soil.data.index.ClipStore
+import com.symmetricalpalmtree.soil.data.index.TagStore
+import com.symmetricalpalmtree.soil.templates.TextStaging
 import com.symmetricalpalmtree.soil.templates.TemplatePrefs
 import com.symmetricalpalmtree.soil.templates.TemplateStaging
 import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
@@ -135,6 +138,51 @@ class SoilSeamService : Service() {
             TemplateStaging.stage(bytes)
         }
 
+        // ── The clipboard ──────
+
+        override fun clipHeader(kind: String): SeamClip? = answered {
+            require(SeamSchema.isValidKind(kind)) { "not a kind" }
+            ClipStore().header(kind)
+        }
+
+        override fun putClip(kind: String, header: SeamClip, payload: SeamBytes) = answered {
+            require(SeamSchema.isValidKind(kind)) { "not a kind" }
+            val bytes = SeamShared.readAndClose(payload)
+            require(bytes.isNotEmpty() && bytes.size <= SeamLimits.MAX_VALUE_BYTES) { SeamLimits.VALUE_TOO_LARGE }
+            ClipStore().put(kind, header, bytes)
+        }
+
+        override fun clip(kind: String): SeamBytes? = answered {
+            require(SeamSchema.isValidKind(kind)) { "not a kind" }
+            ClipStore().bytes(kind)?.let { SeamShared.write(it).also { region -> sent.set(region) } }
+        }
+
+        override fun clearClip(kind: String) = answered {
+            require(SeamSchema.isValidKind(kind)) { "not a kind" }
+            ClipStore().clear(kind)
+        }
+
+        // ── Pages and tags ──────
+
+        override fun setPages(itemId: String, pageIds: List<String>) = answered {
+            require(pageIds.size <= MAX_PAGES) { "at most $MAX_PAGES pages" }
+            require(pageIds.all { TagRules.isId(it) }) { "not a page id" }
+            check(IndexStore().aliveItem(itemId) != null) { NO_SUCH_ITEM }
+            IndexStore().setPages(itemId, pageIds)
+            ItemSessions.changed()
+        }
+
+        override fun assignTag(itemId: String, pageId: String, text: String): String = answered {
+            require(TagRules.isValid(text)) { "not a tag" }
+            check(IndexStore().aliveItem(itemId) != null) { NO_SUCH_ITEM }
+            TagStore().assign(text, itemId, pageId.ifEmpty { null }).display
+        }
+
+        override fun stageText(text: String): String = answered {
+            require(text.length <= SeamLimits.MAX_STAGED_TEXT_CHARS) { "the text is too long" }
+            TextStaging.stage(text)
+        }
+
         /** Hand a region back once the reply that carries it has been written. */
         override fun onTransact(code: Int, data: android.os.Parcel, reply: android.os.Parcel?, flags: Int): Boolean =
             try {
@@ -220,5 +268,7 @@ class SoilSeamService : Service() {
         const val NO_SUCH_ITEM = "there is no such item"
         const val NO_SUCH_TEMPLATE = "there is no such template"
         const val MAX_COVER_BYTES = 1024 * 1024
+        /** Pages one item may list: far past any real notebook, and a bound on one call's parcel. */
+        const val MAX_PAGES = 20_000
     }
 }

@@ -4,6 +4,7 @@ import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
+import com.symmetricalpalmtree.soil.seam.SeamClip;
 import com.symmetricalpalmtree.soil.seam.SeamTemplate;
 import com.symmetricalpalmtree.soil.seam.SeamHello;
 import com.symmetricalpalmtree.soil.seam.SeamItem;
@@ -92,4 +93,41 @@ interface ISoilSeam {
      * session is ended and the file is closed and tidied.
      */
     ISeamItem openItem(String itemId, in SeamSchema schema, IBinder owner);
+
+    // ── The clipboard: one slot per kind of item, in the index, so a copy outlives the app ──────
+
+    /** What the clipboard of [kind] holds, without the payload; null when it is empty. */
+    @nullable SeamClip clipHeader(String kind);
+
+    /**
+     * Put a payload on the clipboard of [kind], replacing whatever was there. The bytes are the
+     * app's own; Soil keeps them whole and never reads them. At most `SeamLimits.MAX_VALUE_BYTES`.
+     */
+    void putClip(String kind, in SeamClip header, in SeamBytes payload);
+
+    /** The payload on the clipboard of [kind], whole; null when it is empty. */
+    @nullable SeamBytes clip(String kind);
+
+    void clearClip(String kind);
+
+    // ── Pages and tags ──────
+
+    /**
+     * The item's pages in order, by id: what the library needs to name a page ("Page 3") without
+     * opening the file. The app says whenever its page list changes; the page count follows.
+     */
+    void setPages(String itemId, in List<String> pageIds);
+
+    /**
+     * Put a tag on an item, or on one of its pages ([pageId] empty for the item itself): the text
+     * is normalised, the tag made if the library has never seen it, and attached. Idempotent.
+     * Answers the tag's stored spelling. Refused with `SeamLimits.TAGS_FULL` when a cap is reached.
+     */
+    String assignTag(String itemId, String pageId, String text);
+
+    /**
+     * Park a short text for a screen of Soil's that is started next, so it never rides an
+     * Intent: the tag screen's prefill. Held in memory, one at a time.
+     */
+    String stageText(String text);
 }

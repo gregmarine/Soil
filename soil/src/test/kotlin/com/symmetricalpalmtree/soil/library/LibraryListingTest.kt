@@ -43,8 +43,21 @@ class LibraryListingTest {
 
     @Test
     fun `search ranks folders then items by relevance and says where each is`() {
-        val cards = LibraryListing.searchCards("mtg", listOf(folder("f", "Meeting Team Group")), listOf(item("i", "Amount Given"), item("j", "mtg notes")), emptySet(), { "root" }, { "Work" })
+        val shelf = SearchMerge.rank(listOf(folder("f", "Meeting Team Group")), listOf(item("i", "Amount Given"), item("j", "mtg notes")), "mtg")
+        val cards = LibraryListing.searchCards(shelf, emptySet(), { "root" }, { "Work" }, { _, _ -> null }, { place, tag -> "$place · $tag" })
         assertEquals(listOf("f", "j", "i"), cards.map { it.id })
         assertEquals("Work", (cards[1] as LibraryCard.ItemCard).subtitle)
+    }
+
+    @Test
+    fun `a page found by its tag is a card of its own, under the item's place and the tag`() {
+        val pages = listOf(SearchMerge.PageHit(item("i", "Trip"), "p2", "packing"))
+        val shelf = SearchMerge.Shelf(emptyList(), listOf(SearchMerge.ItemHit(item("j", "Journal"), "packing")), pages)
+        val cards = LibraryListing.searchCards(shelf, emptySet(), { "root" }, { "Work" }, { _, pageId -> if (pageId == "p2") 2 else null }, { place, tag -> "$place · $tag" })
+        assertEquals("Work · packing", (cards[0] as LibraryCard.ItemCard).subtitle)
+        val page = cards[1] as LibraryCard.PageCard
+        assertEquals("i/p2", page.id)
+        assertEquals(2, page.pageNumber)
+        assertEquals("Work · packing", page.subtitle)
     }
 }

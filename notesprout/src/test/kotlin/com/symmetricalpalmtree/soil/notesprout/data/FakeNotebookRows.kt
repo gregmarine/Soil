@@ -38,6 +38,9 @@ class FakeNotebookRows : RowStore {
         queries += statement
         val sql = statement.sql
         return when {
+            // The whole-row reads, before the narrower shapes they would otherwise match.
+            sql.contains(", blob FROM notebook WHERE id IN") || sql.contains(", blob FROM notebook WHERE id IN (SELECT") || sql.contains(", blob FROM notebook WHERE parentId = ? AND type = ?") ->
+                StoreRows(NotebookRow.COLUMNS, emptyList())
             sql.contains("type = 'notebook'") -> StoreRows(listOf("refId"), listOfNotNull(lastOpened?.let { listOf<Cell>(Cell.Text(it)) }))
             sql.contains("type = 'page'") -> StoreRows(
                 listOf("id", "order", "width", "height", "refId"),

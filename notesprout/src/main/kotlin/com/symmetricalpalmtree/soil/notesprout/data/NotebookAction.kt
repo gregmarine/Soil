@@ -73,6 +73,22 @@ sealed interface NotebookAction {
      * content the operation soft-deleted (empty for an insert), which undo restores; and the
      * page the notebook was on either side.
      */
+    /**
+     * A page pasted: the same shape as [Page], its own kind because [contentIds] runs the other
+     * way: a delete's are rows to put back on undo, a paste's are rows to take away. A template
+     * row the paste brought in is left in place by an undo.
+     */
+    class PagePasted(
+        val before: List<PageRef>,
+        val after: List<PageRef>,
+        val contentIds: List<String>,
+        val beforeCurrent: String,
+        val afterCurrent: String,
+    ) : NotebookAction
+
+    /** Objects pasted onto [pageId]: the rows the paste created, which an undo soft-deletes. */
+    class ObjectsPasted(val pageId: String, val contentIds: List<String>) : NotebookAction
+
     class Page(
         val before: List<PageRef>,
         val after: List<PageRef>,

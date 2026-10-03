@@ -2,7 +2,6 @@ package com.symmetricalpalmtree.soil.library
 
 import com.symmetricalpalmtree.soil.data.index.Folder
 import com.symmetricalpalmtree.soil.data.index.Item
-import com.symmetricalpalmtree.soil.paper.core.FuzzyRank
 import com.symmetricalpalmtree.soil.templates.SortField
 import com.symmetricalpalmtree.soil.templates.SortOrder
 
@@ -11,6 +10,10 @@ import com.symmetricalpalmtree.soil.templates.SortOrder
 sealed class LibraryCard(val id: String, val name: String) {
     class FolderCard(val folder: Folder, val subtitle: String? = null) : LibraryCard(folder.id, folder.name)
     class ItemCard(val item: Item, val pinned: Boolean = false, val subtitle: String? = null) : LibraryCard(item.id, item.name)
+
+    /** A page found by its tag: the item's cover and name, the page's number (null when the index
+     *  does not know it), and the tag under the place. Opens at the page; has no sheet. */
+    class PageCard(val item: Item, val pageId: String, val pageNumber: Int?, val subtitle: String) : LibraryCard(item.id + "/" + pageId, item.name)
 }
 
 /**
@@ -48,8 +51,23 @@ object LibraryListing {
     fun recentCards(items: List<Item>, pinned: Set<String>, place: (Item) -> String): List<LibraryCard> =
         items.filter { it.openedAt != null }.sortedByDescending { it.openedAt }.map { LibraryCard.ItemCard(it, it.id in pinned, place(it)) }
 
-    /** The search shelf: folders that match, then items that match, each by relevance, from anywhere. */
-    fun searchCards(query: String, folders: List<Folder>, items: List<Item>, pinned: Set<String>, placeFolder: (Folder) -> String, placeItem: (Item) -> String): List<LibraryCard> =
-        FuzzyRank.rank(folders, query) { it.name }.map { LibraryCard.FolderCard(it, placeFolder(it)) } +
-            FuzzyRank.rank(items, query) { it.name }.map { LibraryCard.ItemCard(it, it.id in pinned, placeItem(it)) }
+    /**
+     * The search shelf: folders that match, then items that match by name or by tag, then tagged
+     * pages, each by relevance, from anywhere. An item found by its tag alone wears the tag under
+     * its place; a page always does. [pageNumber] answers from the index's page order.
+     */
+    fun searchCards(
+        shelf: SearchMerge.Shelf,
+        pinned: Set<String>,
+        placeFolder: (Folder) -> String,
+        placeItem: (Item) -> String,
+        pageNumber: (itemId: String, pageId: String) -> Int?,
+        withTag: (place: String, tag: String) -> String,
+    ): List<LibraryCard> =
+        shelf.folders.map { LibraryCard.FolderCard(it, placeFolder(it)) } +
+            shelf.items.map { hit ->
+                val place = placeItem(hit.item)
+                LibraryCard.ItemCard(hit.item, hit.item.id in pinned, hit.matchedTag?.let { withTag(place, it) } ?: place)
+            } +
+            shelf.pages.map { hit -> LibraryCard.PageCard(hit.item, hit.pageId, pageNumber(hit.item.id, hit.pageId), withTag(placeItem(hit.item), hit.matchedTag)) }
 }

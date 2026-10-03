@@ -1,7 +1,13 @@
 package com.symmetricalpalmtree.soil.notesprout.data
 
 import android.util.Log
+import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.gpaper.core.model.Bounds
+import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectClip
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
+import com.symmetricalpalmtree.soil.notesprout.clip.PageClip
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
 import com.symmetricalpalmtree.soil.notesprout.objects.LinkRows
@@ -411,6 +417,101 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         for (page in target) if (page.id !in aliveIds) remirrorPage(page.id)
     }
 
+    // ── The clipboard ──────
+
+    /** The live rows by id, every column. */
+    private fun rowsByIds(ids: List<String>): List<NotebookRow> =
+        ids.distinct().chunked(ID_CHUNK).flatMap { chunk -> store.query(NotebookSql.selectRows(chunk)).rows.mapNotNull { NotebookRow.fromRow(it) } }
+
+    private fun childRows(parentId: String, type: String): List<NotebookRow> =
+        store.query(NotebookSql.selectChildRows(parentId, type)).rows.mapNotNull { NotebookRow.fromRow(it) }
+
+    /** Snapshot [page] and everything on it. The caller flushed the ink first. Null when the page row has gone. */
+    fun capturePage(page: PageRef): ClipEnvelope? = guard {
+        val pageRow = rowsByIds(listOf(page.id)).firstOrNull() ?: return@guard null
+        val template = page.templateId.takeIf { it.isNotEmpty() }?.let { rowsByIds(listOf(it)).firstOrNull() }
+        val content = store.query(NotebookSql.selectLiveDescendantRows(page.id)).rows.mapNotNull { NotebookRow.fromRow(it) }
+        PageClip.capture(pageRow, template, content, notebookId, System.currentTimeMillis())
+    }
+
+    /**
+     * Paste [env]'s page beside [currentId] and land on it: [insertPage]'s shape with the
+     * payload's rows in place of one blank row, the pasted links mirrored, in one transaction.
+     * Answers the new list, the pasted page, and the ids the paste created, which an undo takes
+     * away. Throws on a payload with no page: the caller checks the clipboard first.
+     */
+    fun pasteAt(pages: List<PageRef>, currentId: String, env: ClipEnvelope, before: Boolean): Triple<List<PageRef>, PageRef, List<String>> = guard {
+        val i = pages.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        val pos = PageMath.insertPosition(i, after = !before)
+        val plan = PageClip.plan(env, notebookId, pos, resolveTemplate(env)) { newId() } ?: throw IllegalArgumentException("the payload holds no page")
+        val pageRow = plan.rows.first { it.type == NotebookSchema.TYPE_PAGE }
+        val page = PageRef(pageRow.id, pageRow.width ?: 0f, pageRow.height ?: 0f, pageRow.refId.orEmpty())
+        val next = pages.toMutableList().also { it.add(pos, page) }
+        val now = System.currentTimeMillis()
+        run(
+            plan.rows.map { NotebookSql.insertRow(it, now) } +
+                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.map { NotebookSql.mirrorRow(it.id, it.text, it.parentId, notebookId) } +
+                renumber(next, now) + NotebookSql.setLastOpened(notebookId, page.id, now),
+        )
+        Slog.d(TAG) { "pasted a page at $pos (${plan.contentIds.size} rows, ${next.size} pages)" }
+        Triple(next, page, plan.contentIds)
+    }
+
+    /**
+     * Snapshot a selection: the selected rows, a selected link's whole wrapped set, and every
+     * sticky's content, three levels gathered top-level first. Reads only; the caller flushed the
+     * ink first. Null when nothing selected is still on the page.
+     */
+    fun captureObjects(topIds: List<String>): ClipEnvelope? = guard {
+        if (topIds.isEmpty()) return@guard null
+        val top = rowsByIds(topIds)
+        if (top.isEmpty()) return@guard null
+        val wrapped = top.filter { it.type == NotebookSchema.TYPE_LINK }.flatMap { link -> WRAPPED_TYPES.flatMap { childRows(link.id, it) } }
+        val stickies = (top + wrapped).filter { it.type == NotebookSchema.TYPE_STICKY }
+        val noteContent = stickies.flatMap { childRows(it.id, NotebookSchema.TYPE_STROKE) }
+        ObjectClip.capture(top, wrapped + noteContent, notebookId, System.currentTimeMillis())
+    }
+
+    /**
+     * Write [env]'s objects onto [pageId], rebased after the page's current orders, placed by
+     * [place], the pasted links mirrored, in one transaction. Null when the payload holds nothing
+     * this build can place: nothing is written.
+     */
+    fun pasteObjects(pageId: String, env: ClipEnvelope, place: (Bounds) -> ObjectPlacement.Offset): ObjectClip.Plan? = guard {
+        val bases = ORDERED_TYPES.associateWith { nextOrder(pageId, it) - 1 }
+        val plan = ObjectClip.plan(env, notebookId, pageId, { bases[it] ?: -1 }, { newId() }, place) ?: return@guard null
+        val now = System.currentTimeMillis()
+        run(
+            plan.rows.map { NotebookSql.insertRow(it, now) } +
+                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.map { NotebookSql.mirrorRow(it.id, it.text, it.parentId, notebookId) },
+        )
+        Slog.d(TAG) { "pasted ${plan.contentIds.size} rows onto a page" }
+        plan
+    }
+
+    /**
+     * How this file reaches the payload's template: a row already here under that id (always,
+     * for a same-notebook paste); the same paper under another id, by content; else the carried
+     * row is brought in, and a payload naming a template it does not carry pastes blank.
+     */
+    private fun resolveTemplate(env: ClipEnvelope): PageClip.Template {
+        val pageRow = env.rows.firstOrNull { it.type == NotebookSchema.TYPE_PAGE }
+        val wanted = pageRow?.refId?.takeIf { it.isNotEmpty() } ?: return PageClip.Template.None
+        val digests = templateDigests()
+        if (digests.any { it.id == wanted }) return PageClip.Template.Reuse(wanted)
+        val carried = env.rows.firstOrNull { it.type == NotebookSchema.TYPE_TEMPLATE && it.id == wanted } ?: return PageClip.Template.None
+        val size = carried.blobBytes()?.size?.toLong()
+        val shortlist = digests.filter { it.token == carried.text && it.width == carried.width && it.height == carried.height && it.blobLength == size }.map { it.id }
+        for (chunk in shortlist.chunked(TEMPLATE_CHUNK)) {
+            val hit = PageClip.matchTemplate(carried, rowsByIds(chunk))
+            if (hit != null) {
+                Slog.d(TAG) { "paste reuses a matching template row" }
+                return PageClip.Template.Reuse(hit)
+            }
+        }
+        return PageClip.Template.Insert(wanted)
+    }
+
     private fun renumber(pages: List<PageRef>, now: Long): List<Statement> =
         pages.mapIndexed { i, page -> NotebookSql.setOrder(page.id, i, now) }
 
@@ -419,6 +520,17 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
 
     companion object {
         private const val TAG = "NotebookStore"
+        private const val ID_CHUNK = 400
+
+        /** Template rows are compared by their pixels, a few at a time. */
+        private const val TEMPLATE_CHUNK = 8
+
+        /** What a link wraps: anything but another link. */
+        private val WRAPPED_TYPES = listOf(NotebookSchema.TYPE_STROKE, NotebookSchema.TYPE_HEADING, NotebookSchema.TYPE_TEXT, NotebookSchema.TYPE_STICKY)
+
+        /** The kinds whose `"order"` is per page: a paste rebases each after its current maximum. */
+        private val ORDERED_TYPES = listOf(NotebookSchema.TYPE_STROKE, NotebookSchema.TYPE_HEADING, NotebookSchema.TYPE_LINK, NotebookSchema.TYPE_TEXT, NotebookSchema.TYPE_STICKY)
+
         fun newId(): String = UUID.randomUUID().toString()
     }
 }

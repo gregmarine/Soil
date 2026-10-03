@@ -41,6 +41,8 @@ class NotebookSqlTest {
         NotebookSql.mirrorDropPage("p1"),
         NotebookSql.insertTemplate("t1", "nb", "LINED", 1404, 1872, byteArrayOf(1, 2), 10L),
         NotebookSql.setPageTemplate("p1", "t1", 10L),
+        NotebookSql.insertRow(NotebookRow("r1", "p1", "heading", 2, text = "## T", x = 1f, y = 2f, width = 3f, height = 4f, flags = 2L), 10L),
+        NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb"),
     )
 
 
@@ -56,6 +58,9 @@ class NotebookSqlTest {
         NotebookSql.selectLiveChildIds("p1", "stroke"),
         NotebookSql.selectTemplateDigests("nb"),
         NotebookSql.selectTemplateBlob("t1"),
+        NotebookSql.selectRows(listOf("a", "b")),
+        NotebookSql.selectLiveDescendantRows("p1"),
+        NotebookSql.selectChildRows("l1", "stroke"),
     )
 
     @Test
@@ -115,7 +120,7 @@ class NotebookSqlTest {
         assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirror(link, "p1", "nb").sql))
         assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDrop("l1").sql))
         assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDropPage("p1").sql))
-        assertEquals(3, writes.count { SeamSql.writesLinkMirror(it.sql) })
+        assertEquals(4, writes.count { SeamSql.writesLinkMirror(it.sql) })
         assertEquals(listOf<Cell>(Cell.Text("l1"), Cell.Text("p1"), Cell.Text("nb"), Cell.Text("p2")), NotebookSql.mirror(link, "p1", "nb").args)
         assertEquals(Cell.Null, NotebookSql.mirror(link.copy(payload = "L1|0|1|other|"), "p1", "nb").args[3])
     }
@@ -144,5 +149,26 @@ class NotebookSqlTest {
         for (c in listOf("id", "\"order\"", "width", "height", "refId")) assertTrue(pages.sql.contains(c))
         assertTrue(pages.sql.contains("deletedAt IS NULL"))
         assertTrue(strokes.sql.contains("deletedAt IS NULL"))
+    }
+
+    @Test
+    fun `a whole row is written with every column and never replaced, and the whole-row reads name the row's columns`() {
+        val row = NotebookRow("r1", "p1", "stroke", 2, color = "#000000", strokeWidth = 3f, style = "PEN", blob = byteArrayOf(1))
+        val s = NotebookSql.insertRow(row, 10L)
+        assertTrue(s.sql.startsWith("INSERT OR IGNORE INTO notebook (id, parentId, type, \"order\", text, refId, x, y, width, height, color, strokeWidth, style, flags, blob, createdAt, updatedAt)"))
+        assertEquals(17, s.args.size)
+        assertEquals(Cell.Integer(10L), s.args[15])
+        for (read in listOf(NotebookSql.selectRows(listOf("a")), NotebookSql.selectLiveDescendantRows("p1"), NotebookSql.selectChildRows("l1", "stroke"))) {
+            assertTrue(read.sql, read.sql.contains("SELECT id, parentId, type, \"order\", text, refId, x, y, width, height, color, strokeWidth, style, flags, blob FROM notebook"))
+            assertTrue(read.sql.contains("deletedAt IS NULL"))
+        }
+        assertEquals(2, NotebookSql.selectRows(listOf("a", "b")).args.size)
+    }
+
+    @Test
+    fun `a pasted link's mirror row is the same statement as a wrapped link's`() {
+        assertEquals(NotebookSql.mirror(link, "p1", "nb").sql, NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb").sql)
+        assertEquals(NotebookSql.mirror(link, "p1", "nb").args, NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb").args)
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorRow("l1", "garbage", "p1", "nb").sql))
     }
 }
