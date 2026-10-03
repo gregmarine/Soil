@@ -52,7 +52,9 @@ class LibraryBrowser(
 ) {
     enum class Shelf { NONE, PINNED, RECENTS, SEARCH }
 
-    private val store = LibraryStore()
+    /** Lazy: the home screen holds a browser in every state of the library, and the index is
+     *  only there to read once the library is open. */
+    private val store by lazy { LibraryStore() }
     private val prefs = LibraryPrefs(activity)
 
     var folderId: String = ""
@@ -185,6 +187,7 @@ class LibraryBrowser(
     // ── Listing ──────
 
     private suspend fun refresh() {
+        if (!com.symmetricalpalmtree.soil.data.index.SoilIndex.isReady()) return
         val listed = withContext(Dispatchers.IO) {
             if (folderId.isNotEmpty() && store.folder(folderId) == null) folderId = ""
             pinnedIds = store.pinnedIds().toSet()

@@ -73,6 +73,8 @@ class TemplateBrowser(
         pageWidthPx = minOf(metrics.widthPixels, metrics.heightPixels)
         pageHeightPx = maxOf(metrics.widthPixels, metrics.heightPixels)
         with(binding) {
+            // The host's way out, only where a host asks for one.
+            btnClose.visibility = View.GONE
             btnSort.setOnClickListener { showSortSheet() }
             btnNewFolder.setOnClickListener { showNewFolderDialog() }
             btnImport.setOnClickListener { transfer.startImport() }
