@@ -487,7 +487,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
                 val moved = doc.translateObjects(move.contentIds, move.dx, move.dy)
                 paper.notifyContentChanged()
                 if (!moved.isEmpty || ink != null) {
-                    undo.record(NotebookAction.Moved(doc.pageId, ink, moved.headingIds, moved.textIds, moved.stickyIds, move.dx, move.dy))
+                    undo.record(NotebookAction.Moved(doc.pageId, ink, moved.headingIds, moved.textIds, moved.stickyIds, move.dx, move.dy, moved.linkIds))
                 }
                 runPageOp {
                     doc.writeMove(moved, move.dx, move.dy)
