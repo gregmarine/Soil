@@ -432,8 +432,9 @@ class ExportActivity : AppCompatActivity() {
     private fun onCloudDestinationTap() {
         when (ExportDestination.onCloudTap(cloudStatus)) {
             ExportDestination.Tap.SELECT -> { destinationChoice = ExportDestination.Choice.CLOUD; render() }
-            ExportDestination.Tap.NOT_CONFIGURED -> Dialogs.problem(this, R.string.cloud_not_configured_title, R.string.cloud_not_configured_body)
-            ExportDestination.Tap.OFFER_CONNECT -> offerConnect()
+            // The radio checked itself at the tap; a refused answer redraws the row as it stands.
+            ExportDestination.Tap.NOT_CONFIGURED -> { render(); Dialogs.problem(this, R.string.cloud_not_configured_title, R.string.cloud_not_configured_body) }
+            ExportDestination.Tap.OFFER_CONNECT -> { render(); offerConnect() }
         }
     }
 
