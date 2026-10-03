@@ -46,6 +46,7 @@
     <string name="link_action">Link</string>
     <string name="link_edit_action">Edit link</string>
     <string name="link_unlink_action">Unlink</string>
+    <string name="link_remove_action">Remove link</string>
     <string name="link_result_lost_title">Couldn\'t apply the link</string>
     <string name="link_result_lost_body">This screen was rebuilt while the picker was open, so the choice was lost. Please try again.</string>
     <string name="link_picker_title">Link to…</string>

@@ -26,9 +26,9 @@ import kotlinx.coroutines.withContext
  * itself still there. [LinkTrail] remembers where each hop came from.
  *
  * Two directions, two rules that differ on purpose:
- * - A **follow** that cannot land explains itself: the dead-target dialog, whose other button
- *   opens the picker on the link so it can be retargeted on the spot. The link row is never
- *   touched: a target gone today may be back from a backup tomorrow.
+ * - A **follow** that cannot land explains itself: the dead-target dialog, which offers to
+ *   retarget the link in the picker or to remove it (an unlink, undoable). Left alone, the link
+ *   row is never touched: a target gone today may be back from a backup tomorrow.
  * - A **walk back** that meets a dead entry skips it in silence and keeps popping. The person
  *   asked to go back, not to be told about a page they deleted.
  *
@@ -48,6 +48,8 @@ class LinkFollowFlow(
     /** Leave this notebook for another, at a page or at its own remembered one. */
     private val leaveFor: (itemId: String, pageId: String?) -> Unit,
     private val editLink: (PageLink) -> Unit,
+    /** Unwrap the link, its content kept: the other way out of a dead end. Undoable. */
+    private val removeLink: (PageLink) -> Unit,
 ) {
 
     private var busy = false
@@ -163,7 +165,7 @@ class LinkFollowFlow(
 
     private fun deadTarget(link: PageLink, @StringRes bodyRes: Int) = deadTarget(link, activity.getString(bodyRes))
 
-    /** Why the tap did nothing, and the one thing worth offering: retarget the link. */
+    /** Why the tap did nothing, and the two things worth offering: retarget the link, or remove it. */
     private fun deadTarget(link: PageLink, body: CharSequence) {
         if (activity.isFinishing || activity.isDestroyed) return
         Slog.d(TAG) { "follow: no reachable target" }
@@ -172,6 +174,7 @@ class LinkFollowFlow(
                 .setTitle(R.string.link_target_gone_title)
                 .setMessage(body)
                 .setPositiveButton(R.string.link_edit_action) { _, _ -> editLink(link) }
+                .setNeutralButton(R.string.link_remove_action) { _, _ -> removeLink(link) }
                 .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
                 .create(),
         ).show()

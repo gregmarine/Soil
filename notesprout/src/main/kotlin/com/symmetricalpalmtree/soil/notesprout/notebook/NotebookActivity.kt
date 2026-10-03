@@ -211,6 +211,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>() {
             navigateToPage = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } },
             leaveFor = ::leaveFor,
             editLink = ::beginEdit,
+            removeLink = ::unlink,
         )
         backlinks = EdgeListPanel(
             this, emptyRes = R.string.backlinks_empty,
