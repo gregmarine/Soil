@@ -45,6 +45,7 @@ object Extensions {
             if (!ExtContract.sameBuild(context.packageName, si.packageName)) { Slog.d(TAG) { "skip $component: other build" }; continue }
             kept += Extension(si.packageName, si.name, si.applicationInfo?.loadLabel(pm)?.toString() ?: si.packageName)
         }
+        Slog.d(TAG) { "$action: ${kept.size} of ${found.size} found" }
         return kept.sortedWith(compareBy({ it.label }, { it.packageName }))
     }
 }
