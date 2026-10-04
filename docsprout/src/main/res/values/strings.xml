@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Docsprout</string>
+
+    <string name="cd_close">Close</string>
+    <string name="document_hint">Start writing…</string>
+
+    <string name="open_opening">Opening…</string>
+    <string name="open_failed_title">Can\'t open document</string>
+    <string name="open_no_soil">Soil could not be reached. Docsprout keeps its documents in Soil.</string>
+    <string name="open_locked">The library is not open. Open it in Soil, then open the document again.</string>
+    <string name="open_missing">This document is no longer in the library.</string>
+    <string name="open_newer">This document was written by a later Docsprout. It has not been changed.</string>
+    <string name="open_failed">The document could not be opened. It has not been changed.</string>
+    <string name="too_long_title">Too long to save</string>
+    <string name="too_long_body">This document has grown past what one document can hold, so the latest changes are not being saved. Move some of it to another document.</string>
+</resources>

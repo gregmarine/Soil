@@ -41,6 +41,9 @@
     <string name="new_notebook_hint">Name</string>
     <string name="new_notebook_default">Notebook</string>
     <string name="new_notebook_create">Create</string>
+    <string name="cd_new_document">New document</string>
+    <string name="new_document_title">New document</string>
+    <string name="new_document_failed_title">Couldn\'t make the document</string>
     <string name="item_no_app_title">No app for this</string>
     <string name="item_no_app_body">The app that opens %1$s is not installed.</string>
     <string name="item_open_failed_title">Can\'t open</string>
