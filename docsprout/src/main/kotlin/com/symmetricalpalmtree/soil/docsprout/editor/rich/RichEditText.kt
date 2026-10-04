@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.text.Editable
 import android.text.Selection
+import android.text.Spanned
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.AttributeSet
@@ -87,6 +88,7 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
                 internally {
                     ensureLastLineBreak(s)
                     applyPending(s, start, count)
+                    RichOps.keepOffLineBreaks(s, start, start + count)
                     val structural = removedLineBreak || (count > 0 && TextUtils.indexOf(s, '\n', start, minOf(start + count, s.length)) >= 0) || s.length <= count + 1
                     if (count == 1 && before == 0 && start < s.length && s[start] == '\n') enter(s, start) else reconcile(s, start, start + count)
                     val fixed = fixRules(s, start, start + count)
@@ -334,9 +336,9 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
         s.delete(caret - m, caret)
         s.delete(open, open + m)
         val end = caret - 2 * m
-        RichOps.addStyle(s, open, end, pair.style, "")
-        // The pair is closed: what is typed after it is not part of it.
-        setPending(pair.style, false, end)
+        // The pair is closed: its end does not take in what is typed after it, whatever the
+        // keyboard does between this character and the next.
+        RichOps.addStyle(s, open, end, pair.style, "", Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         return true
     }
 

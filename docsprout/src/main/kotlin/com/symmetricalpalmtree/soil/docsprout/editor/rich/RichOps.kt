@@ -133,7 +133,7 @@ internal object RichOps {
     }
 
     /** [style] over `[from, to)`, joined with any run of it that touches. */
-    fun addStyle(s: Editable, from: Int, to: Int, style: RichStyle, url: String) {
+    fun addStyle(s: Editable, from: Int, to: Int, style: RichStyle, url: String, flags: Int = RichCodec.INLINE_FLAGS) {
         if (to <= from) return
         var start = from
         var end = to
@@ -143,7 +143,30 @@ internal object RichOps {
             end = maxOf(end, s.getSpanEnd(span))
             s.removeSpan(span)
         }
-        s.setSpan(RichCodec.inlineSpan(style, url), start, end, RichCodec.INLINE_FLAGS)
+        s.setSpan(RichCodec.inlineSpan(style, url), start, end, flags)
+    }
+
+    /**
+     * No style sits on a line break. A run that has taken one in (Enter at its end, lines pasted
+     * into it) is cut there: what is before the break keeps the style, what is after it and
+     * already there keeps it too, and the break itself, with whatever is typed after it on the
+     * new line, has none. Without this a style at the end of a line runs on down the document.
+     */
+    fun keepOffLineBreaks(s: Editable, from: Int, to: Int) {
+        var nl = android.text.TextUtils.indexOf(s, '\n', from.coerceIn(0, s.length), to.coerceIn(0, s.length))
+        while (nl >= 0 && nl < to) {
+            for (span in s.getSpans(nl, nl + 1, Any::class.java)) {
+                val style = RichCodec.styleOf(span) ?: continue
+                val start = s.getSpanStart(span)
+                val end = s.getSpanEnd(span)
+                if (start > nl || end <= nl) continue
+                val url = (span as? LinkSpan)?.url.orEmpty()
+                s.removeSpan(span)
+                if (start < nl) s.setSpan(RichCodec.inlineSpan(style, url), start, nl, RichCodec.INLINE_FLAGS)
+                if (end > nl + 1) s.setSpan(RichCodec.inlineSpan(style, url), nl + 1, end, RichCodec.INLINE_FLAGS)
+            }
+            nl = android.text.TextUtils.indexOf(s, '\n', nl + 1, to.coerceIn(0, s.length))
+        }
     }
 
     /** [style] off `[from, to)`: a run that reaches past either end keeps what is outside. */

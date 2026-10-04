@@ -352,6 +352,35 @@ class SelfTestActivity : AppCompatActivity() {
         view.undo()
         checkTrue("undo puts a pair's markers back", text().toString() == "**b**\n")
 
+        load("")
+        keys("a `code`\nnext\nlast")
+        check("a line after a typed code pair is not code", "a `code`\n\nnext\n\nlast\n")
+
+        load("")
+        keys("a `code` more\nnext")
+        check("nor after words that follow the pair", "a `code` more\n\nnext\n")
+
+        load("")
+        keys("a **bold**\nnext")
+        check("a line after a typed bold pair is not bold", "a **bold**\n\nnext\n")
+
+        load("a `code`\n")
+        view.setSelection(at("code", after = true))
+        keys("\nnext")
+        check("Enter at the end of a code run does not carry code to the next line", "a `code`\n\nnext\n")
+
+        load("a **bold** b\n")
+        view.setSelection(at("ld"))
+        keys("\n")
+        check("Enter inside a styled run leaves both halves styled", "a **bo**\n\n**ld** b\n")
+
+        load("")
+        keys("a `code`")
+        view.setSelection(0)
+        view.setSelection(text().length - 1)
+        keys(" x\nnext")
+        check("a typed pair stays closed after the caret has been away and back", "a `code` x\n\nnext\n")
+
         load("| a |\n")
         view.setSelection(0)
         keys("# ")
