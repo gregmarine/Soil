@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The library browser: the path (or a shelf's title) at the head with a back arrow, the paged
-     card grid, and the pager. The actions on the folder are the host's own top bar; this is where
-     you stand and what is here. -->
+<!-- The library browser: the path (or a shelf's title) at the head with a back arrow and the
+     filters (Search, Recents, Pinned, Sort) at its end; the paged card grid; and a bottom bar with
+     Import at the start and the pager centred. What makes things is the host's top bar. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/browserRoot"
     android:layout_width="match_parent"
@@ -54,6 +54,30 @@
             android:singleLine="true"
             android:ellipsize="end"
             android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnSearch"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_search"
+            android:contentDescription="@string/cd_search" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnRecents"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_clock"
+            android:contentDescription="@string/cd_recents" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnPinned"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_pinned"
+            android:contentDescription="@string/cd_pinned" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnSort"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_sort"
+            android:contentDescription="@string/cd_sort" />
     </LinearLayout>
 
     <View
@@ -77,45 +101,75 @@
             android:textColor="@color/inkBlack" />
     </com.symmetricalpalmtree.soil.home.PageSwipeLayout>
 
-    <LinearLayout
-        android:id="@+id/pager"
+    <View
         android:layout_width="match_parent"
-        android:layout_height="@dimen/toolbar_bar_thickness"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:visibility="invisible">
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnFirst"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_page_first"
-            android:contentDescription="@string/cd_first_page" />
+    <FrameLayout
+        android:id="@+id/libraryBar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness">
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnPrev"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_page_prev"
-            android:contentDescription="@string/cd_prev_page" />
-
-        <TextView
-            android:id="@+id/pageLabel"
+        <!-- Import: a file into the library. Absent without an importer installed. -->
+        <LinearLayout
+            android:id="@+id/bottomActions"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="56dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="start|center_vertical"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnImport"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_file_import"
+                android:contentDescription="@string/cd_import"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/pager"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:textSize="14sp"
-            android:textColor="@color/inkBlack" />
+            android:visibility="invisible">
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnNext"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_page_next"
-            android:contentDescription="@string/cd_next_page" />
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFirst"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_first"
+                android:contentDescription="@string/cd_first_page" />
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnLast"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_page_last"
-            android:contentDescription="@string/cd_last_page" />
-    </LinearLayout>
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnPrev"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_prev"
+                android:contentDescription="@string/cd_prev_page" />
+
+            <TextView
+                android:id="@+id/pageLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="56dp"
+                android:gravity="center"
+                android:textSize="14sp"
+                android:textColor="@color/inkBlack" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnNext"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_next"
+                android:contentDescription="@string/cd_next_page" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnLast"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_page_last"
+                android:contentDescription="@string/cd_last_page" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

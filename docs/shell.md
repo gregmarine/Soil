@@ -81,7 +81,7 @@ What a third-party app does with the pen under the filter is its own affair.
 
 ## The menu
 
-- Home and the Scratch Pad.
+- Home, the Scratch Pad and Settings.
 - The installed apps are **not** listed. They are in the app drawer. Whether the menu should
   carry any is to be explored later.
 - A tap outside the panel closes it. The panel has no title and no close button.

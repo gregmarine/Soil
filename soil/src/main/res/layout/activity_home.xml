@@ -7,8 +7,9 @@
     android:orientation="vertical"
     android:background="@color/paperWhite">
 
-    <!-- Top bar: the two views at the start, the actions at the end. Action buttons live here; a
-         bottom bar is for a pager only. -->
+    <!-- Top bar: the two views at the start; at the end, what makes things (the library) or the
+         drawer's one action, and the way in while the library is locked. The library's filters
+         are on its own path line, and Backup and Import on its bottom bar (decision 2026-10-03). -->
     <LinearLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -52,42 +53,6 @@
             android:contentDescription="@string/cd_new_folder_library"
             android:visibility="gone" />
 
-        <!-- Import: a file into the library. Absent without an importer installed. -->
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnImport"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_file_import"
-            android:contentDescription="@string/cd_import"
-            android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnSearch"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_search"
-            android:contentDescription="@string/cd_search"
-            android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnRecents"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_clock"
-            android:contentDescription="@string/cd_recents"
-            android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnPinned"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_pinned"
-            android:contentDescription="@string/cd_pinned"
-            android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnSort"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_sort"
-            android:contentDescription="@string/cd_sort"
-            android:visibility="gone" />
-
         <!-- The app drawer's own action; absent on the library. -->
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnHiddenApps"
@@ -95,24 +60,6 @@
             android:src="@drawable/ic_eye_off"
             android:contentDescription="@string/cd_hidden_apps"
             android:visibility="gone" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnScratchPad"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_sketching"
-            android:contentDescription="@string/cd_scratch_pad" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnSettings"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_settings"
-            android:contentDescription="@string/cd_settings" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnEncryption"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_lock"
-            android:contentDescription="@string/cd_encryption" />
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnRecoveryKey"
@@ -219,7 +166,7 @@
         </FrameLayout>
     </FrameLayout>
 
-    <!-- The bottom bar is for the pager and nothing else. -->
+    <!-- The drawer's bottom bar: its pager. The library's bottom bar is the browser's own. -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"

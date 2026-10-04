@@ -90,6 +90,10 @@ class MenuOverlay(private val service: Context) {
             // The pad is a paper screen of Soil's: the app in front releases the pipeline first.
             afterHandoff { Screens.open(service, Screen.PAD) }
         })
+        b.ownRows.addView(row(b.ownRows, icon(R.drawable.ic_settings), themed.getString(R.string.settings_title)) {
+            runCatching { service.startActivity(Intent(service, com.symmetricalpalmtree.soil.settings.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Log.w(TAG, "Settings could not be started: ${it.javaClass.simpleName}") }
+        })
         for (app in apps) {
             val launch = app.launch ?: continue
             b.ownRows.addView(row(b.ownRows, app.icon, app.label) {

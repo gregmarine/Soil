@@ -13,8 +13,6 @@ import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.KeyGate
 import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.bootstrap.RecoveryKeyActivity
-import com.symmetricalpalmtree.soil.bootstrap.Screen
-import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.bootstrap.UnlockActivity
 import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.LibraryStore
@@ -42,7 +40,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * **The home screen**: two views under one top bar.
+ * **The home screen**: two views under one top bar. The bar carries the two views and what
+ * makes things; the library's filters sit on its own path line and Import on its bottom bar;
+ * Settings and the Scratch Pad are the side menu's, Encryption is a row on Settings.
  *
  *  - **The library**, which it opens on: folders and items as cards, a page at a time, with the
  *    Pinned, Recents and Search shelves ([LibraryBrowser]). An item opens in the app for its kind.
@@ -134,20 +134,17 @@ class HomeActivity : AppCompatActivity() {
         binding.btnNewNotebook.setOnClickListener { startActivity(NewNotebookActivity.intent(this, browser.folderId)) }
         binding.btnNewFolder.setOnClickListener { browser.showNewFolderDialog() }
         importFlow = com.symmetricalpalmtree.soil.importing.ImportFlow(this, { browser.folderId }, { browser.reload() }, { renderLibrary() })
-        binding.btnImport.setOnClickListener { importFlow.onTap() }
-        binding.btnSearch.setOnClickListener { browser.openSearchDialog() }
-        binding.btnRecents.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.RECENTS) }
-        binding.btnPinned.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.PINNED) }
-        binding.btnSort.setOnClickListener { browser.showSortSheet() }
-        // Through the gate: while the key is unsaved or the library locked, these lead to the
-        // screen that opens it.
-        binding.btnScratchPad.setOnClickListener { Screens.open(this, Screen.PAD) }
-        binding.btnEncryption.setOnClickListener { Screens.open(this, Screen.ENCRYPTION) }
-        binding.btnSettings.setOnClickListener { startActivity(Intent(this, com.symmetricalpalmtree.soil.settings.SettingsActivity::class.java)) }
+        // The library's filters on its path line, Import on its bottom bar.
+        val lib = binding.browser
+        lib.btnImport.setOnClickListener { importFlow.onTap() }
+        lib.btnSearch.setOnClickListener { browser.openSearchDialog() }
+        lib.btnRecents.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.RECENTS) }
+        lib.btnPinned.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.PINNED) }
+        lib.btnSort.setOnClickListener { browser.showSortSheet() }
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, binding.btnImport, binding.btnSearch, binding.btnRecents, binding.btnPinned, binding.btnSort, binding.btnScratchPad, binding.btnSettings, binding.btnEncryption)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -222,15 +219,13 @@ class HomeActivity : AppCompatActivity() {
         val inShelf = ::browser.isInitialized && browser.inShelf
         binding.btnNewNotebook.visibility = if (library && notebookApp && !inShelf) View.VISIBLE else View.GONE
         binding.btnNewFolder.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
-        binding.btnImport.visibility = if (library && !inShelf && ::importFlow.isInitialized && importFlow.installed) View.VISIBLE else View.GONE
-        binding.btnSearch.visibility = if (library) View.VISIBLE else View.GONE
-        binding.btnRecents.visibility = if (library) View.VISIBLE else View.GONE
-        binding.btnPinned.visibility = if (library) View.VISIBLE else View.GONE
-        binding.btnSort.visibility = if (library && (!inShelf || browser.shelf != LibraryBrowser.Shelf.SEARCH)) View.VISIBLE else View.GONE
+        val lib = binding.browser
+        lib.btnImport.visibility = if (library && !inShelf && ::importFlow.isInitialized && importFlow.installed) View.VISIBLE else View.GONE
+        lib.btnSort.visibility = if (library && (!inShelf || browser.shelf != LibraryBrowser.Shelf.SEARCH)) View.VISIBLE else View.GONE
         if (::browser.isInitialized) {
-            binding.btnRecents.isSelected = browser.shelf == LibraryBrowser.Shelf.RECENTS
-            binding.btnPinned.isSelected = browser.shelf == LibraryBrowser.Shelf.PINNED
-            binding.btnSearch.isSelected = browser.shelf == LibraryBrowser.Shelf.SEARCH
+            lib.btnRecents.isSelected = browser.shelf == LibraryBrowser.Shelf.RECENTS
+            lib.btnPinned.isSelected = browser.shelf == LibraryBrowser.Shelf.PINNED
+            lib.btnSearch.isSelected = browser.shelf == LibraryBrowser.Shelf.SEARCH
         }
     }
 

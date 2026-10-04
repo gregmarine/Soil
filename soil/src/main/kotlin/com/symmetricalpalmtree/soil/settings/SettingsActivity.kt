@@ -6,6 +6,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AlertDialog
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.bootstrap.Screen
+import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.cloud.CloudClient
 import com.symmetricalpalmtree.soil.cloud.CloudConnectEntry
 import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
@@ -31,7 +33,8 @@ import java.util.Locale
 /**
  * **Soil's one Settings screen**, behind the gear on the home top bar: what the apps are
  * recognised with (which installed recogniser, in which language), the paper library's door,
- * and the cloud account (the provider's status line; a tap connects or disconnects). Rows are
+ * the cloud account (the provider's status line; a tap connects or disconnects), and the
+ * Encryption screen's door. Rows are
  * built in code, each a label over its current answer; a tap asks with a sheet or a dialog.
  */
 class SettingsActivity : AppCompatActivity() {
@@ -84,6 +87,8 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, TemplatesActivity::class.java))
         })
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_cloud), cloudDetail()) { onCloudTap() })
+        // Through the gate: while the key is unsaved or the library locked, this leads to the screen that opens it.
+        binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_encryption), getString(R.string.settings_encryption_detail)) { Screens.open(this, Screen.ENCRYPTION) })
     }
 
     // ── Cloud ──────

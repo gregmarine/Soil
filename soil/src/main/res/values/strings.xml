@@ -519,6 +519,8 @@
     <!-- Cloud. Every sentence names the provider by the name it gave for itself; none carries a
          path, a folder name or the account. -->
     <string name="settings_cloud">Cloud storage</string>
+    <string name="settings_encryption">Encryption</string>
+    <string name="settings_encryption_detail">Passphrase, recovery key, rotation</string>
     <string name="settings_cloud_none">No cloud extension is installed</string>
     <string name="settings_cloud_none_body">Install the cloud extension to connect an account.</string>
     <string name="cloud_status_line">%1$s: %2$s</string>
