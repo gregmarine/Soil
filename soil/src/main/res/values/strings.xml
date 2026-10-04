@@ -433,6 +433,11 @@
     <string name="export_rekeying">Re-keying the copy…</string>
     <string name="export_decrypting">Removing encryption from the copy…</string>
     <string name="export_rendering">Rendering the pages…</string>
+    <string name="export_producing">Writing the file…</string>
+    <string name="export_page_size_caption">Page size</string>
+    <string name="export_page_size_letter">Letter</string>
+    <string name="export_page_size_a4">A4</string>
+    <string name="export_page_size_screen">This device\'s screen</string>
     <string name="export_exporting">Exporting…</string>
     <string name="export_protecting">Encrypting and exporting…</string>
     <string name="export_exporting_image">Exporting page %1$d of %2$d…</string>

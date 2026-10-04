@@ -50,6 +50,11 @@ class SelfTestActivity : AppCompatActivity() {
             addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         setContentView(column)
+        if (intent.getBooleanExtra("pdf", false)) {
+            report.text = runCatching { pdfProbe() }.getOrElse { "pdf probe failed: ${it.javaClass.simpleName}" }
+            Log.i(TAG, "PDF ${report.text}")
+            return
+        }
         view.post {
             runCatching { run() }.onFailure { fail("the run threw ${it.javaClass.simpleName} at ${it.stackTrace.firstOrNull { e -> e.className.contains("docsprout") }}") }
             lifecycleScope.launch {
@@ -91,6 +96,26 @@ class SelfTestActivity : AppCompatActivity() {
         report.text = lines.joinToString("\n")
         // Left showing something a person can look at: every kind of block there is.
         load("# Heading one\n\n## Heading two\n\nA paragraph with **bold**, _italic_, ~~struck~~, `code` and a [link](http://example.com), long enough to wrap onto a second line of the page so the wrapping can be seen.\n\n- a bullet\n  - nested\n    - and again\n- [ ] a task\n- [x] a done task\n1. one\n2. two\n\n> A quote, which also runs long enough to wrap so that its stripe can be seen beside both of its lines.\n\n---\n\n| a | table |\n|---|---|\n\nThe end, with a mispeled word and and a repeat.")
+    }
+
+    /**
+     * The export's layout, written to this app's cache for the Mac to pull and read: a document
+     * of many paragraphs laid out at each page size, as a PDF of text and as its first page's
+     * picture. It opens no document of the library's.
+     */
+    private fun pdfProbe(): String {
+        val words = StringBuilder("# Export probe\n\n")
+        for (n in 1..40) words.append("Paragraph $n with **bold**, _italic_ and a [link](http://example.com), long enough to wrap onto a second line of the page so that the cut between pages falls on a line.\n\n")
+        words.append("- a bullet\n  - nested\n- [x] a done task\n1. one\n2. two\n\n> A quote.\n\n---\n\nΕλληνικά, עברית, and the last line.")
+        val doc = RichParse.parse(words.toString()).doc
+        val out = StringBuilder()
+        for (size in listOf("letter", "a4", "screen")) {
+            val layout = com.symmetricalpalmtree.soil.docsprout.export.PageLayout(doc, com.symmetricalpalmtree.soil.docsprout.export.PageSpec.of(this, size, 16f))
+            java.io.File(cacheDir, "probe_$size.pdf").outputStream().use { layout.writePdf(it) }
+            java.io.File(cacheDir, "probe_$size.png").writeBytes(layout.png(0))
+            out.append("$size: ${layout.pages.size} pages, picture ${layout.spec.widthPx}x${layout.spec.heightPx}; ")
+        }
+        return out.toString()
     }
 
     // ── The harness ──────

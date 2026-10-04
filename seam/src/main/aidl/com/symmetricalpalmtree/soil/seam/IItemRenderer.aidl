@@ -5,6 +5,7 @@
 package com.symmetricalpalmtree.soil.seam;
 
 import com.symmetricalpalmtree.soil.seam.SeamPageNames;
+import com.symmetricalpalmtree.soil.seam.SeamRenderInfo;
 
 interface IItemRenderer {
     /** The item's pages in order: ids, 1-based numbers and titles (a page's first heading, or
@@ -27,4 +28,26 @@ interface IItemRenderer {
      * library under a fresh id, through the seam's own statement checker. Pure.
      */
     List<String> relabelStatements(String oldId, String newId);
+
+    // ── Added for kinds that flow (documents). New methods go at the end, so an app built
+    //    before them still answers the ones above; Soil treats one that cannot answer `describe`
+    //    as SeamRenderInfo.PAGES_ONLY. ──
+
+    /** What this app's kind is to an export: whether it flows, and the formats the app writes
+     *  itself. */
+    SeamRenderInfo describe();
+
+    /**
+     * As `render`, for an item that flows: the whole item laid out on pages of [pageSize] (one
+     * of Seam.PAGE_*), on a white ground. A paper size is drawn at Seam.PAPER_DPI pixels an
+     * inch; the screen size at the screen's own pixels.
+     */
+    SeamPageNames renderFlow(String itemId, String pageSize, int bundleVersion, in ParcelFileDescriptor destination);
+
+    /**
+     * Write the item in one of the formats `describe` named, finished, onto [destination].
+     * [pageSize] is one of Seam.PAGE_* and is read only by a paged format. Throws
+     * IllegalStateException with one of the Seam.RENDER_* messages when it cannot.
+     */
+    void produce(String itemId, String formatId, String pageSize, in ParcelFileDescriptor destination);
 }

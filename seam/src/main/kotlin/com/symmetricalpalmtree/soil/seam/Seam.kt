@@ -45,6 +45,15 @@ object Seam {
     const val RENDER_DAMAGED = "render: a page has no size"
     const val RENDER_FAILED = "render: failed"
 
+    /** The page sizes an item that flows can be laid out at, chosen on the export screen. */
+    const val PAGE_LETTER = "letter"
+    const val PAGE_A4 = "a4"
+    const val PAGE_SCREEN = "screen"
+
+    /** The pixels an inch a paper-size page picture is drawn at. A PDF made of such pictures
+     *  puts each pixel at `72 / PAPER_DPI` points, so its pages are the paper's size. */
+    const val PAPER_DPI = 200
+
     /** The id of the item to open. */
     const val EXTRA_ITEM_ID = "com.symmetricalpalmtree.soil.extra.ITEM_ID"
 

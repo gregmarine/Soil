@@ -227,6 +227,8 @@ class DocumentActivity : AppCompatActivity() {
         overflow.watchWidth()
         shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode, closeOverflow = { overflow.close() })
         binding.btnMode.setOnClickListener { toggleMode() }
+        binding.btnExport.setOnClickListener { export() }
+        TooltipCompat.setTooltipText(binding.btnExport, binding.btnExport.contentDescription)
         TooltipCompat.setTooltipText(binding.btnMode, binding.btnMode.contentDescription)
         findBar.install()
         tools.watchHeight()
@@ -377,6 +379,53 @@ class DocumentActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    // ── Export ──────
+
+    /**
+     * Soil's export screen for this document. The file must be free for it, so the words are
+     * saved, the cover written and the document closed first, in the queue's order; Soil opens
+     * the document again on the way back.
+     */
+    private fun export() {
+        if (!opened || closing) return
+        val id = itemId ?: return
+        if (isSavedOrSaveable().not()) return
+        closing = true
+        save()
+        writeCover()
+        // What the ways out would do has been done: they find nothing open.
+        opened = false
+        letGo()
+        appScope.launch {
+            ops.withLock { }
+            val started = runCatching {
+                startActivity(
+                    Intent(Seam.ACTION_EXPORT).setPackage(com.symmetricalpalmtree.soil.docsprout.BuildConfig.SOIL_PACKAGE)
+                        .putExtra(Seam.EXTRA_ITEM_ID, id)
+                        .putExtra(Seam.EXTRA_RETURN_TO_APP, true),
+                )
+            }.isSuccess
+            if (started) finish()
+            else if (!isFinishing && !isDestroyed) {
+                Dialogs.style(
+                    AlertDialog.Builder(this@DocumentActivity)
+                        .setTitle(R.string.export_failed_title)
+                        .setMessage(R.string.export_open_failed_body)
+                        .setPositiveButton(com.symmetricalpalmtree.soil.paper.R.string.ok) { _, _ -> finish() }
+                        .setOnCancelListener { finish() }
+                        .create(),
+                ).show()
+            }
+        }
+    }
+
+    /** A document too long to save is not exported as something it is not: it says so instead. */
+    private fun isSavedOrSaveable(): Boolean {
+        if (DocumentLimits.fits(currentMarkdown())) return true
+        Dialogs.problem(this, R.string.too_long_title, R.string.too_long_body)
+        return false
     }
 
     // ── Park and resume ──────

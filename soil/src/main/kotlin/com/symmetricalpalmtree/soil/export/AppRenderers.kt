@@ -11,6 +11,7 @@ import com.symmetricalpalmtree.soil.ext.PageBundle
 import com.symmetricalpalmtree.soil.seam.IItemRenderer
 import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamPageNames
+import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -51,14 +52,43 @@ object AppRenderers {
         ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, PAGES_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).pages(itemId) }
     }
 
+    /** What the app says of its kind. An app that cannot say (one built before the question
+     *  existed) is one whose items are pages and nothing else. */
+    suspend fun describe(context: Context, renderer: ComponentName): SeamRenderInfo = withContext(Dispatchers.IO) {
+        runCatching { ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, PAGES_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).describe() } }
+            .onFailure { Log.w(TAG, "the renderer did not describe itself: ${it.javaClass.simpleName}") }
+            .getOrNull() ?: SeamRenderInfo.PAGES_ONLY
+    }
+
+    /**
+     * One of the app's own formats, written whole into the export cache: the finished file,
+     * which Soil then only has to put where it was asked. Throws the app's
+     * IllegalStateException as it came.
+     */
+    suspend fun produce(context: Context, renderer: ComponentName, itemId: String, formatId: String, pageSize: String, fileExtension: String): File = withContext(Dispatchers.IO) {
+        val file = File(ExportArtifact.freshDir(context), "$itemId.$fileExtension")
+        val out = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE)
+        try {
+            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).produce(itemId, formatId, pageSize, out) }
+        } finally {
+            runCatching { out.close() }
+        }
+        if (file.length() == 0L) throw IllegalStateException(Seam.RENDER_FAILED)
+        file
+    }
+
     class Rendered(val file: File, val bytes: Long, val names: List<ExportNaming.PageName>)
 
     /** The bundle rendered into the export cache. Throws the app's IllegalStateException as it came. */
-    suspend fun render(context: Context, renderer: ComponentName, itemId: String, pageIds: List<String>, template: Boolean, bundleVersion: Int): Rendered = withContext(Dispatchers.IO) {
+    /** [flowPageSize] is the page size for an item that flows, and null for one with pages of its own. */
+    suspend fun render(context: Context, renderer: ComponentName, itemId: String, pageIds: List<String>, template: Boolean, bundleVersion: Int, flowPageSize: String? = null): Rendered = withContext(Dispatchers.IO) {
         val bundle = File(ExportArtifact.freshDir(context), "$itemId.pages")
         val out = ParcelFileDescriptor.open(bundle, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE)
         val names = try {
-            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).render(itemId, pageIds, template, bundleVersion, out) }
+            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) {
+                val app = IItemRenderer.Stub.asInterface(it)
+                if (flowPageSize != null) app.renderFlow(itemId, flowPageSize, bundleVersion, out) else app.render(itemId, pageIds, template, bundleVersion, out)
+            }
         } finally {
             runCatching { out.close() }
         }

@@ -28,6 +28,7 @@ import com.symmetricalpalmtree.soil.seam.IItemRenderer
 import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamCallerCheck
 import com.symmetricalpalmtree.soil.seam.SeamPageNames
+import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
@@ -62,6 +63,19 @@ class RenderService : Service() {
         }
 
         override fun relabelStatements(oldId: String, newId: String): List<String> = guarded { Relabel.statements(oldId, newId) }
+
+        // A notebook is its pages: it does not flow, and writes no format of its own.
+        override fun describe(): SeamRenderInfo = guarded { SeamRenderInfo.PAGES_ONLY }
+
+        override fun renderFlow(itemId: String, pageSize: String?, bundleVersion: Int, destination: ParcelFileDescriptor?): SeamPageNames = guarded {
+            runCatching { destination?.close() }
+            throw IllegalArgumentException("a notebook does not flow")
+        }
+
+        override fun produce(itemId: String, formatId: String?, pageSize: String?, destination: ParcelFileDescriptor?) = guarded {
+            runCatching { destination?.close() }
+            throw IllegalArgumentException("no such format")
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
