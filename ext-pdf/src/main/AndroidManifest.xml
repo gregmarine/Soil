@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- No launcher activity: an exporter has no screen. -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/ext_label"
+        android:roundIcon="@mipmap/ic_launcher_round">
+
+        <service
+            android:name=".PdfExporterService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.ext.EXPORTER" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.ext.API_VERSION"
+                android:value="1" />
+        </service>
+    </application>
+</manifest>

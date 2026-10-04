@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The one networked process of the family: the provider's sign-in and its REST calls. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- No launcher activity: the connect screen is started by Soil alone. -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/ext_label"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.Soil">
+
+        <service
+            android:name=".CloudService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_STORAGE" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.ext.API_VERSION"
+                android:value="1" />
+        </service>
+
+        <!-- The provider's consent page in a WebView, started for a result by Soil. -->
+        <activity
+            android:name=".ConnectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_SCREEN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

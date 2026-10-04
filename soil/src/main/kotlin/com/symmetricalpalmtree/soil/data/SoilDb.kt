@@ -32,13 +32,29 @@ object SoilDb {
 
     /** Create [file] under [passphrase] with [schema]. Refuses an existing non-empty file. */
     fun create(file: File, passphrase: String, schema: Schema): ZeticDB =
-        prepared(SoilCrypto.createRaw(file, passphrase), schema)
+        prepared(SoilCrypto.createRaw(file, passphrase), schema, NO_CHECK)
+
+    /** Create [file] under [passphrase] with no steps run: version 0, for the app that owns the
+     *  kind to bring to its own schema at its first open. Refuses an existing non-empty file. */
+    fun createUnversioned(file: File, passphrase: String): ZeticDB {
+        val db = SoilCrypto.createRaw(file, passphrase)
+        return try {
+            configure(db)
+            db
+        } catch (t: Throwable) {
+            runCatching { db.close() }
+            throw t
+        }
+    }
 
     /**
      * Open the existing [file]. The header is probed first and the file is opened only when it
      * reads as encrypted: a plaintext or unreadable file is refused, never opened to find out.
+     *
+     * [check] sees the file once it is open and **before any step of [schema] runs**. When it
+     * throws, the file is closed as it was found: a file of another kind is never migrated.
      */
-    fun open(file: File, key: FileKey, schema: Schema): ZeticDB {
+    fun open(file: File, key: FileKey, schema: Schema, check: (ZeticDB) -> Unit = NO_CHECK): ZeticDB {
         SoilCrypto.requireExisting(file)
         if (SoilCrypto.probe(file) != SoilFileKind.Encrypted) {
             throw SoilLockedException("${file.name} is not an encrypted database")
@@ -47,12 +63,13 @@ object SoilDb {
             is FileKey.Passphrase -> SoilCrypto.openRaw(file, key.value)
             is FileKey.Raw -> SoilCrypto.openRawKey(file, key.value)
         }
-        return prepared(db, schema)
+        return prepared(db, schema, check)
     }
 
     /** Configure and migrate, closing [db] if either throws so no connection is left behind. */
-    private fun prepared(db: ZeticDB, schema: Schema): ZeticDB = try {
+    private fun prepared(db: ZeticDB, schema: Schema, check: (ZeticDB) -> Unit): ZeticDB = try {
         configure(db)
+        check(db)
         migrate(db, schema)
         db
     } catch (t: Throwable) {
@@ -90,6 +107,8 @@ object SoilDb {
             db.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", NO_ARGS).use { it.moveToFirst() }
         }
     }
+
+    private val NO_CHECK: (ZeticDB) -> Unit = {}
 
     /** Typed, so the call never lands on `rawQuery(String, Object...)`. */
     private val NO_ARGS: Array<String>? = null

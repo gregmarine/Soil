@@ -12,4 +12,9 @@ object MenuSignals {
     /** Set by a paper screen while it is in front; run as the menu is about to show. */
     @Volatile
     var beforeMenuShows: (() -> Unit)? = null
+
+    /** Set by a paper screen while it is in front: whether the pen is down or hovering. The menu
+     *  stays away while it is, because a hand resting on the bar while writing is not a swipe. */
+    @Volatile
+    var penActive: (() -> Boolean)? = null
 }

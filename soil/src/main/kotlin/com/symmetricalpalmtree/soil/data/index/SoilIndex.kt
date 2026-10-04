@@ -14,6 +14,7 @@ import com.symmetricalpalmtree.soil.crypto.SoilRekey
 import com.symmetricalpalmtree.soil.data.FileKey
 import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,9 @@ object SoilIndex {
         prepareMutex.withLock {
             if (instance != null) return@withLock State.READY
             val app = context.applicationContext
+            // A restore killed mid-commit is settled first: before the probe could read a missing
+            // index as a fresh install, and before a rekey's leftovers are judged.
+            runCatching { com.symmetricalpalmtree.soil.restore.RestoreEngine.recoverInterrupted(app) }
             val found = try {
                 prepare(app)
             } catch (e: Exception) {
@@ -91,6 +95,9 @@ object SoilIndex {
                 // A re-key commit that died between its two renames is put right here, before
                 // anything opens a garden file.
                 runCatching { SoilRekey.recoverGarden(app, GlobalRotation.trustedVerifier(app)) }
+                // This device's backup destination, parked by a restore, goes back over the
+                // restored row on the first open after it.
+                runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             }
             found
         }.also { _state.value = it }
@@ -165,6 +172,7 @@ object SoilIndex {
             KeyMaterial.invalidate(app, KeyMaterial.INDEX_FILE_ID)
             val key = KeyMaterial.rawKey(app, KeyMaterial.INDEX_FILE_ID, file, passphrase)
             finishOpen(app, file, SoilDb.open(file, FileKey.Raw(key), IndexSchema.SCHEMA), passphrase)
+            runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             _state.value = State.READY
             true
         }
@@ -176,7 +184,10 @@ object SoilIndex {
      * caller reopens with [ensureReady] when it is done. Idempotent; never throws. IO.
      */
     suspend fun closeForRotation(context: Context) = withContext(Dispatchers.IO) {
-        prepareMutex.withLock { close(context.applicationContext, State.PREPARING) }
+        prepareMutex.withLock {
+            ItemSessions.releaseAll(context.applicationContext)
+            close(context.applicationContext, State.PREPARING)
+        }
     }
 
     /**
@@ -187,6 +198,7 @@ object SoilIndex {
     suspend fun lock(context: Context) = withContext(Dispatchers.IO) {
         prepareMutex.withLock {
             val app = context.applicationContext
+            ItemSessions.releaseAll(app)
             AppStores.closeAll(app)
             close(app, State.NEEDS_UNLOCK)
             KeySession.clear()

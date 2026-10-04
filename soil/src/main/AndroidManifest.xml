@@ -8,6 +8,31 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- The Sprout apps: each says which kind of item it opens. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.OPEN_ITEM" />
+        </intent>
+        <!-- The extensions: a recogniser is a service Soil binds on an app's behalf. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />
+        </intent>
+        <!-- The export and import points, and the Sprout apps' renderers. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.EXPORTER" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.IMPORTER" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.RENDER" />
+        </intent>
+        <!-- The cloud point: the storage service and its connect screen. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_STORAGE" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.ext.CLOUD_SCREEN" />
+        </intent>
         <!-- The firmware's launcher, bound to hold its side menu shut. -->
         <package android:name="com.ratta.supernote.launcher" />
     </queries>
@@ -18,6 +43,10 @@
     <permission
         android:name="${applicationId}.permission.SEAM"
         android:protectionLevel="signature" />
+
+    <!-- Soil holds its own permission: the screen an app opens an item in is guarded by it, and
+         Soil is what starts that screen. -->
+    <uses-permission android:name="${applicationId}.permission.SEAM" />
 
     <application
         android:name=".SoilApp"
@@ -30,6 +59,15 @@
         <!-- The home screen, which is the library. It offers itself as the device's home screen;
              whether it IS the home screen is set over adb (see README.md). It keeps its launcher
              entry, so it can be reached from the firmware's own menu when it is not. -->
+        <activity
+            android:name=".backup.BackupActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".restore.RestoreActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <activity
             android:name=".home.HomeActivity"
             android:exported="true"
@@ -77,9 +115,107 @@
              in the recent apps. -->
         <activity
             android:name=".pad.ScratchPadActivity"
-            android:exported="false"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
             android:taskAffinity="${applicationId}.pad"
             android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <!-- A Sprout app opens the pad over its own paper, for a result: the pad then sends. -->
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.SCRATCH_PAD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The export screen: Soil's own from the library, and an app's door for one of its
+             items, started behind the seam permission. -->
+        <activity
+            android:name=".export.ExportActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.EXPORT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The paper library. In browse mode it is Soil's own; in pick mode a Sprout app starts
+             it for a result, so it is exported behind the seam permission, and it checks the
+             caller's certificate again itself. -->
+        <activity
+            android:name=".templates.TemplatesActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.PICK_TEMPLATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Save as template, Soil's half: a Sprout app parks a picture through the seam and
+             starts this for the name and the folder. -->
+        <activity
+            android:name=".templates.SaveTemplateActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Soil.Translucent"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.SAVE_TEMPLATE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".library.NewNotebookActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustNothing" />
+
+        <!-- An item of the library for a Sprout app: the link picker's notebook shelves. -->
+        <activity
+            android:name=".library.ItemPickerActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.PICK_ITEM" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The tag screen: one item's tags, or one page's. Started for a result by the library
+             and by the Sprout apps; exported behind the seam permission and the caller check. -->
+        <activity
+            android:name=".tags.TagsActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.TAGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".settings.SettingsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".library.FolderPickerActivity"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:screenOrientation="portrait" />
 

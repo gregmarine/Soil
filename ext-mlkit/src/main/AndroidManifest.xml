@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The model download needs the network; nothing else here does. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- No launcher activity: a recogniser has no screen. -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/ext_label"
+        android:roundIcon="@mipmap/ic_launcher_round">
+
+        <service
+            android:name=".RecognizerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.ext.API_VERSION"
+                android:value="1" />
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.ext.LANGUAGES"
+                android:value="en-US" />
+        </service>
+    </application>
+</manifest>

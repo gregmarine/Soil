@@ -78,9 +78,11 @@ close its index.
 Nothing on the Encryption screen runs while the Scratch Pad is open, shown or left behind another
 app: its store cannot be re-keyed or closed under a live page. The person is asked to close it.
 
-## Open
+## Backup
 
-- When backup arrives, a rotation must clear its stamps before the index is closed.
+A rotation clears every backup stamp before the index closes (`GlobalRotation.start`), so the
+next run copies every file again under the new key. A restore installs the backup's key as this
+device's global, acknowledged. See `docs/backup.md`.
 
 ## Walked on the Nomad, 2026-09-28
 

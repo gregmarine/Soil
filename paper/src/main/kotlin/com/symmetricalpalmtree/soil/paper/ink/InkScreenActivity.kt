@@ -11,6 +11,7 @@ import com.symmetricalpalmtree.gpaper.core.model.Selection
 import com.symmetricalpalmtree.gpaper.core.model.SelectionMove
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
+import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.UndoRedoStack
 import com.symmetricalpalmtree.soil.paper.R
@@ -126,6 +127,7 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
     protected val paperListener: PaperListener = object : PaperListener {
 
         override fun onStrokeCommitted(stroke: Stroke) {
+            lastPenLiftAt = android.os.SystemClock.uptimeMillis()
             if (!opened || closing) return
             val page = inkPage ?: return
             // A page has no ceiling (arc 22 / X2): every committed stroke is taken.
@@ -186,7 +188,23 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
         }
 
         override fun onToolChanged(tool: Tool) = syncTool(tool)
+
+        override fun onPenLifted() { lastPenLiftAt = android.os.SystemClock.uptimeMillis() }
     }
+
+    /** When the pen last lifted, as the engine told it. */
+    @Volatile
+    private var lastPenLiftAt = 0L
+
+    /**
+     * Whether the pen is active, or lifted so recently that a hand is still on the glass: what
+     * Soil's menu asks before it draws over this screen. A palm resting on the side bar while
+     * writing presses the bar's key for the length of a swipe, and the pen lifts between words;
+     * the engine's own tail is a few hundred milliseconds, and a hand writing lifts the pen for
+     * longer than that between strokes. So a recent lift counts too.
+     */
+    protected fun penRecentlyActive(): Boolean =
+        paper.isPenActive || android.os.SystemClock.uptimeMillis() - lastPenLiftAt < PEN_RECENT_MS
 
     // ── Page operations ──────────────────────────────────────────────────────
 
@@ -297,18 +315,25 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
      * pipeline off. **The flush is awaited before `finish()`**, so nothing written is left in
      * flight behind a screen that has gone.
      */
+    /** Run once the page is flushed and just before the screen finishes: a door the exit opens. */
+    protected var afterExit: (() -> Unit)? = null
+
     protected fun exit() {
         if (closing) return
         closing = true
         hideEraserBar()   // a floating bar belongs to a screen that is leaving
         dismissCollapsed()   // and so do the corner button's rows
         screenRoot?.removeCallbacks(saveRunnable)
-        val page = inkPage ?: run { finishWithHandoff(); return }
+        val page = inkPage ?: run { afterExit?.invoke(); afterExit = null; finishWithHandoff(); return }
         appScope.launch {
             withContext(NonCancellable) {
                 pageOps.withLock { runCatching { page.flushUntilClean() }.onFailure { Log.w(logTag, "final flush failed", it) } }
             }
-            if (!isFinishing && !isDestroyed) finishWithHandoff()
+            if (!isFinishing && !isDestroyed) {
+                afterExit?.invoke()
+                afterExit = null
+                finishWithHandoff()
+            }
         }
     }
 
@@ -320,6 +345,9 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
 
         /** Quiet time before the page's op log is written. */
         const val SAVE_DEBOUNCE_MS = 800L
+
+        /** How long after a pen lift the hand is taken to be still on the glass. */
+        const val PEN_RECENT_MS = 2_000L
 
         /** Outlives the Activity so a flush in flight always completes. */
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

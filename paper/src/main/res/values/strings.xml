@@ -16,4 +16,28 @@
     <string name="tool_smudge">Smudge</string>
     <string name="tool_lasso">Lasso</string>
 
+
+    <!-- The shade panel -->
+    <string name="cd_shade_black">Black</string>
+    <string name="cd_shade_white">White</string>
+    <string name="cd_shade">Grey %1$d</string>
+
+    <!-- Recognition: Soil's words, shared by every app -->
+    <string name="recognize_recognizing">Recognising…</string>
+    <string name="recognize_problem_title">Recognition</string>
+    <string name="recognize_no_recognizer">No recogniser is set up. Install Soil · Handwriting, or choose one in Soil\'s Settings.</string>
+    <string name="recognize_model_needed_title">Recognition model needed</string>
+    <string name="recognize_model_needed_body">Recognising handwriting needs a one-time download of the language model, about 20 MB. Wi-Fi is recommended.\n\nDownload it now?</string>
+    <string name="recognize_model_needed_offline_body">Recognising handwriting needs a one-time download of the language model, about 20 MB, but this device is offline right now. Connect to Wi-Fi, then try again.</string>
+    <string name="recognize_download">Download</string>
+    <string name="recognize_downloading_title">Downloading the recognition model</string>
+    <string name="recognize_downloading_body">This takes a minute or so the first time. Your handwriting will be recognised as soon as it finishes.\n\nElapsed: %1$d s</string>
+    <string name="recognize_downloading_offline_body">Waiting for a network connection… The download resumes when the device is back online.\n\nElapsed: %1$d s</string>
+    <string name="recognize_download_failed_title">Download failed</string>
+    <string name="recognize_download_failed_body">The recognition model couldn\'t be downloaded. Check the Wi-Fi connection and try again.</string>
+    <string name="recognize_still_downloading">The model is still downloading. Try again in a minute.</string>
+    <string name="recognize_unavailable">The recogniser cannot run on this device.</string>
+    <string name="recognize_too_dense">Too much ink to recognise at once.</string>
+    <string name="recognize_failed">The recogniser did not answer.</string>
+    <string name="recognize_nothing">Nothing could be made of that ink. It has been left as it was.</string>
 </resources>

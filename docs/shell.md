@@ -61,9 +61,27 @@ on a swipe up of the right bar it refreshes the screen and announces it.
 
 The keys are watched and never consumed, so the firmware still sees every swipe.
 
+### Over paper, the keys come through the window
+
+The service's key filter sits in the system's input pipeline for every event, not only keys, and
+with it in place a palm landing on the edge strip while the pen is down reaches Android and
+cancels the pen's stream: the rest of that stroke is lost (found 2026-10-03, five pages written
+on the Nomad, `docs/design.md` has the record). Without the filter the firmware's own palm
+rejection keeps those touches out. So the filter follows the paper (`PaperFront`):
+
+| In front | Key filter | How the bars reach the shell |
+|---|---|---|
+| The home screen, Settings, any other app | On | The filter, as above |
+| The Scratch Pad | Off | Its own window hands each bar key to the service |
+| A Sprout app's paper | Off | Its window hands each key to its app, which sends it over the seam (`barKey`) |
+
+The reading is the same from either source. Keys carry the system's own time, so a held bar
+measures the same. The firmware's lock is unchanged: it was shown innocent by the same test.
+What a third-party app does with the pen under the filter is its own affair.
+
 ## The menu
 
-- Home and the Scratch Pad.
+- Home, the Scratch Pad and Settings.
 - The installed apps are **not** listed. They are in the app drawer. Whether the menu should
   carry any is to be explored later.
 - A tap outside the panel closes it. The panel has no title and no close button.
@@ -92,6 +110,7 @@ While the service is off, the library view says "The side menu is off."
 | Risk | Consequence |
 |---|---|
 | The lock rests on the firmware launcher's internals | A firmware update could break it. The firmware's menu would simply open again |
+| The key filter is off over paper | A Sprout paper screen that never attaches its client is under the filter and can lose a stroke to a palm on the edge |
 | The Scratch Pad opens over apps that hold the e-ink panel | Not yet walked |
 | The menu over Soil's own paper | The pad lets the panel go first. Not yet walked |
 

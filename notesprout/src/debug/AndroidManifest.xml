@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds only: the check of the seam's storage calls. No launcher entry, so it
+             is never mistaken for the app; adb starts it by name (docs/building.md). -->
+        <activity
+            android:name=".selftest.SelfTestActivity"
+            android:exported="true"
+            android:label="@string/selftest_name"
+            android:screenOrientation="portrait" />
+    </application>
+
+</manifest>

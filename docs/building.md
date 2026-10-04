@@ -100,3 +100,22 @@ from there. `adb pull` is safe.
   on the bar tests the menu.
 - **Typing.** `adb shell input text` is swallowed by the Supernote's keyboard. Tap the keys, or
   use Copy and Paste.
+
+## The Sprout app and the extensions
+
+Install Soil first: it declares the seam permission the others use. Then Notesprout and the
+extensions, debug with debug (`.dev` talks to `.dev`):
+
+```
+adb -s SN078D10012852 install -r soil/build/outputs/apk/debug/soil-debug.apk
+adb -s SN078D10012852 install -r notesprout/build/outputs/apk/debug/notesprout-debug.apk
+adb -s SN078D10012852 install -r ext-mlkit/build/outputs/apk/debug/ext-mlkit-debug.apk
+adb -s SN078D10012852 install -r ext-soilfile/build/outputs/apk/debug/ext-soilfile-debug.apk
+adb -s SN078D10012852 install -r ext-pdf/build/outputs/apk/debug/ext-pdf-debug.apk
+adb -s SN078D10012852 install -r ext-image/build/outputs/apk/debug/ext-image-debug.apk
+adb -s SN078D10012852 install -r ext-cloud/build/outputs/apk/debug/ext-cloud-debug.apk
+```
+
+`:ext-cloud` compiles the Google OAuth client from `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET`
+in the shell (`~/.zshenv` on this Mac). Built without them it installs and reports "not set up".
+

@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.pad
 
 import android.util.Log
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.paper.ink.InkStore
 import com.symmetricalpalmtree.soil.paper.ink.PageInk
 import com.symmetricalpalmtree.soil.paper.store.RowStore
@@ -69,6 +70,23 @@ class ScratchStore(store: RowStore) : InkStore(store, TAG) {
     fun insertPageBefore(ids: List<String>, beforeId: String?): Pair<List<String>, String> {
         val id = newId()
         return insert(ScratchPages.insertBefore(ids, beforeId, id), id)
+    }
+
+    /**
+     * A page that arrived from a notebook: inserted after [afterId] at the sender's size, its
+     * strokes in their order, and made current, in one transaction. Returns (new id list, new id).
+     */
+    fun receivePage(ids: List<String>, afterId: String?, width: Float, height: Float, strokes: List<Stroke>): Pair<List<String>, String> {
+        val id = newId()
+        val next = ScratchPages.insertAfter(ids, afterId, id)
+        val now = System.currentTimeMillis()
+        val statements = ArrayList<Statement>(next.size + strokes.size + 2)
+        statements += ScratchSql.insertPage(id, next.indexOf(id), width, height, now)
+        statements += renumber(next)
+        strokes.forEachIndexed { i, st -> statements += ScratchSql.putStroke(id, i.toLong(), st) }
+        statements += ScratchSql.setCurrent(id)
+        execAll(statements)
+        return next to id
     }
 
     private fun insert(next: List<String>, id: String): Pair<List<String>, String> {

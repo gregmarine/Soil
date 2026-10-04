@@ -56,6 +56,9 @@ android {
 
 dependencies {
     implementation(project(":seam"))
+    // The documents that cross the seam, shared with every Sprout app.
+    implementation(project(":seam-kit"))
+    implementation(project(":ext-api"))
     // g-paper arrives transitively: `:paper` declares it as `api`.
     implementation(project(":paper"))
     implementation("androidx.core:core-ktx:1.13.1")

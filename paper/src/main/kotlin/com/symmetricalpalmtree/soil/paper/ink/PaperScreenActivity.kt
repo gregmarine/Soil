@@ -24,6 +24,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
 import com.symmetricalpalmtree.soil.paper.chrome.asBar
 import com.symmetricalpalmtree.soil.paper.R
+import android.view.KeyEvent
 
 /**
  * The **chrome and handoff half** of a paper screen — everything a screen with a g-paper surface
@@ -72,6 +73,22 @@ abstract class PaperScreenActivity : AppCompatActivity() {
 
     protected var opened = false
     protected var closing = false
+
+    /**
+     * The Supernote's side bars are keys, and a paper screen in front receives them in its own
+     * window like any other key. They are handed to [onBarKey] and left unconsumed, so nothing
+     * else that listens for them is blinded. The subclass decides where they go: Soil's own paper
+     * hands them to the shell in its process, a Sprout app's paper sends them over the seam.
+     * (The shell's own system-wide key filter is off while a paper screen is in front, because
+     * that filter is what let a resting palm cut the pen's stream, 2026-10-03.)
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode in BAR_KEY_FIRST..BAR_KEY_LAST) onBarKey(event)
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** A side-bar key, as the window received it. Observed only; nothing is consumed. */
+    protected open fun onBarKey(event: KeyEvent) {}
 
     private var problemShowing = false
 
@@ -207,8 +224,17 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         if (::collapsed.isInitialized) collapsed.sync()
     }
 
+    /** The collapsed chrome's lasso wears the clipboard mark while objects are on the clipboard. */
+    protected fun collapsedClipboardLoaded(loaded: Boolean) {
+        if (::collapsed.isInitialized) collapsed.showClipboardLoaded(loaded)
+    }
+
     /** Both of the corner button's rows down. Idempotent, and safe before the chrome is built —
      *  every page swap and every exit calls it beside [hideEraserBar], for the same reason. */
+    /** Whether ([x], [y]) lands on the corner button or its rows. */
+    protected fun collapsedContains(x: Int, y: Int): Boolean =
+        ::collapsed.isInitialized && collapsed.contains(x, y)
+
     protected fun dismissCollapsed() {
         if (::collapsed.isInitialized) collapsed.dismiss()
     }
@@ -226,6 +252,17 @@ abstract class PaperScreenActivity : AppCompatActivity() {
     // ── The eraser sub-bar (arc 29 / LE3) ────────────────────────────────────
 
     /** A second tap on the armed eraser opens the sub-bar; a third closes it — the notebook's toggle. */
+    /**
+     * Every floating bar down: the eraser's sub-bar, and whatever a screen hangs of its own (the
+     * shade panel). Called before the chrome flips and as the collapsed rows open.
+     */
+    protected open fun hideFloatingBars() {
+        hideEraserBar()
+    }
+
+    /** A contact landed: a screen closes any floating bar of its own that it is outside of. */
+    protected open fun dismissFloatingOnContact(ev: MotionEvent, index: Int) {}
+
     protected fun toggleEraserBar() {
         if (::eraserBar.isInitialized && eraserBar.isShowing) hideEraserBar() else showEraserBar()
     }
@@ -305,7 +342,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             paper = paper,
             root = root,
             bars = listOfNotNull(topBarView, bottomBarView),
-            beforeHide = { hideEraserBar() },
+            beforeHide = { hideFloatingBars() },
             afterLayout = { pushExclusions() },
             onChanged = { onChromeChanged(it) },
             // Arc 36 / C2: the corner button lives exactly as long as the bars do not, and the
@@ -345,7 +382,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             overflow = collapsedOverflow(),
             // The eraser's own sub-bar is the one other thing that could be up: it belongs to the
             // bar's eraser button, which is not on the glass while the rows are.
-            onOpen = { hideEraserBar() },
+            onOpen = { hideFloatingBars() },
             // Arc 44 / T3: a sub-bar the screen hung off the rows goes down with them, before the
             // one exclusion push — a close stays one binder call.
             onClose = { onCollapsedClosing() },
@@ -418,6 +455,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         // arrives as ACTION_POINTER_DOWN (the notebook's O2 finding).
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
             dismissEraserBarOnContact(ev, ev.actionIndex)
+            dismissFloatingOnContact(ev, ev.actionIndex)
             dismissCollapsedOnContact(ev, ev.actionIndex)
         }
         if (::chrome.isInitialized && action == MotionEvent.ACTION_DOWN) {
@@ -465,9 +503,13 @@ abstract class PaperScreenActivity : AppCompatActivity() {
         finish()
     }
 
-    private companion object {
+    companion object {
 
         /** Where [onSaveInstanceState] parks the chrome state (arc 34 / L19). */
-        const val KEY_CHROME_HIDDEN = "chromeHidden"
+        private const val KEY_CHROME_HIDDEN = "chromeHidden"
+
+        /** The Supernote's bar keys: Ratta's `KEYCODE_F13..F30` (293..310); 300/301 and 309/310 are the bars. */
+        const val BAR_KEY_FIRST = 293
+        const val BAR_KEY_LAST = 310
     }
 }

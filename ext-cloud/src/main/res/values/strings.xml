@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing here names an account, a file or a URL: a dialog says what happened and what to do. -->
+<resources>
+    <string name="ext_label">Soil · Cloud</string>
+
+    <string name="drive_connect_title">Connect Google Drive</string>
+    <string name="drive_connect_signing_in">Signing in…</string>
+    <string name="cd_drive_connect_cancel">Cancel</string>
+
+    <string name="drive_connect_problem_title">Could not connect</string>
+    <string name="drive_connect_offline">Could not reach Google. Check the connection and try again.</string>
+    <string name="drive_connect_no_refresh">Google did not give a lasting sign-in. Try again, and allow access when it asks.</string>
+    <string name="drive_connect_failed">Google did not complete the sign-in. Nothing was changed. Try again.</string>
+    <string name="drive_connect_store_failed">The sign-in worked, but it could not be saved on this device. Try again.</string>
+</resources>

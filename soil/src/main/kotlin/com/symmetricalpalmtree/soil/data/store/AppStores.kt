@@ -60,6 +60,13 @@ object AppStores {
     @Synchronized
     fun isOpen(name: String): Boolean = name in open
 
+    /** Fold the WAL of a store this process holds open, before its file is copied. A store never
+     *  opened here is left alone: the copy carries its WAL alongside. Never throws. */
+    @Synchronized
+    fun checkpointIfOpen(name: String) {
+        open[name]?.let { SoilDb.checkpoint(it.db) }
+    }
+
     /** Checkpoint and close every store — before a rotation re-keys them. Never throws. */
     @Synchronized
     fun closeAll(context: Context) {

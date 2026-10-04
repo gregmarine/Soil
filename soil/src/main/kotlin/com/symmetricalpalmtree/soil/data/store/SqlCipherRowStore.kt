@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.data.store
 
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteStatement
 import com.symmetricalpalmtree.soil.paper.store.Cell
 import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.paper.store.Statement
@@ -15,37 +16,49 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
 
     override fun exec(statements: List<Statement>): LongArray {
         val changes = LongArray(statements.size)
+        // A batch of one page's strokes is one SQL text three thousand times: compiled once.
+        val compiled = HashMap<String, SupportSQLiteStatement>()
         db.beginTransaction()
         try {
-            for ((i, statement) in statements.withIndex()) changes[i] = run(statement)
+            for ((i, statement) in statements.withIndex()) {
+                val prepared = compiled.getOrPut(statement.sql) { db.compileStatement(statement.sql) }
+                changes[i] = run(prepared, statement)
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
+            compiled.values.forEach { runCatching { it.close() } }
         }
         return changes
     }
 
     /** One write with its binds; answers the rows the statement touched. */
-    private fun run(statement: Statement): Long {
-        val compiled = db.compileStatement(statement.sql)
-        try {
-            for ((i, cell) in statement.args.withIndex()) {
-                val index = i + 1
-                when (cell) {
-                    is Cell.Null -> compiled.bindNull(index)
-                    is Cell.Integer -> compiled.bindLong(index, cell.value)
-                    is Cell.Real -> compiled.bindDouble(index, cell.value)
-                    is Cell.Text -> compiled.bindString(index, cell.value)
-                    is Cell.Blob -> compiled.bindBlob(index, cell.value)
-                }
+    private fun run(compiled: SupportSQLiteStatement, statement: Statement): Long {
+        compiled.clearBindings()
+        for ((i, cell) in statement.args.withIndex()) {
+            val index = i + 1
+            when (cell) {
+                is Cell.Null -> compiled.bindNull(index)
+                is Cell.Integer -> compiled.bindLong(index, cell.value)
+                is Cell.Real -> compiled.bindDouble(index, cell.value)
+                is Cell.Text -> compiled.bindString(index, cell.value)
+                is Cell.Blob -> compiled.bindBlob(index, cell.value)
             }
-            return compiled.executeUpdateDelete().toLong()
-        } finally {
-            compiled.close()
         }
+        return compiled.executeUpdateDelete().toLong()
     }
 
     override fun query(statement: Statement): StoreRows {
+        var names: List<String> = emptyList()
+        val rows = stream(statement, { columns -> names = columns; ArrayList<List<Cell>>() }) { list, cells -> list += cells }
+        return StoreRows(names, rows)
+    }
+
+    /**
+     * Run one SELECT and hand each row to [add] as it is read, so a reader that counts can stop
+     * at the row that is one too many without the rest being read.
+     */
+    fun <B> stream(statement: Statement, builder: (columns: List<String>) -> B, add: (B, List<Cell>) -> Unit): B {
         val bound = Array<Any?>(statement.args.size) { i ->
             when (val c = statement.args[i]) {
                 is Cell.Null -> null
@@ -56,9 +69,8 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
             }
         }
         db.query(statement.sql, bound).use { cursor ->
-            val names = cursor.columnNames.toList()
-            val n = names.size
-            val rows = ArrayList<List<Cell>>(cursor.count.coerceAtLeast(0))
+            val n = cursor.columnCount
+            val out = builder(cursor.columnNames.toList())
             while (cursor.moveToNext()) {
                 val cells = ArrayList<Cell>(n)
                 for (i in 0 until n) {
@@ -71,9 +83,9 @@ class SqlCipherRowStore(private val db: SupportSQLiteDatabase) : RowStore {
                         else -> Cell.Null
                     }
                 }
-                rows += cells
+                add(out, cells)
             }
-            return StoreRows(names, rows)
+            return out
         }
     }
 }

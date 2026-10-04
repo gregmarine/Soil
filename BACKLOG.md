@@ -90,3 +90,45 @@ complete on BOOX. Two things are already known:
 
 - The side bars are Supernote hardware. Elsewhere Soil runs as an ordinary app without the shell.
 - Separate installs let each device carry only the apps it can support.
+
+## Shapes in a notebook
+
+Set aside 2026-09-30, during Notesprout's phase 4. SN's six shapes (rectangle, ellipse, triangle,
+line, arrow, star) and the engine's transform mode were built and walked, and Greg asked for them to
+go, at least for now: the tools, the `shape` row type, its reading and its rendering. Notesprout
+does not read a `shape` row. Bringing them back is git history at `1e8d78d` (the last commit with
+them whole).
+
+**For the converter from Notesprout SN** (design.md § 11): check every SN notebook for `shape` rows
+before converting. Greg believes he never used shapes but may have a few times and forgotten; if any
+are found, he decides then what becomes of them (dropped, or shapes brought back first).
+
+---
+
+## Export formats beyond today's
+
+**Set aside 2026-10-03, while building phase 11 of Notesprout.**
+
+- **Colour in a PDF.** Pages go into a PDF as 8-bit grayscale, losslessly, because the Nomad's
+  ink is grey on white and a page measured at a twentieth of the colour JPEG it used to be. When
+  a Sprout app draws in colour, the PDF extension's page encoding is the one place that changes.
+- **Vector ink in a PDF.** Strokes as paths would be crisp at any zoom. Not smaller: a page of
+  strokes compresses to about what the lossless picture does. The bundle would carry a stroke
+  form beside the picture, and the PDF extension a path renderer.
+- **Real text in a PDF.** Headings and text objects as PDF text, with a font, need the bundle to
+  carry positioned text runs. For a notebook they sit among ink; for Docsprout a document is
+  nothing but text, so a text PDF belongs with that app.
+- **The cloud destination** of the export screen, and the cloud source of import, come with
+  phase 12.
+
+---
+
+## Export presets
+
+**Set aside 2026-10-03, at the phase 11 walk.**
+
+Built as in Notesprout SN (a named set of exporter and option values, a row of radios above the
+formats, a long press to rename or delete) and taken out before it was walked: the SN shape was
+never liked, and the direction is undecided. Nothing of it remains but the index step that made
+its table and the one that drops it. When it comes back it starts from the question of what a
+preset is for, not from the SN screen.

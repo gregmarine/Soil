@@ -6,6 +6,7 @@ import com.symmetricalpalmtree.soil.paper.store.Statement
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
+import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.paper.ink.PageInk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -124,6 +125,27 @@ class ScratchDocument(
         // The delete already dropped the strokes, so a lone page comes back blank — which is the point.
         applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) })
         return ScratchAction.Page(before, deletedId, rest, landing, deletedId, ink)
+    }
+
+    /**
+     * Ink that arrived from a notebook, placed: on a **new page** after the current one, at the
+     * sender's size, or appended to the **current page**, which keeps its own. Answers the one
+     * undo step: a page with its cargo, or a paste of exactly what arrived.
+     */
+    suspend fun receive(bundle: InkWire.Bundle, newPage: Boolean): ScratchAction {
+        flushUntilClean()
+        if (newPage) {
+            val before = pageIds
+            val beforeCurrent = pageId
+            val (next, id) = withContext(Dispatchers.IO) { store.receivePage(before, beforeCurrent, bundle.pageWidth, bundle.pageHeight, bundle.strokes) }
+            pageIds = next
+            applyPage(id, withContext(Dispatchers.IO) { store.readPage(id) })
+            return ScratchAction.Page(before, beforeCurrent, next, id, id, ink = null, afterInk = currentInk())
+        }
+        ink.addStrokes(bundle.strokes)
+        val orders = bundle.strokes.map { orderOf(it.id) ?: 0L }
+        flushUntilClean()
+        return ScratchAction.Ink(InkAction.Pasted(pageId, bundle.strokes, orders))
     }
 
     // ── Mutations (Main, synchronous) ────────────────────────────────────────

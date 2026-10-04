@@ -32,4 +32,10 @@
         <item name="android:buttonBarPositiveButtonStyle">@style/Widget.Soil.DialogButton</item>
         <item name="android:buttonBarNegativeButtonStyle">@style/Widget.Soil.DialogButton</item>
     </style>
+
+    <!-- A screen that is only its dialogs: what is behind it stays in view. -->
+    <style name="Theme.Soil.Translucent">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>
