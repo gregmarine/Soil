@@ -14,7 +14,7 @@ import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputConnectionWrapper
-import androidx.appcompat.widget.AppCompatEditText
+import com.symmetricalpalmtree.soil.docsprout.editor.ProofreadEditText
 import com.symmetricalpalmtree.soil.markdown.rich.RichAttr
 import com.symmetricalpalmtree.soil.markdown.rich.RichDoc
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
@@ -42,12 +42,17 @@ import com.symmetricalpalmtree.soil.markdown.rich.RichTyping
  *
  * The words are never logged.
  */
-class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : AppCompatEditText(context, attrs) {
+class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : ProofreadEditText(context, attrs) {
 
     val metrics = BlockMetrics(textSize, resources.displayMetrics.density)
 
-    /** The writer changed the document: words, a style or a block. Never called for a [load]. */
-    var onEdited: (() -> Unit)? = null
+    /**
+     * The writer changed the document. `words` is true when characters changed (which any watcher
+     * of the text has also seen), false when only a style or a block did. Never called for a [load].
+     */
+    var onEdited: ((words: Boolean) -> Unit)? = null
+
+    internal fun edited(words: Boolean) { onEdited?.invoke(words) }
 
     /** True while this view is writing to its own text. */
     private var internal = false
@@ -96,7 +101,7 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
                     val converted = count - before == 1 && typeToFormat(s, start + count)
                     if (structural || fixed || converted) RichCodec.layoutPass(s)
                 }
-                onEdited?.invoke()
+                edited(words = true)
             }
         })
     }
@@ -146,7 +151,7 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
 
     private fun restore(snapshot: RichHistory.Snapshot) {
         show(snapshot.doc, snapshot.selStart, snapshot.selEnd)
-        onEdited?.invoke()
+        edited(words = false)
     }
 
     /** Several changes as one step to undo: a replace-all. */
@@ -380,7 +385,7 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
         beforeTool()
         setAttr(s, block, undone)
         RichCodec.layoutPass(s)
-        onEdited?.invoke()
+        edited(words = false)
         return true
     }
 
@@ -443,7 +448,7 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
                 if (s != null && taskAt(event) === pressed) {
                     beforeTool()
                     setAttr(s, pressed, pressed.attr.copy(checked = !pressed.attr.checked))
-                    onEdited?.invoke()
+                    edited(words = false)
                 }
                 return true
             }

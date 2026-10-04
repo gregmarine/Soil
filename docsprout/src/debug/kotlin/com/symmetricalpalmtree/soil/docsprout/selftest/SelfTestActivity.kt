@@ -9,6 +9,11 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.symmetricalpalmtree.soil.docsprout.editor.ProofreadController
+import com.symmetricalpalmtree.soil.docsprout.editor.ProofreadFlagSpan
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.BlockSpan
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichEditText
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
@@ -47,13 +52,45 @@ class SelfTestActivity : AppCompatActivity() {
         setContentView(column)
         view.post {
             runCatching { run() }.onFailure { fail("the run threw ${it.javaClass.simpleName} at ${it.stackTrace.firstOrNull { e -> e.className.contains("docsprout") }}") }
-            val summary = "RESULT passed=$passed failed=$failed"
-            lines.add(0, summary)
-            Log.i(TAG, summary)
-            report.text = lines.joinToString("\n")
-            // Left showing something a person can look at: every kind of block there is.
-            load("# Heading one\n\n## Heading two\n\nA paragraph with **bold**, _italic_, ~~struck~~, `code` and a [link](http://example.com), long enough to wrap onto a second line of the page so the wrapping can be seen.\n\n- a bullet\n  - nested\n    - and again\n- [ ] a task\n- [x] a done task\n1. one\n2. two\n\n> A quote, which also runs long enough to wrap so that its stripe can be seen beside both of its lines.\n\n---\n\n| a | table |\n|---|---|\n\nThe end.")
+            lifecycleScope.launch {
+                runCatching { proofread() }.onFailure { fail("proofread threw ${it.javaClass.simpleName}") }
+                finish(report)
+            }
         }
+    }
+
+    /**
+     * Proofread over the rendered document, with the dictionary this APK ships: misspelled prose
+     * is flagged, and the same letters in code and in a raw line are not. It reads this device's
+     * on/off switch and writes nothing; switched off, it says so and checks nothing.
+     */
+    private suspend fun proofread() {
+        val controller = ProofreadController.install(this, listOf(view), { view }, lifecycleScope)
+        load("Ths is a tset of it.\n\nAnd `tset` in code.\n\n| tset |\n")
+        controller.checkDocument()
+        var waited = 0
+        while (waited < 40_000 && (!controller.ready || text().getSpans(0, text().length, ProofreadFlagSpan::class.java).isEmpty())) {
+            if (!controller.enabled && waited > 1_000) break
+            delay(250)
+            waited += 250
+        }
+        if (!controller.enabled) {
+            lines += "skip proofread is switched off on this device: not checked"
+            return
+        }
+        // The pass may still be landing its last flags.
+        delay(500)
+        val flagged = text().getSpans(0, text().length, ProofreadFlagSpan::class.java).map { text().subSequence(text().getSpanStart(it), text().getSpanEnd(it)).toString() }.sorted()
+        checkTrue("proofread flags misspelled prose and leaves code and raw lines alone (after ${waited} ms)", flagged == listOf("Ths", "tset"))
+    }
+
+    private fun finish(report: TextView) {
+        val summary = "RESULT passed=$passed failed=$failed"
+        lines.add(0, summary)
+        Log.i(TAG, summary)
+        report.text = lines.joinToString("\n")
+        // Left showing something a person can look at: every kind of block there is.
+        load("# Heading one\n\n## Heading two\n\nA paragraph with **bold**, _italic_, ~~struck~~, `code` and a [link](http://example.com), long enough to wrap onto a second line of the page so the wrapping can be seen.\n\n- a bullet\n  - nested\n    - and again\n- [ ] a task\n- [x] a done task\n1. one\n2. two\n\n> A quote, which also runs long enough to wrap so that its stripe can be seen beside both of its lines.\n\n---\n\n| a | table |\n|---|---|\n\nThe end, with a mispeled word and and a repeat.")
     }
 
     // ── The harness ──────

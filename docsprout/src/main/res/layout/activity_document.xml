@@ -284,7 +284,7 @@
              until it is asked for, and it never saves its own state: what it holds is the
              document's, and a screen rebuilt for another document must not bring the old words
              with it. -->
-        <androidx.appcompat.widget.AppCompatEditText
+        <com.symmetricalpalmtree.soil.docsprout.editor.ProofreadEditText
             android:id="@+id/editor"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

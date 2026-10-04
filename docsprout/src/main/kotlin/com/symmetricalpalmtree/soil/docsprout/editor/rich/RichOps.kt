@@ -47,7 +47,7 @@ internal object RichOps {
         val all = pieces.all { (from, to) -> covered(s, from, to, style) }
         view.beforeTool()
         for ((from, to) in pieces) if (all) removeStyle(s, from, to, style) else addStyle(s, from, to, style, "")
-        view.onEdited?.invoke()
+        view.edited(words = false)
     }
 
     /** The address of the link at the caret or over the selection, or null. */
@@ -94,7 +94,7 @@ internal object RichOps {
             if (url.isNotEmpty()) addStyle(s, from, to, RichStyle.LINK, url)
         }
         view.setSelection(b.coerceAtMost(s.length))
-        view.onEdited?.invoke()
+        view.edited(words = false)
     }
 
     /** Whether what is typed at [at] would take [style]: the caret is inside a run of it, or at its end. */
@@ -214,7 +214,7 @@ internal object RichOps {
         view.beforeTool()
         blocks.forEachIndexed { i, block -> if (block.attr != next[i]) view.setAttr(s, block, next[i]) }
         RichCodec.layoutPass(s)
-        view.onEdited?.invoke()
+        view.edited(words = false)
     }
 
     /** Move the list items the selection touches in or out a level. Answers whether any was a list item. */
@@ -227,7 +227,7 @@ internal object RichOps {
         view.beforeTool()
         for (block in moved) view.setAttr(s, block, RichRules.indent(block.attr, delta))
         RichCodec.layoutPass(s)
-        view.onEdited?.invoke()
+        view.edited(words = false)
         return true
     }
 
@@ -247,7 +247,7 @@ internal object RichOps {
         }
         if (ruleAt == blocks.size - 1) blocks += RichBlock()
         view.replaceDocument(RichDoc(blocks), caretBlock = ruleAt + 1)
-        view.onEdited?.invoke()
+        view.edited(words = false)
     }
 
     /** Plain words put in at the caret, over the selection, with [selectFrom]..[selectTo] of them left selected. */
@@ -258,7 +258,7 @@ internal object RichOps {
         view.beforeTool()
         view.edit { it.replace(a, b, words) }
         view.setSelection((a + selectFrom).coerceAtMost(s.length), (a + selectTo).coerceAtMost(s.length))
-        view.onEdited?.invoke()
+        view.edited(words = false)
     }
 
     /** Every match of [query] replaced, last first so no offset moves under the ones still to do, as one step to undo. */
@@ -269,7 +269,7 @@ internal object RichOps {
         view.asOneEdit {
             view.edit { text -> for (m in matches.asReversed()) text.replace(m.start, m.end, replacement) }
         }
-        view.onEdited?.invoke()
+        view.edited(words = false)
         return matches.size
     }
 }

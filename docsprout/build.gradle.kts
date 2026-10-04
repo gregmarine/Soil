@@ -57,6 +57,12 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    sourceSets {
+        // The proofread JVM tests load the real dictionary this APK ships, so the asset
+        // directory doubles as a test-resource root (classpath: proofread/en_82765.dict).
+        getByName("test") { resources.srcDir("src/main/assets") }
+    }
 }
 
 dependencies {
@@ -67,6 +73,12 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+
+    // SymSpellKt: the spell checker behind Proofread (approved 2026-10-04, for this module only,
+    // on the footing of pdfbox in :ext-pdf). The bundled dictionary is
+    // assets/proofread/en_82765.dict (gzip content, an opaque extension on purpose: AAPT gunzips
+    // any `.gz` asset and strips the extension), with its attribution in NOTICE.txt beside it.
+    implementation("com.darkrockstudios:symspellkt:3.4.0")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -46,6 +46,7 @@ enum class FormatTool(val icon: Int, val hint: Int) {
     SEARCH(PaperR.drawable.ic_search, R.string.fmt_search),
     WORD_COUNT(R.drawable.ic_letter_case, R.string.fmt_word_count),
     REFLOW(R.drawable.ic_text_wrap, R.string.fmt_reflow),
+    PROOFREAD(R.drawable.ic_text_spellcheck, R.string.fmt_proofread),
 }
 
 /**
@@ -92,6 +93,10 @@ object FormatBar {
         tool(FormatTool.LINK); tool(FormatTool.IMAGE); tool(FormatTool.RULE)
         divider()
         tool(FormatTool.SEARCH); tool(FormatTool.WORD_COUNT); tool(FormatTool.REFLOW)
+        divider()
+        // Last on the bar, so on a narrow screen it lives in the overflow panel: a check runs on
+        // its own, and this is for the occasional full pass and the on/off switch.
+        tool(FormatTool.PROOFREAD)
 
         // Pinned at the trailing edge and hidden whenever everything fits. The overflow button is
         // the one control that does NOT dismiss the panel first — it would close then re-open.

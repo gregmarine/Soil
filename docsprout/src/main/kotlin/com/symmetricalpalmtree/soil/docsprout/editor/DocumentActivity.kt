@@ -97,6 +97,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var overflow: FormatBarOverflow
     private lateinit var findBar: FindReplaceBar
     private lateinit var textSize: TextSizeControl
+    private lateinit var proofread: ProofreadController
 
     /** Where a plain newline was just typed: read (and cleared) in `afterTextChanged`, which is
      *  where the text may be edited. Clearing it before use is also the re-entrancy guard: the
@@ -139,8 +140,13 @@ class DocumentActivity : AppCompatActivity() {
                 main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
             }
         })
-        binding.rich.onEdited = {
+        // After the screen's own watchers, so proofread's run second: never mid-list-continuation.
+        proofread = ProofreadController.install(this, listOf(binding.editor, binding.rich), { if (sourceShowing) binding.editor else binding.rich }, lifecycleScope)
+        binding.rich.onEdited = { words ->
             if (opened) {
+                // A style or a block may have changed what is prose: a word made code is not
+                // judged. A change of words is one proofread's own watcher has already seen.
+                if (!words) proofread.styleChanged()
                 richDirty = true
                 main.removeCallbacks(autosave)
                 main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
@@ -195,6 +201,8 @@ class DocumentActivity : AppCompatActivity() {
         binding.btnMode.isSelected = sourceShowing
         surface().requestFocus()
         surface().post { tools.keepCaretVisible() }
+        // The flags were on the other surface's text: this one is checked from the top.
+        proofread.checkDocument()
     }
 
     /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
@@ -206,6 +214,7 @@ class DocumentActivity : AppCompatActivity() {
             onSearch = { if (findBar.isOpen()) findBar.close() else findBar.open() },
             onWordCount = { tools.showWordCount() },
             onReflow = { tools.reflow() },
+            onProofread = { proofread.promptProofread() },
             askLink = { current, apply -> LinkDialog.ask(this, current, apply) },
         )
         val controls = FormatBar.build(
@@ -315,6 +324,7 @@ class DocumentActivity : AppCompatActivity() {
         binding.rich.requestFocus()
         binding.rich.post { tools.keepCaretVisible() }
         opened = true
+        proofread.checkDocument()
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
         Slog.d(TAG) { "opened: ${body.length} chars" }
@@ -425,6 +435,7 @@ class DocumentActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         main.removeCallbacks(autosave)
+        if (::proofread.isInitialized) proofread.dispose()
         letGo()
     }
 
