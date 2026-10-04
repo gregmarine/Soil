@@ -9,8 +9,7 @@ Supernote Nomad and Manta first.
 **The first build is done and merged** (2026-09-29): the home screen with the library and the app
 drawer, the side menu, the Scratch Pad, encryption, the library index and the seam's handshake.
 
-**The Notesprout effort is built and walked** (2026-09-30 to 2026-10-03, branch `notesprout`,
-awaiting Greg's merge): the seam's storage calls, the notebook app, links, the paper library,
+**The Notesprout effort is done and merged** (2026-09-30 to 2026-10-03): the seam's storage calls, the notebook app, links, the paper library,
 the library with folders and schemes, the clipboard and tags, Send, the extension contract with
 recognition and Settings, export and import, cloud storage, backup and restore, and these
 documents. `docs/design.md` §16 lists the phases and their documents.
