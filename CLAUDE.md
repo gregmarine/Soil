@@ -48,7 +48,7 @@ when he is happy with it, not before.
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/export.md`,
-  `docs/cloud.md` — each part as built.
+  `docs/cloud.md`, `docs/backup.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the

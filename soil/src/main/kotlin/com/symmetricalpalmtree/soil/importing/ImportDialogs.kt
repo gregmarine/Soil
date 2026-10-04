@@ -48,13 +48,13 @@ object ImportDialogs {
     }
 
     /** A passphrase typed for a foreign file. Never saved in the field's state. */
-    suspend fun passphrase(activity: Activity, @StringRes titleRes: Int, @StringRes bodyRes: Int, @StringRes errorRes: Int? = null): String? =
+    suspend fun passphrase(activity: Activity, @StringRes titleRes: Int, @StringRes bodyRes: Int, @StringRes errorRes: Int? = null, @StringRes hintRes: Int = R.string.import_passphrase_hint): String? =
         suspendCancellableCoroutine { cont ->
             if (activity.isFinishing || activity.isDestroyed) { cont.resume(null); return@suspendCancellableCoroutine }
             val d = activity.resources.displayMetrics.density
             val ink = ContextCompat.getColor(activity, com.symmetricalpalmtree.soil.paper.R.color.inkBlack)
             val field = AppCompatEditText(activity).apply {
-                setHint(R.string.import_passphrase_hint)
+                setHint(hintRes)
                 setBackgroundResource(com.symmetricalpalmtree.soil.paper.R.drawable.shape_bordered)
                 setPadding((12 * d).toInt(), (12 * d).toInt(), (12 * d).toInt(), (12 * d).toInt())
                 setTextColor(ink)

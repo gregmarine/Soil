@@ -136,6 +136,7 @@ class HomeActivity : AppCompatActivity() {
         importFlow = com.symmetricalpalmtree.soil.importing.ImportFlow(this, { browser.folderId }, { browser.reload() }, { renderLibrary() })
         // The library's filters on its path line, Import on its bottom bar.
         val lib = binding.browser
+        lib.btnBackup.setOnClickListener { startActivity(Intent(this, com.symmetricalpalmtree.soil.backup.BackupActivity::class.java)) }
         lib.btnImport.setOnClickListener { importFlow.onTap() }
         lib.btnSearch.setOnClickListener { browser.openSearchDialog() }
         lib.btnRecents.setOnClickListener { browser.toggleShelf(LibraryBrowser.Shelf.RECENTS) }
@@ -144,7 +145,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, lib.btnBackup, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -220,6 +221,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnNewNotebook.visibility = if (library && notebookApp && !inShelf) View.VISIBLE else View.GONE
         binding.btnNewFolder.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
         val lib = binding.browser
+        lib.btnBackup.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
         lib.btnImport.visibility = if (library && !inShelf && ::importFlow.isInitialized && importFlow.installed) View.VISIBLE else View.GONE
         lib.btnSort.visibility = if (library && (!inShelf || browser.shelf != LibraryBrowser.Shelf.SEARCH)) View.VISIBLE else View.GONE
         if (::browser.isInitialized) {

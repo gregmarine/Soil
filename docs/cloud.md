@@ -49,7 +49,8 @@ up in this build" instead of opening a sign-in that cannot work.
 
 The root folder is `Soil` on a release build and `Soil Dev` on a debug one, so a dev build never
 mingles its test files under the real tree. Exports go under `Exports/`; the export browser
-opens there and Up stops there. Backups (phase 13) will go under `Backups/`. The import browser
+opens there and Up stops there. Backups go under `Backups/<this device's folder>/`
+(`docs/backup.md`). The import browser
 opens at the root, so both are one tap away, and filters nothing by extension: which importer
 reads a file is decided afterwards, by its name, exactly as for a picked document.
 

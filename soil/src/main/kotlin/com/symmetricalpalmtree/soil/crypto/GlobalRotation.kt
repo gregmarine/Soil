@@ -119,6 +119,10 @@ object GlobalRotation {
         val itemIds = IndexStore().globalItems().map { it.id }
         val stores = SoilFiles.storeNames(app)
         val ids = RotationPlan.order(itemIds, stores)
+        // A rekey never bumps `updatedAt`, so every backup stamp would read "up to date" under a
+        // key that no longer opens the copy. Forgotten here, while the index is still open.
+        runCatching { com.symmetricalpalmtree.soil.backup.BackupStore().clearAllStamps() }
+            .onFailure { Log.w(TAG, "backup stamps not cleared: ${it.javaClass.simpleName}") }
         val marker = RotationMarker(
             pendingIds = ids,
             newPassphrase = newPassphrase,

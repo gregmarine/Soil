@@ -81,6 +81,9 @@ object SoilIndex {
         prepareMutex.withLock {
             if (instance != null) return@withLock State.READY
             val app = context.applicationContext
+            // A restore killed mid-commit is settled first: before the probe could read a missing
+            // index as a fresh install, and before a rekey's leftovers are judged.
+            runCatching { com.symmetricalpalmtree.soil.restore.RestoreEngine.recoverInterrupted(app) }
             val found = try {
                 prepare(app)
             } catch (e: Exception) {
@@ -92,6 +95,9 @@ object SoilIndex {
                 // A re-key commit that died between its two renames is put right here, before
                 // anything opens a garden file.
                 runCatching { SoilRekey.recoverGarden(app, GlobalRotation.trustedVerifier(app)) }
+                // This device's backup destination, parked by a restore, goes back over the
+                // restored row on the first open after it.
+                runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             }
             found
         }.also { _state.value = it }
@@ -166,6 +172,7 @@ object SoilIndex {
             KeyMaterial.invalidate(app, KeyMaterial.INDEX_FILE_ID)
             val key = KeyMaterial.rawKey(app, KeyMaterial.INDEX_FILE_ID, file, passphrase)
             finishOpen(app, file, SoilDb.open(file, FileKey.Raw(key), IndexSchema.SCHEMA), passphrase)
+            runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             _state.value = State.READY
             true
         }

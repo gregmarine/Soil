@@ -60,6 +60,15 @@
              whether it IS the home screen is set over adb (see README.md). It keeps its launcher
              entry, so it can be reached from the firmware's own menu when it is not. -->
         <activity
+            android:name=".backup.BackupActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".restore.RestoreActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".home.HomeActivity"
             android:exported="true"
             android:launchMode="singleTask"

@@ -187,11 +187,11 @@ class LibraryStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilI
     private fun item(row: Row) = Item(
         id = row.text("id"), kind = row.text("kind"), name = row.text("name"), keyScope = row.text("keyScope"),
         createdAt = row.long("createdAt"), updatedAt = row.long("updatedAt"), pageCount = row.long("pageCount").toInt(),
-        parentId = row.text("parentId"), openedAt = row.longOrNull("openedAt"),
+        parentId = row.text("parentId"), openedAt = row.longOrNull("openedAt"), flags = row.long("flags").toInt(),
     )
 
     private companion object {
         const val FOLDER_SELECT = "SELECT id, parentId, name, createdAt, updatedAt FROM folder"
-        const val ITEM_SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt FROM item"
+        const val ITEM_SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt, flags FROM item"
     }
 }

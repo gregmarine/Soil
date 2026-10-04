@@ -111,7 +111,7 @@
         android:layout_width="match_parent"
         android:layout_height="@dimen/toolbar_bar_thickness">
 
-        <!-- Import: a file into the library. Absent without an importer installed. -->
+        <!-- Backup, then Import (absent without an importer installed). -->
         <LinearLayout
             android:id="@+id/bottomActions"
             android:layout_width="wrap_content"
@@ -120,6 +120,12 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingStart="4dp">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnBackup"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:src="@drawable/ic_archive"
+                android:contentDescription="@string/cd_backup" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btnImport"

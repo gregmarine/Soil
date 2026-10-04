@@ -401,9 +401,20 @@ class LibraryBrowser(
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, activity.getString(R.string.action_export)) {
                     activity.startActivity(com.symmetricalpalmtree.soil.export.ExportActivity.intent(activity, card.id))
                 }
+                .addAction(R.drawable.ic_archive, activity.getString(if (com.symmetricalpalmtree.soil.backup.BackupPredicates.isExcluded(card.item.flags)) R.string.action_include_backup else R.string.action_exclude_backup)) {
+                    toggleExcluded(card.item.id, !com.symmetricalpalmtree.soil.backup.BackupPredicates.isExcluded(card.item.flags))
+                }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteItem(card.item) }
                 .show()
             is LibraryCard.PageCard -> Unit
+        }
+    }
+
+    /** The exclude bit never bumps `updatedAt`; the cards are read again so the sheet's label follows. */
+    private fun toggleExcluded(itemId: String, excluded: Boolean) {
+        activity.lifecycleScope.launch {
+            withContext(Dispatchers.IO) { com.symmetricalpalmtree.soil.data.index.IndexStore().setExcludedFromBackup(itemId, excluded) }
+            refresh()
         }
     }
 

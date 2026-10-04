@@ -16,7 +16,15 @@ data class Item(
     val parentId: String = "",
     /** When it was last opened; null for one never opened. */
     val openedAt: Long? = null,
+    /** The library's own bits about the item: [ItemFlags]. Never bumps `updatedAt`. */
+    val flags: Int = 0,
 )
+
+/** The bits in an item's `flags`. */
+object ItemFlags {
+    /** Set by the person: the backup run counts the item as skipped and never copies it. */
+    const val EXCLUDE_FROM_BACKUP = 1
+}
 
 /** One link as the mirror in a file states it. */
 data class LinkRow(val id: String, val pageId: String, val targetItemId: String, val targetPageId: String?)
@@ -163,7 +171,16 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         pageCount = row.long("pageCount").toInt(),
         parentId = row.text("parentId"),
         openedAt = row.longOrNull("openedAt"),
+        flags = row.long("flags").toInt(),
     )
+
+    /** The exclude bit, set or cleared. `updatedAt` is untouched: it is the needs-backup clock. */
+    fun setExcludedFromBackup(itemId: String, excluded: Boolean) {
+        rows.exec(listOf(Statement(
+            "UPDATE item SET flags = (flags & ~?) | ? WHERE id = ?",
+            ItemFlags.EXCLUDE_FROM_BACKUP, if (excluded) ItemFlags.EXCLUDE_FROM_BACKUP else 0, itemId,
+        )))
+    }
 
     /** The items the global key opens — what a rotation re-keys. */
     fun globalItems(): List<Item> = aliveItems().filter { it.keyScope == IndexSchema.KEY_SCOPE_GLOBAL }
@@ -185,7 +202,7 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
     }
 
     companion object {
-        private const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt FROM item"
+        private const val SELECT = "SELECT id, kind, name, keyScope, createdAt, updatedAt, pageCount, parentId, openedAt, flags FROM item"
 
         /** The statements that drop what the library holds for an item: its assignments and its pages. */
         fun forgetItem(itemId: String): List<Statement> = listOf(
