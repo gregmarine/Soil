@@ -64,6 +64,8 @@ class SelfTestActivity : AppCompatActivity() {
     private fun at(needle: String, after: Boolean = false): Int = text().toString().indexOf(needle).also { require(it >= 0) { "no '$needle'" } } + if (after) needle.length else 0
     private fun type(at: Int, words: String) { view.setSelection(at); text().insert(at, words) }
     private fun delete(from: Int, to: Int) { text().delete(from, to) }
+    /** One character after another at the caret, as a keyboard sends them. */
+    private fun keys(words: String) { for (c in words) text().insert(view.selectionEnd, c.toString()) }
     private fun select(needle: String) { val a = at(needle); view.setSelection(a, a + needle.length) }
 
     private fun fail(what: String) { failed++; lines += "FAIL $what"; Log.w(TAG, "FAIL $what") }
@@ -297,6 +299,63 @@ class SelfTestActivity : AppCompatActivity() {
         type(view.selectionEnd, "\n")
         type(view.selectionEnd, "out")
         check("Enter on an empty quote line ends the quote", "> quote\n\nout\n")
+
+        typeToFormat()
+    }
+
+    private fun typeToFormat() {
+        load("")
+        keys("# Title")
+        check("a typed heading marker makes a heading", "# Title\n")
+        keys("\n- one\ntwo\n\n1. first\nsecond")
+        check("typed list markers make lists that go on", "# Title\n\n- one\n- two\n1. first\n2. second\n")
+
+        load("")
+        keys("- [ ] todo")
+        check("a typed box makes a task", "- [ ] todo\n")
+
+        load("")
+        keys("> said")
+        check("a typed quote marker makes a quote", "> said\n")
+
+        load("words\n")
+        view.setSelection(0)
+        keys("## ")
+        check("a marker typed in front of words makes them the block", "## words\n")
+
+        load("")
+        keys("a **bold** b")
+        check("a typed bold pair makes bold, and what follows is not", "a **bold** b\n")
+        checkTrue("and no marker is left in the text", !text().toString().contains('*'))
+
+        load("")
+        keys("an *it* and _it_ and ~~gone~~ and `code` end")
+        check("typed pairs of every kind", "an _it_ and _it_ and ~~gone~~ and `code` end\n")
+
+        load("")
+        keys("2 * 3 * 4 and snake_case_word")
+        check("what only looks like a pair stays as typed", "2 \\* 3 * 4 and snake\\_case_word\n")
+
+        load("`code`\n")
+        view.setSelection(at("de"))
+        keys("*x*")
+        check("a pair typed into code is characters", "`co*x*de`\n")
+
+        load("")
+        keys("# T")
+        view.undo()
+        view.undo()
+        checkTrue("one undo takes the typing after the marker, the next puts the marker's characters back", text().toString() == "# \n" && markdown() == "#\n")
+
+        load("")
+        keys("**b**")
+        view.undo()
+        checkTrue("undo puts a pair's markers back", text().toString() == "**b**\n")
+
+        load("| a |\n")
+        view.setSelection(0)
+        keys("# ")
+        check("a raw line is never converted", "# | a |\n")
     }
 
     private companion object {

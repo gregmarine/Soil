@@ -19,6 +19,7 @@ import com.symmetricalpalmtree.soil.markdown.rich.RichDoc
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
 import com.symmetricalpalmtree.soil.markdown.rich.RichRules
 import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
+import com.symmetricalpalmtree.soil.markdown.rich.RichTyping
 
 /**
  * **The rendered editor**: a document shown as it reads and edited in place. The text holds only
@@ -89,7 +90,9 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
                     val structural = removedLineBreak || (count > 0 && TextUtils.indexOf(s, '\n', start, minOf(start + count, s.length)) >= 0) || s.length <= count + 1
                     if (count == 1 && before == 0 && start < s.length && s[start] == '\n') enter(s, start) else reconcile(s, start, start + count)
                     val fixed = fixRules(s, start, start + count)
-                    if (structural || fixed) RichCodec.layoutPass(s)
+                    // One character more than there was, at the caret: something was typed.
+                    val converted = count - before == 1 && typeToFormat(s, start + count)
+                    if (structural || fixed || converted) RichCodec.layoutPass(s)
                 }
                 onEdited?.invoke()
             }
@@ -294,6 +297,47 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
             p = end
         }
         return changed
+    }
+
+    // ── Markdown typed in becomes what it means ──────
+
+    /**
+     * The character just typed in front of [caret] may have completed a marker at the start of
+     * its block, or closed a pair around some words ([RichTyping]). The markers come out and the
+     * block or the words become what they spelled. The document as typed, markers and all, is
+     * kept first as its own step, so one undo puts the characters back.
+     */
+    private fun typeToFormat(s: Editable, caret: Int): Boolean {
+        if (caret <= 0 || caret > s.length || Selection.getSelectionEnd(s) != caret || Selection.getSelectionStart(s) != caret) return false
+        val typedChar = s[caret - 1]
+        if (typedChar != ' ' && typedChar != '*' && typedChar != '_' && typedChar != '~' && typedChar != '`') return false
+        val start = paragraphStart(s, caret)
+        val block = RichCodec.blockAt(s, start) ?: return false
+        if (block.attr.kind == RichKind.RAW || block.attr.kind == RichKind.RULE) return false
+        val typed = s.subSequence(start, caret).toString()
+
+        if (typedChar == ' ') {
+            val made = RichTyping.lineStart(typed, block.attr) ?: return false
+            history.beforeEdit(typing = false) { snapshot() }
+            s.delete(start, start + made.length)
+            block.attr = made.attr.canonical()
+            RichCodec.refresh(s, block)
+            return true
+        }
+
+        // Inside code a marker is a character.
+        if (RichCodec.around(s, caret, CodeSpan::class.java).any { s.getSpanStart(it) < caret && s.getSpanEnd(it) >= caret }) return false
+        val pair = RichTyping.pairClosed(typed) ?: return false
+        history.beforeEdit(typing = false) { snapshot() }
+        val m = pair.markerLength
+        val open = start + pair.openStart
+        s.delete(caret - m, caret)
+        s.delete(open, open + m)
+        val end = caret - 2 * m
+        RichOps.addStyle(s, open, end, pair.style, "")
+        // The pair is closed: what is typed after it is not part of it.
+        setPending(pair.style, false, end)
+        return true
     }
 
     // ── Styles for what is typed next ──────
