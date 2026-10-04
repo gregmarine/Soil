@@ -5,11 +5,15 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.widget.doAfterTextChanged
+import androidx.appcompat.widget.TooltipCompat
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
@@ -49,6 +53,10 @@ import kotlinx.coroutines.withContext
  * delivered only while the IME is shown, so nothing here calls an IME-hide; the window resizes
  * for it instead.
  *
+ * What is done *to* the words lives beside this screen, one collaborator a concern: the format
+ * bar and its overflow, the chords, find and replace, the tidying tools, the text size, the
+ * rename. Each edits through the field's own `Editable`, so the field's own undo takes it back.
+ *
  * The document's text is never logged: lengths only.
  */
 class DocumentActivity : AppCompatActivity() {
@@ -74,6 +82,18 @@ class DocumentActivity : AppCompatActivity() {
 
     private val autosave = Runnable { save() }
 
+    private lateinit var tools: EditorTools
+    private lateinit var format: FormatActions
+    private lateinit var shortcuts: EditorShortcuts
+    private lateinit var overflow: FormatBarOverflow
+    private lateinit var findBar: FindReplaceBar
+    private lateinit var textSize: TextSizeControl
+
+    /** Where a plain newline was just typed: read (and cleared) in `afterTextChanged`, which is
+     *  where the text may be edited. Clearing it before use is also the re-entrancy guard: the
+     *  list edit re-enters the watcher, and the re-entry finds nothing to do. */
+    private var newlineAt = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDocumentBinding.inflate(layoutInflater)
@@ -81,12 +101,63 @@ class DocumentActivity : AppCompatActivity() {
         TopGuard.applyInsetPadding(binding.root)
         prefs = DocsproutPrefs(this)
         binding.btnBack.setOnClickListener { finish() }
-        binding.editor.doAfterTextChanged {
-            if (!opened) return@doAfterTextChanged
-            main.removeCallbacks(autosave)
-            main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
-        }
+        buildChrome()
+        binding.editor.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                // Watching the text rather than the Enter key covers both keyboards: a soft
+                // keyboard commits "\n" through the input connection and may send no key event.
+                newlineAt = if (before == 0 && count == 1 && s?.getOrNull(start) == '\n') start else -1
+            }
+
+            override fun afterTextChanged(s: Editable?) {
+                val at = newlineAt
+                newlineAt = -1
+                if (!opened) return
+                if (at >= 0 && s != null) tools.continueListAt(s, at)
+                main.removeCallbacks(autosave)
+                main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
+            }
+        })
         lifecycleScope.launch { open() }
+    }
+
+    /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
+    private fun buildChrome() {
+        tools = EditorTools(this, binding, onEdited = ::save)
+        findBar = FindReplaceBar(this, binding, keepCaretVisible = { tools.keepCaretVisible() }, onReplacedAll = ::save)
+        format = FormatActions(binding, onSearch = { if (findBar.isOpen()) findBar.close() else findBar.open() }, onWordCount = { tools.showWordCount() }, onReflow = { tools.reflow() })
+        val controls = FormatBar.build(
+            binding.formatBar,
+            onTool = { if (opened) format.run(it) },
+            onToolUsed = { overflow.close() },
+            onOverflow = { overflow.toggle() },
+        )
+        overflow = FormatBarOverflow(binding.formatBar, binding.overflowPanel, controls.dividerOverflow, controls.btnOverflow)
+        overflow.watchWidth()
+        shortcuts = EditorShortcuts(format, closeOverflow = { overflow.close() })
+        findBar.install()
+        tools.watchHeight()
+        textSize = TextSizeControl(this, binding, prefs)
+        textSize.restore()
+        binding.btnTextSize.setOnClickListener { textSize.prompt() }
+        TooltipCompat.setTooltipText(binding.btnTextSize, binding.btnTextSize.contentDescription)
+        RenameControl(this, binding, lifecycleScope) { name ->
+            val id = itemId ?: throw IllegalStateException("no document")
+            kotlinx.coroutines.runBlocking { (application as DocsproutApp).soil.seam() }.renameItem(id, name)
+        }.install()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (opened && shortcuts.handle(event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** A tap anywhere that is not the bar or its panel puts the overflow away, and still lands. */
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        overflow.dismissIfOutside(event)
+        return super.dispatchTouchEvent(event)
     }
 
     /**
@@ -154,10 +225,12 @@ class DocumentActivity : AppCompatActivity() {
         coverText = body
         binding.title.text = name
         binding.editor.setText(body)
-        binding.editor.setSelection(0)
+        // Where the cursor was left, or the top.
+        binding.editor.setSelection((itemId?.let { prefs.caret(it) } ?: 0).coerceIn(0, body.length))
         binding.opening.visibility = View.GONE
         binding.editor.visibility = View.VISIBLE
         binding.editor.requestFocus()
+        binding.editor.post { tools.keepCaretVisible() }
         opened = true
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
@@ -225,6 +298,7 @@ class DocumentActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        if (opened) itemId?.let { prefs.rememberCaret(it, binding.editor.selectionEnd.coerceAtLeast(0)) }
         save()
         super.onPause()
     }

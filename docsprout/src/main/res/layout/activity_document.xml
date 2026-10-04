@@ -36,7 +36,201 @@
             android:contentDescription="@string/cd_close"
             android:src="@drawable/ic_x" />
 
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnTextSize"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:layout_gravity="end|center_vertical"
+            android:contentDescription="@string/cd_text_size"
+            android:src="@drawable/ic_text_size" />
+
     </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <!-- The format bar's buttons are NOT declared here: the overflow moves the real views between
+         the bar and the panel. Both are in flow: the panel pushes the text down rather than
+         floating over it, because an overlay ghosts on e-ink. -->
+    <LinearLayout
+        android:id="@+id/formatBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp" />
+
+    <!-- Where the bar's tail lands when it does not fit. Bordered, in flow, collapsed until
+         asked for. -->
+    <LinearLayout
+        android:id="@+id/overflowPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/shape_bordered"
+        android:orientation="vertical"
+        android:visibility="gone" />
+    <!-- Find and replace, hidden until Ctrl+F or the bar's search tool asks for it. Two rows:
+         `[find][n of m][‹][›][✕]` over `[replace][Replace][All]`.
+
+         Every button here is focusable="false": the editor must keep the caret and the
+         selection these act on. The selection IS the current match, and a button that stole
+         the focus would take the highlight with it. -->
+    <LinearLayout
+        android:id="@+id/findBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/findField"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/shape_bordered"
+                android:hint="@string/find_hint"
+                android:imeOptions="actionSearch|flagNoFullscreen|flagNoExtractUi"
+                android:inputType="text|textNoSuggestions"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textColorHint="@color/inkLight"
+                android:textSize="14sp" />
+
+            <!-- The running count. inkBlack and small rather than grey: it carries
+                 information. minWidth so the row does not shuffle as the digits change. -->
+            <TextView
+                android:id="@+id/findCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minWidth="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindPrev"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_prev"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_page_prev" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindNext"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_next"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_page_next" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindClose"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_close"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_x" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="6dp">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/replaceField"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/shape_bordered"
+                android:hint="@string/find_replace_hint"
+                android:imeOptions="actionSearch|flagNoFullscreen|flagNoExtractUi"
+                android:inputType="text|textNoSuggestions"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textColorHint="@color/inkLight"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnReplace"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:contentDescription="@string/cd_find_replace_one"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
+                android:stateListAnimator="@null"
+                android:text="@string/find_replace_one"
+                android:textAllCaps="false"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnReplaceAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:contentDescription="@string/cd_find_replace_all"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
+                android:stateListAnimator="@null"
+                android:text="@string/find_replace_all"
+                android:textAllCaps="false"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+    </LinearLayout>
 
     <View
         android:layout_width="match_parent"
