@@ -22,8 +22,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginStart="56dp"
-            android:layout_marginEnd="56dp"
+            android:layout_marginStart="100dp"
+            android:layout_marginEnd="100dp"
             android:ellipsize="end"
             android:singleLine="true"
             android:textColor="@color/inkBlack"
@@ -36,12 +36,27 @@
             android:contentDescription="@string/cd_close"
             android:src="@drawable/ic_x" />
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnTextSize"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:layout_gravity="end|center_vertical"
-            android:contentDescription="@string/cd_text_size"
-            android:src="@drawable/ic_text_size" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnTextSize"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_text_size"
+                android:src="@drawable/ic_text_size" />
+
+            <!-- The document as its Markdown source. It wears a border while the source is
+                 showing; without one, the rendered document is. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnMode"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_mode"
+                android:src="@drawable/ic_markdown" />
+        </LinearLayout>
 
     </FrameLayout>
 
@@ -242,8 +257,31 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
+        <!-- The rendered document: the surface a document opens on. Like the source below, it
+             is not shown until the document is read, and never saves its own state. -->
+        <com.symmetricalpalmtree.soil.docsprout.editor.rich.RichEditText
+            android:id="@+id/rich"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/paperWhite"
+            android:gravity="top|start"
+            android:hint="@string/document_hint"
+            android:imeOptions="flagNoFullscreen|flagNoExtractUi"
+            android:inputType="textMultiLine|textCapSentences|textNoSuggestions"
+            android:lineSpacingMultiplier="1.15"
+            android:paddingStart="20dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="32dp"
+            android:saveEnabled="false"
+            android:scrollbars="vertical"
+            android:textColor="@color/inkBlack"
+            android:textColorHint="@color/inkLight"
+            android:textSize="18sp"
+            android:visibility="gone" />
+
         <!-- The Markdown source. Monospace because columns carry meaning here. It is not shown
-             until the document is read, and it never saves its own state: what it holds is the
+             until it is asked for, and it never saves its own state: what it holds is the
              document's, and a screen rebuilt for another document must not bring the old words
              with it. -->
         <androidx.appcompat.widget.AppCompatEditText

@@ -6,12 +6,14 @@ import android.graphics.Color
 import android.os.Build
 import android.text.StaticLayout
 import android.text.TextPaint
-import com.symmetricalpalmtree.soil.markdown.MarkdownParser
-import com.symmetricalpalmtree.soil.markdown.MarkdownRenderer
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.BlockMetrics
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichCodec
+import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import java.io.ByteArrayOutputStream
 
 /**
- * A document's library cover: its opening lines, rendered through `:markdown` onto a white page.
+ * A document's library cover: its opening lines, drawn as the rendered editor draws them, onto a
+ * white page.
  *
  * **The canvas and the density are fixed**, not the device's, so the same document's card looks
  * the same on the Nomad and the Manta. It is a thumbnail of prose, so legibility beats fidelity:
@@ -30,7 +32,6 @@ object TextCover {
     private const val DENSITY = 1.28f
     private const val BODY_SIZE_PX = 12f
     private const val MARGIN_PX = 22
-    private const val BLOCK_GAP_PX = 10
 
     /** How much of the document is even considered: a cover shows the opening. */
     private const val MAX_LINES = 60
@@ -61,13 +62,7 @@ object TextCover {
             color = Color.BLACK
             textSize = BODY_SIZE_PX
         }
-        val spanned = MarkdownRenderer.render(
-            blocks = MarkdownParser.parse(head),
-            availableWidthPx = width,
-            paint = paint,
-            density = DENSITY,
-            blockGapPx = BLOCK_GAP_PX,
-        )
+        val spanned = RichCodec.toSpannable(RichParse.parse(head).doc, BlockMetrics(BODY_SIZE_PX, DENSITY))
         val layout = StaticLayout.Builder.obtain(spanned, 0, spanned.length, paint, width).build()
         // The bitmap's own bounds are the clip. No `maxLines`: that would ellipsize.
         canvas.save()

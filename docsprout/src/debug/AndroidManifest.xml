@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Debug builds only: the rendered editor's rules run against a real Editable, which
+             the JVM has none of. No launcher entry; adb starts it by name. It opens no document
+             and touches nothing in the library. -->
+        <activity
+            android:name=".selftest.SelfTestActivity"
+            android:exported="true"
+            android:label="@string/selftest_name"
+            android:screenOrientation="portrait" />
+    </application>
+
+</manifest>

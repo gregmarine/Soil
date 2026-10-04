@@ -15,9 +15,9 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
 /**
  * Every tool on the format bar, in bar order, with the glyph and the hint that name it.
  *
- * The editor's model is always raw Markdown, so each of these writes exactly the characters a
- * writer would have typed by hand — none of them is a "rich text" state. The hint carries the
- * keyboard chord as well as the name, because an icon bar has no labels and a long-press is the
+ * In the Markdown source each of these writes exactly the characters a writer would have typed by
+ * hand; in the rendered document each changes what the words are, and no character. The hint
+ * carries the keyboard chord as well as the name, because an icon bar has no labels and a long-press is the
  * only place either can be learned.
  *
  * The last three are not formatter operations at all: [SEARCH] opens the find bar, [WORD_COUNT]
@@ -25,6 +25,8 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  * writer looks for a tool, and the caller routes them past the formatter.
  */
 enum class FormatTool(val icon: Int, val hint: Int) {
+    UNDO(R.drawable.ic_arrow_back_up, R.string.fmt_undo),
+    REDO(R.drawable.ic_arrow_forward_up, R.string.fmt_redo),
     H1(PaperR.drawable.ic_h_1, R.string.fmt_h1),
     H2(PaperR.drawable.ic_h_2, R.string.fmt_h2),
     H3(PaperR.drawable.ic_h_3, R.string.fmt_h3),
@@ -36,6 +38,8 @@ enum class FormatTool(val icon: Int, val hint: Int) {
     BULLET(PaperR.drawable.ic_list, R.string.fmt_bullet),
     ORDERED(R.drawable.ic_list_numbers, R.string.fmt_ordered),
     TASK(R.drawable.ic_list_check, R.string.fmt_task),
+    OUTDENT(R.drawable.ic_indent_decrease, R.string.fmt_outdent),
+    INDENT(R.drawable.ic_indent_increase, R.string.fmt_indent),
     LINK(PaperR.drawable.ic_link, R.string.fmt_link),
     IMAGE(R.drawable.ic_photo, R.string.fmt_image),
     RULE(R.drawable.ic_separator_horizontal, R.string.fmt_rule),
@@ -51,8 +55,8 @@ enum class FormatTool(val icon: Int, val hint: Int) {
  * views between the bar and the panel, and a layout that declared them would be describing a
  * arrangement that stops being true the moment the bar is narrower than its contents.
  *
- * Groups are separated by a 1dp × 28dp inkBlack rule: heading / inline / block / insertion / the
- * text tools. The overflow controls are built last so they pin to
+ * Groups are separated by a 1dp × 28dp inkBlack rule: undo / heading / inline / block / insertion
+ * / the text tools. The overflow controls are built last so they pin to
  * the trailing edge, and they are handed back to the caller because the overflow manager needs them
  * by identity.
  */
@@ -74,6 +78,8 @@ object FormatBar {
         )
         fun divider() = bar.addView(groupDivider(context))
 
+        tool(FormatTool.UNDO); tool(FormatTool.REDO)
+        divider()
         tool(FormatTool.H1); tool(FormatTool.H2); tool(FormatTool.H3)
         divider()
         tool(FormatTool.BOLD); tool(FormatTool.ITALIC)
@@ -81,6 +87,7 @@ object FormatBar {
         divider()
         tool(FormatTool.QUOTE); tool(FormatTool.BULLET)
         tool(FormatTool.ORDERED); tool(FormatTool.TASK)
+        tool(FormatTool.OUTDENT); tool(FormatTool.INDENT)
         divider()
         tool(FormatTool.LINK); tool(FormatTool.IMAGE); tool(FormatTool.RULE)
         divider()

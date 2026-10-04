@@ -18,7 +18,7 @@ import android.widget.LinearLayout
  *   on e-ink an overlay leaves a ghost of itself, and a writer who opened a menu should still be
  *   able to see the line they are writing.
  *
- * The full palette is seventeen tools plus four separators; a Nomad cannot show it whole. A bar that
+ * The full palette is twenty-one tools plus five separators; a Nomad cannot show it whole. A bar that
  * scrolled would hide its tail with no sign that there is one, so the tail moves — and it always
  * moves to the same place, so what stays on the bar stays put for a given screen and muscle memory
  * still holds.

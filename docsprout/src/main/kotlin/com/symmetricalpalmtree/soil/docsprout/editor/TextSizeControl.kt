@@ -38,10 +38,13 @@ internal class TextSizeControl(
     private fun apply(size: Float, persist: Boolean = true) {
         sp = size
         binding.editor.textSize = size
+        // Prose reads a little larger than the monospace source it is written as.
+        binding.rich.setBodySize(size + RENDERED_BUMP)
         if (persist) prefs.textSize = size
     }
 
     private companion object {
+        const val RENDERED_BUMP = 2f
         val LABELS = listOf(R.string.text_size_small, R.string.text_size_medium, R.string.text_size_large, R.string.text_size_larger, R.string.text_size_largest)
     }
 }

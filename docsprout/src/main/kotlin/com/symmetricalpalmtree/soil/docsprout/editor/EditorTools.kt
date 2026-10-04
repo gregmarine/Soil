@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.docsprout.editor
 
 import android.content.Context
 import android.text.Editable
+import android.widget.EditText
 import android.widget.Toast
 import com.symmetricalpalmtree.soil.docsprout.R
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -28,6 +29,9 @@ import java.util.Locale
 internal class EditorTools(
     private val context: Context,
     private val binding: ActivityDocumentBinding,
+    /** The surface in use: the rendered document or the Markdown source. */
+    private val editor: () -> EditText,
+    private val rendered: () -> Boolean,
     /** A deliberate edit to the whole document goes down now, not in two seconds' time. */
     private val onEdited: () -> Unit,
 ) {
@@ -96,6 +100,11 @@ internal class EditorTools(
      * usually the first thing recognised or pasted text wants.
      */
     fun reflow() {
+        // A rendered paragraph is already one paragraph: there are no wrapped lines to join.
+        if (rendered()) {
+            Toast.makeText(context, R.string.reflow_nothing, Toast.LENGTH_SHORT).show()
+            return
+        }
         val text = binding.editor.text ?: return
         if (text.isEmpty()) return
 
@@ -153,17 +162,18 @@ internal class EditorTools(
 
     /** (words, characters) over the same slice [showWordCount] reports on. */
     fun wordCount(): Pair<Int, Int> {
-        val text = binding.editor.text ?: return 0 to 0
+        val text = editor().text ?: return 0 to 0
         val slice = if (hasCountableSelection()) {
-            text.subSequence(binding.editor.selectionStart, binding.editor.selectionEnd).toString()
+            text.subSequence(editor().selectionStart, editor().selectionEnd).toString()
         } else {
             text.toString()
         }
-        return TextSearch.counts(slice)
+        // A rule's stand-in character is not a character of the document.
+        return TextSearch.counts(slice.replace("\u200B", ""))
     }
 
     private fun hasCountableSelection(): Boolean =
-        binding.editor.selectionEnd > binding.editor.selectionStart
+        editor().selectionEnd > editor().selectionStart
 
     // ── Keeping the caret above the keyboard ──────────────────────────────────
 
@@ -175,8 +185,10 @@ internal class EditorTools(
      * keyboard appearing does. Only a real height change is worth reacting to.
      */
     fun watchHeight() {
-        binding.editor.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-            if (bottom - top != oldBottom - oldTop) binding.editor.post { keepCaretVisible() }
+        for (surface in listOf<EditText>(binding.editor, binding.rich)) {
+            surface.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+                if (bottom - top != oldBottom - oldTop) surface.post { keepCaretVisible() }
+            }
         }
     }
 
@@ -189,13 +201,13 @@ internal class EditorTools(
      * `paddingTop + lineBottom - scrollY` passes `height - paddingBottom`.
      */
     fun keepCaretVisible() {
-        if (!binding.editor.hasFocus()) return
-        val layout = binding.editor.layout ?: return
-        val caret = binding.editor.selectionEnd.coerceIn(0, binding.editor.text?.length ?: 0)
+        val surface = editor()
+        if (!surface.hasFocus()) return
+        val layout = surface.layout ?: return
+        val caret = surface.selectionEnd.coerceIn(0, surface.text?.length ?: 0)
         val lineBottom = layout.getLineBottom(layout.getLineForOffset(caret))
-        val below = binding.editor.paddingTop + lineBottom - binding.editor.scrollY -
-            (binding.editor.height - binding.editor.paddingBottom)
-        if (below > 0) binding.editor.scrollBy(0, below)
+        val below = surface.paddingTop + lineBottom - surface.scrollY - (surface.height - surface.paddingBottom)
+        if (below > 0) surface.scrollBy(0, below)
     }
 
     internal companion object {

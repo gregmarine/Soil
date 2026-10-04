@@ -4,12 +4,14 @@ import android.view.KeyEvent
 import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 
 /**
- * Every `Ctrl` chord the editor answers: the format bar's tools, the chord-only ones (`Ctrl+0`
- * paragraph, `Ctrl+4`–`6` the headings the bar has no room for), and find / reflow.
+ * Every `Ctrl` chord the editor answers: the format bar's tools, the chord-only ones (`Ctrl+P`
+ * between the rendered document and its source, `Ctrl+0` paragraph, `Ctrl+4`–`6` the headings
+ * the bar has no room for), and find / reflow.
  *
- * `Ctrl+Z/Y/A/C/V/X` are deliberately **absent**: they must fall through to the `EditText`, which
- * already implements undo, redo, select-all and the clipboard. A chord claimed here is a chord
- * the writer loses.
+ * In the Markdown source `Ctrl+Z/Y/A/C/V/X` are deliberately **left alone**: they fall through to
+ * the field, which already implements undo, redo, select-all and the clipboard. In the rendered
+ * document undo and redo are the editor's own, so `Ctrl+Z`, `Ctrl+Y` and `Ctrl+Shift+Z` are
+ * answered here; the rest still fall through.
  *
  * On Ratta the IME stays connected (hardware keys arrive only through it), so an input method
  * sits upstream in the key path and may claim a chord before this sees it: a reason to keep the
@@ -17,6 +19,8 @@ import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
  */
 internal class EditorShortcuts(
     private val format: FormatActions,
+    private val rendered: () -> Boolean,
+    private val toggleMode: () -> Unit,
     private val closeOverflow: () -> Unit,
 ) {
 
@@ -25,6 +29,9 @@ internal class EditorShortcuts(
         if (event.action != KeyEvent.ACTION_DOWN || !event.isCtrlPressed) return false
         val shift = event.isShiftPressed
         when (event.keyCode) {
+            KeyEvent.KEYCODE_P -> if (!shift) { closeOverflow(); toggleMode(); return true }
+            KeyEvent.KEYCODE_Z -> if (rendered()) { if (shift) format.redo() else format.undo(); return true }
+            KeyEvent.KEYCODE_Y -> if (rendered() && !shift) { format.redo(); return true }
             // Paragraph and H4–H6 are chord-only: the bar stops at H3, the grammar does not.
             KeyEvent.KEYCODE_0 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.PARAGRAPH); return true }
             KeyEvent.KEYCODE_4 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.HEADING, 4); return true }

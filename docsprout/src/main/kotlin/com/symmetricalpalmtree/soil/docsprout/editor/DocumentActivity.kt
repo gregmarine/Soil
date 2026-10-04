@@ -11,6 +11,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.TooltipCompat
@@ -23,6 +24,8 @@ import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
+import com.symmetricalpalmtree.soil.markdown.rich.RichParse
+import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -41,8 +44,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * **A document**: its Markdown in one field, saved by itself. There is no Save and no Done:
- * the words are written two seconds after the typing stops, and on every way out.
+ * **A document**, saved by itself. There is no Save and no Done: the words are written two
+ * seconds after the typing stops, and on every way out.
+ *
+ * **Two surfaces, one truth.** The file holds Markdown. The document opens rendered: shown as it
+ * reads and edited in place, with no marker in sight. The other surface is the Markdown itself.
+ * Going from one to the other writes or reads the Markdown once, and carries the caret by block.
+ * A document that is opened rendered and not edited is never rewritten: what the file holds is
+ * what it was given, until the writer changes something.
  *
  * **Everything that touches the open file goes through one queue** ([ops]), in the order it was
  * asked for on the main thread: a save, the park when the screen stops, the resume when it comes
@@ -94,6 +103,16 @@ class DocumentActivity : AppCompatActivity() {
      *  list edit re-enters the watcher, and the re-entry finds nothing to do. */
     private var newlineAt = -1
 
+    /** True while the Markdown source is the surface in use. A document opens rendered. */
+    private var sourceShowing = false
+
+    /** The Markdown the rendered document was read from, and whether it has been edited since. */
+    private var richSource = ""
+    private var richDirty = false
+
+    private fun rendered(): Boolean = !sourceShowing
+    private fun surface(): EditText = if (sourceShowing) binding.editor else binding.rich
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDocumentBinding.inflate(layoutInflater)
@@ -120,14 +139,75 @@ class DocumentActivity : AppCompatActivity() {
                 main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
             }
         })
+        binding.rich.onEdited = {
+            if (opened) {
+                richDirty = true
+                main.removeCallbacks(autosave)
+                main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
+            }
+        }
         lifecycleScope.launch { open() }
+    }
+
+    /**
+     * The document as Markdown, as it stands now. From the rendered surface it is written only
+     * when something was edited there; until then it is the Markdown that was read.
+     */
+    private fun currentMarkdown(): String {
+        if (sourceShowing) return binding.editor.text?.toString().orEmpty()
+        if (richDirty) {
+            richSource = RichWrite.write(binding.rich.document()).text
+            richDirty = false
+        }
+        return richSource
+    }
+
+    /** Between the rendered document and its source, with the caret carried to the same block. */
+    private fun toggleMode() {
+        if (!opened) return
+        if (findBar.isOpen()) findBar.close()
+        if (!sourceShowing) {
+            val block = binding.rich.blockIndexAt(binding.rich.selectionEnd.coerceAtLeast(0))
+            val offsets = if (richDirty) {
+                val written = RichWrite.write(binding.rich.document())
+                richSource = written.text
+                richDirty = false
+                written.offsets
+            } else {
+                RichParse.parse(richSource).offsets
+            }
+            sourceShowing = true
+            binding.editor.setText(richSource)
+            binding.editor.setSelection((offsets.getOrNull(block) ?: richSource.length).coerceIn(0, richSource.length))
+        } else {
+            val markdown = binding.editor.text?.toString().orEmpty()
+            val caret = binding.editor.selectionEnd.coerceAtLeast(0)
+            val parsed = RichParse.parse(markdown)
+            val block = parsed.offsets.indexOfLast { it <= caret }.coerceAtLeast(0)
+            sourceShowing = false
+            richSource = markdown
+            richDirty = false
+            binding.rich.load(parsed.doc)
+            binding.rich.setSelection(binding.rich.offsetOfBlock(block))
+        }
+        binding.editor.visibility = if (sourceShowing) View.VISIBLE else View.GONE
+        binding.rich.visibility = if (sourceShowing) View.GONE else View.VISIBLE
+        binding.btnMode.isSelected = sourceShowing
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
     }
 
     /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
     private fun buildChrome() {
-        tools = EditorTools(this, binding, onEdited = ::save)
-        findBar = FindReplaceBar(this, binding, keepCaretVisible = { tools.keepCaretVisible() }, onReplacedAll = ::save)
-        format = FormatActions(binding, onSearch = { if (findBar.isOpen()) findBar.close() else findBar.open() }, onWordCount = { tools.showWordCount() }, onReflow = { tools.reflow() })
+        tools = EditorTools(this, binding, ::surface, ::rendered, onEdited = ::save)
+        findBar = FindReplaceBar(this, binding, ::surface, ::rendered, keepCaretVisible = { tools.keepCaretVisible() }, onReplacedAll = ::save)
+        format = FormatActions(
+            binding, ::rendered,
+            onSearch = { if (findBar.isOpen()) findBar.close() else findBar.open() },
+            onWordCount = { tools.showWordCount() },
+            onReflow = { tools.reflow() },
+            askLink = { current, apply -> LinkDialog.ask(this, current, apply) },
+        )
         val controls = FormatBar.build(
             binding.formatBar,
             onTool = { if (opened) format.run(it) },
@@ -136,7 +216,9 @@ class DocumentActivity : AppCompatActivity() {
         )
         overflow = FormatBarOverflow(binding.formatBar, binding.overflowPanel, controls.dividerOverflow, controls.btnOverflow)
         overflow.watchWidth()
-        shortcuts = EditorShortcuts(format, closeOverflow = { overflow.close() })
+        shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode, closeOverflow = { overflow.close() })
+        binding.btnMode.setOnClickListener { toggleMode() }
+        TooltipCompat.setTooltipText(binding.btnMode, binding.btnMode.contentDescription)
         findBar.install()
         tools.watchHeight()
         textSize = TextSizeControl(this, binding, prefs)
@@ -224,13 +306,14 @@ class DocumentActivity : AppCompatActivity() {
         savedText = body
         coverText = body
         binding.title.text = name
-        binding.editor.setText(body)
+        richSource = body
+        richDirty = false
         // Where the cursor was left, or the top.
-        binding.editor.setSelection((itemId?.let { prefs.caret(it) } ?: 0).coerceIn(0, body.length))
+        binding.rich.load(RichParse.parse(body).doc, itemId?.let { prefs.caret(it) } ?: 0)
         binding.opening.visibility = View.GONE
-        binding.editor.visibility = View.VISIBLE
-        binding.editor.requestFocus()
-        binding.editor.post { tools.keepCaretVisible() }
+        binding.rich.visibility = View.VISIBLE
+        binding.rich.requestFocus()
+        binding.rich.post { tools.keepCaretVisible() }
         opened = true
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
@@ -263,7 +346,7 @@ class DocumentActivity : AppCompatActivity() {
         main.removeCallbacks(autosave)
         if (!opened) return
         val documents = store ?: return
-        val text = binding.editor.text?.toString().orEmpty()
+        val text = currentMarkdown()
         if (!DocumentLimits.fits(text)) {
             if (!tooLongTold) {
                 tooLongTold = true
@@ -298,7 +381,8 @@ class DocumentActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        if (opened) itemId?.let { prefs.rememberCaret(it, binding.editor.selectionEnd.coerceAtLeast(0)) }
+        // The place in the rendered document, which is what a document opens on.
+        if (opened && !sourceShowing) itemId?.let { prefs.rememberCaret(it, binding.rich.selectionEnd.coerceAtLeast(0)) }
         save()
         super.onPause()
     }
@@ -326,7 +410,7 @@ class DocumentActivity : AppCompatActivity() {
      *  failing a way out for. */
     private fun writeCover() {
         val id = itemId ?: return
-        val text = binding.editor.text?.toString().orEmpty()
+        val text = currentMarkdown()
         if (text == coverText) return
         coverText = text
         appScope.launch(Dispatchers.IO) {
