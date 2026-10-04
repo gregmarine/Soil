@@ -63,7 +63,8 @@ matters when other devices are supported.
 - The clipboard.
 - Backup and restore.
 - The Scratch Pad.
-- The export screen.
+- The export screen, the import flow, the cloud account.
+- The paper library, Settings, and the relay to every extension.
 
 ### The Sprout apps
 
@@ -436,11 +437,36 @@ Small enough to settle during planning.
 
 | Topic | Question |
 |---|---|
-| Dangling links | What a link shows when its target has been deleted |
 | Ink into a sketch | Whether converted strokes land as graphite or as ink |
-| The menu | For the first build: Home, the Scratch Pad, then every installed app. Still open: the Sprout apps' entries and any direct bar gestures |
-| The library | How notebooks, sketchbooks and documents are told apart at a glance |
+| The menu | Home, the Scratch Pad, Settings, then each Sprout app installed. Still open: any direct bar gestures |
 | Conversion | Whether split files are linked to each other |
-| Build order | Settled for the first build; see `first-build.md`. Open beyond it |
 | Boot | Re-test taking the home screen back after a reboot |
 | Firmware updates | How Soil notices that the menu lock has stopped working |
+
+Settled since: a dangling link shows a dialog naming the loss and offers Edit link or Remove,
+the row kept (`links.md`); kinds are told apart by a glyph on the card (`items.md`); the build
+order of the Notesprout effort is in §16.
+
+---
+
+## 16. What was built (2026-10-03)
+
+The Notesprout effort, on the branch `notesprout`, fourteen phases, each walked on the Nomad:
+
+| Phase | What | Document |
+|---|---|---|
+| 1 | Items over the seam, sessions, the index | `items.md`, `seam.md` |
+| 2 to 4 | The notebook: ink, tools, shades, page sheet, Recents, headings, text, shapes, sticky notes, Contents | `notesprout.md` |
+| 5 | Links, backlinks, the link mirror and index | `links.md` |
+| 6 | The paper library | `templates.md` |
+| 7 | The library: folders, shelves, schemes and the builder, default templates, New notebook, pickers | `items.md` |
+| 8 | The clipboard and tags | `clipboard.md`, `tags.md` |
+| 9 | Send between the Scratch Pad and a notebook | `clipboard.md` |
+| 10 | The extension contract, recognition, Settings | `extensions.md` |
+| 11 | Export and import | `export.md` |
+| 12 | Cloud storage | `cloud.md` |
+| 13 | Backup and restore, and the Home toolbars reworked | `backup.md`, `items.md` |
+| 14 | These documents | |
+
+Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
+

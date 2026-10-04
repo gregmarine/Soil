@@ -1,40 +1,76 @@
 # The seam
 
-The interface between Soil and the Sprout apps. It has one call for now.
+The interface between Soil and the Sprout apps: one bound service in Soil, `SoilSeamService`,
+answering `ISoilSeam`; one binder per open item, `ISeamItem`; and one callback the app hands
+Soil while its paper is in front, `ISeamClient`. `:seam` holds the AIDL, the parcelables, the
+limits and the statement checker; `:seam-kit` holds what an app uses to speak it (the
+connection, the row codec, the row store).
 
 ## The rules
 
 - An app never touches a file. It asks Soil for rows and hands rows back.
 - An app never sees a key, and never asks for one. When the library is locked, the person
-  unlocks it in Soil.
+  unlocks it in Soil, and every storage call is refused until the library is open.
 - Trust rests on one signing key. There is no per-app permission model.
+- Every statement is checked on both sides by `SeamSql`: one statement, an allowed head keyword,
+  no `ATTACH`, `PRAGMA`, `VACUUM`, DDL or transaction words, no identifier in a reserved space
+  (`soil_*`, `sqlite_*`, `pragma_*`, `sqlcipher_*`), positional binds that match the arguments,
+  values under `SeamLimits`. The one exception is the link mirror, below.
+- Large data crosses whole in shared memory (`SeamBytes`), never in chunks.
+- Only `SecurityException`, `IllegalArgumentException` and `IllegalStateException` cross. A
+  failure of any other kind becomes an `IllegalStateException` naming its class and nothing else.
 
-## The call
+## The calls
 
-```
-SeamHello hello()
-```
+### The handshake and the client
 
-| Field | Meaning |
+| Call | Meaning |
 |---|---|
-| `seamVersion` | The version of the seam this Soil speaks |
-| `libraryUnlocked` | Whether Soil holds the key right now |
+| `hello()` | `seamVersion`, `libraryUnlocked`, `libraryOpen` (unlocked, the recovery key saved, no rotation unfinished) |
+| `attachClient(client)` / `detachClient(client)` | The app's paper screen is in front; Soil may ask it `penActive`, `releasePanel` (the side menu is about to draw over it) and `releaseForHandoff` (the Scratch Pad is about to open over it). One client at a time; a dead client is detached by its binder's death |
+| `penActive()` / `releasePanel()` / `releaseForHandoff()` | The same questions, asked of Soil's own paper by an app |
+| `barKey(keyCode, action, eventTime, repeatCount)` | A side-bar key the app's window received. Soil's key filter is off while paper is in front, so this is how a swipe reaches the menu there (`shell.md`) |
 
-### Export
+### Items
 
-`ACTION_EXPORT` opens Soil's export screen for one of the app's items (`EXTRA_ITEM_ID`,
-`EXTRA_PAGE_ID` to offer that page as a scope, `EXTRA_RETURN_TO_APP` when the app closed the
-item first). `ACTION_RENDER` is the app's side: a `<service>` guarded by Soil's permission,
-`META_KIND` naming the kind, answering `IItemRenderer` (pages, render into a descriptor,
-relabel statements). `docs/export.md` has the whole.
+| Call | Meaning |
+|---|---|
+| `createItem(name, schema)` | A new item of the schema's kind, under the global key, empty |
+| `listItems(kind)`, `recentItems(kind, limit)`, `item(id)` | The index's rows, blob-free |
+| `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order |
+| `openItem(id, schema, owner)` | An `ISeamItem`: the app's hold on the file, bound to its uid and to `owner`'s death |
 
-### The side bars
+An open item answers `exec(batch)` (N statements, one transaction, each checked), `query(one)`,
+`park()` (the file is checkpointed and closed while every holder is parked; the session stays),
+`resume()` and `close(tidy)`. Soil holds one connection per file however many sessions hold it.
+`SeamSchema` carries the app's tables as ordered steps and its purge statements; Soil runs the
+missing steps on open, refuses a file newer than the schema, and runs the purge itself when a
+file is closed for good.
 
-`barKey(keyCode, action, eventTime, repeatCount)`: a bar key the app's paper screen received in
-its window, sent as it came. Soil's shell turns its own system-wide key filter off while an app's
-paper is in front (the filter let a resting palm cut the pen's stream; `shell.md`), so this is
-how a swipe reaches Soil's menu there. The app consumes nothing; `PaperScreenActivity` in
-`:paper` already forwards, so a Sprout app only overrides `onBarKey`.
+Every item file carries two tables of Soil's own: `soil_meta` (what the file is) and
+`soil_link` (the link mirror). An app writes `soil_link` in the same batch as its link row,
+through exactly three admitted statements; Soil re-reads the mirror after any batch naming it
+and keeps the index's link table in step. `backlinks(itemId)` answers what links into an item.
+
+### The library's services
+
+| Call | Meaning |
+|---|---|
+| `template(id)`, `templateImage(id)`, `templateUsed(cardId)`, `stageTemplate(image)` | The paper library (`templates.md`) |
+| `putClip(kind, header, payload)`, `clearClip(kind)` | The clipboard, one slot per kind (`clipboard.md`) |
+| `assignTag(itemId, pageId, text)`, `stageText(text)` | Tags (`tags.md`) |
+| `sendInkToPad(ink, placement)` | Ink parked for the Scratch Pad (`clipboard.md`) |
+| `recognizerStatus()`, `prepareRecognizer()`, `recognizeInk(...)`, `recognizePage(...)` | Recognition relayed to the recogniser chosen in Settings (`extensions.md`) |
+
+### Screens an app starts, and the one Soil starts
+
+An app starts Soil's screens for a result with the actions in `Seam`: `ACTION_PICK_TEMPLATE`,
+`ACTION_SAVE_TEMPLATE`, `ACTION_PICK_ITEM`, `ACTION_TAGS`, `ACTION_SCRATCH_PAD`, `ACTION_EXPORT`.
+Each is guarded by the seam permission and carries ids only, never a name, a path or a key.
+
+Soil starts the app's: the activity answering `ACTION_OPEN_ITEM` with `META_KIND` naming the
+kind, with `EXTRA_ITEM_ID` (or `EXTRA_NEW_NAME` for a notebook to make) and `EXTRA_PAGE_ID`.
+For export, Soil binds the app's `ACTION_RENDER` service, answering `IItemRenderer` (`export.md`).
 
 ## The version
 
@@ -48,9 +84,9 @@ build that is actually put to use, and goes up from there.
 | A signature permission on the service | Android, at the bind | Any app not signed with Soil's key, before any of Soil's code runs |
 | `SeamCallerCheck.enforce` | Soil, first thing in every call | The same, checked again at the moment of the call |
 
-The permission is named after the install,
-`<package>.permission.SEAM`, so a debug Soil and a release Soil never declare the same name. An
-app says which Soil it talks to when it is built.
+The permission is named after the install, `<package>.permission.SEAM`, so a debug Soil and a
+release Soil never declare the same name. An app says which Soil it talks to when it is built,
+and Soil opens an item only in an app of its own build.
 
 ## For an app
 
@@ -61,24 +97,13 @@ app says which Soil it talks to when it is built.
 </queries>
 ```
 
-```kotlin
-val intent = Intent().setClassName(soilPackage, Seam.SERVICE_CLASS)
-bindService(intent, connection, Context.BIND_AUTO_CREATE)
-```
+Depend on `:seam` and `:seam-kit`. `SeamConnection` binds and waits; `SeamRowStore` is a
+`RowStore` over an open item, which is what `:paper`'s ink writes to, every statement checked
+in the app before it is sent. Install Soil first: it declares the permission. Notesprout is the
+worked example (`notesprout.md`).
 
-Depend on `:seam`. Install Soil first: it declares the permission.
+## Walked on the Nomad
 
-## Walked on the Nomad, 2026-09-28
-
-| Caller | Result |
-|---|---|
-| Signed with Soil's key, library not yet open | Answered: version 1, unlocked false |
-| Signed with Soil's key, library open | Answered: version 1, unlocked true |
-| Signed with another key | Refused at the bind. Android did not grant it the permission |
-
-The check is `:seam-stranger`; see its README.
-
-## Open
-
-The stranger never reaches the second guard, because the first stops it. The second is covered
-by a JVM test of its decision and by reading. Whether it needs a walk of its own is undecided.
+The handshake and the stranger, 2026-09-28: signed with Soil's key, answered; signed with
+another key, refused at the bind (`:seam-stranger`). Every call above was walked through
+Notesprout's phases, 2026-09-30 to 2026-10-03.

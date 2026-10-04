@@ -8,7 +8,12 @@ Supernote Nomad and Manta first.
 
 **The first build is done and merged** (2026-09-29): the home screen with the library and the app
 drawer, the side menu, the Scratch Pad, encryption, the library index and the seam's handshake.
-It runs on the Nomad as its home screen and bar service. None of the Sprout apps exist.
+
+**The Notesprout effort is built and walked** (2026-09-30 to 2026-10-03, branch `notesprout`,
+awaiting Greg's merge): the seam's storage calls, the notebook app, links, the paper library,
+the library with folders and schemes, the clipboard and tags, Send, the extension contract with
+recognition and Settings, export and import, cloud storage, backup and restore, and these
+documents. `docs/design.md` §16 lists the phases and their documents.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
@@ -19,7 +24,8 @@ when he is happy with it, not before.
 - `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
 - Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
   theme, chrome and ink), `:seam-kit`, `:markdown`, `:notesprout`, `:ext-api` (the extension
-  contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`, and
+  contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`,
+  `:ext-cloud` (needs `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET` in the shell), and
   `:seam-stranger` (joins the build only where its key exists).
 - Debug installs as `com.symmetricalpalmtree.soil.dev`, release as `com.symmetricalpalmtree.soil`.
   Both are signed with `~/.android/debug.keystore`.
@@ -47,8 +53,9 @@ when he is happy with it, not before.
 - `docs/first-build.md` — the first build's plan as granted, and its decisions. A record; never
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
-- `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/export.md`,
-  `docs/cloud.md`, `docs/backup.md` — each part as built.
+- `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
+  `docs/notesprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
+  `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the
