@@ -441,7 +441,8 @@ class ImportFlow(
 
     /**
      * A file an app takes in: it becomes a new item of the app's kind, in the folder the library
-     * is showing, named after the file. The bytes land in the cache by Soil's own hand (nothing
+     * is showing, named after the file (with the question every import asks when that name is
+     * taken there). The bytes land in the cache by Soil's own hand (nothing
      * of them is an item yet, so there is no key to find and nothing to ask), the item is made
      * empty as New makes one, and the app writes the file into it. An app that refuses the file
      * leaves nothing behind: the empty item is taken away again.
@@ -458,10 +459,13 @@ class ImportFlow(
                 incoming
             }
         }
-        ImportOverlay.stage(activity, R.string.import_stage_importing)
-        val name = ImportNames.fromDisplayName(displayName)
         val parentId = currentFolder()
         val id = UUID.randomUUID().toString()
+        // The same question a .soil import asks of a name already in the folder: Replace, or
+        // Keep both under "X Copy". Asked before anything is made, so Cancel leaves nothing.
+        val naming = resolveName(ImportNames.fromDisplayName(displayName), parentId, id, keepBothChosen = false) ?: return
+        val name = naming.name
+        ImportOverlay.stage(activity, R.string.import_stage_importing)
         withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
             // The file first: a row with no file is an item that cannot be opened.
@@ -488,6 +492,9 @@ class ImportFlow(
             )
             return
         }
+        // What Replace stands in for goes last, once the new item holds its words: a file the
+        // app refused has replaced nothing.
+        naming.retireId?.let { old -> withContext(Dispatchers.IO) { retire(old) } }
         ItemSessions.changed()
         ImportOverlay.hide(activity)
         onImported()
