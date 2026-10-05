@@ -178,4 +178,17 @@ interface ISoilSeam {
      * stream), so this is how the bars reach Soil there. Observed only; the app consumes nothing.
      */
     void barKey(int keyCode, int action, long eventTime, int repeatCount);
+
+    // ── The Scratch Pad's Send, for an app with no paper ──────
+
+    /**
+     * An app whose screen is not paper (a document) says it takes what the Scratch Pad sends,
+     * for as long as that screen is showing: the pad opened over it then offers Send, and what
+     * is sent is taken with `takeIncomingInk` as the screen comes back. [kind] is the item kind
+     * on the screen, which is what the pad's Send names. An app's paper screen says this by
+     * attaching its client instead. [owner]'s death is a detach.
+     */
+    void attachPadTaker(IBinder owner, String kind);
+
+    void detachPadTaker(IBinder owner);
 }

@@ -386,6 +386,8 @@
     <!-- The Scratch Pad's Send -->
     <string name="scratch_send_page">Send page to notebook</string>
     <string name="scratch_send_selection">Send selection to notebook</string>
+    <string name="scratch_send_page_document">Send page to document, as words</string>
+    <string name="scratch_send_selection_document">Send selection to document, as words</string>
     <string name="scratch_nothing_to_send_title">Nothing to send</string>
     <string name="scratch_nothing_to_send_body">There is no ink here to send. Write something first, or lasso what you want to send.</string>
     <string name="scratch_too_large_title">Too much to send</string>

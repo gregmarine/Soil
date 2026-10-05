@@ -25,6 +25,7 @@ import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -100,6 +101,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
     private lateinit var links: DocumentLinksControl
+    private lateinit var padWords: PadWords
 
     /** Soil's item picker, for the Link dialog's Choose from library. */
     private val linkPicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -154,6 +156,7 @@ class DocumentActivity : AppCompatActivity() {
             saveNow = ::save, editLink = { format.run(FormatTool.LINK) }, pickerLauncher = linkPicker,
         )
         links.install()
+        padWords = PadWords(this, usable = { opened && !closing }, insert = ::insertParagraphs)
         // A tap on a link follows it; any other tap is proofread's to answer.
         val flagTap = binding.rich.onWordTap
         binding.rich.onWordTap = { offset -> if (!(opened && !sourceShowing && links.followAtChar(binding.rich.tappedChar))) flagTap?.invoke(offset) }
@@ -399,6 +402,36 @@ class DocumentActivity : AppCompatActivity() {
         }
     }
 
+    // ── Words from the Scratch Pad ──────
+
+    /**
+     * What the pad sent, read, put in at the cursor of whichever surface is in use. In the
+     * rendered document each paragraph is a block and the words are words, whatever characters
+     * they hold; in the source each is a Markdown paragraph, a blank line apart.
+     */
+    private fun insertParagraphs(paragraphs: List<String>) {
+        if (!opened || closing || paragraphs.isEmpty()) return
+        if (sourceShowing) {
+            val text = binding.editor.text ?: return
+            val a = minOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val b = maxOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val words = paragraphs.joinToString("\n\n")
+            text.replace(a, b, words)
+            binding.editor.setSelection((a + words.length).coerceAtMost(text.length))
+        } else {
+            val words = paragraphs.joinToString("\n")
+            RichOps.insertText(binding.rich, words, words.length, words.length)
+        }
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The pad may have sent something while it was over this screen.
+        if (opened && ::padWords.isInitialized) padWords.takeIfSent()
+    }
+
     // ── Export ──────
 
     /**
@@ -451,6 +484,7 @@ class DocumentActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         started = true
+        (application as DocsproutApp).takesPadSends(true)
         if (opened) links.refreshBacklinks()
         val open = session ?: return
         appScope.launch {
@@ -468,6 +502,7 @@ class DocumentActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         started = false
+        (application as DocsproutApp).takesPadSends(false)
         main.removeCallbacks(autosave)
         if (!opened) return
         writeCover()

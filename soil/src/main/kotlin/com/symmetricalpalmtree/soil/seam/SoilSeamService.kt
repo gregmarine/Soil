@@ -63,6 +63,17 @@ class SoilSeamService : Service() {
             SeamClients.detach(client)
         }
 
+        override fun attachPadTaker(owner: IBinder, kind: String) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            require(kind.length <= 32 && kind.isNotEmpty() && kind.all { it in 'a'..'z' || it in '0'..'9' || it == '_' }) { "not a kind" }
+            SeamClients.attachTaker(owner, kind)
+        }
+
+        override fun detachPadTaker(owner: IBinder) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            SeamClients.detachTaker(owner)
+        }
+
         override fun createItem(name: String, schema: SeamSchema): SeamItem = answered {
             val clean = ItemNames.clean(name)
             val id = UUID.randomUUID().toString()

@@ -85,6 +85,49 @@ object SeamClients {
 
     fun padClosed() { appBehindPad = false }
 
+    // ── An app with no paper that takes what the pad sends ──────
+
+    private var taker: IBinder? = null
+    private var takerKind: String? = null
+    private var takerDeath: IBinder.DeathRecipient? = null
+
+    /**
+     * A screen that is not paper (a document) is showing, and takes what the pad sends. It is no
+     * client: it holds no panel, so nothing is asked of it and the shell's key filter stays as it
+     * is. One at a time; an app that dies is detached by its binder's death.
+     */
+    @Synchronized
+    fun attachTaker(owner: IBinder, kind: String) {
+        detachTakerNow()
+        val recipient = IBinder.DeathRecipient { detachTaker(owner) }
+        try {
+            owner.linkToDeath(recipient, 0)
+        } catch (_: android.os.RemoteException) {
+            return
+        }
+        taker = owner
+        takerKind = kind
+        takerDeath = recipient
+    }
+
+    @Synchronized
+    fun detachTaker(owner: IBinder) {
+        if (taker != owner) return
+        detachTakerNow()
+    }
+
+    private fun detachTakerNow() {
+        val t = taker ?: return
+        takerDeath?.let { runCatching { t.unlinkToDeath(it, 0) } }
+        taker = null
+        takerKind = null
+        takerDeath = null
+    }
+
+    /** The kind of item on the screen that takes the pad's Send, or null when there is none. */
+    @Synchronized
+    fun takerKind(): String? = takerKind
+
     /**
      * The call crosses to the app and waits on its main thread; it runs on a thread of its own
      * so that a slow or dead app holds nothing of Soil's for longer than [WAIT_MS].
