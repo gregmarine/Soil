@@ -41,7 +41,8 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  *   the ink they belong to by its copy time, so a second paste, in this document or another, or
  *   after a restart, does not read again. Words kept for other ink are stale and are not used.
  * - **Ctrl+V pastes whichever was copied last**, this ink or the text on the device's own
- *   clipboard ([newerThanText]); the Paste tool on the bar always means this ink.
+ *   clipboard ([newerThanText]); the Paste tool on the bar always means this ink. Clear
+ *   clipboard empties both, so that nothing is left to paste.
  *
  * When the words cannot be had (no recogniser, the model not there yet, nothing legible), the
  * person is told and nothing changes: the ink is still on the clipboard. Nothing read is logged.
@@ -126,8 +127,15 @@ internal class InkPaste(
         }
     }
 
+    /**
+     * Clear clipboard means there is nothing left to paste (decision 2026-10-04): the library's
+     * ink, the words kept for it, and the text on the device's own clipboard, which Ctrl+V would
+     * otherwise go on pasting.
+     */
     private fun clear() {
         copiedAt = null
+        runCatching { (activity.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.clearPrimaryClip() }
+            .onFailure { Log.w(TAG, "the device's clipboard was not cleared: ${it.javaClass.simpleName}") }
         activity.lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching { seam().clearClip(InkClip.SLOT) }
