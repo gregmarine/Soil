@@ -63,17 +63,6 @@ class SoilSeamService : Service() {
             SeamClients.detach(client)
         }
 
-        override fun attachPadTaker(owner: IBinder, kind: String) {
-            SeamCallerCheck.enforce(this@SoilSeamService)
-            require(kind.length <= 32 && kind.isNotEmpty() && kind.all { it in 'a'..'z' || it in '0'..'9' || it == '_' }) { "not a kind" }
-            SeamClients.attachTaker(owner, kind)
-        }
-
-        override fun detachPadTaker(owner: IBinder) {
-            SeamCallerCheck.enforce(this@SoilSeamService)
-            SeamClients.detachTaker(owner)
-        }
-
         override fun createItem(name: String, schema: SeamSchema): SeamItem = answered {
             val clean = ItemNames.clean(name)
             val id = UUID.randomUUID().toString()
@@ -208,10 +197,6 @@ class SoilSeamService : Service() {
             require(bytes.isNotEmpty() && bytes.size <= SeamLimits.MAX_VALUE_BYTES) { SeamLimits.VALUE_TOO_LARGE }
             require(placement == Seam.PAD_PLACEMENT_NEW_PAGE || placement == Seam.PAD_PLACEMENT_CURRENT_PAGE) { "not a placement" }
             com.symmetricalpalmtree.soil.pad.PadTransfer.parkIncoming(bytes, placement)
-        }
-
-        override fun takeIncomingInk(): SeamBytes? = answered {
-            com.symmetricalpalmtree.soil.pad.PadTransfer.takeOutgoing()?.let { SeamShared.write(it).also { region -> sent.set(region) } }
         }
 
         // ── Recognition, relayed to the chosen recogniser ──────

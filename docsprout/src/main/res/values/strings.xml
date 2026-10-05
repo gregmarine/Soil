@@ -62,6 +62,14 @@
     <string name="fmt_word_count">Word count</string>
     <string name="fmt_reflow">Join wrapped lines into paragraphs  ·  Ctrl+Shift+F</string>
     <string name="fmt_proofread">Proofread</string>
+    <string name="fmt_paste_ink">Paste handwriting as words</string>
+
+    <!-- Ink from the clipboard, as words -->
+    <string name="ink_paste_title">Handwriting on the clipboard</string>
+    <string name="ink_paste_action">Paste as words</string>
+    <string name="ink_clear_action">Clear clipboard</string>
+    <string name="ink_paste_empty_body">There is no handwriting on the clipboard. Copy some in the Scratch Pad, or with the lasso in a notebook, then paste it here.</string>
+    <string name="ink_paste_no_ink_body">What is on the clipboard holds no handwriting to read.</string>
     <string name="fmt_more">More tools</string>
 
     <!-- Proofread -->

@@ -146,9 +146,9 @@ object Seam {
     const val TAG_MODE_MANAGE = 2
 
     /**
-     * The action of Soil's Scratch Pad, started for a result by an app over its own paper: the pad
-     * opens with its Send buttons, and what it sends is taken with `takeIncomingInk` when the pad
-     * has closed. Ink parked with `sendInkToPad` just before lands on it as it opens.
+     * The action of Soil's Scratch Pad, started by an app over its own paper. Ink parked with
+     * `sendInkToPad` just before lands on it as it opens. What the pad gives back it puts on the
+     * clipboard, for the app to paste: nothing comes back by itself.
      */
     const val ACTION_SCRATCH_PAD = "com.symmetricalpalmtree.soil.action.SCRATCH_PAD"
 

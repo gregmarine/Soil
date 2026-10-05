@@ -172,8 +172,6 @@
     <string name="scratch_too_large_body">This selection holds more ink than the Scratch Pad can take. Send a smaller part of it.</string>
     <string name="scratch_failed_title">Scratch Pad</string>
     <string name="scratch_send_failed_body">The ink could not be handed to the Scratch Pad. Nothing was changed.</string>
-    <string name="scratch_drain_failed_body">The ink from the Scratch Pad could not be read. Nothing was changed — it is still on the pad.</string>
-    <string name="scratch_paste_failed_body">The ink from the Scratch Pad could not be written to this page. Nothing was changed — it is still on the pad.</string>
 
     <!-- Recognition -->
     <string name="text_convert_action">Make text</string>

@@ -70,64 +70,8 @@ object SeamClients {
     /** Ask the app in front to let the panel go for a frame, and wait for it, bounded. */
     fun releasePanel() = ask("release the panel") { it.releasePanel() }
 
-    /** Ask the app in front to release the pipeline for a paper screen of Soil's, bounded. The
-     *  pad about to open remembers that an app is behind it: that is what gives its Send somewhere
-     *  to go. */
-    fun releaseForHandoff() {
-        if (current() != null) appBehindPad = true
-        ask("release for handoff") { it.releaseForHandoff() }
-    }
-
-    /** Whether an app's paper was in front when the Scratch Pad was opened over it. Cleared when the pad closes. */
-    @Volatile
-    var appBehindPad: Boolean = false
-        private set
-
-    fun padClosed() { appBehindPad = false }
-
-    // ── An app with no paper that takes what the pad sends ──────
-
-    private var taker: IBinder? = null
-    private var takerKind: String? = null
-    private var takerDeath: IBinder.DeathRecipient? = null
-
-    /**
-     * A screen that is not paper (a document) is showing, and takes what the pad sends. It is no
-     * client: it holds no panel, so nothing is asked of it and the shell's key filter stays as it
-     * is. One at a time; an app that dies is detached by its binder's death.
-     */
-    @Synchronized
-    fun attachTaker(owner: IBinder, kind: String) {
-        detachTakerNow()
-        val recipient = IBinder.DeathRecipient { detachTaker(owner) }
-        try {
-            owner.linkToDeath(recipient, 0)
-        } catch (_: android.os.RemoteException) {
-            return
-        }
-        taker = owner
-        takerKind = kind
-        takerDeath = recipient
-    }
-
-    @Synchronized
-    fun detachTaker(owner: IBinder) {
-        if (taker != owner) return
-        detachTakerNow()
-    }
-
-    private fun detachTakerNow() {
-        val t = taker ?: return
-        takerDeath?.let { runCatching { t.unlinkToDeath(it, 0) } }
-        taker = null
-        takerKind = null
-        takerDeath = null
-    }
-
-    /** The kind of item on the screen that takes the pad's Send, or null when there is none. */
-    @Synchronized
-    fun takerKind(): String? = takerKind
-
+    /** Ask the app in front to release the pipeline for a paper screen of Soil's, bounded. */
+    fun releaseForHandoff() = ask("release for handoff") { it.releaseForHandoff() }
     /**
      * The call crosses to the app and waits on its main thread; it runs on a thread of its own
      * so that a slow or dead app holds nothing of Soil's for longer than [WAIT_MS].

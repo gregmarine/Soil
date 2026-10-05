@@ -34,6 +34,17 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  */
 open class ProofreadEditText @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : AppCompatEditText(context, attrs) {
 
+    /**
+     * Asked before a paste (Ctrl+V, or Paste from the text menu): true when the screen has
+     * pasted something of its own instead, and the field's own paste is not wanted.
+     */
+    var onPaste: (() -> Boolean)? = null
+
+    override fun onTextContextMenuItem(id: Int): Boolean {
+        if ((id == android.R.id.paste || id == android.R.id.pasteAsPlainText) && onPaste?.invoke() == true) return true
+        return super.onTextContextMenuItem(id)
+    }
+
     /** Called with the character offset of a confirmed single tap — the proofread popup's hook. */
     var onWordTap: ((Int) -> Unit)? = null
 

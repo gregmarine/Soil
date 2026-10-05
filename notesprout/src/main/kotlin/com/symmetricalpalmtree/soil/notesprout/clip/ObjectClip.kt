@@ -60,7 +60,7 @@ object ObjectClip {
         if (top.isEmpty()) return null
         return ClipEnvelope(
             version = ClipEnvelope.VERSION, kind = ClipEnvelope.KIND_OBJECTS, sourceNotebookId = sourceNotebookId, copiedAt = now,
-            rows = (top + children).map { ClipRow.of(it) },
+            rows = (top + children).map { clipRowOf(it) },
         )
     }
 

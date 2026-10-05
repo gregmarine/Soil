@@ -29,6 +29,7 @@ internal class FormatActions(
     private val onWordCount: () -> Unit,
     private val onReflow: () -> Unit,
     private val onProofread: () -> Unit,
+    private val onPasteInk: () -> Unit,
     /** Ask where a link points, given the address in place (or null). The answer is applied: an
      *  address, and the words to carry it when nothing is selected to carry it. */
     private val askLink: (current: String?, apply: (url: String, words: String) -> Unit) -> Unit,
@@ -40,6 +41,7 @@ internal class FormatActions(
             FormatTool.WORD_COUNT -> onWordCount()
             FormatTool.REFLOW -> onReflow()
             FormatTool.PROOFREAD -> onProofread()
+            FormatTool.PASTE_INK -> onPasteInk()
             else -> if (rendered()) rich(tool) else source(tool)
         }
     }
@@ -89,7 +91,7 @@ internal class FormatActions(
             // An image is not drawn: it is the characters that spell it, here as in the file.
             FormatTool.IMAGE -> RichOps.insertText(view, IMAGE_SKELETON, 2, 2 + IMAGE_DESCRIPTION.length)
             FormatTool.RULE -> RichOps.insertRule(view)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK -> Unit
         }
     }
 
@@ -115,7 +117,7 @@ internal class FormatActions(
             FormatTool.LINK -> apply(MarkdownFormatter::insertLink)
             FormatTool.IMAGE -> apply(MarkdownFormatter::insertImage)
             FormatTool.RULE -> apply(MarkdownFormatter::insertRule)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK -> Unit
         }
     }
 

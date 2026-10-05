@@ -488,7 +488,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         opened = true
         markClipboard(SoilClipboard.hasObjects)
         pushExclusions()
-        takeIncomingInk()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
         binding.openingOverlay.visibility = View.GONE
@@ -1331,6 +1330,15 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     private suspend fun seam() = withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam() }
 
+    /** The clipboard's header read again from Soil, and the lasso's mark set by it. */
+    private fun refreshClipboardMark() {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) } }
+            if (opened && !closing) markClipboard(SoilClipboard.hasObjects)
+        }
+    }
+
     /** The lasso's clipboard mark, on the bar and on the collapsed chrome alike. */
     private fun markClipboard(loaded: Boolean) {
         if (::toolbar.isInitialized) toolbar.showClipboardLoaded(loaded)
@@ -1630,8 +1638,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     /**
      * A copy of the lassoed ink to the pad: flushed, checked against the caps before anything
-     * crosses, parked in Soil, and the pad opened over this notebook to land it. The pad's own
-     * Send comes back through [takeIncomingInk] when it closes.
+     * crosses, parked in Soil, and the pad opened over this notebook to land it. What the pad
+     * gives back it copies to the clipboard, and it is pasted here like anything copied.
      */
     private fun sendToPad(ids: Set<String>, placement: Int) {
         if (!opened || closing || soilScreenShowing) return
@@ -1662,47 +1670,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val intent = android.content.Intent(Seam.ACTION_SCRATCH_PAD).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
         padShowing = true
         startSoilScreen { startActivity(intent) }
-    }
-
-    /**
-     * Ink the pad sent to the notebook behind it, taken once from Soil and pasted onto the showing
-     * page: fresh ids, after the page's current strokes, one undo step, landed selected with the
-     * lasso armed. Nothing parked is silence; a parking that will not read is a dialog.
-     */
-    private fun takeIncomingInk() {
-        if (!opened || closing) return
-        val doc = document ?: return
-        runPageOp {
-            val region = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().takeIncomingInk() } }.getOrNull() ?: return@runPageOp
-            val bytes = runCatching { com.symmetricalpalmtree.soil.seam.SeamShared.readAndClose(region) }.getOrNull()
-            val bundle = InkWire.decode(bytes)
-            if (bundle == null || bundle.strokes.isEmpty()) {
-                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_drain_failed_body)
-                return@runPageOp
-            }
-            val pageId = doc.pageId
-            val written = runCatching { doc.pasteStrokes(bundle.strokes) }.onFailure { Log.w(TAG, "paste from the pad failed: ${it.javaClass.simpleName}") }
-            if (written.isFailure) {
-                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_paste_failed_body)
-                return@runPageOp
-            }
-            undo.record(NotebookAction.ObjectsPasted(pageId, bundle.strokes.map { it.id }))
-            preparePaper()
-            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
-            val strokeIds = bundle.strokes.mapTo(HashSet()) { it.id }
-            var box: Bounds? = null
-            for (st in doc.strokes) if (st.id in strokeIds) box = box?.union(st.bounds) ?: st.bounds
-            box?.let { bounds ->
-                armLassoForLanding()
-                paper.setSelection(strokeIds, emptySet(), bounds)
-                val selection = Selection(strokeIds, emptySet(), bounds)
-                selectionActive = true
-                currentSelection = selection
-                showObjectBar(selection)
-            }
-            toast(getString(R.string.objects_pasted_toast))
-            Slog.d(TAG) { "pasted ${bundle.strokes.size} strokes from the pad" }
-        }
     }
 
     // ── Tags ──────
@@ -2085,10 +2052,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         // The shade is device-wide: another screen may have picked since.
         if (::toolbar.isInitialized) applyPenShade()
         (application as NotesproutApp).front(this)
-        // Back from the pad: the pipeline first of all, then what it sent. The pad may also have
-        // been opened over this notebook from the side menu, and sent ink back the same way.
+        // Back from the pad: the pipeline first of all.
         if (padShowing) { padShowing = false; onSoilScreenClosed() }
-        if (!soilScreenShowing) takeIncomingInk()
+        // The clipboard is the library's, and something else may have copied to it while this
+        // notebook was behind: the Scratch Pad, opened over it or from the menu.
+        refreshClipboardMark()
     }
 
     override fun onPause() {

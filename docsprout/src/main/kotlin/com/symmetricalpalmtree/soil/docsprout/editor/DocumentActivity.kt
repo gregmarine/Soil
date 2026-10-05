@@ -101,7 +101,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
     private lateinit var links: DocumentLinksControl
-    private lateinit var padWords: PadWords
+    private lateinit var inkPaste: InkPaste
 
     /** Soil's item picker, for the Link dialog's Choose from library. */
     private val linkPicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -156,7 +156,12 @@ class DocumentActivity : AppCompatActivity() {
             saveNow = ::save, editLink = { format.run(FormatTool.LINK) }, pickerLauncher = linkPicker,
         )
         links.install()
-        padWords = PadWords(this, usable = { opened && !closing }, insert = ::insertParagraphs)
+        inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
+        // Ctrl+V and the text menu's Paste put in the last thing copied: the clipboard's ink, as
+        // words, when it was copied after the text on the device's own clipboard.
+        val pasteLatest = { if (opened && !closing && inkPaste.newerThanText()) { inkPaste.paste(); true } else false }
+        binding.editor.onPaste = pasteLatest
+        binding.rich.onPaste = pasteLatest
         // A tap on a link follows it; any other tap is proofread's to answer.
         val flagTap = binding.rich.onWordTap
         binding.rich.onWordTap = { offset -> if (!(opened && !sourceShowing && links.followAtChar(binding.rich.tappedChar))) flagTap?.invoke(offset) }
@@ -233,6 +238,7 @@ class DocumentActivity : AppCompatActivity() {
             onWordCount = { tools.showWordCount() },
             onReflow = { tools.reflow() },
             onProofread = { proofread.promptProofread() },
+            onPasteInk = { inkPaste.prompt() },
             askLink = { current, apply ->
                 LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed -> apply(typed, typed) }
             },
@@ -402,10 +408,10 @@ class DocumentActivity : AppCompatActivity() {
         }
     }
 
-    // ── Words from the Scratch Pad ──────
+    // ── Ink from the clipboard, as words ──────
 
     /**
-     * What the pad sent, read, put in at the cursor of whichever surface is in use. In the
+     * The clipboard's handwriting, read, put in at the cursor of whichever surface is in use. In the
      * rendered document each paragraph is a block and the words are words, whatever characters
      * they hold; in the source each is a Markdown paragraph, a blank line apart.
      */
@@ -428,8 +434,8 @@ class DocumentActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // The pad may have sent something while it was over this screen.
-        if (opened && ::padWords.isInitialized) padWords.takeIfSent()
+        // The pad, or a notebook, may have copied ink while this screen was behind.
+        if (::inkPaste.isInitialized) inkPaste.refresh()
     }
 
     // ── Export ──────
@@ -484,7 +490,6 @@ class DocumentActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         started = true
-        (application as DocsproutApp).takesPadSends(true)
         if (opened) links.refreshBacklinks()
         val open = session ?: return
         appScope.launch {
@@ -502,7 +507,6 @@ class DocumentActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         started = false
-        (application as DocsproutApp).takesPadSends(false)
         main.removeCallbacks(autosave)
         if (!opened) return
         writeCover()

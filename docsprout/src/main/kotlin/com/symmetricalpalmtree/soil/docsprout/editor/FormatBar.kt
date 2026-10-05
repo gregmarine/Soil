@@ -43,6 +43,7 @@ enum class FormatTool(val icon: Int, val hint: Int) {
     LINK(PaperR.drawable.ic_link, R.string.fmt_link),
     IMAGE(R.drawable.ic_photo, R.string.fmt_image),
     RULE(R.drawable.ic_separator_horizontal, R.string.fmt_rule),
+    PASTE_INK(PaperR.drawable.ic_clipboard, R.string.fmt_paste_ink),
     SEARCH(PaperR.drawable.ic_search, R.string.fmt_search),
     WORD_COUNT(R.drawable.ic_letter_case, R.string.fmt_word_count),
     REFLOW(R.drawable.ic_text_wrap, R.string.fmt_reflow),
@@ -90,7 +91,7 @@ object FormatBar {
         tool(FormatTool.ORDERED); tool(FormatTool.TASK)
         tool(FormatTool.OUTDENT); tool(FormatTool.INDENT)
         divider()
-        tool(FormatTool.LINK); tool(FormatTool.IMAGE); tool(FormatTool.RULE)
+        tool(FormatTool.LINK); tool(FormatTool.IMAGE); tool(FormatTool.RULE); tool(FormatTool.PASTE_INK)
         divider()
         tool(FormatTool.SEARCH); tool(FormatTool.WORD_COUNT); tool(FormatTool.REFLOW)
         divider()

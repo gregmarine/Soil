@@ -53,6 +53,17 @@ class ObjectClipTest {
         ObjectClip.plan(env, into, dstPage, { bases[it] ?: -1 }, ids(), place)
 
     @Test
+    fun `ink the Scratch Pad copied pastes as a lasso's ink does`() {
+        val fromPad = com.symmetricalpalmtree.soil.seamkit.clip.InkClip.envelopeOf(listOf(stroke("p-1", 10f, 10f), stroke("p-2", 60f, 10f)), now)!!
+        val read = ClipEnvelope.decode(ClipEnvelope.encode(fromPad))!!
+        val plan = plan(read, bases = mapOf(NotebookSchema.TYPE_STROKE to 4))!!
+        assertEquals(2, plan.strokes.size)
+        assertEquals(listOf(5, 6), plan.rows.map { it.order })
+        assertTrue(plan.rows.all { it.parentId == dstPage && it.type == NotebookSchema.TYPE_STROKE })
+        assertTrue(plan.rows.none { it.id == "p-1" || it.id == "p-2" })
+    }
+
+    @Test
     fun `capture writes an objects envelope carrying every row, and nothing is no clipboard`() {
         val env = envelope()
         assertEquals(ClipEnvelope.KIND_OBJECTS, env.kind)
