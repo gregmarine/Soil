@@ -179,6 +179,21 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustNothing" />
 
+        <!-- A link followed for a Sprout app: the item opened in the app for its kind. It is only
+             its dialogs, so what is behind stays in view. -->
+        <activity
+            android:name=".library.FollowLinkActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:theme="@style/Theme.Soil.Translucent"
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.FOLLOW" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- An item of the library for a Sprout app: the link picker's notebook shelves. -->
         <activity
             android:name=".library.ItemPickerActivity"

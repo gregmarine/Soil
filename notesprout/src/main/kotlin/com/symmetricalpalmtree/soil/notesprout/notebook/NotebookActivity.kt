@@ -242,6 +242,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             alive = { opened && !closing },
             navigateToPage = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } },
             leaveFor = ::leaveFor,
+            openElsewhere = ::openElsewhere,
             editLink = ::beginEdit,
             removeLink = ::unlink,
         )
@@ -1953,12 +1954,29 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val doc = document ?: return
         val me = itemId ?: return
         if (!opened || closing) return
+        // A link made in a document: the document opens over this notebook, and closing it
+        // comes back here, so there is no hop to remember.
+        if (b.sourceKind != NotebookSchema.KIND) { openElsewhere(b.sourceItemId); return }
         LinkTrail(this).push(TrailEntry(me, doc.pageId))
         if (b.sourceItemId == me) {
             runPageOp { flipTo(doc.pages.indexOfFirst { it.id == b.sourcePageId }) }
         } else {
             leaveFor(b.sourceItemId, b.sourcePageId)
         }
+    }
+
+    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen. */
+    private fun openElsewhere(itemId: String) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, itemId),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
     }
 
     /** Leave this notebook for another, at [pageId] or at its own remembered page. The box

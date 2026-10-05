@@ -333,6 +333,16 @@ class SelfTestActivity : AppCompatActivity() {
         RichOps.setLink(view, "")
         check("and taken off", "see here\n")
 
+        load("go\n")
+        type(2, " ")
+        view.setSelection(3)
+        RichOps.setLink(view, "soil:22222222-2222-2222-2222-222222222222", "My Notebook")
+        check("a link with nothing to carry it is carried by the words given", "go [My Notebook](soil:22222222-2222-2222-2222-222222222222)\n")
+        val linked = at("My Notebook")
+        checkTrue("the link is found under each of its characters", view.linkAtChar(linked) != null && view.linkAtChar(linked + 10) != null)
+        checkTrue("and not under the characters beside it", view.linkAtChar(linked - 1) == null && view.linkAtChar(linked + 11) == null)
+        checkTrue("and says where it stands", view.linkAtChar(linked)?.let { view.rangeOf(it) } == (linked to linked + 11))
+
         load("a cat and a **cat**\n\n- cat\n")
         checkTrue("replace all answers its count", RichOps.replaceAll(view, "cat", "dog") == 3)
         check("replace all keeps every style and block", "a dog and a **dog**\n\n- dog\n")

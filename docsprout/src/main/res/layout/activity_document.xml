@@ -22,19 +22,34 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:layout_marginStart="148dp"
-            android:layout_marginEnd="148dp"
+            android:layout_marginStart="196dp"
+            android:layout_marginEnd="196dp"
             android:ellipsize="end"
             android:singleLine="true"
             android:textColor="@color/inkBlack"
             android:textSize="16sp" />
 
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btnBack"
-            style="@style/Widget.Soil.ToolbarButton"
-            android:layout_gravity="start|center_vertical"
-            android:contentDescription="@string/cd_close"
-            android:src="@drawable/ic_x" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnBack"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_close"
+                android:src="@drawable/ic_x" />
+
+            <!-- Back to the document a link was followed from. Absent when no link was. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnTrailBack"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_trail_back"
+                android:src="@drawable/ic_arrow_left"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -42,6 +57,14 @@
             android:layout_gravity="end"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <!-- What links to this document. Absent when nothing does. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnBacklinks"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_backlinks"
+                android:src="@drawable/ic_link"
+                android:visibility="gone" />
 
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btnExport"

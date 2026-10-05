@@ -12,6 +12,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.TooltipCompat
@@ -98,6 +99,12 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var findBar: FindReplaceBar
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
+    private lateinit var links: DocumentLinksControl
+
+    /** Soil's item picker, for the Link dialog's Choose from library. */
+    private val linkPicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (::links.isInitialized) links.onPicked(result.resultCode, result.data)
+    }
 
     /** Where a plain newline was just typed: read (and cleared) in `afterTextChanged`, which is
      *  where the text may be edited. Clearing it before use is also the re-entrancy guard: the
@@ -142,6 +149,14 @@ class DocumentActivity : AppCompatActivity() {
         })
         // After the screen's own watchers, so proofread's run second: never mid-list-continuation.
         proofread = ProofreadController.install(this, listOf(binding.editor, binding.rich), { if (sourceShowing) binding.editor else binding.rich }, lifecycleScope)
+        links = DocumentLinksControl(
+            this, binding, prefs, itemId = { itemId }, usable = { opened && !closing },
+            saveNow = ::save, editLink = { format.run(FormatTool.LINK) }, pickerLauncher = linkPicker,
+        )
+        links.install()
+        // A tap on a link follows it; any other tap is proofread's to answer.
+        val flagTap = binding.rich.onWordTap
+        binding.rich.onWordTap = { offset -> if (!(opened && !sourceShowing && links.followAtChar(binding.rich.tappedChar))) flagTap?.invoke(offset) }
         binding.rich.onEdited = { words ->
             if (opened) {
                 // A style or a block may have changed what is prose: a word made code is not
@@ -215,7 +230,9 @@ class DocumentActivity : AppCompatActivity() {
             onWordCount = { tools.showWordCount() },
             onReflow = { tools.reflow() },
             onProofread = { proofread.promptProofread() },
-            askLink = { current, apply -> LinkDialog.ask(this, current, apply) },
+            askLink = { current, apply ->
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed -> apply(typed, typed) }
+            },
         )
         val controls = FormatBar.build(
             binding.formatBar,
@@ -326,6 +343,7 @@ class DocumentActivity : AppCompatActivity() {
         binding.rich.requestFocus()
         binding.rich.post { tools.keepCaretVisible() }
         opened = true
+        itemId?.let { links.arrived(it) }
         proofread.checkDocument()
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
@@ -433,6 +451,7 @@ class DocumentActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         started = true
+        if (opened) links.refreshBacklinks()
         val open = session ?: return
         appScope.launch {
             ops.withLock { withContext(Dispatchers.IO) { runCatching { open.resume() }.onFailure { Log.w(TAG, "resume failed: ${it.javaClass.simpleName}") } } }

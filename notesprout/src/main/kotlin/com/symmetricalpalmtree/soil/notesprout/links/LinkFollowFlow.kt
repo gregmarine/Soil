@@ -22,8 +22,8 @@ import kotlinx.coroutines.withContext
  * The notebook screen's side of **following** a link: a finger tap on a link goes somewhere, and
  * a swipe up walks the story home. [LinkNav] decides what kind of hop a payload asks for; this
  * decides whether the hop is still possible, and asks **before going**: the item alive in the
- * library, of a kind an installed app can open, and for a page of another notebook, the page
- * itself still there. [LinkTrail] remembers where each hop came from.
+ * library, and for a page of another notebook, the page itself still there. An item that is not
+ * a notebook is handed to Soil, which knows the app for it and says so when there is none. [LinkTrail] remembers where each hop came from.
  *
  * Two directions, two rules that differ on purpose:
  * - A **follow** that cannot land explains itself: the dead-target dialog, which offers to
@@ -47,6 +47,9 @@ class LinkFollowFlow(
     private val navigateToPage: (String) -> Unit,
     /** Leave this notebook for another, at a page or at its own remembered one. */
     private val leaveFor: (itemId: String, pageId: String?) -> Unit,
+    /** Open an item that is not a notebook, in its own app, over this screen: Soil's to do.
+     *  This notebook stays where it is, and closing what opened comes back to it. */
+    private val openElsewhere: (itemId: String) -> Unit,
     private val editLink: (PageLink) -> Unit,
     /** Unwrap the link, its content kept: the other way out of a dead end. Undoable. */
     private val removeLink: (PageLink) -> Unit,
@@ -101,7 +104,14 @@ class LinkFollowFlow(
         }
         if (item.kind != NotebookSchema.KIND) {
             busy = false
-            deadTarget(link, activity.getString(R.string.link_target_other_kind_body, item.kind))
+            // A whole item of another kind (a document) opens in its own app. A page of one is
+            // nothing this app can name: only a notebook has pages.
+            if (plan.pageId == null && alive()) {
+                Slog.d(TAG) { "follow: an item of another kind, handed to Soil" }
+                openElsewhere(item.id)
+            } else {
+                deadTarget(link, activity.getString(R.string.link_target_other_kind_body, item.kind))
+            }
             return
         }
         if (plan.pageId != null && !foreignPageAlive(plan.itemId, plan.pageId)) {

@@ -70,6 +70,19 @@ class DocumentStoreTest {
     }
 
     @Test
+    fun `a save writes the link mirror in the same transaction as the words`() {
+        val rows = FakeRows(bodyId = "b", body = "old")
+        val store = DocumentStore(rows, "doc")
+        store.load()
+        store.save("[there](soil:22222222-2222-2222-2222-222222222222)")
+        val batch = rows.execs.last()
+        assertEquals(3, batch.size)
+        assertTrue(batch[0].sql.startsWith("UPDATE"))
+        assertTrue(batch[1].sql.startsWith("DELETE FROM soil_link"))
+        assertTrue(batch[2].sql.startsWith("INSERT INTO soil_link"))
+    }
+
+    @Test
     fun `a blank save is saved as blank`() {
         val rows = FakeRows(bodyId = "b", body = "old")
         val store = DocumentStore(rows, "doc")

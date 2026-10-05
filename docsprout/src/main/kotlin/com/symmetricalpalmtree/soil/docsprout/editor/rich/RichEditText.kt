@@ -420,6 +420,40 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
         return super.onKeyDown(keyCode, event)
     }
 
+    // ── A link answers a touch ──────
+
+    /** A long press on a link's words: the sheet that opens, edits or removes it. */
+    var onLinkLongPress: ((LinkSpan) -> Unit)? = null
+
+    private var downX = 0f
+    private var downY = 0f
+
+    /** The link over character [index], or null. */
+    fun linkAtChar(index: Int): LinkSpan? {
+        val s = text ?: return null
+        if (index < 0 || index >= s.length) return null
+        return s.getSpans(index, index + 1, LinkSpan::class.java).firstOrNull { s.getSpanStart(it) <= index && s.getSpanEnd(it) > index }
+    }
+
+    /** Where [link] stands in the text, or null when it is no longer there. */
+    fun rangeOf(link: LinkSpan): Pair<Int, Int>? {
+        val s = text ?: return null
+        val a = s.getSpanStart(link)
+        val b = s.getSpanEnd(link)
+        return if (a < 0 || b <= a) null else a to b
+    }
+
+    /** A long press on a link is the link's, not the start of a selection. */
+    override fun performLongClick(): Boolean {
+        val link = linkAtChar(charAt(downX, downY))
+        val asked = onLinkLongPress
+        if (link != null && asked != null) {
+            asked(link)
+            return true
+        }
+        return super.performLongClick()
+    }
+
     // ── A task's box answers a tap ──────
 
     private fun taskAt(event: MotionEvent): BlockSpan? {
@@ -439,6 +473,8 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
                 pressedTask = taskAt(event)
                 if (pressedTask != null) return true
             }

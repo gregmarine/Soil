@@ -40,6 +40,26 @@ open class ProofreadEditText @JvmOverloads constructor(context: Context, attrs: 
     /** Offset under the last tap-shaped finger-up, against the layout that was actually tapped. */
     private var tappedOffset = -1
 
+    /** The character the last tap was on, or -1 when it was on no character: the margin, or the
+     *  empty end of a line. An offset is a place between characters; this is the one touched. */
+    var tappedChar = -1
+        private set
+
+    /** The character at a point of this view, or -1 when the point is on none. */
+    protected fun charAt(x: Float, y: Float): Int {
+        val layout = layout ?: return -1
+        val lx = x - totalPaddingLeft + scrollX
+        val ly = y - totalPaddingTop + scrollY
+        if (ly < 0 || ly > layout.height) return -1
+        val line = layout.getLineForVertical(ly.toInt())
+        if (lx < layout.getLineLeft(line) || lx > layout.getLineRight(line)) return -1
+        val offset = layout.getOffsetForHorizontal(line, lx)
+        val index = if (lx >= layout.getPrimaryHorizontal(offset)) offset else offset - 1
+        val first = layout.getLineStart(line)
+        val last = layout.getLineEnd(line) - 1
+        return if (last < first) -1 else index.coerceIn(first, last)
+    }
+
     /**
      * Confirmed-single-tap detection, so the popup never rides a double tap: a double tap is the
      * framework's select-word gesture, and a sheet on top of a fresh selection would break
@@ -57,6 +77,7 @@ open class ProofreadEditText @JvmOverloads constructor(context: Context, attrs: 
             // Resolved here — only for tap-shaped lifts, never scroll or long-press ends — while
             // the pre-IME layout is still the one that was touched.
             tappedOffset = getOffsetForPosition(e.x, e.y)
+            tappedChar = charAt(e.x, e.y)
             return false
         }
 

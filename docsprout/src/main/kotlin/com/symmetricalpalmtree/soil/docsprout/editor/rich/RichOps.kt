@@ -61,10 +61,10 @@ internal object RichOps {
 
     /**
      * Make the selection a link to [url]; with nothing selected, the link the caret is in, else
-     * the word at the caret, else the address itself is put in as the words. An empty [url]
-     * takes the link off.
+     * the word at the caret, else [words] are put in to carry it (the address itself, or the
+     * name of what it points at). An empty [url] takes the link off.
      */
-    fun setLink(view: RichEditText, url: String) {
+    fun setLink(view: RichEditText, url: String, words: String = url) {
         val s = view.text ?: return
         var a = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         var b = maxOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
@@ -86,8 +86,9 @@ internal object RichOps {
         view.beforeTool()
         if (a == b) {
             val at = a
-            view.edit { it.insert(at, url) }
-            b = at + url.length
+            val put = words.replace('\n', ' ').ifBlank { url }
+            view.edit { it.insert(at, put) }
+            b = at + put.length
         }
         for ((from, to) in pieces(view, s, a, b)) {
             removeStyle(s, from, to, RichStyle.LINK)

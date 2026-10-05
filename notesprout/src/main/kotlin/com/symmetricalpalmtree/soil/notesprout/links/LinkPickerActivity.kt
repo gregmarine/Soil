@@ -104,7 +104,7 @@ class LinkPickerActivity : AppCompatActivity() {
             return@registerForActivityResult
         }
         lifecycleScope.launch {
-            val item = aliveNotebook(id) ?: return@launch
+            val item = aliveTarget(id) ?: return@launch
             when (mode) {
                 PickMode.NOTEBOOK -> { selectedNotebookId = item.id; refresh(jumpToSelection = true) }
                 PickMode.NOTEBOOK_PAGE -> { drill(item); pageIndex = 0; refresh() }
@@ -114,9 +114,11 @@ class LinkPickerActivity : AppCompatActivity() {
     }
 
     private fun launchItemPicker() {
+        // A link to a whole item may point at any kind of item; a link to a page needs a
+        // notebook to have pages.
         val intent = Intent(Seam.ACTION_PICK_ITEM)
             .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
-            .putExtra(Seam.EXTRA_KIND, NotebookSchema.KIND)
+            .putExtra(Seam.EXTRA_KIND, if (mode == PickMode.NOTEBOOK_PAGE) NotebookSchema.KIND else null)
             .putExtra(Seam.EXTRA_EXCLUDE_ITEM_ID, showing.notebookId)
         try {
             itemPickerLauncher.launch(intent)
@@ -185,10 +187,14 @@ class LinkPickerActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun aliveNotebook(id: String?): SeamItem? {
+    private suspend fun aliveNotebook(id: String?): SeamItem? = aliveItem(id)?.takeIf { it.kind == NotebookSchema.KIND }
+
+    /** What the shelf in use may point at: any item for a whole-item link, a notebook otherwise. */
+    private suspend fun aliveTarget(id: String?): SeamItem? = if (mode == PickMode.NOTEBOOK) aliveItem(id) else aliveNotebook(id)
+
+    private suspend fun aliveItem(id: String?): SeamItem? {
         if (id == null || id == showing.notebookId) return null
         return withContext(Dispatchers.IO) { runCatching { soil.seam().item(id) }.getOrNull() }
-            ?.takeIf { it.kind == NotebookSchema.KIND }
     }
 
     private fun wire() = with(binding) {
@@ -252,7 +258,7 @@ class LinkPickerActivity : AppCompatActivity() {
     /** The Notebook shelf holds the one notebook Soil's picker answered, or nothing yet. */
     private suspend fun refreshBrowse(jumpToSelection: Boolean) {
         pageItems = emptyList()
-        notebooks = listOfNotNull(selectedNotebookId?.let { aliveNotebook(it) })
+        notebooks = listOfNotNull(selectedNotebookId?.let { aliveTarget(it) })
         showEmpty(notebooks.isEmpty(), R.string.link_picker_choose_notebook)
         pageCount = 1
         pageIndex = 0
@@ -287,7 +293,9 @@ class LinkPickerActivity : AppCompatActivity() {
         card.image.visibility = View.GONE
         card.name.visibility = View.VISIBLE
         card.name.text = item.name
-        card.label.text = resources.getQuantityString(R.plurals.link_notebook_pages, item.pageCount, item.pageCount)
+        // A notebook is told by its pages; anything else by what it is.
+        card.label.text = if (item.kind == NotebookSchema.KIND) resources.getQuantityString(R.plurals.link_notebook_pages, item.pageCount, item.pageCount)
+        else getString(if (item.kind == KIND_DOCUMENT) R.string.link_item_document else R.string.link_item_other)
         card.root.isSelected = item.id == selectedNotebookId
         card.root.setOnClickListener { onNotebookTap(item) }
     }
@@ -513,6 +521,9 @@ class LinkPickerActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "LinkPickerActivity"
+
+        /** The library's name for a document: the one other kind this picker names. */
+        private const val KIND_DOCUMENT = "document"
         const val EXTRA_INITIAL_PAYLOAD = "initialPayload"
         const val EXTRA_RESULT_PAYLOAD = "resultPayload"
         private const val MAX_CACHED_PREVIEWS = 36

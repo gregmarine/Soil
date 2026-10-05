@@ -29,8 +29,9 @@ internal class FormatActions(
     private val onWordCount: () -> Unit,
     private val onReflow: () -> Unit,
     private val onProofread: () -> Unit,
-    /** Ask for a link's address, given the one in place (or null); the answer is applied. */
-    private val askLink: (current: String?, apply: (String) -> Unit) -> Unit,
+    /** Ask where a link points, given the address in place (or null). The answer is applied: an
+     *  address, and the words to carry it when nothing is selected to carry it. */
+    private val askLink: (current: String?, apply: (url: String, words: String) -> Unit) -> Unit,
 ) {
 
     fun run(tool: FormatTool) {
@@ -84,7 +85,7 @@ internal class FormatActions(
             FormatTool.TASK -> RichOps.setBlock(view, RichKind.TASK)
             FormatTool.OUTDENT -> RichOps.indent(view, -1)
             FormatTool.INDENT -> RichOps.indent(view, 1)
-            FormatTool.LINK -> askLink(RichOps.linkAt(view)) { url -> RichOps.setLink(view, url) }
+            FormatTool.LINK -> askLink(RichOps.linkAt(view)) { url, words -> RichOps.setLink(view, url, words) }
             // An image is not drawn: it is the characters that spell it, here as in the file.
             FormatTool.IMAGE -> RichOps.insertText(view, IMAGE_SKELETON, 2, 2 + IMAGE_DESCRIPTION.length)
             FormatTool.RULE -> RichOps.insertRule(view)

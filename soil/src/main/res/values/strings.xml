@@ -326,7 +326,15 @@
     <string name="new_notebook_paper">Paper</string>
     <string name="new_notebook_failed_title">Couldn\'t make the notebook</string>
     <string name="new_notebook_failed_body">Nothing has been changed.</string>
+    <string name="follow_failed_title">Can\'t follow this link</string>
+    <string name="follow_locked_body">The library is not open. Open it in Soil, then follow the link again.</string>
+    <string name="follow_gone_body">What this link points to is no longer in the library.</string>
+    <string name="pick_page_title">Link to</string>
+    <string name="pick_page_whole">The whole notebook</string>
+    <string name="pick_page_numbered">Page %1$d</string>
+    <string name="pick_page_titled">Page %1$d  ·  %2$s</string>
     <string name="item_picker_title">Choose a notebook</string>
+    <string name="item_picker_title_any">Choose from the library</string>
     <string name="item_picker_none">No notebooks here</string>
 
     <!-- Tags -->

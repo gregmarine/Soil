@@ -4,7 +4,8 @@ package com.symmetricalpalmtree.soil.markdown.rich
  * [RichDoc] → plain text: the words with no Markdown in them. A list item keeps a plain marker
  * (`-`, its number, `[ ]` or `[x]`) and its indent, because a list with no markers is not a
  * list; a rule is a line of dashes; a raw line is as it is. A link is its words, with its
- * address after them in brackets when the address is not the words themselves. Blocks are a
+ * address after them in brackets when the address is not the words themselves (and is not an
+ * address into the library, which is ids and reads as nothing). Blocks are a
  * blank line apart, list items and raw lines one under the other. Pure.
  */
 object RichPlain {
@@ -33,7 +34,8 @@ object RichPlain {
     }
 
     private fun words(block: RichBlock): String {
-        val links = block.spans.filter { it.style == RichStyle.LINK && it.url.isNotEmpty() }.sortedBy { it.end }
+        // An address into the library is ids, and reads as nothing: only its words are kept.
+        val links = block.spans.filter { it.style == RichStyle.LINK && it.url.isNotEmpty() && !it.url.startsWith("soil:") }.sortedBy { it.end }
         if (links.isEmpty()) return block.text
         val out = StringBuilder()
         var at = 0

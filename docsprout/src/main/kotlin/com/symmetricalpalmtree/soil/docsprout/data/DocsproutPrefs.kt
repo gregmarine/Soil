@@ -31,8 +31,23 @@ class DocsproutPrefs(context: Context) {
         prefs.edit().putString(KEY_CARETS, CaretMemory.encode(CaretMemory.put(known, documentId, caret, now))).apply()
     }
 
+    /** Where the writer came from, link by link ([DocTrail]). */
+    var trail: List<String>
+        get() = DocTrail.decode(prefs.getString(KEY_TRAIL, null))
+        set(value) { prefs.edit().putString(KEY_TRAIL, DocTrail.encode(value)).apply() }
+
+    /**
+     * The document a link (or the way back along the trail) is about to open. A document that
+     * opens and is not this one was opened afresh, and that is a new story: the trail is cleared.
+     */
+    var arriving: String?
+        get() = prefs.getString(KEY_ARRIVING, null)
+        set(value) { prefs.edit().putString(KEY_ARRIVING, value).apply() }
+
     private companion object {
         const val FILE = "docsprout"
+        const val KEY_TRAIL = "trail"
+        const val KEY_ARRIVING = "arriving"
         const val KEY_LAST = "lastDocumentId"
         const val KEY_TEXT_SIZE = "textSize"
         const val KEY_CARETS = "carets"

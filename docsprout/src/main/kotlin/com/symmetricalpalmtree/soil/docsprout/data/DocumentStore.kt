@@ -32,7 +32,10 @@ class DocumentStore(private val store: RowStore, private val documentId: String,
         val id = bodyId ?: throw StoreUnavailable(IllegalStateException("save before load"))
         require(DocumentLimits.fits(markdown)) { "the document is over the limit" }
         guard {
-            val changed = store.exec(listOf(DocumentSql.setBody(id, markdown, now)))
+            // The words, and in the same batch the file's link mirror made to say what the
+            // words link to: the two cannot disagree.
+            val batch = listOf(DocumentSql.setBody(id, markdown, now)) + DocumentLinks.mirror(documentId, DocumentLinks.targets(markdown, documentId))
+            val changed = store.exec(batch)
             if (changed.firstOrNull() != 1L) throw IllegalStateException("the body row is gone")
         }
     }

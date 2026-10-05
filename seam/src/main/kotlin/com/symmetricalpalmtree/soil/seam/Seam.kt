@@ -105,6 +105,23 @@ object Seam {
     const val EXTRA_EXCLUDE_ITEM_ID = "com.symmetricalpalmtree.soil.extra.EXCLUDE_ITEM_ID"
 
     /**
+     * With [ACTION_PICK_ITEM]: true asks, once an item with pages is chosen, whether the whole
+     * item is meant or one of its pages. The answer then carries [EXTRA_PAGE_ID] for a page, and
+     * [EXTRA_ITEM_NAME] always: what the library calls the item, for the words of a link.
+     */
+    const val EXTRA_PICK_PAGE = "com.symmetricalpalmtree.soil.extra.PICK_PAGE"
+    const val EXTRA_ITEM_NAME = "com.symmetricalpalmtree.soil.extra.ITEM_NAME"
+
+    /**
+     * The action that follows a link to an item of any kind: Soil opens [EXTRA_ITEM_ID] in the
+     * app for its kind, at [EXTRA_PAGE_ID] when one rides along. An app follows a link into its
+     * own kind itself; this is for a link that leaves it (a notebook's to a document, a
+     * document's to anything), since only Soil knows which app opens what. A target that is
+     * gone, or has no app, is explained by Soil. Guarded by the seam permission.
+     */
+    const val ACTION_FOLLOW = "com.symmetricalpalmtree.soil.action.FOLLOW"
+
+    /**
      * With [EXTRA_ITEM_ID] on an open: the page to land on, for an open from the library's search
      * (a tagged page). Consumed once by the app.
      */
