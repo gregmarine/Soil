@@ -45,6 +45,11 @@ object Seam {
     const val RENDER_DAMAGED = "render: a page has no size"
     const val RENDER_FAILED = "render: failed"
 
+    /** Why an app would not take a file in (`IItemRenderer.ingest`). */
+    const val INGEST_NOT_TEXT = "ingest: not text"
+    const val INGEST_TOO_LARGE = "ingest: too large"
+    const val INGEST_FAILED = "ingest: failed"
+
     /** The page sizes an item that flows can be laid out at, chosen on the export screen. */
     const val PAGE_LETTER = "letter"
     const val PAGE_A4 = "a4"

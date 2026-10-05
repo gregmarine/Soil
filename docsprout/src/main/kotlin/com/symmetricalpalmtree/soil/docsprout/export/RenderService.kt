@@ -8,8 +8,10 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
+import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
+import com.symmetricalpalmtree.soil.docsprout.editor.TextCover
 import com.symmetricalpalmtree.soil.ext.PageBundle
 import com.symmetricalpalmtree.soil.markdown.rich.RichDoc
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
@@ -22,6 +24,7 @@ import com.symmetricalpalmtree.soil.seam.SeamCallerCheck
 import com.symmetricalpalmtree.soil.seam.SeamFormat
 import com.symmetricalpalmtree.soil.seam.SeamPageNames
 import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
+import com.symmetricalpalmtree.soil.seam.SeamShared
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import kotlinx.coroutines.runBlocking
 
@@ -88,6 +91,47 @@ class RenderService : Service() {
         }
 
         override fun relabelStatements(oldId: String, newId: String): List<String> = guarded { Relabel.statements(oldId, newId) }
+
+        /**
+         * A picked `.md` or `.txt` as the words of a document Soil has just made. Read whole
+         * (one byte past the limit is enough to know it is over), decoded by [TextImport]'s
+         * rules, written as the document's Markdown exactly as it came, and given its cover.
+         */
+        override fun ingest(itemId: String, fileExtension: String?, source: ParcelFileDescriptor?) = guarded {
+            val input = source ?: throw IllegalArgumentException("no source")
+            val bytes = ParcelFileDescriptor.AutoCloseInputStream(input).use { stream ->
+                val limit = DocumentLimits.MAX_BODY_BYTES + 1
+                val buffer = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(64 * 1024)
+                while (buffer.size() < limit) {
+                    val n = stream.read(chunk, 0, minOf(chunk.size, limit - buffer.size()))
+                    if (n < 0) break
+                    buffer.write(chunk, 0, n)
+                }
+                buffer.toByteArray()
+            }
+            val markdown = try {
+                TextImport.decode(bytes)
+            } catch (e: TextImport.TextProblem) {
+                throw IllegalStateException(if (e.refusal == TextImport.Refusal.TOO_LARGE) Seam.INGEST_TOO_LARGE else Seam.INGEST_NOT_TEXT)
+            }
+            if (!DocumentLimits.fits(markdown)) throw IllegalStateException(Seam.INGEST_TOO_LARGE)
+            val seam = runBlocking { (application as DocsproutApp).soil.seam() }
+            val session = seam.openItem(itemId, DocumentSchema.SCHEMA, Binder())
+            try {
+                val store = DocumentStore(SeamRowStore(session), itemId)
+                store.load()
+                store.save(markdown)
+            } catch (e: Exception) {
+                Log.w(TAG, "the imported words were not written: ${e.javaClass.simpleName}")
+                throw IllegalStateException(Seam.INGEST_FAILED)
+            } finally {
+                runCatching { session.close(true) }
+            }
+            // A card with no cover reads as an empty document; never worth failing the import for.
+            runCatching { seam.setCover(itemId, SeamShared.write(TextCover.encode(markdown))) }
+            Slog.d(TAG) { "took in ${markdown.length} chars" }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -155,5 +199,8 @@ object DocumentFormats {
             SeamFormat(TEXT, "Plain text", "txt", "text/plain", paged = false),
             SeamFormat(PDF, "PDF with selectable text", "pdf", "application/pdf", paged = true),
         ),
+        importLabel = "Document (Markdown or text)",
+        importExtensions = listOf("md", "markdown", "txt"),
+        importMimeTypes = listOf("text/markdown", "text/x-markdown", "text/plain"),
     )
 }

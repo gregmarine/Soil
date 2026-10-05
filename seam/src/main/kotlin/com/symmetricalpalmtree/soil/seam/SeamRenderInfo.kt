@@ -45,20 +45,37 @@ class SeamFormat(val id: String, val label: String, val fileExtension: String, v
 /**
  * What an app's renderer says of its kind: whether an item **flows** (it has no pages of its
  * own, so it is laid out at a page size the person chooses, and has no paper to put under it),
- * and the [formats] the app writes itself beyond its pages.
+ * the [formats] the app writes itself beyond its pages, and the files it can take in as a new
+ * item: [importLabel] names what they become, [importExtensions] and [importMimeTypes] say
+ * which. An app that takes nothing in has no extensions.
  *
- * Wire form: `int flowing · SeamFormat[] formats`.
+ * Wire form: `int flowing · SeamFormat[] formats · String importLabel · String[]
+ * importExtensions · String[] importMimeTypes`. A reader stops where the bytes do, so one
+ * written before the import fields reads as taking nothing in.
  */
-class SeamRenderInfo(val flowing: Boolean, val formats: List<SeamFormat>) : Parcelable {
+class SeamRenderInfo(
+    val flowing: Boolean,
+    val formats: List<SeamFormat>,
+    val importLabel: String = "",
+    val importExtensions: List<String> = emptyList(),
+    val importMimeTypes: List<String> = emptyList(),
+) : Parcelable {
 
     init {
         require(formats.size <= MAX_FORMATS) { "${formats.size} formats > $MAX_FORMATS" }
         require(formats.map { it.id }.toSet().size == formats.size) { "duplicate format ids" }
+        require(importLabel.length <= SeamFormat.MAX_LABEL_CHARS) { "an import label is at most ${SeamFormat.MAX_LABEL_CHARS} characters" }
+        require(importExtensions.size <= MAX_FORMATS && importMimeTypes.size <= MAX_FORMATS) { "too many import types" }
+        require(importExtensions.all { e -> e.isNotEmpty() && e.length <= 12 && e.all { it in 'a'..'z' || it in '0'..'9' } }) { "a file extension is [a-z0-9]{1..12}" }
+        require(importExtensions.isEmpty() || (importLabel.isNotBlank() && importMimeTypes.isNotEmpty())) { "an app that takes files in names them and their types" }
     }
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
         dest.writeInt(if (flowing) 1 else 0)
         dest.writeTypedList(formats)
+        dest.writeString(importLabel)
+        dest.writeStringList(importExtensions)
+        dest.writeStringList(importMimeTypes)
     }
 
     override fun describeContents(): Int = 0
@@ -71,8 +88,12 @@ class SeamRenderInfo(val flowing: Boolean, val formats: List<SeamFormat>) : Parc
 
         @JvmField
         val CREATOR: Parcelable.Creator<SeamRenderInfo> = object : Parcelable.Creator<SeamRenderInfo> {
-            override fun createFromParcel(parcel: Parcel): SeamRenderInfo =
-                SeamRenderInfo(parcel.readInt() != 0, parcel.createTypedArrayList(SeamFormat.CREATOR) ?: arrayListOf())
+            override fun createFromParcel(parcel: Parcel): SeamRenderInfo {
+                val flowing = parcel.readInt() != 0
+                val formats = parcel.createTypedArrayList(SeamFormat.CREATOR) ?: arrayListOf()
+                if (parcel.dataAvail() <= 0) return SeamRenderInfo(flowing, formats)
+                return SeamRenderInfo(flowing, formats, parcel.readString().orEmpty(), parcel.createStringArrayList() ?: arrayListOf(), parcel.createStringArrayList() ?: arrayListOf())
+            }
             override fun newArray(size: Int): Array<SeamRenderInfo?> = arrayOfNulls(size)
         }
     }

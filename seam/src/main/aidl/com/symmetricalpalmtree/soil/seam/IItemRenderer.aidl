@@ -50,4 +50,13 @@ interface IItemRenderer {
      * IllegalStateException with one of the Seam.RENDER_* messages when it cannot.
      */
     void produce(String itemId, String formatId, String pageSize, in ParcelFileDescriptor destination);
+
+    /**
+     * Take a file in as the content of [itemId]: an item of this kind that Soil has just made,
+     * empty, for it. [fileExtension] is the picked file's, one of those `describe` named, and
+     * [source] its bytes, as untrusted as any file's. The app opens the item through the seam
+     * and writes it. Throws IllegalStateException with one of the Seam.INGEST_* messages when
+     * the file is not something it can take; Soil then takes the empty item away again.
+     */
+    void ingest(String itemId, String fileExtension, in ParcelFileDescriptor source);
 }

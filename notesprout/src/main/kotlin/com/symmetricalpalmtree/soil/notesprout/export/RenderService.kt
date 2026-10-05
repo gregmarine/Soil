@@ -76,6 +76,11 @@ class RenderService : Service() {
             runCatching { destination?.close() }
             throw IllegalArgumentException("no such format")
         }
+
+        override fun ingest(itemId: String, fileExtension: String?, source: ParcelFileDescriptor?) = guarded {
+            runCatching { source?.close() }
+            throw IllegalArgumentException("a notebook takes no file in")
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder

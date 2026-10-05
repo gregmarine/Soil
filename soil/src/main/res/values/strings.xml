@@ -483,6 +483,8 @@
     <string name="import_busy_title">Import in progress</string>
     <string name="import_busy_body">Wait for it to finish.</string>
     <string name="import_format_title">Import as</string>
+    <string name="import_not_text_body">That file is not text that can be read: it must be plain text or Markdown, saved as UTF-8. Nothing was imported.</string>
+    <string name="import_too_large_body">That file is longer than one document can hold. Nothing was imported.</string>
     <string name="import_unsupported_title">Can\'t import that file</string>
     <string name="import_unsupported_body">No installed importer takes a file of that kind.</string>
     <string name="import_interrupted_body">The import was interrupted before a folder was chosen. Start it again.</string>

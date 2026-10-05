@@ -1,6 +1,9 @@
 package com.symmetricalpalmtree.soil.importing
 
 import android.app.Activity
+import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.data.item.ItemFiles
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -70,7 +73,13 @@ class ImportFlow(
     var installed: Boolean = false
         private set
 
-    private class Candidate(val extension: Extension, val info: ImporterInfo)
+    /**
+     * One thing a picked file can be imported as. An extension's importer, or with [app] the
+     * item's own app taking the file in as a new item of its kind: then there is no extension
+     * behind it, and the reference only names it.
+     */
+    private class Candidate(val extension: Extension, val info: ImporterInfo, val app: AppImporter? = null)
+    private class AppImporter(val kind: String, val renderer: ComponentName)
 
     private var candidates: List<Candidate> = emptyList()
     private var isBusy = false
@@ -107,7 +116,7 @@ class ImportFlow(
         if (discovering) return
         discovering = true
         activity.lifecycleScope.launch {
-            val found = try { withContext(Dispatchers.IO) { Extensions.importers(activity) }.isNotEmpty() } finally { discovering = false }
+            val found = try { withContext(Dispatchers.IO) { Extensions.importers(activity) }.isNotEmpty() || appImporters().isNotEmpty() } finally { discovering = false }
             if (activity.isFinishing || activity.isDestroyed) return@launch
             if (!isImporting && found != installed) { installed = found; onInstalledChanged() }
         }
@@ -306,6 +315,25 @@ class ImportFlow(
             } ?: continue
             kept += Candidate(ref, info)
         }
+        kept += appImporters()
+        return kept
+    }
+
+    /**
+     * The apps that take files in as new items of their kind (a document from a `.md`). Each
+     * renderer is asked what it is; one that does not say, or names its files in a way the
+     * descriptor refuses, takes nothing in.
+     */
+    private suspend fun appImporters(): List<Candidate> {
+        val renderers = withContext(Dispatchers.IO) { AppRenderers.all(activity) }
+        val kept = ArrayList<Candidate>()
+        for ((kind, renderer) in renderers) {
+            val said = AppRenderers.describe(activity, renderer)
+            if (said.importExtensions.isEmpty()) continue
+            val info = runCatching { ImporterInfo(said.importLabel, said.importExtensions, said.importMimeTypes) }.getOrNull()
+            if (info == null) { Slog.d(TAG) { "dropping an app importer: its descriptor was refused" }; continue }
+            kept += Candidate(Extension("app:$kind", "", said.importLabel), info, AppImporter(kind, renderer))
+        }
         return kept
     }
 
@@ -346,6 +374,7 @@ class ImportFlow(
         if (cands.isEmpty()) { problem(R.string.import_none_title, activity.getString(R.string.import_none_body)); return }
         val chosen = chooseImporter(cands, displayName) ?: return
         val incoming = withContext(Dispatchers.IO) { ItemImport.prepareCache(activity) }
+        if (chosen.app != null) { importIntoApp(chosen.app, origin, incoming, displayName); return }
         when (origin) {
             is Origin.Document -> {
                 val sizes = withContext(Dispatchers.IO) { sourceSizes(origin.uri) }
@@ -405,6 +434,61 @@ class ImportFlow(
             naming.retireId?.let { retire(it) }
         }
         ImportOverlay.stage(activity, R.string.import_stage_finishing)
+        ImportOverlay.hide(activity)
+        onImported()
+        confirmImported(parentId)
+    }
+
+    /**
+     * A file an app takes in: it becomes a new item of the app's kind, in the folder the library
+     * is showing, named after the file. The bytes land in the cache by Soil's own hand (nothing
+     * of them is an item yet, so there is no key to find and nothing to ask), the item is made
+     * empty as New makes one, and the app writes the file into it. An app that refuses the file
+     * leaves nothing behind: the empty item is taken away again.
+     */
+    private suspend fun importIntoApp(app: AppImporter, origin: Origin, incoming: File, displayName: String) {
+        if (KeySession.get() == null) throw ItemImport.ImportProblem(ItemImport.Problem.NO_KEY)
+        val fetched = when (origin) {
+            is Origin.Cloud -> download(origin, incoming)
+            is Origin.Document -> withContext(Dispatchers.IO) {
+                val copied = runCatching {
+                    activity.contentResolver.openInputStream(origin.uri)?.use { input -> incoming.outputStream().use { output -> input.copyTo(output) } }
+                }.getOrNull() ?: throw ItemImport.ImportProblem(ItemImport.Problem.DELIVERY)
+                if (sourceSizes(origin.uri).any { it > copied }) throw ItemImport.ImportProblem(ItemImport.Problem.SHORT)
+                incoming
+            }
+        }
+        ImportOverlay.stage(activity, R.string.import_stage_importing)
+        val name = ImportNames.fromDisplayName(displayName)
+        val parentId = currentFolder()
+        val id = UUID.randomUUID().toString()
+        withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            // The file first: a row with no file is an item that cannot be opened.
+            ItemFiles.createEmpty(activity, id, name, now, app.kind)
+            IndexStore().insert(id, app.kind, name, now, parentId)
+        }
+        try {
+            AppRenderers.ingest(activity, app.renderer, id, ImporterMatch.extensionOf(displayName), fetched)
+        } catch (e: CancellationException) {
+            withContext(NonCancellable + Dispatchers.IO) { retire(id) }
+            throw e
+        } catch (e: Exception) {
+            Slog.d(TAG) { "the app would not take the file: ${e.javaClass.simpleName}" }
+            withContext(NonCancellable + Dispatchers.IO) { retire(id) }
+            problem(
+                R.string.import_failed_title,
+                activity.getString(
+                    when (e.message) {
+                        Seam.INGEST_NOT_TEXT -> R.string.import_not_text_body
+                        Seam.INGEST_TOO_LARGE -> R.string.import_too_large_body
+                        else -> R.string.import_generic_body
+                    },
+                ),
+            )
+            return
+        }
+        ItemSessions.changed()
         ImportOverlay.hide(activity)
         onImported()
         confirmImported(parentId)
