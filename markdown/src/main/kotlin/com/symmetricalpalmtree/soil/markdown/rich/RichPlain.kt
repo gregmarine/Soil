@@ -34,8 +34,9 @@ object RichPlain {
     }
 
     private fun words(block: RichBlock): String {
-        // An address into the library is ids, and reads as nothing: only its words are kept.
-        val links = block.spans.filter { it.style == RichStyle.LINK && it.url.isNotEmpty() && !it.url.startsWith("soil:") }.sortedBy { it.end }
+        // An address into the library is ids, and one into the Bible is a wire its words already
+        // say: both read as nothing, and only the words are kept.
+        val links = block.spans.filter { it.style == RichStyle.LINK && it.url.isNotEmpty() && !it.url.startsWith("soil:") && !it.url.startsWith("bible:") }.sortedBy { it.end }
         if (links.isEmpty()) return block.text
         val out = StringBuilder()
         var at = 0

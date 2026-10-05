@@ -28,6 +28,11 @@ class RichPlainTest {
     }
 
     @Test
+    fun `a link into the library or the Bible is its words alone`() {
+        assertEquals("See the notes and John 3:16 now.\n", plain("See [the notes](soil:855fe3bc) and [John 3:16](bible:JHN:3:16-3:16) now.\n"))
+    }
+
+    @Test
     fun `escaped markers come out as the characters they are`() {
         assertEquals("2 * 3 * 4 and # not a heading\n", plain("""2 \* 3 * 4 and # not a heading""" + "\n"))
     }
