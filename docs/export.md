@@ -11,8 +11,10 @@ Soil keys and prepares; an extension only ever streams bytes between two file de
 | The exporter and importer points | `:ext-api` | `IExporter` (describe, export) and `IImporter` (describe, importDocument), their descriptors, the page bundle |
 | `ExportActivity` | `:soil` | The export screen: scope, format, the format's options, the password block |
 | `ImportFlow` | `:soil` | The library's Import button and the whole import pipeline |
-| `IItemRenderer` | `:seam` | What a Sprout app offers Soil: its pages as names, as a rendered bundle, and the statements that relabel its file |
+| `IItemRenderer` | `:seam` | What a Sprout app offers Soil: its pages as names, as a rendered bundle, the statements that relabel its file, and, for an app that has them, formats of its own to write and files of its own to take in |
 | `RenderService` | `:notesprout` | Notesprout's renderer |
+| `export.RenderService` | `:docsprout` | Docsprout's: a document laid out in pages, written as Markdown, text or a text PDF, and made from a picked text file |
+| `AppRenderers`, `AppImports` | `:soil` | The renderers of the installed apps, described once per install; and which app takes in which file |
 | `:ext-soilfile` | extension | Exports and imports the item file itself (`.soil`) |
 | `:ext-pdf` | extension | A PDF of the pages on pdfbox: grayscale lossless pages, page links, an optional password |
 | `:ext-image` | extension | One image per page: PNG, JPEG or WebP, with a quality for the two lossy ones |
@@ -50,6 +52,30 @@ nothing to the item. With a bundle version that knows links it adds sticky notes
 pages after the item's pages, captioned "Note N — from page P", with jumps both ways, and a link
 to another page of the same item becomes a jump too.
 
+### What an app says of itself
+
+`describe()` answers a `SeamRenderInfo`: whether the kind **flows** (it has no pages of its own
+and is laid out at a page size), the formats the app writes itself (`SeamFormat`: an id, a
+label, the extension, the MIME type, whether it is paged), and what it imports (a label, the
+extensions, the MIME types). Three more calls follow from it:
+
+| Call | Meaning |
+|---|---|
+| `renderFlow(itemId, pageSize, bundleVersion, destination)` | The page bundle of a flowing item at `Seam.PAGE_LETTER`, `PAGE_A4` or `PAGE_SCREEN` |
+| `produce(itemId, formatId, pageSize, destination)` | One of the app's own formats, written whole |
+| `ingest(itemId, fileExtension, source)` | A picked file, written into an item Soil has just made |
+
+### A document's pages
+
+A document flows. `PageLayout` lays it out with the layout the screen uses, cut into pages by
+`MarkdownPaginator`, on white, at a `PageSpec`: Letter (612 by 792 points) or A4 (595 by 842)
+with 54-point margins and the text scaled from the document's text size, or this device's
+screen in pixels. Paper pages are drawn as pictures at `Seam.PAPER_DPI`, 200; `:ext-pdf` is
+told the page's size in points (`pagepoints`) so a Letter page is a Letter page. The **text
+PDF** is the same layout drawn into Android's `PdfDocument`: the text is text, selectable and
+searchable, in the font the screen shows, with no new dependency. A document over the page
+bundle's limit is refused as too long, an empty one as empty.
+
 ## The export screen
 
 Reached from an item's long-press sheet in the library, and from an app's page sheet with
@@ -57,7 +83,13 @@ Reached from an item's long-press sheet in the library, and from an app's page s
 the way back (`EXTRA_RETURN_TO_APP`). Rows, top to bottom: the scope (this
 page or the whole item, only from a page sheet and only when a pages exporter is installed);
 the format, a plain label with one exporter; the format's options; the passphrase or password
-block; the plain-text warning. The last exporter used is remembered. Export presets were set aside before the walk
+block; the plain-text warning. The last exporter used is remembered.
+
+An app's own formats are listed among the extensions' (named `app:<id>` to Soil), so a document
+offers Markdown, Plain text and PDF with selectable text beside PDF, the image formats and the
+Soil file. For a flowing item a **Page size** row shows where the format is paged (Letter, A4,
+This device's screen; the last choice remembered, `ExportPageSize`), and the template toggle
+does not. A document's own Export button closes it first, as a notebook's does. Export presets were set aside before the walk
 (`BACKLOG.md`); the index step that made their table is followed by one that drops it.
 
 The file export: the item is refused while an app holds it open; its meta table is stamped
@@ -75,6 +107,14 @@ The bytes land in the cache, are checked against what the provider said, probed,
 device: a file already under it passes through after an integrity check, any other is
 transformed. Then the file's meta table says what it is: a Soil item of some kind, which must
 have an app installed to open it.
+
+A picked file that is not an item goes to the app that said it imports that extension
+(`AppImports`): `.md`, `.markdown` and `.txt` to Docsprout. Soil makes an empty item of the
+app's kind in the folder showing, named after the file, and the app writes it (`ingest`); a
+failure removes the item. Docsprout's rules are SN's (`TextImport`): strict UTF-8, a byte-order
+mark dropped, line endings made one kind, the document's size limit; the words are stored
+exactly as they came. A name already in the folder asks Replace or Keep both ("X Copy"), as an
+item's import does.
 
 Three questions, none writing anything: the same id already alive in the library (Replace or
 Keep both; a dead id, a folder's id or another kind's id gets a fresh id with no question); the
@@ -94,7 +134,11 @@ into the index, and whatever Replace retires is deleted last.
 - Items have no passphrase of their own, so every import keys to this device. "New passphrase"
   on export keys the exported copy alone.
 - The cloud destination waits for phase 12. Documents and sketches are not Notesprout's.
+- A document's page size is chosen at export: Letter, A4 or this device's screen (2026-10-04).
+- Text, Markdown and the text PDF are written by Docsprout, not by an extension. So the text
+  PDF takes no password in this cut: protection is `:ext-pdf`'s work (`BACKLOG.md`).
 
-## Not yet walked
+## Walked on the Nomad
 
-Everything above is built and tested on the JVM; the device walk is phase 11's gate.
+Notesprout's phase 11, 2026-10-03. A document's export and the import of text files,
+Docsprout's phases 7 and 8, 2026-10-04.

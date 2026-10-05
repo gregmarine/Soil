@@ -17,11 +17,14 @@ SN's `scratchpad.md` and `sn-screen.md` (see `references.md`).
 | Undo, redo | Two-finger and three-finger double-tap. Kept in memory, for the screen's life |
 | Bars | A one-finger double-tap hides and shows them. The pad opens as it was left |
 | Delete a page | A long press asks first. Undo brings the page and its ink back |
+| Copy | The page, or the lasso's strokes, to the library's clipboard. The pad stays open. A notebook pastes it as ink, a document as words (`clipboard.md`) |
+| Receive | Ink sent from a notebook's selection lands selected, on a new page or the current one |
 
 ## What it does not do yet
 
-- **Send.** Ink to a notebook, words to a document, a drawing to a sketchbook. It arrives with
-  the first Sprout app, which is what gives it somewhere to go.
+- **Paste.** The pad copies but does not paste; ink reaches it from a notebook by Send
+  (`BACKLOG.md`).
+- **A drawing to a sketchbook.** It waits for Sketchsprout.
 - **Shades.** There is no shade picker.
 
 ## Where the pages live

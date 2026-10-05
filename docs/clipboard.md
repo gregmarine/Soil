@@ -15,14 +15,30 @@ copied link; `"order"` is preserved on content and rebased per type for an objec
 copied link's own-notebook target is re-pointed across notebooks; a sticky note's content
 travels un-shifted.
 
-## Send between the Scratch Pad and a notebook
+## Ink between the Scratch Pad, a notebook and a document
 
-Ink crosses as one `InkWire` document, fresh ids on arrival, coordinates one to one. The
-notebook's selection bar sends ink alone to the pad, on a new page or the current one; Soil
-parks it in memory and the pad lands it selected as it opens over the notebook. The pad's own
-Send, the page from the top bar or the lasso's strokes from the selection bar, shows only with
-a notebook behind, parks the ink in Soil, and the notebook pastes it as it comes back to the
-front, one undo step, landed selected. A parking never taken up is replaced by the next, and
-all of it is gone with Soil's process.
+Reworked on 2026-10-04 (Greg): what the pad sends is a copy to the clipboard, not a hand-over to
+whatever is behind it.
 
-Walked on the Nomad, phases 8 and 9, 2026-10-02.
+- **The pad copies.** Copy is always on the pad: the page from the top bar, or the lasso's
+  strokes from the selection bar. The ink goes onto the notebook kind's slot, written as a
+  notebook's own lasso Copy writes it (`seamkit.clip.ClipEnvelope`, `ClipRow`, `InkClip`, in
+  `:seam-kit` so Soil and both apps share the one shape). The pad stays where it is. The copy
+  is stored, so it outlives Soil and a restart, and it is pasted as many times as wanted.
+- **A notebook pastes it** with the Paste it already has, as ink. Its clipboard mark is read
+  again each time it comes to the front.
+- **A document pastes it as words.** The Paste tool on the format bar offers Paste as words and
+  Clear clipboard; Ctrl+V pastes whichever was copied last, the ink or the device's own text.
+  The ink is read by the recogniser as a page, hand-wrapped lines joined into paragraphs, and
+  put in at the cursor of whichever mode is showing (`InkPaste`). The words are read once and
+  kept beside the ink, in a slot of their own (`ink_words`) keyed by the copy's time, for the
+  next paste. Ink lassoed and copied in a notebook pastes into a document the same way.
+- **Clear clipboard** empties the ink, its kept words, and the device's clipboard too, so
+  nothing is left to paste.
+
+The other direction is still Send: a notebook's selection bar sends ink alone to the pad, on a
+new page or the current one, as one `InkWire` document with fresh ids on arrival; Soil parks it
+in memory (`sendInkToPad`, `PadTransfer`) and the pad lands it selected as it opens over the
+notebook. Replacing that with the same copy and paste is in `BACKLOG.md`.
+
+Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04.

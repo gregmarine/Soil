@@ -142,6 +142,8 @@ Items are completely decoupled. A sketchbook or document belongs to no notebook.
 - A link to a whole item is a link with no page.
 - **A link to a document opens the whole document.** Documents are flowing text and never get
   fixed pages. Linking into a document more precisely is set aside; see `BACKLOG.md`.
+- **As built (2026-10-04):** a document links out as well, to a page of a notebook or to another
+  document, and lists what links to it (`links.md`).
 - Soil keeps one index of every link, since it writes every file. *Proposed:* kept current at
   each write, with a way to rebuild it from the whole library, as the Bible's notes index works
   today.
@@ -163,6 +165,9 @@ A notebook can be the starting point for other items.
   result does not need to know.
 
 This removes the staleness tracking that documents carry today.
+
+**As built (2026-10-04):** handwritten words to a document, by the page or the whole notebook
+(`docsprout.md`). The choice of leaving a link on the notebook page is not built.
 
 ---
 
@@ -260,6 +265,10 @@ available from the menu, over any app.
 
 The pad can send to any item in the library, not only to the one that opened it.
 
+**As built (2026-10-04):** the pad copies its ink to the clipboard and stays open; a notebook
+pastes it as ink and a document as recognised words, in any item, any number of times
+(`clipboard.md`). A sketchbook waits for Sketchsprout.
+
 ---
 
 ## 7. Keys and security
@@ -293,6 +302,8 @@ per-app permission model.
 - **Same kind only, to start.** A copy pastes only into the kind of app it came from.
 - Crossing kinds goes through the Scratch Pad or a convert.
 - Pasting across kinds is wanted later. See `BACKLOG.md`.
+- **As built (2026-10-04):** the first crossing exists. Ink copied in a notebook or the Scratch
+  Pad pastes into a document as words (`clipboard.md`).
 
 ---
 
@@ -467,6 +478,23 @@ The Notesprout effort, on the branch `notesprout`, fourteen phases, each walked 
 | 12 | Cloud storage | `cloud.md` |
 | 13 | Backup and restore, and the Home toolbars reworked | `backup.md`, `items.md` |
 | 14 | These documents | |
+
+The Docsprout effort, on the branch `docsprout`, twelve phases, each walked on the Nomad
+(2026-10-04):
+
+| Phase | What | Document |
+|---|---|---|
+| 1 | The app, the document file, New document | `docsprout.md` |
+| 2 | The Markdown editor, from SN | `docsprout.md` |
+| 3, 4 | The rich model and the rendered editor | `docsprout.md` |
+| 5 | Type-to-format | `docsprout.md` |
+| 6 | Proofread | `docsprout.md` |
+| 7 | Export: pages at a chosen size, Markdown, text, a text PDF | `export.md` |
+| 8 | Import of `.md` and `.txt` | `export.md` |
+| 9 | Links, both directions | `links.md` |
+| 10 | The Scratch Pad's Send reworked as a clipboard; ink pasted as words | `clipboard.md`, `scratchpad.md` |
+| 11 | Convert, from a notebook | `docsprout.md` |
+| 12 | These documents | |
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
 

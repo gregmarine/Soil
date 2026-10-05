@@ -20,13 +20,17 @@ or an extension converts it.
 | Copied from | Pasted into | What would happen |
 |---|---|---|
 | Notebook ink | Sketchbook | Ink drawn into the raster |
-| Notebook ink | Document | Recognised text |
+| Notebook ink | Document | Recognised text. **Done 2026-10-04** (`docs/clipboard.md`) |
 | Document text | Notebook | A text object on the page |
 | Bible passage | Notebook or document | Verses as text, with the reference |
 | Sketch | Notebook | An image on the page, which notebooks do not have today |
 
 These are the same conversions the Scratch Pad's "send to" needs, so one mechanism in Soil
 should serve both. Adding this later should not change what the clipboard stores.
+
+**2026-10-04:** the first row exists, built with Docsprout: the Scratch Pad and a notebook's
+lasso copy ink, and a document pastes it as words, read at the paste and kept beside the ink.
+The pad's "send to" is that copy now. The other rows are as they were.
 
 ---
 
@@ -56,6 +60,9 @@ and never get fixed pages.
 The later idea is a link that opens a document at a named heading. This was only sketched, and
 document linking as a whole has not been thought through. Discuss it with a real document on
 the device, not in the abstract, before designing anything.
+
+**2026-10-04:** documents exist and link both ways, whole (`docs/links.md`). A `soil:` address
+has room for a part after the item; nothing reads a heading there yet.
 
 ---
 
@@ -117,7 +124,8 @@ are found, he decides then what becomes of them (dropped, or shapes brought back
   form beside the picture, and the PDF extension a path renderer.
 - **Real text in a PDF.** Headings and text objects as PDF text, with a font, need the bundle to
   carry positioned text runs. For a notebook they sit among ink; for Docsprout a document is
-  nothing but text, so a text PDF belongs with that app.
+  nothing but text, so a text PDF belongs with that app. **Done for documents 2026-10-04**
+  (`docs/export.md`); a notebook's headings and text objects are still pictures.
 - **The cloud destination** of the export screen, and the cloud source of import, come with
   phase 12.
 
@@ -132,3 +140,64 @@ formats, a long press to rename or delete) and taken out before it was walked: t
 never liked, and the direction is undecided. Nothing of it remains but the index step that made
 its table and the one that drops it. When it comes back it starts from the question of what a
 preset is for, not from the SN screen.
+
+---
+
+## Documents: what Docsprout left out
+
+**Set aside 2026-10-04, when the Docsprout effort was granted and as it was built.**
+
+- **Tables, code blocks and images.** The first cut is Notesprout SN's Markdown set. A table's
+  rows and a fenced code block in an imported file are kept as raw lines and written back
+  untouched; image syntax stays literal text. Each needs its own editing in the rendered mode,
+  and images need somewhere to live in the file.
+- **Paper behind a document.** A template from the paper library as a document's background.
+  The known problem: typed lines do not sit on ruled lines, since the text size changes and a
+  heading is taller than a paragraph, so a ruled paper would need the layout to follow its
+  pitch, or only unruled papers would be offered.
+- **Starter content.** A new document that begins with words already in it (a letter, minutes),
+  chosen when it is made. Apart from paper: it is content, not a background.
+- **Bible lookup.** SN's editor could insert a passage. It waits for Biblesprout, which owns
+  the text.
+- **A password on the text PDF.** Docsprout writes that PDF itself with Android's own writer,
+  which cannot protect one. Protection is `:ext-pdf`'s work, so the text PDF would have to pass
+  through it.
+- **The Proofread dictionary in Soil.** The person's own words and the on/off switch are in
+  Docsprout's preferences on this device, so they are not backed up and do not follow the
+  library. When Soil has an app store for such things, they move there, and the words already
+  added come along.
+
+---
+
+## A table of contents in a PDF
+
+**Raised by Greg 2026-10-04, at Docsprout's phase 7 walk.**
+
+A PDF made from a notebook or a document could carry its headings as a table of contents: a
+PDF outline (the reader's bookmarks), a printed contents page, or both. For the picture PDF the
+page bundle would have to carry the headings and the page each is on, and `:ext-pdf` write the
+outline. The text PDF does not pass through `:ext-pdf` today; this is the same road a password
+on it needs.
+
+---
+
+## Soil's own picker for local files
+
+**Raised by Greg 2026-10-04, at Docsprout's phase 8 walk.**
+
+Import, the export destination and the backup folder use the Supernote's system picker, which
+has no back button and can leave a person stranded in it. Google Drive already has a picker of
+Soil's own (`CloudBrowserDialog`); local files and folders should get the same.
+
+---
+
+## Copy and paste in place of Send to the Scratch Pad
+
+**Raised by Greg 2026-10-04, at Docsprout's phase 10 walk.**
+
+The Scratch Pad copies to the clipboard now, and a notebook and a document paste from it. The
+other direction is still the old Send: a notebook's selection bar sends ink to the pad. The
+wish is one way for both: the pad gets a Paste that places the clipboard's ink (strokes only),
+and then the notebook's Send to Scratch Pad, its placement sheet, `sendInkToPad` and
+`PadTransfer` can go.
+

@@ -14,6 +14,12 @@ the library with folders and schemes, the clipboard and tags, Send, the extensio
 recognition and Settings, export and import, cloud storage, backup and restore, and these
 documents. `docs/design.md` §16 lists the phases and their documents.
 
+**The Docsprout effort is built** (2026-10-04, on the branch `docsprout`, every phase walked on
+the Nomad): the document app with its rendered editor and its Markdown editor, type-to-format,
+Proofread, a document's export and the import of text files, links both ways, the Scratch Pad's
+Send reworked as a clipboard, Convert from a notebook, and these documents. It is merged on
+Greg's word, not before. `docs/design.md` §16 lists the phases.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.
@@ -22,7 +28,7 @@ when he is happy with it, not before.
 
 - `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
 - Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
-  theme, chrome and ink), `:seam-kit`, `:markdown`, `:notesprout`, `:ext-api` (the extension
+  theme, chrome and ink), `:seam-kit`, `:markdown`, `:notesprout`, `:docsprout`, `:ext-api` (the extension
   contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`,
   `:ext-cloud` (needs `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET` in the shell), and
   `:seam-stranger` (joins the build only where its key exists).
@@ -40,6 +46,9 @@ when he is happy with it, not before.
   say so at once if a walk needs it.
 - Never change what Greg has set on the device to test something: his hidden apps, his pad's
   pages. Cancel out of prompts, or say what could not be checked.
+- The Supernote's file picker does not answer injected taps on its rows. Push the file and have
+  Greg pick it.
+- Docsprout's rendered editor is tested by its on-device self-test (`docs/building.md`).
 - A view added inside a layout pass is not drawn. Build rows before the window shows, or post
   them. A view dump lists hidden views too: confirm what is visible with a screenshot.
 - Never read a recovery key off the device: not in a screenshot, not in a view dump, not in a
@@ -53,7 +62,7 @@ when he is happy with it, not before.
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
-  `docs/notesprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
+  `docs/notesprout.md`, `docs/docsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
   `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
