@@ -48,7 +48,7 @@
     <string name="convert_page_name">%1$s - page %2$d</string>
     <string name="convert_default_name">Notebook</string>
     <string name="convert_done_title">Document made</string>
-    <string name="convert_done_body">“%1$s” is in the same folder as this notebook. The notebook has not been changed, and the two are not kept in step.</string>
+    <string name="convert_done_body">“%1$s” is in the same folder as this notebook.</string>
     <string name="convert_open">Open it</string>
     <string name="convert_nothing_body">There is nothing here to make a document of: no handwriting that could be read, no headings and no text.</string>
     <string name="convert_too_dense_body">Page %1$d holds more ink in one stretch than can be read at once. No document was made.</string>

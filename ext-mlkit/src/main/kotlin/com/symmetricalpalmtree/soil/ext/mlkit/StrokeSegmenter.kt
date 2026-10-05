@@ -36,6 +36,12 @@ object StrokeSegmenter {
     /** Vertical overlap (as a fraction of the shorter box) above which a fragment merges. */
     private const val MERGE_OVERLAP_FRAC = 0.4f
 
+    /** Strokes in a gap between bands are a line of their own when together they are at least
+     *  medianStrokeHeight × this wide and × [WORD_MIN_HEIGHT_FRAC] tall: a word. Anything less (an
+     *  i-dot, a comma, a tail, an underline) is a mark of the nearest line, as it always was. */
+    private const val WORD_MIN_WIDTH_FRAC = 1.0f
+    private const val WORD_MIN_HEIGHT_FRAC = 0.5f
+
     /** A stroke together with its bounding box, computed exactly once. */
     private class Boxed(val stroke: InkStroke, val box: Box)
 
@@ -105,12 +111,26 @@ object StrokeSegmenter {
         if (runStart >= 0) bands += Band(minY + runStart * bucketPx, minY + bucketCount * bucketPx)
 
         // ── 3 · Every stroke joins a band by its centre (nearest band if in a gap) ──
+        //      The threshold is a share of the page's fullest line, so a short last line (a word
+        //      or two wrapped under a full one) may never reach it and has no band. Its strokes
+        //      are a line all the same, not marks of the line above: strokes in a gap that
+        //      together are the size of a word keep to themselves.
         val members: List<MutableList<Boxed>> =
             if (bands.isEmpty()) {
                 listOf(usable.toMutableList())
             } else {
-                val buckets = List(bands.size) { mutableListOf<Boxed>() }
-                for (s in usable) buckets[bandFor(bands, s.box.centerY)] += s
+                val buckets = MutableList(bands.size) { mutableListOf<Boxed>() }
+                val inGap = ArrayList<Boxed>()
+                for (s in usable) {
+                    val band = bandOf(bands, s.box.centerY)
+                    if (band >= 0) buckets[band] += s else inGap += s
+                }
+                for (group in runsOf(inGap)) {
+                    var bounds = group.first().box
+                    for (i in 1 until group.size) bounds = bounds.union(group[i].box)
+                    val word = bounds.width >= medianStrokeH * WORD_MIN_WIDTH_FRAC && bounds.height >= medianStrokeH * WORD_MIN_HEIGHT_FRAC
+                    if (word) buckets += group.toMutableList() else for (s in group) buckets[nearestBand(bands, s.box.centerY)] += s
+                }
                 buckets
             }
 
@@ -156,9 +176,14 @@ object StrokeSegmenter {
     /** A run of writing on the Y axis, as bucket-centre coordinates. */
     private class Band(val topY: Float, val bottomY: Float)
 
-    /** The band containing [centerY], else the band whose middle is nearest to it. */
-    private fun bandFor(bands: List<Band>, centerY: Float): Int {
+    /** The band containing [centerY], or -1 when it falls in a gap. */
+    private fun bandOf(bands: List<Band>, centerY: Float): Int {
         for (i in bands.indices) if (centerY >= bands[i].topY && centerY <= bands[i].bottomY) return i
+        return -1
+    }
+
+    /** The band whose middle is nearest to [centerY]. */
+    private fun nearestBand(bands: List<Band>, centerY: Float): Int {
         var best = 0
         var bestDistance = Float.MAX_VALUE
         for (i in bands.indices) {
@@ -166,6 +191,18 @@ object StrokeSegmenter {
             if (d < bestDistance) { bestDistance = d; best = i }
         }
         return best
+    }
+
+    /** [strokes] top → bottom, cut wherever blank space separates one from all those above it. */
+    private fun runsOf(strokes: List<Boxed>): List<List<Boxed>> {
+        val runs = ArrayList<MutableList<Boxed>>()
+        var bottom = -Float.MAX_VALUE
+        for (s in strokes.sortedBy { it.box.top }) {
+            if (runs.isEmpty() || s.box.top > bottom) runs += mutableListOf<Boxed>()
+            runs.last() += s
+            bottom = max(bottom, s.box.bottom)
+        }
+        return runs
     }
 
     /** A line still carrying its [Boxed] strokes, so no bounding box is ever recomputed. */

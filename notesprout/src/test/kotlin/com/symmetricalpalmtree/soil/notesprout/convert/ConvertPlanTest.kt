@@ -64,6 +64,13 @@ class ConvertPlanTest {
     }
 
     @Test
+    fun `a last word alone on its line is still part of the paragraph`() {
+        assertEquals(listOf("This should translate into another line."), ConvertPlan.paragraphs("This should translate into another\nline.").map { it.text })
+        assertEquals(listOf("First line here", "line."), ConvertPlan.paragraphs("First line here\n\nline.").map { it.text })
+        assertEquals(listOf("one two", "three."), ConvertPlan.paragraphs("one two\n \nthree.").map { it.text })
+    }
+
+    @Test
     fun `what was read is words, so marks in it are escaped, while a heading keeps its level`() {
         val blocks = listOf(RichBlock(RichAttr.heading(2), "Notes")) + ConvertPlan.paragraphs("# not a heading\n\n2 * 3 * 4")
         assertEquals("## Notes\n\n\\# not a heading\n\n2 \\* 3 * 4\n", ConvertPlan.markdown(blocks))

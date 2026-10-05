@@ -67,6 +67,30 @@ class StrokeSegmenterTest {
     }
 
     @Test
+    fun aShortLastLineIsALineOfItsOwn() {
+        // A full line of 30 strokes, and one short word wrapped under it: four strokes, whose
+        // coverage never reaches 15 % of the full line's. They are still a line, in the paragraph.
+        val full = line(top = 200f, n = 30)
+        val word = line(top = 250f, n = 4)
+        val ls = lines(StrokeSegmenter.segment(full + word))
+        assertEquals(2, ls.size)
+        assertEquals(full.size, ls[0].strokes.size)
+        assertTrue(ls[1].strokes.all { s -> word.any { it === s } })
+        assertEquals(1, StrokeSegmenter.segment(full + word).paragraphs.size)
+    }
+
+    @Test
+    fun aMarkInAGapStillBelongsToItsLine() {
+        // A comma hanging under the line and a dot over it are too small to be a word.
+        val full = line(top = 200f, n = 30)
+        val comma = stroke(300f, 236f, 304f, 246f)
+        val dot = stroke(400f, 186f, 403f, 189f)
+        val ls = lines(StrokeSegmenter.segment(full + comma + dot))
+        assertEquals(1, ls.size)
+        assertEquals(full.size + 2, ls[0].strokes.size)
+    }
+
+    @Test
     fun aNoticeableGapStartsANewParagraph() {
         // 20 px between lines 1 and 2 (same paragraph), 60 px before line 3 (> 0.9 × 30).
         val ink = line(top = 100f) + line(top = 150f) + line(top = 240f)
