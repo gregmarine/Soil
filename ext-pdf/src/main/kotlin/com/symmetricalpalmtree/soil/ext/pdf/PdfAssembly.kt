@@ -27,7 +27,7 @@ import java.io.OutputStream
 
 /**
  * The bundle into a PDF: one page per bundle page at its own pixel size (one pixel is one PDF
- * unit), the picture as an 8-bit grayscale image compressed losslessly ([GrayFlate]), the link
+ * unit, or the points Soil says a pixel stands for when the pages were drawn at a paper size), the picture as an 8-bit grayscale image compressed losslessly ([GrayFlate]), the link
  * trailer as go-to annotations, and the password applied last when one was asked for.
  *
  * Grayscale is the decision of 2026-10-03: the Nomad's ink is grey on white, and a page this way
@@ -36,7 +36,7 @@ import java.io.OutputStream
  */
 internal object PdfAssembly {
 
-    fun assemble(source: ParcelFileDescriptor, destination: ParcelFileDescriptor, exportSecret: String?, tag: String): Long {
+    fun assemble(source: ParcelFileDescriptor, destination: ParcelFileDescriptor, exportSecret: String?, tag: String, pagePoints: Float = 1f): Long {
         val startedAt = SystemClock.elapsedRealtime()
         var pages = 0
         val written: Long
@@ -52,13 +52,13 @@ internal object PdfAssembly {
                         for (number in 1..reader.pageCount) {
                             val page = reader.readPage()
                             heights += page.heightPx
-                            addPage(document, page, number, reader.pageCount)
+                            addPage(document, page, number, reader.pageCount, pagePoints)
                         }
                         links = reader.readLinks()
                     }
                 }
             }
-            if (links.isNotEmpty()) stage("linking the pages") { annotate(document, PdfLinks.annotations(links, heights)) }
+            if (links.isNotEmpty()) stage("linking the pages") { annotate(document, PdfLinks.annotations(links, heights), pagePoints) }
             written = if (secret == null) {
                 stage("writing the PDF") { deliver(document, destination, tag) }
             } else {
@@ -78,7 +78,7 @@ internal object PdfAssembly {
         return written
     }
 
-    private fun addPage(document: PDDocument, page: PageBundle.Page, number: Int, count: Int) {
+    private fun addPage(document: PDDocument, page: PageBundle.Page, number: Int, count: Int, pagePoints: Float) {
         val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
         val bitmap = BitmapFactory.decodeByteArray(page.image, 0, page.image.size, options) ?: throw IllegalStateException("page $number of $count did not decode")
         val encoded: ByteArray
@@ -99,9 +99,11 @@ internal object PdfAssembly {
                 setInt(COSName.COLUMNS, page.widthPx)
             }
             image.cosObject.setItem(COSName.DECODE_PARMS, parms)
-            val pdfPage = PDPage(PDRectangle(page.widthPx.toFloat(), page.heightPx.toFloat()))
+            val w = page.widthPx * pagePoints
+            val h = page.heightPx * pagePoints
+            val pdfPage = PDPage(PDRectangle(w, h))
             document.addPage(pdfPage)
-            PDPageContentStream(document, pdfPage).use { content -> content.drawImage(image, 0f, 0f, page.widthPx.toFloat(), page.heightPx.toFloat()) }
+            PDPageContentStream(document, pdfPage).use { content -> content.drawImage(image, 0f, 0f, w, h) }
         }
     }
 
@@ -125,11 +127,11 @@ internal object PdfAssembly {
         return plane
     }
 
-    private fun annotate(document: PDDocument, annotations: List<PdfLinks.Annotation>) {
+    private fun annotate(document: PDDocument, annotations: List<PdfLinks.Annotation>, pagePoints: Float) {
         for (a in annotations) {
             val page = document.getPage(a.pageIndex)
             val link = PDAnnotationLink()
-            link.rectangle = PDRectangle(a.llx, a.lly, a.urx - a.llx, a.ury - a.lly)
+            link.rectangle = PDRectangle(a.llx * pagePoints, a.lly * pagePoints, (a.urx - a.llx) * pagePoints, (a.ury - a.lly) * pagePoints)
             link.borderStyle = PDBorderStyleDictionary().apply { width = 0f }
             val destination = PDPageFitDestination()
             destination.page = document.getPage(a.targetIndex)

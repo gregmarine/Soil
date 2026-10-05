@@ -21,6 +21,7 @@ import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.library.ItemApps
 import com.symmetricalpalmtree.soil.library.LibraryBrowser
 import com.symmetricalpalmtree.soil.library.LibraryPrefs
+import com.symmetricalpalmtree.soil.library.NewDocument
 import com.symmetricalpalmtree.soil.library.NewNotebookActivity
 import com.symmetricalpalmtree.soil.databinding.ActivityHomeBinding
 import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
@@ -71,6 +72,7 @@ class HomeActivity : AppCompatActivity() {
     private var appPage = 0
     private var route = KeyGate.Route.PREPARING
     private var notebookApp = false
+    private var documentApp = false
 
     /** The folder whose default paper the template picker is up for. */
     private var templateFor: String? = null
@@ -132,6 +134,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnApps.setOnClickListener { show(Showing.APPS) }
         binding.btnHiddenApps.setOnClickListener { startActivity(Intent(this, HiddenAppsActivity::class.java)) }
         binding.btnNewNotebook.setOnClickListener { startActivity(NewNotebookActivity.intent(this, browser.folderId)) }
+        binding.btnNewDocument.setOnClickListener { NewDocument.ask(this, browser.folderId) }
         binding.btnNewFolder.setOnClickListener { browser.showNewFolderDialog() }
         importFlow = com.symmetricalpalmtree.soil.importing.ImportFlow(this, { browser.folderId }, { browser.reload() }, { renderLibrary() })
         // The library's filters on its path line, Import on its bottom bar.
@@ -145,7 +148,7 @@ class HomeActivity : AppCompatActivity() {
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
         // Every icon button names itself on a long press.
-        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewFolder, lib.btnBackup, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
+        listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewDocument, binding.btnNewFolder, lib.btnBackup, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
 
         show(savedInstanceState?.getString(KEY_SHOWING)?.let { name -> Showing.values().firstOrNull { it.name == name } } ?: Showing.LIBRARY)
@@ -178,6 +181,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch { AppList.refresh(this@HomeActivity) }
         lifecycleScope.launch {
             notebookApp = withContext(Dispatchers.IO) { ItemApps.find(this@HomeActivity, IndexSchema.KIND_NOTEBOOK) != null }
+            documentApp = withContext(Dispatchers.IO) { ItemApps.find(this@HomeActivity, IndexSchema.KIND_DOCUMENT) != null }
             renderLibrary()
         }
         if (::importFlow.isInitialized) importFlow.refresh()
@@ -219,6 +223,7 @@ class HomeActivity : AppCompatActivity() {
         binding.libraryNote.visibility = if (open) View.GONE else View.VISIBLE
         val inShelf = ::browser.isInitialized && browser.inShelf
         binding.btnNewNotebook.visibility = if (library && notebookApp && !inShelf) View.VISIBLE else View.GONE
+        binding.btnNewDocument.visibility = if (library && documentApp && !inShelf) View.VISIBLE else View.GONE
         binding.btnNewFolder.visibility = if (library && !inShelf) View.VISIBLE else View.GONE
         val lib = binding.browser
         lib.btnBackup.visibility = if (library && !inShelf) View.VISIBLE else View.GONE

@@ -70,21 +70,8 @@ object SeamClients {
     /** Ask the app in front to let the panel go for a frame, and wait for it, bounded. */
     fun releasePanel() = ask("release the panel") { it.releasePanel() }
 
-    /** Ask the app in front to release the pipeline for a paper screen of Soil's, bounded. The
-     *  pad about to open remembers that an app is behind it: that is what gives its Send somewhere
-     *  to go. */
-    fun releaseForHandoff() {
-        if (current() != null) appBehindPad = true
-        ask("release for handoff") { it.releaseForHandoff() }
-    }
-
-    /** Whether an app's paper was in front when the Scratch Pad was opened over it. Cleared when the pad closes. */
-    @Volatile
-    var appBehindPad: Boolean = false
-        private set
-
-    fun padClosed() { appBehindPad = false }
-
+    /** Ask the app in front to release the pipeline for a paper screen of Soil's, bounded. */
+    fun releaseForHandoff() = ask("release for handoff") { it.releaseForHandoff() }
     /**
      * The call crosses to the app and waits on its main thread; it runs on a thread of its own
      * so that a slow or dead app holds nothing of Soil's for longer than [WAIT_MS].

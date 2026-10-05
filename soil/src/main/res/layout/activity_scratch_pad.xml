@@ -83,14 +83,13 @@
                     android:src="@drawable/ic_lasso" />
             </LinearLayout>
 
-            <!-- Send the page to the notebook behind the pad: absent, never greyed, without one. -->
+            <!-- Copy the page's ink to the clipboard, for a notebook or a document to paste. -->
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btnSend"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:layout_gravity="end|center_vertical"
-                android:contentDescription="@string/scratch_send_page"
-                android:src="@drawable/ic_pen_down"
-                android:visibility="gone" />
+                android:contentDescription="@string/scratch_copy_page"
+                android:src="@drawable/ic_copy" />
 
 
         </FrameLayout>

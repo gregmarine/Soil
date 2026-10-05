@@ -21,8 +21,14 @@ class SettingsPrefs(context: Context) {
         get() = prefs.getString(KEY_LAST_EXPORTER, null)
         set(value) { prefs.edit().putString(KEY_LAST_EXPORTER, value).apply() }
 
+    /** The page size last chosen for an item that flows, one of `Seam.PAGE_*`. */
+    var lastPageSize: String?
+        get() = prefs.getString(KEY_LAST_PAGE_SIZE, null)
+        set(value) { prefs.edit().putString(KEY_LAST_PAGE_SIZE, value).apply() }
+
     private companion object {
         const val FILE = "soil_settings"
+        const val KEY_LAST_PAGE_SIZE = "lastPageSize"
         const val KEY_RECOGNIZER = "recognizer"
         const val KEY_LANGUAGE = "recognizerLanguage"
         const val KEY_LAST_EXPORTER = "lastExporter"

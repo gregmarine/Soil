@@ -26,6 +26,7 @@ import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookAction
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookDocument
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
+import com.symmetricalpalmtree.soil.notesprout.convert.ConvertFlow
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.data.PageContent
@@ -242,6 +243,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             alive = { opened && !closing },
             navigateToPage = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } },
             leaveFor = ::leaveFor,
+            openElsewhere = ::openElsewhere,
             editLink = ::beginEdit,
             removeLink = ::unlink,
         )
@@ -487,7 +489,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         opened = true
         markClipboard(SoilClipboard.hasObjects)
         pushExclusions()
-        takeIncomingInk()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
         binding.openingOverlay.visibility = View.GONE
@@ -1304,6 +1305,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             }
             sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(pageId) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_notebook_action)) { exportVia(null) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_page_action)) { convertToDocument(wholeNotebook = false) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_notebook_action)) { convertToDocument(wholeNotebook = true) }
             sheet.show()
         }
     }
@@ -1312,6 +1315,29 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
      * Soil's export screen for this notebook, or one page of it. The notebook closes first, so
      * the file is free for a copy, and Soil opens it again on the way back.
      */
+    /**
+     * Convert: this page, or every page, read into a new document beside this notebook. The page
+     * is flushed first, so what is read is what is on it; the notebook itself is not changed.
+     */
+    private fun convertToDocument(wholeNotebook: Boolean) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val store = storeRef ?: return
+        val id = itemId ?: return
+        runPageOp {
+            doc.flushUntilClean()
+            val numbered = doc.pages.mapIndexed { i, page -> page to i + 1 }
+            val pages = if (wholeNotebook) numbered else numbered.filter { it.first.id == doc.pageId }
+            val notebookName = withContext(Dispatchers.IO) { runCatching { (application as NotesproutApp).soil.seam().item(id)?.name }.getOrNull() }.orEmpty().ifBlank { getString(R.string.convert_default_name) }
+            val name = if (wholeNotebook) notebookName else getString(R.string.convert_page_name, notebookName, pages.firstOrNull()?.second ?: 1)
+            hideFloatingBars()
+            dismissCollapsed()
+            paper.releaseRender()
+            pushExclusions()
+            ConvertFlow.run(this@NotebookActivity, recognizerPort, store, id, pages, name, onOpen = ::openElsewhere)
+        }
+    }
+
     private fun exportVia(pageId: String?) {
         if (!opened || closing) return
         val id = itemId ?: return
@@ -1329,6 +1355,15 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     // ── The clipboard ──────
 
     private suspend fun seam() = withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam() }
+
+    /** The clipboard's header read again from Soil, and the lasso's mark set by it. */
+    private fun refreshClipboardMark() {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) } }
+            if (opened && !closing) markClipboard(SoilClipboard.hasObjects)
+        }
+    }
 
     /** The lasso's clipboard mark, on the bar and on the collapsed chrome alike. */
     private fun markClipboard(loaded: Boolean) {
@@ -1629,8 +1664,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     /**
      * A copy of the lassoed ink to the pad: flushed, checked against the caps before anything
-     * crosses, parked in Soil, and the pad opened over this notebook to land it. The pad's own
-     * Send comes back through [takeIncomingInk] when it closes.
+     * crosses, parked in Soil, and the pad opened over this notebook to land it. What the pad
+     * gives back it copies to the clipboard, and it is pasted here like anything copied.
      */
     private fun sendToPad(ids: Set<String>, placement: Int) {
         if (!opened || closing || soilScreenShowing) return
@@ -1661,47 +1696,6 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val intent = android.content.Intent(Seam.ACTION_SCRATCH_PAD).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
         padShowing = true
         startSoilScreen { startActivity(intent) }
-    }
-
-    /**
-     * Ink the pad sent to the notebook behind it, taken once from Soil and pasted onto the showing
-     * page: fresh ids, after the page's current strokes, one undo step, landed selected with the
-     * lasso armed. Nothing parked is silence; a parking that will not read is a dialog.
-     */
-    private fun takeIncomingInk() {
-        if (!opened || closing) return
-        val doc = document ?: return
-        runPageOp {
-            val region = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().takeIncomingInk() } }.getOrNull() ?: return@runPageOp
-            val bytes = runCatching { com.symmetricalpalmtree.soil.seam.SeamShared.readAndClose(region) }.getOrNull()
-            val bundle = InkWire.decode(bytes)
-            if (bundle == null || bundle.strokes.isEmpty()) {
-                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_drain_failed_body)
-                return@runPageOp
-            }
-            val pageId = doc.pageId
-            val written = runCatching { doc.pasteStrokes(bundle.strokes) }.onFailure { Log.w(TAG, "paste from the pad failed: ${it.javaClass.simpleName}") }
-            if (written.isFailure) {
-                Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_paste_failed_body)
-                return@runPageOp
-            }
-            undo.record(NotebookAction.ObjectsPasted(pageId, bundle.strokes.map { it.id }))
-            preparePaper()
-            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
-            val strokeIds = bundle.strokes.mapTo(HashSet()) { it.id }
-            var box: Bounds? = null
-            for (st in doc.strokes) if (st.id in strokeIds) box = box?.union(st.bounds) ?: st.bounds
-            box?.let { bounds ->
-                armLassoForLanding()
-                paper.setSelection(strokeIds, emptySet(), bounds)
-                val selection = Selection(strokeIds, emptySet(), bounds)
-                selectionActive = true
-                currentSelection = selection
-                showObjectBar(selection)
-            }
-            toast(getString(R.string.objects_pasted_toast))
-            Slog.d(TAG) { "pasted ${bundle.strokes.size} strokes from the pad" }
-        }
     }
 
     // ── Tags ──────
@@ -1953,12 +1947,29 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val doc = document ?: return
         val me = itemId ?: return
         if (!opened || closing) return
+        // A link made in a document: the document opens over this notebook, and closing it
+        // comes back here, so there is no hop to remember.
+        if (b.sourceKind != NotebookSchema.KIND) { openElsewhere(b.sourceItemId); return }
         LinkTrail(this).push(TrailEntry(me, doc.pageId))
         if (b.sourceItemId == me) {
             runPageOp { flipTo(doc.pages.indexOfFirst { it.id == b.sourcePageId }) }
         } else {
             leaveFor(b.sourceItemId, b.sourcePageId)
         }
+    }
+
+    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen. */
+    private fun openElsewhere(itemId: String) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, itemId),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
     }
 
     /** Leave this notebook for another, at [pageId] or at its own remembered page. The box
@@ -2067,10 +2078,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         // The shade is device-wide: another screen may have picked since.
         if (::toolbar.isInitialized) applyPenShade()
         (application as NotesproutApp).front(this)
-        // Back from the pad: the pipeline first of all, then what it sent. The pad may also have
-        // been opened over this notebook from the side menu, and sent ink back the same way.
+        // Back from the pad: the pipeline first of all.
         if (padShowing) { padShowing = false; onSoilScreenClosed() }
-        if (!soilScreenShowing) takeIncomingInk()
+        // The clipboard is the library's, and something else may have copied to it while this
+        // notebook was behind: the Scratch Pad, opened over it or from the menu.
+        refreshClipboardMark()
     }
 
     override fun onPause() {

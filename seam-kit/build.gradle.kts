@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -32,6 +33,9 @@ dependencies {
     api(project(":seam"))
     api(project(":paper"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // The clipboard's payload is JSON, and it is shared: Soil's Scratch Pad writes it, Notesprout
+    // writes and reads it, Docsprout reads it. The one JSON library of the project.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     testImplementation("junit:junit:4.13.2")
 }

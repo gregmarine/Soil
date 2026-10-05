@@ -15,8 +15,8 @@
 Both are signed with `~/.android/debug.keystore`. The seam trusts exactly one signing key, so
 every Sprout app must be signed with the same one.
 
-Needs: Temurin 17, the Android SDK (platform 35), and g-paper 0.1.61 in the local Maven
-repository, published from `~/git/g-paper`.
+Needs: Temurin 17, the Android SDK (platform 35), and g-paper, at the version pinned in
+`paper/build.gradle.kts`, in the local Maven repository, published from `~/git/g-paper`.
 
 ## Install
 
@@ -101,14 +101,15 @@ from there. `adb pull` is safe.
 - **Typing.** `adb shell input text` is swallowed by the Supernote's keyboard. Tap the keys, or
   use Copy and Paste.
 
-## The Sprout app and the extensions
+## The Sprout apps and the extensions
 
-Install Soil first: it declares the seam permission the others use. Then Notesprout and the
+Install Soil first: it declares the seam permission the others use. Then the Sprout apps and the
 extensions, debug with debug (`.dev` talks to `.dev`):
 
 ```
 adb -s SN078D10012852 install -r soil/build/outputs/apk/debug/soil-debug.apk
 adb -s SN078D10012852 install -r notesprout/build/outputs/apk/debug/notesprout-debug.apk
+adb -s SN078D10012852 install -r docsprout/build/outputs/apk/debug/docsprout-debug.apk
 adb -s SN078D10012852 install -r ext-mlkit/build/outputs/apk/debug/ext-mlkit-debug.apk
 adb -s SN078D10012852 install -r ext-soilfile/build/outputs/apk/debug/ext-soilfile-debug.apk
 adb -s SN078D10012852 install -r ext-pdf/build/outputs/apk/debug/ext-pdf-debug.apk
@@ -119,3 +120,22 @@ adb -s SN078D10012852 install -r ext-cloud/build/outputs/apk/debug/ext-cloud-deb
 `:ext-cloud` compiles the Google OAuth client from `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET`
 in the shell (`~/.zshenv` on this Mac). Built without them it installs and reports "not set up".
 
+An install closes whatever of that app is in front, and after a Soil install a stale system
+screen may come forward: press Home.
+
+## Docsprout's self-test
+
+The rendered editor's rules need a real `Editable`, which the JVM does not have, so the debug
+build carries a screen that runs them on the device and writes the result to logcat:
+
+```
+adb -s SN078D10012852 shell am start -n com.symmetricalpalmtree.soil.docsprout.dev/com.symmetricalpalmtree.soil.docsprout.selftest.SelfTestActivity
+adb -s SN078D10012852 logcat -d -s DocsproutSelfTest
+```
+
+It opens no document and writes nothing to the library. `--ez pdf true` also writes export
+probes into the app's cache. Run it with Soil's Home or Docsprout in front, and press Back
+after.
+
+The Supernote's file picker does not answer taps injected over adb on its rows, so an import is
+walked by hand: push the file, and have it picked on the device.

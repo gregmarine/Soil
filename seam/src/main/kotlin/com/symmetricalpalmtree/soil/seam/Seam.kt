@@ -45,6 +45,23 @@ object Seam {
     const val RENDER_DAMAGED = "render: a page has no size"
     const val RENDER_FAILED = "render: failed"
 
+    /** No installed app takes a file of the kind `makeItemFromFile` was handed. */
+    const val MAKE_NO_APP = "make: no app"
+
+    /** Why an app would not take a file in (`IItemRenderer.ingest`). */
+    const val INGEST_NOT_TEXT = "ingest: not text"
+    const val INGEST_TOO_LARGE = "ingest: too large"
+    const val INGEST_FAILED = "ingest: failed"
+
+    /** The page sizes an item that flows can be laid out at, chosen on the export screen. */
+    const val PAGE_LETTER = "letter"
+    const val PAGE_A4 = "a4"
+    const val PAGE_SCREEN = "screen"
+
+    /** The pixels an inch a paper-size page picture is drawn at. A PDF made of such pictures
+     *  puts each pixel at `72 / PAPER_DPI` points, so its pages are the paper's size. */
+    const val PAPER_DPI = 200
+
     /** The id of the item to open. */
     const val EXTRA_ITEM_ID = "com.symmetricalpalmtree.soil.extra.ITEM_ID"
 
@@ -91,6 +108,23 @@ object Seam {
     const val EXTRA_EXCLUDE_ITEM_ID = "com.symmetricalpalmtree.soil.extra.EXCLUDE_ITEM_ID"
 
     /**
+     * With [ACTION_PICK_ITEM]: true asks, once an item with pages is chosen, whether the whole
+     * item is meant or one of its pages. The answer then carries [EXTRA_PAGE_ID] for a page, and
+     * [EXTRA_ITEM_NAME] always: what the library calls the item, for the words of a link.
+     */
+    const val EXTRA_PICK_PAGE = "com.symmetricalpalmtree.soil.extra.PICK_PAGE"
+    const val EXTRA_ITEM_NAME = "com.symmetricalpalmtree.soil.extra.ITEM_NAME"
+
+    /**
+     * The action that follows a link to an item of any kind: Soil opens [EXTRA_ITEM_ID] in the
+     * app for its kind, at [EXTRA_PAGE_ID] when one rides along. An app follows a link into its
+     * own kind itself; this is for a link that leaves it (a notebook's to a document, a
+     * document's to anything), since only Soil knows which app opens what. A target that is
+     * gone, or has no app, is explained by Soil. Guarded by the seam permission.
+     */
+    const val ACTION_FOLLOW = "com.symmetricalpalmtree.soil.action.FOLLOW"
+
+    /**
      * With [EXTRA_ITEM_ID] on an open: the page to land on, for an open from the library's search
      * (a tagged page). Consumed once by the app.
      */
@@ -115,9 +149,9 @@ object Seam {
     const val TAG_MODE_MANAGE = 2
 
     /**
-     * The action of Soil's Scratch Pad, started for a result by an app over its own paper: the pad
-     * opens with its Send buttons, and what it sends is taken with `takeIncomingInk` when the pad
-     * has closed. Ink parked with `sendInkToPad` just before lands on it as it opens.
+     * The action of Soil's Scratch Pad, started by an app over its own paper. Ink parked with
+     * `sendInkToPad` just before lands on it as it opens. What the pad gives back it puts on the
+     * clipboard, for the app to paste: nothing comes back by itself.
      */
     const val ACTION_SCRATCH_PAD = "com.symmetricalpalmtree.soil.action.SCRATCH_PAD"
 

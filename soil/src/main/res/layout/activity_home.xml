@@ -38,12 +38,19 @@
             android:layout_weight="1" />
 
         <!-- The library's own actions; absent on the drawer. New notebook needs an app that makes
-             notebooks, and is absent without one. -->
+             notebooks, and New document one that makes documents; each is absent without its app. -->
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnNewNotebook"
             style="@style/Widget.Soil.ToolbarButton"
             android:src="@drawable/ic_notebook_plus"
             android:contentDescription="@string/cd_new_notebook"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnNewDocument"
+            style="@style/Widget.Soil.ToolbarButton"
+            android:src="@drawable/ic_file_plus"
+            android:contentDescription="@string/cd_new_document"
             android:visibility="gone" />
 
         <androidx.appcompat.widget.AppCompatImageButton

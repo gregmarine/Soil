@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A document: one bar over the text. The window is adjustResize, so the text is what gives way
+     to the keyboard and the bar stays where it is. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/paperWhite"
+    android:orientation="vertical">
+
+    <!-- A FrameLayout, not a row: the title is centred on the SCREEN, so it stays put whatever
+         flanks it. -->
+    <FrameLayout
+        android:id="@+id/topBarRow"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="196dp"
+            android:layout_marginEnd="196dp"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="@color/inkBlack"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnBack"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_close"
+                android:src="@drawable/ic_x" />
+
+            <!-- Back to the document a link was followed from. Absent when no link was. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnTrailBack"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_trail_back"
+                android:src="@drawable/ic_arrow_left"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- What links to this document. Absent when nothing does. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnBacklinks"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_backlinks"
+                android:src="@drawable/ic_link"
+                android:visibility="gone" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnExport"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_export"
+                android:src="@drawable/ic_file_export" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnTextSize"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_text_size"
+                android:src="@drawable/ic_text_size" />
+
+            <!-- The document as its Markdown source. It wears a border while the source is
+                 showing; without one, the rendered document is. -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnMode"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_mode"
+                android:src="@drawable/ic_markdown" />
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <!-- The format bar's buttons are NOT declared here: the overflow moves the real views between
+         the bar and the panel. Both are in flow: the panel pushes the text down rather than
+         floating over it, because an overlay ghosts on e-ink. -->
+    <LinearLayout
+        android:id="@+id/formatBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp" />
+
+    <!-- Where the bar's tail lands when it does not fit. Bordered, in flow, collapsed until
+         asked for. -->
+    <LinearLayout
+        android:id="@+id/overflowPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/shape_bordered"
+        android:orientation="vertical"
+        android:visibility="gone" />
+    <!-- Find and replace, hidden until Ctrl+F or the bar's search tool asks for it. Two rows:
+         `[find][n of m][‹][›][✕]` over `[replace][Replace][All]`.
+
+         Every button here is focusable="false": the editor must keep the caret and the
+         selection these act on. The selection IS the current match, and a button that stole
+         the focus would take the highlight with it. -->
+    <LinearLayout
+        android:id="@+id/findBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="2dp">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/findField"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/shape_bordered"
+                android:hint="@string/find_hint"
+                android:imeOptions="actionSearch|flagNoFullscreen|flagNoExtractUi"
+                android:inputType="text|textNoSuggestions"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textColorHint="@color/inkLight"
+                android:textSize="14sp" />
+
+            <!-- The running count. inkBlack and small rather than grey: it carries
+                 information. minWidth so the row does not shuffle as the digits change. -->
+            <TextView
+                android:id="@+id/findCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:minWidth="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindPrev"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_prev"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_page_prev" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindNext"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_next"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_page_next" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnFindClose"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:contentDescription="@string/cd_find_close"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:src="@drawable/ic_x" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="6dp">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/replaceField"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/shape_bordered"
+                android:hint="@string/find_replace_hint"
+                android:imeOptions="actionSearch|flagNoFullscreen|flagNoExtractUi"
+                android:inputType="text|textNoSuggestions"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textColorHint="@color/inkLight"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnReplace"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:contentDescription="@string/cd_find_replace_one"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
+                android:stateListAnimator="@null"
+                android:text="@string/find_replace_one"
+                android:textAllCaps="false"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnReplaceAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/bg_toolbar_button"
+                android:contentDescription="@string/cd_find_replace_all"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="4dp"
+                android:stateListAnimator="@null"
+                android:text="@string/find_replace_all"
+                android:textAllCaps="false"
+                android:textColor="@color/inkBlack"
+                android:textSize="12sp" />
+
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- The rendered document: the surface a document opens on. Like the source below, it
+             is not shown until the document is read, and never saves its own state. -->
+        <com.symmetricalpalmtree.soil.docsprout.editor.rich.RichEditText
+            android:id="@+id/rich"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/paperWhite"
+            android:gravity="top|start"
+            android:hint="@string/document_hint"
+            android:imeOptions="flagNoFullscreen|flagNoExtractUi"
+            android:inputType="textMultiLine|textCapSentences|textNoSuggestions"
+            android:lineSpacingMultiplier="1.15"
+            android:paddingStart="20dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="32dp"
+            android:saveEnabled="false"
+            android:scrollbars="vertical"
+            android:textColor="@color/inkBlack"
+            android:textColorHint="@color/inkLight"
+            android:textSize="18sp"
+            android:visibility="gone" />
+
+        <!-- The Markdown source. Monospace because columns carry meaning here. It is not shown
+             until it is asked for, and it never saves its own state: what it holds is the
+             document's, and a screen rebuilt for another document must not bring the old words
+             with it. -->
+        <com.symmetricalpalmtree.soil.docsprout.editor.ProofreadEditText
+            android:id="@+id/editor"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/paperWhite"
+            android:gravity="top|start"
+            android:hint="@string/document_hint"
+            android:imeOptions="flagNoFullscreen|flagNoExtractUi"
+            android:inputType="textMultiLine|textCapSentences|textNoSuggestions"
+            android:lineSpacingMultiplier="1.2"
+            android:paddingStart="16dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="32dp"
+            android:saveEnabled="false"
+            android:scrollbars="vertical"
+            android:textColor="@color/inkBlack"
+            android:textColorHint="@color/inkLight"
+            android:textSize="16sp"
+            android:typeface="monospace"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/opening"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/shape_dialog_bordered"
+            android:padding="24dp"
+            android:text="@string/open_opening"
+            android:textColor="@color/inkBlack"
+            android:textSize="16sp" />
+
+    </FrameLayout>
+
+</LinearLayout>

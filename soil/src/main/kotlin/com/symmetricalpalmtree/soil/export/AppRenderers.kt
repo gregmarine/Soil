@@ -11,6 +11,7 @@ import com.symmetricalpalmtree.soil.ext.PageBundle
 import com.symmetricalpalmtree.soil.seam.IItemRenderer
 import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamPageNames
+import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -47,18 +48,90 @@ object AppRenderers {
         }.minWithOrNull(compareBy({ it.packageName }, { it.className }))
     }
 
+    /**
+     * Every app that renders a kind, with the kind: what the import asks, one by one, whether
+     * it takes files in. Trusted exactly as [find] trusts.
+     */
+    fun all(context: Context): List<Pair<String, ComponentName>> {
+        val pm = context.packageManager
+        val found = try {
+            @Suppress("DEPRECATION")
+            pm.queryIntentServices(Intent(Seam.ACTION_RENDER), PackageManager.GET_META_DATA)
+        } catch (e: Exception) {
+            Log.w(TAG, "the renderers could not be read: ${e.javaClass.simpleName}")
+            return emptyList()
+        }
+        return found.mapNotNull { ri ->
+            val si = ri.serviceInfo ?: return@mapNotNull null
+            if (!si.exported) return@mapNotNull null
+            val kind = si.metaData?.getString(Seam.META_KIND)?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            if (pm.checkSignatures(context.packageName, si.packageName) != PackageManager.SIGNATURE_MATCH) return@mapNotNull null
+            if (!Seam.sameBuild(context.packageName, si.packageName)) return@mapNotNull null
+            kind to ComponentName(si.packageName, si.name)
+        }.sortedWith(compareBy({ it.second.packageName }, { it.second.className })).distinctBy { it.first }
+    }
+
+    /** The file handed to the app as the content of an item Soil has just made. Throws the
+     *  app's IllegalStateException as it came. */
+    suspend fun ingest(context: Context, renderer: ComponentName, itemId: String, fileExtension: String, file: File) = withContext(Dispatchers.IO) {
+        val source = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        try {
+            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).ingest(itemId, fileExtension, source) }
+        } finally {
+            runCatching { source.close() }
+        }
+    }
+
     suspend fun pages(context: Context, renderer: ComponentName, itemId: String): SeamPageNames = withContext(Dispatchers.IO) {
         ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, PAGES_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).pages(itemId) }
+    }
+
+    /** What the app says of its kind. An app that cannot say (one built before the question
+     *  existed) is one whose items are pages and nothing else. */
+    suspend fun describe(context: Context, renderer: ComponentName): SeamRenderInfo = withContext(Dispatchers.IO) {
+        // What an app says of its kind changes only when the app does, and asking starts its
+        // process: the answer is kept for the install it came from.
+        val install = runCatching { context.packageManager.getPackageInfo(renderer.packageName, 0).lastUpdateTime }.getOrDefault(0L)
+        val key = "${renderer.flattenToString()}@$install"
+        described[key]?.let { return@withContext it }
+        val said = runCatching { ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, PAGES_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).describe() } }
+            .onFailure { Log.w(TAG, "the renderer did not describe itself: ${it.javaClass.simpleName}") }
+            .getOrNull()
+        if (said != null) described[key] = said
+        said ?: SeamRenderInfo.PAGES_ONLY
+    }
+
+    private val described = java.util.concurrent.ConcurrentHashMap<String, SeamRenderInfo>()
+
+    /**
+     * One of the app's own formats, written whole into the export cache: the finished file,
+     * which Soil then only has to put where it was asked. Throws the app's
+     * IllegalStateException as it came.
+     */
+    suspend fun produce(context: Context, renderer: ComponentName, itemId: String, formatId: String, pageSize: String, fileExtension: String): File = withContext(Dispatchers.IO) {
+        val file = File(ExportArtifact.freshDir(context), "$itemId.$fileExtension")
+        val out = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE)
+        try {
+            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).produce(itemId, formatId, pageSize, out) }
+        } finally {
+            runCatching { out.close() }
+        }
+        if (file.length() == 0L) throw IllegalStateException(Seam.RENDER_FAILED)
+        file
     }
 
     class Rendered(val file: File, val bytes: Long, val names: List<ExportNaming.PageName>)
 
     /** The bundle rendered into the export cache. Throws the app's IllegalStateException as it came. */
-    suspend fun render(context: Context, renderer: ComponentName, itemId: String, pageIds: List<String>, template: Boolean, bundleVersion: Int): Rendered = withContext(Dispatchers.IO) {
+    /** [flowPageSize] is the page size for an item that flows, and null for one with pages of its own. */
+    suspend fun render(context: Context, renderer: ComponentName, itemId: String, pageIds: List<String>, template: Boolean, bundleVersion: Int, flowPageSize: String? = null): Rendered = withContext(Dispatchers.IO) {
         val bundle = File(ExportArtifact.freshDir(context), "$itemId.pages")
         val out = ParcelFileDescriptor.open(bundle, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE)
         val names = try {
-            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) { IItemRenderer.Stub.asInterface(it).render(itemId, pageIds, template, bundleVersion, out) }
+            ExtensionBinder.once(context, Seam.ACTION_RENDER, renderer, RENDER_TIMEOUT_MS) {
+                val app = IItemRenderer.Stub.asInterface(it)
+                if (flowPageSize != null) app.renderFlow(itemId, flowPageSize, bundleVersion, out) else app.render(itemId, pageIds, template, bundleVersion, out)
+            }
         } finally {
             runCatching { out.close() }
         }

@@ -1,5 +1,10 @@
 package com.symmetricalpalmtree.soil.pad
 
+import com.symmetricalpalmtree.soil.seamkit.clip.InkClip
+import com.symmetricalpalmtree.soil.seamkit.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.seam.SeamClip
+import com.symmetricalpalmtree.soil.data.index.ClipStore
+import android.widget.Toast
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -59,10 +64,12 @@ import com.symmetricalpalmtree.soil.shell.SoilBarService
  * a key that has not been saved, and nothing can be while the library is locked. A shut gate
  * leads to the screen that opens it, and back here afterwards.
  *
- * **Send** goes to the notebook behind the pad, when there is one: the page from the top bar, the
- * lasso's strokes from the selection bar. The ink is parked in Soil and the notebook takes it as it
- * comes back to the front. Ink a notebook sends the other way lands here as the pad shows, where
- * the notebook said, selected.
+ * **Copy** puts ink on the clipboard, whatever is behind the pad: the page from the top bar, the
+ * lasso's strokes from the selection bar (decision 2026-10-04). It is the library's one ink
+ * clipboard, written as a notebook's own Copy writes it ([InkClip]), so it is stored, it outlives
+ * the pad and Soil, and what becomes of it is the paster's: a notebook pastes ink, a document
+ * pastes the words it reads in it. The pad stays where it is. Ink a notebook sends to the pad
+ * lands here as the pad shows, where the notebook said, selected.
  *
  * Frame silence: no app frame while `paper.isPenActive`. The page indicator waits for the gate
  * ([ScratchToolbar]); the frames that do not are recorded exceptions — the delete confirm at a
@@ -76,9 +83,6 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     private lateinit var toolbar: ScratchToolbar
     private var document: ScratchDocument? = null
 
-    /** Whether a notebook is behind the pad: started by an app over its paper, or opened from
-     *  the menu over an app's paper. That is what gives Send somewhere to go. */
-    private var appBehind = false
 
     // ── What the skeleton asks for ───────────────────────────────────────────
 
@@ -138,7 +142,6 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         // signed with Soil's key can hold, is the guard. A caller that did name itself is checked.
         val launchedByApp = intent.action == Seam.ACTION_SCRATCH_PAD
         if (launchedByApp && callingPackage != null && runCatching { SeamCallerCheck.enforceCaller(this, callingPackage) }.isFailure) { finish(); return }
-        appBehind = launchedByApp || SeamClients.appBehindPad
         isOpen = true
         binding = ActivityScratchPadBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -177,8 +180,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             btnNextPage = binding.btnNextPage,
             pageIndicator = binding.pageIndicator,
             btnSend = binding.btnSend,
-            showSend = appBehind,
-            onSend = { send(null) },
+            showSend = true,
+            onSend = { copy(null) },
             onBack = { exit() },
             // No-op at a bound, never disabled: a greyed control is invisible on e-ink.
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
@@ -206,8 +209,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             releaseRender = { paper.releaseRender() },
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
-            sendHint = if (appBehind) getString(R.string.scratch_send_selection) else null,
-            onSend = { currentSelection?.strokeIds?.toHashSet()?.let { send(it) } },
+            sendHint = getString(R.string.scratch_copy_selection),
+            onSend = { currentSelection?.strokeIds?.toHashSet()?.let { copy(it) } },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -325,29 +328,38 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     }
 
     /**
-     * Send the page ([ids] null) or the lasso's strokes to the notebook behind the pad: parked
-     * for it to take as it comes back to the front, and the pad leaves. A copy: the pad keeps its
-     * ink, and nothing goes on its undo stack. The page is flushed first, under the page-op lock.
-     * An empty pick, or one over the caps, is a dialog, never silence.
+     * Copy the page ([ids] null) or the lasso's strokes to the clipboard, and stay. The pad keeps
+     * its ink and nothing goes on its undo stack. The page is flushed first, under the page-op
+     * lock. An empty pick, or one over the clipboard's cap, is a dialog, never silence; a copy
+     * that landed says so, since nothing else on the pad changes to show it.
      */
-    private fun send(ids: Set<String>?) {
+    private fun copy(ids: Set<String>?) {
         if (!opened || closing) return
         runPageOp {
             val doc = document ?: return@runPageOp
             doc.flushUntilClean()
-            val picked = (if (ids == null) doc.strokes else doc.strokes.filter { it.id in ids }).filter { it.points.isNotEmpty() }
-            if (picked.isEmpty()) {
-                Dialogs.problem(this, R.string.scratch_nothing_to_send_title, R.string.scratch_nothing_to_send_body)
+            val picked = if (ids == null) doc.strokes else doc.strokes.filter { it.id in ids }
+            val now = System.currentTimeMillis()
+            val envelope = InkClip.envelopeOf(picked, now)
+            if (envelope == null) {
+                Dialogs.problem(this, R.string.scratch_nothing_to_copy_title, R.string.scratch_nothing_to_copy_body)
                 return@runPageOp
             }
-            if (!InkWire.withinLimits(picked)) {
+            val bytes = if (InkWire.withinLimits(picked)) ClipEnvelope.encode(envelope) else null
+            if (bytes == null) {
                 Dialogs.problem(this, R.string.scratch_too_large_title, R.string.scratch_too_large_body)
                 return@runPageOp
             }
-            PadTransfer.parkOutgoing(InkWire.encode(picked, doc.pageWidth, doc.pageHeight))
-            Slog.d(TAG) { "send: ${picked.size} strokes" }
-            setResult(RESULT_OK)
-            exit()
+            val written = withContext(Dispatchers.IO) {
+                runCatching { ClipStore().put(InkClip.SLOT, SeamClip(envelope.kind, "", now), bytes) }
+                    .onFailure { Log.w(TAG, "the clipboard was not written: ${it.javaClass.simpleName}") }.isSuccess
+            }
+            if (!written) {
+                Dialogs.problem(this, R.string.scratch_copy_failed_title, R.string.scratch_copy_failed_body)
+                return@runPageOp
+            }
+            Slog.d(TAG) { "copied ${envelope.rows.size} strokes to the clipboard" }
+            Toast.makeText(this, R.string.scratch_copied_toast, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -456,7 +468,6 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     override fun onScreenDestroyed() {
         super.onScreenDestroyed()
         if (::binding.isInitialized) isOpen = false
-        SeamClients.padClosed()
     }
 
     companion object {

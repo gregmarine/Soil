@@ -35,7 +35,7 @@ class PdfExporterService : Service() {
                 val asked = spec ?: throw IllegalArgumentException("no export spec")
                 PdfExportSpec.require(asked.values, asked.exportSecret)
                 readyPdfbox()
-                return ExportResult(PdfAssembly.assemble(src, dst, asked.exportSecret, TAG))
+                return ExportResult(PdfAssembly.assemble(src, dst, asked.exportSecret, TAG, PdfExportSpec.pagePoints(asked.values)))
             } catch (e: SecurityException) {
                 throw e
             } catch (e: IllegalArgumentException) {

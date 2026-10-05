@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Docsprout</string>
+
+    <string name="cd_close">Close</string>
+    <string name="cd_text_size">Text size</string>
+    <string name="cd_export">Export</string>
+    <string name="export_failed_title">Export</string>
+    <string name="export_open_failed_body">Soil\'s export screen could not be opened.</string>
+    <string name="cd_mode">Markdown source  ·  Ctrl+P</string>
+
+    <!-- A link in the rendered document -->
+    <string name="link_title">Link</string>
+    <string name="link_field_hint">Address</string>
+    <string name="link_confirm">Link</string>
+    <string name="link_remove">Remove link</string>
+    <string name="link_choose_library">Choose from library…</string>
+    <string name="link_into_library">This link points into the library. Choose again to point it somewhere else, or type an address.</string>
+    <string name="link_open">Open</string>
+    <string name="link_edit">Edit link</string>
+    <string name="link_sheet_library">Link to “%1$s”</string>
+    <string name="link_sheet_library_page">Link to a page of “%1$s”</string>
+    <string name="link_sheet_gone">Link to something no longer in the library</string>
+    <string name="link_failed_title">Can\'t follow this link</string>
+    <string name="link_gone_body">What this link points to is no longer in the library.</string>
+    <string name="link_no_soil_body">Soil could not be asked to open it.</string>
+    <string name="link_outside_body">Nothing on this device opens that address.</string>
+    <string name="link_picker_failed_body">Soil\'s library could not be opened to choose from.</string>
+    <string name="cd_trail_back">Back to where the link was followed from</string>
+    <string name="cd_backlinks">Links to this document</string>
+    <string name="backlinks_title">Links to this document</string>
+    <string name="backlink_again">%1$s  (%2$d)</string>
+
+    <!-- Renaming from the title -->
+    <string name="rename_hint">Rename</string>
+    <string name="rename_title">Rename</string>
+    <string name="rename_field_hint">Name</string>
+    <string name="rename_confirm">Rename</string>
+    <string name="rename_problem_title">Couldn\'t rename this</string>
+    <string name="rename_failed_body">The name was not changed. Try again in a moment.</string>
+
+    <!-- The format bar: each hint names the tool and teaches its chord -->
+    <string name="fmt_undo">Undo  ·  Ctrl+Z</string>
+    <string name="fmt_redo">Redo  ·  Ctrl+Y</string>
+    <string name="fmt_outdent">Move list item out  ·  Shift+Tab</string>
+    <string name="fmt_indent">Move list item in  ·  Tab</string>
+    <string name="fmt_h1">Heading 1  ·  Ctrl+1</string>
+    <string name="fmt_h2">Heading 2  ·  Ctrl+2</string>
+    <string name="fmt_h3">Heading 3  ·  Ctrl+3</string>
+    <string name="fmt_bold">Bold  ·  Ctrl+B</string>
+    <string name="fmt_italic">Italic  ·  Ctrl+I</string>
+    <string name="fmt_strikethrough">Strikethrough  ·  Ctrl+Shift+X</string>
+    <string name="fmt_code">Inline code  ·  Ctrl+E</string>
+    <string name="fmt_quote">Blockquote  ·  Ctrl+Shift+Q</string>
+    <string name="fmt_bullet">Bullet list  ·  Ctrl+Shift+8</string>
+    <string name="fmt_ordered">Numbered list  ·  Ctrl+Shift+7</string>
+    <string name="fmt_task">Task list  ·  Ctrl+Shift+9</string>
+    <string name="fmt_link">Link  ·  Ctrl+K</string>
+    <string name="fmt_image">Image  ·  Ctrl+Shift+K</string>
+    <string name="fmt_rule">Horizontal rule  ·  Ctrl+Shift+−</string>
+    <string name="fmt_search">Find &amp; replace  ·  Ctrl+F</string>
+    <string name="fmt_word_count">Word count</string>
+    <string name="fmt_reflow">Join wrapped lines into paragraphs  ·  Ctrl+Shift+F</string>
+    <string name="fmt_proofread">Proofread</string>
+    <string name="fmt_paste_ink">Paste handwriting as words</string>
+
+    <!-- Ink from the clipboard, as words -->
+    <string name="ink_paste_title">Handwriting on the clipboard</string>
+    <string name="ink_paste_action">Paste as words</string>
+    <string name="ink_clear_action">Clear clipboard</string>
+    <string name="ink_paste_empty_body">There is no handwriting on the clipboard. Copy some in the Scratch Pad, or with the lasso in a notebook, then paste it here.</string>
+    <string name="ink_paste_no_ink_body">What is on the clipboard holds no handwriting to read.</string>
+    <string name="fmt_more">More tools</string>
+
+    <!-- Proofread -->
+    <string name="proofread_title">Proofread</string>
+    <string name="proofread_check">Check document</string>
+    <string name="proofread_dictionary">User dictionary</string>
+    <string name="proofread_off">Turn off proofread</string>
+    <string name="proofread_on">Turn on proofread</string>
+    <string name="proofread_loading_title">Still loading the dictionary</string>
+    <string name="proofread_loading_body">Proofread will check the whole document as soon as the dictionary is ready.</string>
+    <string name="proofread_word">“%1$s”</string>
+    <string name="proofread_word_loading">“%1$s” — suggestions are loading</string>
+    <string name="proofread_word_none">No suggestions for “%1$s”</string>
+    <string name="proofread_add">Add to dictionary</string>
+    <string name="proofread_ignore">Ignore for now</string>
+    <string name="proofread_grammar_title">%1$s — “%2$s”</string>
+    <string name="proofread_fix">Fix: “%1$s”</string>
+    <string name="proofread_dict_title">User dictionary — tap a word to remove it</string>
+    <string name="proofread_dict_empty_title">No words yet</string>
+    <string name="proofread_dict_empty_body">Words added from a flagged word\'s popup are kept here, and stop being flagged everywhere.</string>
+    <string name="proofread_dict_unavailable_title">The dictionary isn\'t available</string>
+    <string name="proofread_dict_unavailable_body">The saved words could not be read just now. Nothing was changed. Try again in a moment.</string>
+    <string name="proofread_removed">Removed “%1$s”</string>
+
+    <!-- Find and replace -->
+    <string name="find_hint">Find</string>
+    <string name="find_replace_hint">Replace with</string>
+    <string name="find_count">%1$d of %2$d</string>
+    <string name="cd_find_prev">Previous match</string>
+    <string name="cd_find_next">Next match  ·  Enter</string>
+    <string name="cd_find_close">Close find</string>
+    <string name="find_replace_one">Replace</string>
+    <string name="cd_find_replace_one">Replace the current match, then find the next</string>
+    <string name="find_replace_all">All</string>
+    <string name="cd_find_replace_all">Replace every match — one edit, one Ctrl+Z</string>
+    <string name="find_no_matches">No matches.</string>
+    <string name="find_replaced">Replaced %1$d.</string>
+
+    <string name="word_count_selection_prefix">"Selection: "</string>
+    <string name="word_count_format">%1$,d words  ·  %2$,d characters</string>
+    <string name="reflow_nothing">Nothing to reflow.</string>
+
+    <string name="text_size_title">Text size</string>
+    <string name="text_size_current">%1$s  ✓</string>
+    <string name="text_size_small">Small</string>
+    <string name="text_size_medium">Medium</string>
+    <string name="text_size_large">Large</string>
+    <string name="text_size_larger">Larger</string>
+    <string name="text_size_largest">Largest</string>
+    <string name="document_hint">Start writing…</string>
+
+    <string name="open_opening">Opening…</string>
+    <string name="open_failed_title">Can\'t open document</string>
+    <string name="open_no_soil">Soil could not be reached. Docsprout keeps its documents in Soil.</string>
+    <string name="open_locked">The library is not open. Open it in Soil, then open the document again.</string>
+    <string name="open_missing">This document is no longer in the library.</string>
+    <string name="open_newer">This document was written by a later Docsprout. It has not been changed.</string>
+    <string name="open_failed">The document could not be opened. It has not been changed.</string>
+    <string name="too_long_title">Too long to save</string>
+    <string name="too_long_body">This document has grown past what one document can hold, so the latest changes are not being saved. Move some of it to another document.</string>
+</resources>

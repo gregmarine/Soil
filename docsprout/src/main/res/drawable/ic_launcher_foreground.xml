@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Docsprout's mark: a sheet with a folded corner and a sprouting leaf, in the Tabler icons'
+     vocabulary: an ink-black outline, round caps, nothing filled. Adaptive-icon 108dp viewport; the
+     whole of it sits inside the 66dp circle every mask keeps. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- The sheet, and its folded corner. -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M40 30h18l14 14v32a4 4 0 0 1 -4 4h-28a4 4 0 0 1 -4 -4v-42a4 4 0 0 1 4 -4z" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M58 30v10a4 4 0 0 0 4 4h10" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M45 72h18" />
+    <!-- The sprout, growing up out of the last line. -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 72v-14" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 64c0 -6 4 -10 10 -10c0 6 -4 10 -10 10z" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 68c0 -5 -3 -8 -8 -8c0 5 3 8 8 8z" />
+</vector>

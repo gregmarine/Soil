@@ -25,6 +25,15 @@ object RecognizingOverlay {
         overlay.bringToFront()
     }
 
+    /** The same box with words of the caller's own: "Reading page 3 of 12…". */
+    fun show(activity: Activity, message: CharSequence) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val overlay = obtain(activity) ?: return
+        overlay.findViewById<TextView>(R.id.message)?.text = message
+        overlay.visibility = View.VISIBLE
+        overlay.bringToFront()
+    }
+
     fun hide(activity: Activity) {
         activity.findViewById<ViewGroup>(android.R.id.content)?.findViewWithTag<View>(TAG_KEY)?.visibility = View.GONE
     }

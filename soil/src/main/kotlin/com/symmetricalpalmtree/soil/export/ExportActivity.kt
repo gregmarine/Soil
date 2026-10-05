@@ -34,6 +34,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityExportBinding
 import com.symmetricalpalmtree.soil.ext.CloudEntry
 import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.ext.ExportContract
+import com.symmetricalpalmtree.soil.ext.ExportResult
 import com.symmetricalpalmtree.soil.ext.ExportSpec
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.ext.Extensions
@@ -44,6 +45,8 @@ import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.seam.SeamFormat
+import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
 import com.symmetricalpalmtree.soil.settings.SettingsPrefs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -81,10 +84,20 @@ class ExportActivity : AppCompatActivity() {
     private var scope: ExportScope = ExportScope.Whole
     private var renderer: ComponentName? = null
 
+    /** What the item's app says of its kind: whether it flows, and the formats it writes itself. */
+    private var renderInfo: SeamRenderInfo = SeamRenderInfo.PAGES_ONLY
+    private var pageSize: String = ExportPageSize.DEFAULT
+
     private class PageFacts(val number: Int, val title: String?)
     private var pageFacts: PageFacts? = null
 
-    private class Candidate(val extension: Extension, val info: ExporterInfo)
+    /**
+     * One row of the format list. An extension's exporter, or with [appFormat] one of the
+     * formats the item's own app writes: then there is no extension behind it (the reference
+     * only names it, for the choice and for "last used"), the app writes the finished file and
+     * Soil puts it where it was asked.
+     */
+    private class Candidate(val extension: Extension, val info: ExporterInfo, val appFormat: SeamFormat? = null)
     private var described: List<Candidate> = emptyList()
     private var candidates: List<Candidate> = emptyList()
     private var chosenPackage: String? = null
@@ -229,7 +242,11 @@ class ExportActivity : AppCompatActivity() {
         if (found == null) { if (!isFinishing) problemAndClose(R.string.export_failed_title, R.string.export_missing_body); return emptyList() }
         item = found
         binding.itemName.text = found.name
-        if (renderer == null) renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, found.kind) }
+        if (renderer == null) {
+            renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, found.kind) }
+            renderInfo = renderer?.let { AppRenderers.describe(this@ExportActivity, it) } ?: SeamRenderInfo.PAGES_ONLY
+            pageSize = ExportPageSize.orDefault(prefs.lastPageSize)
+        }
         val door = pageId
         if (door != null && pageFacts == null) {
             val r = renderer
@@ -247,6 +264,13 @@ class ExportActivity : AppCompatActivity() {
             // A pages exporter is only as good as an app to draw with.
             if (info.sourceKind == ExportContract.SOURCE_PAGES && renderer == null) { Slog.d(TAG) { "dropping ${ref.packageName}: no renderer for ${found.kind}" }; continue }
             kept += Candidate(ref, info)
+        }
+        // The app's own formats, after the extensions'. A descriptor the constructor refuses
+        // drops the format with a log line, as it drops an extension.
+        for (format in renderInfo.formats) {
+            val info = runCatching { ExporterInfo(format.label, format.fileExtension, format.mimeType, emptyList()) }.getOrNull()
+            if (info == null) { Slog.d(TAG) { "dropping an app format: its descriptor was refused" }; continue }
+            kept += Candidate(Extension(APP_FORMAT_PREFIX + format.id, "", format.label), info, format)
         }
         loadCloud()
         described = kept
@@ -300,7 +324,15 @@ class ExportActivity : AppCompatActivity() {
             }
         }
         binding.options.removeAllViews()
+        if (asksPageSize(c)) {
+            binding.options.addView(panel.caption(getString(R.string.export_page_size_caption)))
+            for (choice in ExportPageSize.CHOICES) {
+                binding.options.addView(panel.choice(getString(pageSizeLabel(choice)), pageSize == choice) { pageSize = choice; render() })
+            }
+        }
         for (d in c.info.options) {
+            // An item that flows has no paper to put under it.
+            if (renderInfo.flowing && d.id == ExportContract.OPTION_PAGE_TEMPLATE) continue
             when {
                 ExportOptions.isFixed(d) -> {
                     val value = values[d.id] ?: d.defaultValue
@@ -326,6 +358,16 @@ class ExportActivity : AppCompatActivity() {
         binding.editPassphrase.setHint(if (protect) R.string.export_password_hint else R.string.export_passphrase_hint)
         binding.editPassphraseConfirm.setHint(if (protect) R.string.export_password_confirm_hint else R.string.export_passphrase_confirm_hint)
         binding.plainWarning.visibility = if (ExportOptions.showsPlainWarning(info, values)) View.VISIBLE else View.GONE
+    }
+
+    /** A page size is asked for an item that flows, by any format that is laid out on pages. */
+    private fun asksPageSize(c: Candidate): Boolean =
+        renderInfo.flowing && (c.appFormat?.paged ?: (c.info.sourceKind == ExportContract.SOURCE_PAGES))
+
+    private fun pageSizeLabel(choice: String): Int = when (choice) {
+        Seam.PAGE_LETTER -> R.string.export_page_size_letter
+        Seam.PAGE_A4 -> R.string.export_page_size_a4
+        else -> R.string.export_page_size_screen
     }
 
     // ── Progress ──────
@@ -530,6 +572,7 @@ class ExportActivity : AppCompatActivity() {
         if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
         if (!uploadOne(ref, cloud.path, cloud.name, cloud.mime, file, prefix = "")) return
         prefs.lastExporter = c.extension.packageName
+        if (asksPageSize(c)) prefs.lastPageSize = pageSize
         hideProgress()
         if (isFinishing || isDestroyed) return
         Dialogs.confirm(this, R.string.export_done_title, getString(R.string.export_cloud_done_body, cloudName())) { finish() }
@@ -620,14 +663,19 @@ class ExportActivity : AppCompatActivity() {
                 if ((wantsSecret || armedAtTap) && (typedExportSecret == null || !wantsSecret)) { failed(R.string.export_failed_title, getString(R.string.export_password_lost_body)); return@launch }
                 val specValues = ExportOptions.specValues(c.info, values)
                 val perPage = destination is Destination.SafTree || destination is Destination.CloudFolder
+                val scaled = if (c.appFormat == null && asksPageSize(c)) ExportPageSize.specValues(pageSize) else emptyMap()
                 val spec = if (perPage) null else try {
-                    ExportSpec(values = specValues, itemName = ExportNaming.specNameOf(stem()), exportSecret = if (wantsSecret) typedExportSecret else null)
+                    ExportSpec(values = specValues + scaled, itemName = ExportNaming.specNameOf(stem()), exportSecret = if (wantsSecret) typedExportSecret else null)
                 } catch (e: IllegalArgumentException) {
                     Log.w(TAG, "spec rejected: ${e.javaClass.simpleName}")
                     failed(R.string.export_failed_title, getString(R.string.export_failed_body))
                     return@launch
                 }
-                val prepared = if (c.info.sourceKind == ExportContract.SOURCE_PAGES) renderedPages(c) else keyedArtifact(c)
+                val prepared = when {
+                    c.appFormat != null -> producedByApp(c, c.appFormat)
+                    c.info.sourceKind == ExportContract.SOURCE_PAGES -> renderedPages(c)
+                    else -> keyedArtifact(c)
+                }
                 val streamFile = when (prepared) {
                     is StreamSource.Failed -> { failed(R.string.export_failed_title, prepared.message); return@launch }
                     is StreamSource.Ready -> prepared.file
@@ -648,7 +696,9 @@ class ExportActivity : AppCompatActivity() {
                 if (sink == null) { withContext(Dispatchers.IO) { runCatching { source.close() } }; failed(R.string.export_failed_title, getString(R.string.export_destination_body)); return@launch }
                 if (cacheOut == null) destinationTouched = true
                 val result = try {
-                    ExporterClient(this@ExportActivity, c.extension).export(source, sink, spec)
+                    // The app's own format is already the finished file: Soil only copies it.
+                    if (c.appFormat != null) withContext(Dispatchers.IO) { ExportResult(copyThrough(source, sink)) }
+                    else ExporterClient(this@ExportActivity, c.extension).export(source, sink, spec)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -674,6 +724,7 @@ class ExportActivity : AppCompatActivity() {
                 Slog.d(TAG) { "exported ${result.bytesWritten} bytes" }
                 if (cloudDestination != null) { uploadAndConfirm(c, cloudDestination, checkNotNull(cacheOut)); return@launch }
                 prefs.lastExporter = c.extension.packageName
+                if (asksPageSize(c)) prefs.lastPageSize = pageSize
                 hideProgress()
                 if (isFinishing || isDestroyed) return@launch
                 Dialogs.confirm(this@ExportActivity, R.string.export_done_title, if (scope is ExportScope.Page) R.string.export_done_page_body else R.string.export_done_body) { finish() }
@@ -716,11 +767,47 @@ class ExportActivity : AppCompatActivity() {
         }
     }
 
+    /** One of the app's own formats, written by the app into the cache. */
+    private suspend fun producedByApp(c: Candidate, format: SeamFormat): StreamSource {
+        val r = renderer ?: return StreamSource.Failed(getString(R.string.export_no_app_body))
+        stage(R.string.export_producing)
+        return try {
+            StreamSource.Ready(AppRenderers.produce(applicationContext, r, itemId, format.id, pageSize, c.info.fileExtension))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IllegalStateException) {
+            Slog.d(TAG) { "the app refused: ${e.message}" }
+            StreamSource.Failed(getString(ExportMessages.ofRender(e.message)))
+        } catch (e: Exception) {
+            Log.w(TAG, "the app's format failed: ${e.javaClass.simpleName}")
+            StreamSource.Failed(getString(R.string.export_render_failed_body))
+        }
+    }
+
+    /** Every byte of [source] onto [sink], both closed after. Answers how many were written. */
+    private fun copyThrough(source: ParcelFileDescriptor, sink: ParcelFileDescriptor): Long {
+        var written = 0L
+        ParcelFileDescriptor.AutoCloseInputStream(source).use { input ->
+            ParcelFileDescriptor.AutoCloseOutputStream(sink).use { output ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    output.write(buffer, 0, n)
+                    written += n
+                }
+                output.flush()
+                runCatching { output.fd.sync() }
+            }
+        }
+        return written
+    }
+
     private suspend fun renderedPages(c: Candidate): StreamSource {
         val r = renderer ?: return StreamSource.Failed(getString(R.string.export_no_app_body))
         stage(R.string.export_rendering)
         return try {
-            val rendered = AppRenderers.render(applicationContext, r, itemId, scope.pageIds, ExportOptions.includeTemplate(c.info, values), c.info.bundleVersion)
+            val rendered = AppRenderers.render(applicationContext, r, itemId, scope.pageIds, ExportOptions.includeTemplate(c.info, values), c.info.bundleVersion, if (renderInfo.flowing) pageSize else null)
             StreamSource.Ready(rendered.file, rendered.names)
         } catch (e: CancellationException) {
             throw e
@@ -824,6 +911,7 @@ class ExportActivity : AppCompatActivity() {
             exporter.close()
         }
         prefs.lastExporter = c.extension.packageName
+        if (asksPageSize(c)) prefs.lastPageSize = pageSize
         hideProgress()
         if (isFinishing || isDestroyed) return
         val body = if (cloud != null) resources.getQuantityString(R.plurals.export_cloud_done_images, written, written, cloudName())
@@ -887,6 +975,8 @@ class ExportActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** The reference that names one of the app's own formats: never a package. */
+        private const val APP_FORMAT_PREFIX = "app:"
         private const val TAG = "ExportActivity"
         private const val KEY_PACKAGE = "export.package"
         private const val KEY_VALUES = "export.values"

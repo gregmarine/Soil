@@ -79,6 +79,13 @@ object ExportContract {
      *  white ground. The value still crosses so the extension knows what was asked. */
     const val OPTION_PAGE_TEMPLATE = "template"
 
+    /**
+     * A value Soil adds to a one-file pages exporter's spec, never an option it draws: the PDF
+     * points one bundle pixel stands for, as a decimal, when the pages were drawn at a paper
+     * size. Absent, a pixel is a point, as for an item whose pages are the screen's.
+     */
+    const val OPTION_PAGE_POINTS = "pagepoints"
+
     /** Toggle: `"1"` makes Soil collect a password with its own fields and send it on
      *  [ExportSpec.exportSecret]. The protection is the extension's work. */
     const val OPTION_PROTECT = "protect"

@@ -13,7 +13,8 @@ data class ClipHeader(val kind: String, val sourceNotebookId: String, val copied
  * The notebook kind's clipboard, which lives in Soil: the in-memory mirror of its **header**, so
  * a sheet can decide synchronously whether a Paste row exists, and the four calls that read and
  * write it over the seam. The payload never lives here; it is read only when a paste happens.
- * The header is read once per process, at a notebook's open, and set by every copy. IO only.
+ * The header is read at a notebook's open, again whenever the notebook comes back to the front,
+ * and set by every copy. IO only.
  */
 object SoilClipboard {
 
@@ -38,6 +39,17 @@ object SoilClipboard {
             loaded = true
         } catch (e: Exception) {
             Slog.d(TAG) { "clipboard header read failed: ${e.javaClass.simpleName}" }
+        }
+    }
+
+    /** Read the header again: the clipboard is the library's, and what is not this app (the
+     *  Scratch Pad) copies to it too. A failed read leaves what was known. */
+    fun refresh(seam: ISoilSeam) {
+        try {
+            header = seam.clipHeader(NotebookSchema.KIND)?.let { ClipHeader(it.payloadKind, it.sourceItemId, it.copiedAt) }
+            loaded = true
+        } catch (e: Exception) {
+            Slog.d(TAG) { "clipboard header refresh failed: ${e.javaClass.simpleName}" }
         }
     }
 

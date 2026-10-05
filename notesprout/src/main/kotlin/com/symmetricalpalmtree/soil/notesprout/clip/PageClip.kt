@@ -38,7 +38,7 @@ object PageClip {
     fun capture(page: NotebookRow, template: NotebookRow?, content: List<NotebookRow>, sourceNotebookId: String, now: Long): ClipEnvelope =
         ClipEnvelope(
             version = ClipEnvelope.VERSION, kind = ClipEnvelope.KIND_PAGE, sourceNotebookId = sourceNotebookId, copiedAt = now,
-            rows = (listOfNotNull(template) + page + content).map { ClipRow.of(it) },
+            rows = (listOfNotNull(template) + page + content).map { clipRowOf(it) },
         )
 
     /**

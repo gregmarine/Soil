@@ -41,6 +41,9 @@
     <string name="new_notebook_hint">Name</string>
     <string name="new_notebook_default">Notebook</string>
     <string name="new_notebook_create">Create</string>
+    <string name="cd_new_document">New document</string>
+    <string name="new_document_title">New document</string>
+    <string name="new_document_failed_title">Couldn\'t make the document</string>
     <string name="item_no_app_title">No app for this</string>
     <string name="item_no_app_body">The app that opens %1$s is not installed.</string>
     <string name="item_open_failed_title">Can\'t open</string>
@@ -323,7 +326,15 @@
     <string name="new_notebook_paper">Paper</string>
     <string name="new_notebook_failed_title">Couldn\'t make the notebook</string>
     <string name="new_notebook_failed_body">Nothing has been changed.</string>
+    <string name="follow_failed_title">Can\'t follow this link</string>
+    <string name="follow_locked_body">The library is not open. Open it in Soil, then follow the link again.</string>
+    <string name="follow_gone_body">What this link points to is no longer in the library.</string>
+    <string name="pick_page_title">Link to</string>
+    <string name="pick_page_whole">The whole notebook</string>
+    <string name="pick_page_numbered">Page %1$d</string>
+    <string name="pick_page_titled">Page %1$d  ·  %2$s</string>
     <string name="item_picker_title">Choose a notebook</string>
+    <string name="item_picker_title_any">Choose from the library</string>
     <string name="item_picker_none">No notebooks here</string>
 
     <!-- Tags -->
@@ -373,12 +384,15 @@
     <string name="search_page_card_unnumbered">%1$s · a page</string>
 
     <!-- The Scratch Pad's Send -->
-    <string name="scratch_send_page">Send page to notebook</string>
-    <string name="scratch_send_selection">Send selection to notebook</string>
-    <string name="scratch_nothing_to_send_title">Nothing to send</string>
-    <string name="scratch_nothing_to_send_body">There is no ink here to send. Write something first, or lasso what you want to send.</string>
-    <string name="scratch_too_large_title">Too much to send</string>
-    <string name="scratch_too_large_body">This holds more ink than one send can carry. Send a smaller part of it.</string>
+    <string name="scratch_copy_page">Copy page to clipboard</string>
+    <string name="scratch_copy_selection">Copy selection to clipboard</string>
+    <string name="scratch_copied_toast">Copied to the clipboard</string>
+    <string name="scratch_nothing_to_copy_title">Nothing to copy</string>
+    <string name="scratch_nothing_to_copy_body">There is no ink here to copy. Write something first, or lasso what you want to copy.</string>
+    <string name="scratch_too_large_title">Too much to copy</string>
+    <string name="scratch_too_large_body">This holds more ink than the clipboard can carry. Copy a smaller part of it.</string>
+    <string name="scratch_copy_failed_title">Clipboard</string>
+    <string name="scratch_copy_failed_body">The ink could not be put on the clipboard. The clipboard was left as it was.</string>
     <string name="scratch_received_failed_title">Scratch Pad</string>
     <string name="scratch_received_failed_body">The ink sent to the pad could not be placed. Nothing was changed.</string>
 
@@ -430,6 +444,11 @@
     <string name="export_rekeying">Re-keying the copy…</string>
     <string name="export_decrypting">Removing encryption from the copy…</string>
     <string name="export_rendering">Rendering the pages…</string>
+    <string name="export_producing">Writing the file…</string>
+    <string name="export_page_size_caption">Page size</string>
+    <string name="export_page_size_letter">Letter</string>
+    <string name="export_page_size_a4">A4</string>
+    <string name="export_page_size_screen">This device\'s screen</string>
     <string name="export_exporting">Exporting…</string>
     <string name="export_protecting">Encrypting and exporting…</string>
     <string name="export_exporting_image">Exporting page %1$d of %2$d…</string>
@@ -475,6 +494,8 @@
     <string name="import_busy_title">Import in progress</string>
     <string name="import_busy_body">Wait for it to finish.</string>
     <string name="import_format_title">Import as</string>
+    <string name="import_not_text_body">That file is not text that can be read: it must be plain text or Markdown, saved as UTF-8. Nothing was imported.</string>
+    <string name="import_too_large_body">That file is longer than one document can hold. Nothing was imported.</string>
     <string name="import_unsupported_title">Can\'t import that file</string>
     <string name="import_unsupported_body">No installed importer takes a file of that kind.</string>
     <string name="import_interrupted_body">The import was interrupted before a folder was chosen. Start it again.</string>
