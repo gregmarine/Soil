@@ -325,14 +325,12 @@ class ImportFlow(
      * descriptor refuses, takes nothing in.
      */
     private suspend fun appImporters(): List<Candidate> {
-        val renderers = withContext(Dispatchers.IO) { AppRenderers.all(activity) }
         val kept = ArrayList<Candidate>()
-        for ((kind, renderer) in renderers) {
-            val said = AppRenderers.describe(activity, renderer)
-            if (said.importExtensions.isEmpty()) continue
+        for (taker in AppImports.takers(activity)) {
+            val said = taker.info
             val info = runCatching { ImporterInfo(said.importLabel, said.importExtensions, said.importMimeTypes) }.getOrNull()
             if (info == null) { Slog.d(TAG) { "dropping an app importer: its descriptor was refused" }; continue }
-            kept += Candidate(Extension("app:$kind", "", said.importLabel), info, AppImporter(kind, renderer))
+            kept += Candidate(Extension("app:${taker.kind}", "", said.importLabel), info, AppImporter(taker.kind, taker.renderer))
         }
         return kept
     }
@@ -460,26 +458,17 @@ class ImportFlow(
             }
         }
         val parentId = currentFolder()
-        val id = UUID.randomUUID().toString()
         // The same question a .soil import asks of a name already in the folder: Replace, or
         // Keep both under "X Copy". Asked before anything is made, so Cancel leaves nothing.
-        val naming = resolveName(ImportNames.fromDisplayName(displayName), parentId, id, keepBothChosen = false) ?: return
+        val naming = resolveName(ImportNames.fromDisplayName(displayName), parentId, "", keepBothChosen = false) ?: return
         val name = naming.name
         ImportOverlay.stage(activity, R.string.import_stage_importing)
-        withContext(Dispatchers.IO) {
-            val now = System.currentTimeMillis()
-            // The file first: a row with no file is an item that cannot be opened.
-            ItemFiles.createEmpty(activity, id, name, now, app.kind)
-            IndexStore().insert(id, app.kind, name, now, parentId)
-        }
         try {
-            AppRenderers.ingest(activity, app.renderer, id, ImporterMatch.extensionOf(displayName), fetched)
+            AppImports.make(activity, app.kind, app.renderer, name, parentId, ImporterMatch.extensionOf(displayName), fetched)
         } catch (e: CancellationException) {
-            withContext(NonCancellable + Dispatchers.IO) { retire(id) }
             throw e
         } catch (e: Exception) {
             Slog.d(TAG) { "the app would not take the file: ${e.javaClass.simpleName}" }
-            withContext(NonCancellable + Dispatchers.IO) { retire(id) }
             problem(
                 R.string.import_failed_title,
                 activity.getString(

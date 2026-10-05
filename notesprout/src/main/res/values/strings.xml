@@ -37,6 +37,24 @@
     <string name="page_sheet_erase">Erase page</string>
     <string name="export_page_action">Export page…</string>
     <string name="export_notebook_action">Export notebook…</string>
+
+    <!-- Convert: the pages' words as a new document -->
+    <string name="convert_page_action">Convert page to document…</string>
+    <string name="convert_notebook_action">Convert notebook to document…</string>
+    <string name="convert_title">Convert to document</string>
+    <string name="convert_reading_page">Reading the page…</string>
+    <string name="convert_reading_pages">Reading page %1$d of %2$d…</string>
+    <string name="convert_making">Making the document…</string>
+    <string name="convert_page_name">%1$s - page %2$d</string>
+    <string name="convert_default_name">Notebook</string>
+    <string name="convert_done_title">Document made</string>
+    <string name="convert_done_body">“%1$s” is in the same folder as this notebook. The notebook has not been changed, and the two are not kept in step.</string>
+    <string name="convert_open">Open it</string>
+    <string name="convert_nothing_body">There is nothing here to make a document of: no handwriting that could be read, no headings and no text.</string>
+    <string name="convert_too_dense_body">Page %1$d holds more ink in one stretch than can be read at once. No document was made.</string>
+    <string name="convert_too_long_body">The words come to more than one document can hold. No document was made. Convert fewer pages.</string>
+    <string name="convert_no_app_body">No app that makes documents is installed. No document was made.</string>
+    <string name="convert_failed_body">The document could not be made. Nothing was changed.</string>
     <string name="page_sheet_delete">Delete</string>
     <string name="erase_page_title">Erase this page?</string>
     <string name="erase_confirm">Erase</string>

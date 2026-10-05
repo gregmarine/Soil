@@ -75,6 +75,31 @@ class SoilSeamService : Service() {
             SeamItem(id = id, kind = schema.kind, name = clean, createdAt = now, updatedAt = now)
         }
 
+        override fun makeItemFromFile(besideItemId: String, name: String, fileExtension: String, file: SeamBytes): SeamItem = answered {
+            val bytes = SeamShared.readAndClose(file)
+            require(bytes.size <= SeamLimits.MAX_VALUE_BYTES) { SeamLimits.VALUE_TOO_LARGE }
+            require(fileExtension.isNotEmpty() && fileExtension.length <= 12 && fileExtension.all { it in 'a'..'z' || it in '0'..'9' }) { "not a file extension" }
+            val beside = IndexStore().aliveItem(besideItemId) ?: throw IllegalStateException(NO_SUCH_ITEM)
+            val clean = ItemNames.clean(name)
+            val context = this@SoilSeamService
+            kotlinx.coroutines.runBlocking {
+                val taker = com.symmetricalpalmtree.soil.importing.AppImports.takerOf(context, fileExtension) ?: throw IllegalStateException(Seam.MAKE_NO_APP)
+                // Beside a notebook of the same name is where it belongs; a second of its own kind is a copy.
+                val taken = com.symmetricalpalmtree.soil.data.index.LibraryStore().items(beside.parentId).filter { it.kind == taker.kind }.mapTo(HashSet()) { it.name }
+                val landed = if (clean in taken) com.symmetricalpalmtree.soil.importing.ImportNames.keepBothName(clean) { it in taken } else clean
+                val staged = java.io.File(java.io.File(cacheDir, "make").apply { mkdirs() }, UUID.randomUUID().toString())
+                try {
+                    staged.writeBytes(bytes)
+                    val id = com.symmetricalpalmtree.soil.importing.AppImports.make(context, taker.kind, taker.renderer, landed, beside.parentId, fileExtension, staged)
+                    ItemSessions.changed()
+                    val now = System.currentTimeMillis()
+                    SeamItem(id = id, kind = taker.kind, name = landed, createdAt = now, updatedAt = now)
+                } finally {
+                    staged.delete()
+                }
+            }
+        }
+
         override fun listItems(kind: String): List<SeamItem> = answered {
             require(SeamSchema.isValidKind(kind)) { "not a kind" }
             IndexStore().aliveItems(kind).map(::seamItem)

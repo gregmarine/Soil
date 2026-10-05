@@ -172,4 +172,17 @@ interface ISoilSeam {
      * stream), so this is how the bars reach Soil there. Observed only; the app consumes nothing.
      */
     void barKey(int keyCode, int action, long eventTime, int repeatCount);
+
+    // ── One kind's content made into another kind's item ──────
+
+    /**
+     * A new item made from a file an app wrote: [file] is handed, with [fileExtension], to the
+     * app that takes such files in (`IItemRenderer.ingest`), as an import from a picked file is.
+     * It lands in the folder [besideItemId] is in, called [name], or "[name] Copy" when an item
+     * of its own kind there has the name. This is how a notebook's words become a document: the
+     * notebook's app writes Markdown, and the document's app makes the document. Refused with
+     * `Seam.MAKE_NO_APP` when nothing takes the file, and one of `Seam.INGEST_*` when the app
+     * would not; nothing is left behind either way.
+     */
+    SeamItem makeItemFromFile(String besideItemId, String name, String fileExtension, in SeamBytes file);
 }

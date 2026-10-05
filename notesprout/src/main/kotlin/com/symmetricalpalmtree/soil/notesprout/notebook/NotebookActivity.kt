@@ -26,6 +26,7 @@ import com.symmetricalpalmtree.soil.notesprout.R
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookAction
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookDocument
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
+import com.symmetricalpalmtree.soil.notesprout.convert.ConvertFlow
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.data.PageContent
@@ -1304,6 +1305,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             }
             sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(pageId) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_notebook_action)) { exportVia(null) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_page_action)) { convertToDocument(wholeNotebook = false) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_notebook_action)) { convertToDocument(wholeNotebook = true) }
             sheet.show()
         }
     }
@@ -1312,6 +1315,29 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
      * Soil's export screen for this notebook, or one page of it. The notebook closes first, so
      * the file is free for a copy, and Soil opens it again on the way back.
      */
+    /**
+     * Convert: this page, or every page, read into a new document beside this notebook. The page
+     * is flushed first, so what is read is what is on it; the notebook itself is not changed.
+     */
+    private fun convertToDocument(wholeNotebook: Boolean) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val store = storeRef ?: return
+        val id = itemId ?: return
+        runPageOp {
+            doc.flushUntilClean()
+            val numbered = doc.pages.mapIndexed { i, page -> page to i + 1 }
+            val pages = if (wholeNotebook) numbered else numbered.filter { it.first.id == doc.pageId }
+            val notebookName = withContext(Dispatchers.IO) { runCatching { (application as NotesproutApp).soil.seam().item(id)?.name }.getOrNull() }.orEmpty().ifBlank { getString(R.string.convert_default_name) }
+            val name = if (wholeNotebook) notebookName else getString(R.string.convert_page_name, notebookName, pages.firstOrNull()?.second ?: 1)
+            hideFloatingBars()
+            dismissCollapsed()
+            paper.releaseRender()
+            pushExclusions()
+            ConvertFlow.run(this@NotebookActivity, recognizerPort, store, id, pages, name, onOpen = ::openElsewhere)
+        }
+    }
+
     private fun exportVia(pageId: String?) {
         if (!opened || closing) return
         val id = itemId ?: return

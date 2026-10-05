@@ -45,6 +45,9 @@ object Seam {
     const val RENDER_DAMAGED = "render: a page has no size"
     const val RENDER_FAILED = "render: failed"
 
+    /** No installed app takes a file of the kind `makeItemFromFile` was handed. */
+    const val MAKE_NO_APP = "make: no app"
+
     /** Why an app would not take a file in (`IItemRenderer.ingest`). */
     const val INGEST_NOT_TEXT = "ingest: not text"
     const val INGEST_TOO_LARGE = "ingest: too large"

@@ -27,6 +27,13 @@ class SeamRecognizerPort(private val seam: suspend () -> ISoilSeam) : Recognizer
     suspend fun recognizeInk(strokes: List<Stroke>, areaWidth: Float, areaHeight: Float, preContext: String): String =
         call { it.recognizeInk(SeamShared.write(InkWire.encode(strokes, areaWidth, areaHeight)), areaWidth, areaHeight, preContext) }
 
+    /** The text of a whole page's ink: the recogniser finds the lines and paragraphs itself. */
+    suspend fun recognizePage(strokes: List<Stroke>, pageWidth: Float, pageHeight: Float): String =
+        call { it.recognizePage(SeamShared.write(InkWire.encode(strokes, pageWidth, pageHeight)), pageWidth, pageHeight) }
+
+    /** Soil's seam, for the one call of a recognition flow that is not recognition. */
+    suspend fun <T> soil(block: (ISoilSeam) -> T): T = withContext(Dispatchers.IO) { block(seam()) }
+
     private suspend fun <T> call(block: (ISoilSeam) -> T): T = withContext(Dispatchers.IO) {
         try {
             block(seam())
