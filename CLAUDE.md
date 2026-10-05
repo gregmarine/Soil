@@ -14,11 +14,10 @@ the library with folders and schemes, the clipboard and tags, Send, the extensio
 recognition and Settings, export and import, cloud storage, backup and restore, and these
 documents. `docs/design.md` §16 lists the phases and their documents.
 
-**The Docsprout effort is built** (2026-10-04, on the branch `docsprout`, every phase walked on
-the Nomad): the document app with its rendered editor and its Markdown editor, type-to-format,
-Proofread, a document's export and the import of text files, links both ways, the Scratch Pad's
-Send reworked as a clipboard, Convert from a notebook, and these documents. It is merged on
-Greg's word, not before. `docs/design.md` §16 lists the phases.
+**The Docsprout effort is done and merged** (2026-10-04): the document app with its rendered
+editor and its Markdown editor, type-to-format, Proofread, a document's export and the import of
+text files, links both ways, the Scratch Pad's Send reworked as a clipboard, Convert from a
+notebook, and these documents. `docs/design.md` §16 lists the phases.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
