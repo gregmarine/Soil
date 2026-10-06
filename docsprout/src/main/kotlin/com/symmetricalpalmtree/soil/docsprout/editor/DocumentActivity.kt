@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
@@ -81,6 +82,9 @@ class DocumentActivity : AppCompatActivity() {
     private val ops = Mutex()
     private var session: ISeamItem? = null
     private var store: DocumentStore? = null
+
+    /** The Bible links the writer took off ([BibleUnlinked] keys): never linked again by the pass. */
+    private val unlinked = HashSet<String>()
     private var itemId: String? = null
 
     /** The text the file is known to hold. Read and written only on Main, inside [ops]. */
@@ -154,6 +158,7 @@ class DocumentActivity : AppCompatActivity() {
         links = DocumentLinksControl(
             this, binding, prefs, itemId = { itemId }, usable = { opened && !closing },
             saveNow = ::save, editLink = { format.run(FormatTool.LINK) }, pickerLauncher = linkPicker,
+            unlinkBible = ::rememberUnlinked,
         )
         links.install()
         inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
@@ -240,7 +245,11 @@ class DocumentActivity : AppCompatActivity() {
             onProofread = { proofread.promptProofread() },
             onPasteInk = { inkPaste.prompt() },
             askLink = { current, apply ->
-                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed -> apply(typed, typed) }
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed ->
+                    // Words that read as a Bible reference link into the Bible, under the words as typed.
+                    val wire = if (typed.isEmpty()) null else BibleLinks.wireOf(typed)
+                    if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
+                }
             },
         )
         val controls = FormatBar.build(
@@ -294,6 +303,15 @@ class DocumentActivity : AppCompatActivity() {
         recreate()
     }
 
+    /** A Bible link taken off: remembered now, and with the document, so no pass puts it back. */
+    private fun rememberUnlinked(words: String, wire: String) {
+        unlinked += BibleUnlinked.key(words, wire)
+        val documents = store ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") }
+        }
+    }
+
     // ── Open ──────
 
     private suspend fun open() {
@@ -316,6 +334,8 @@ class DocumentActivity : AppCompatActivity() {
                     val documents = DocumentStore(SeamRowStore(opened), item.id)
                     store = documents
                     val text = documents.load()
+                    unlinked.clear()
+                    unlinked += runCatching { documents.unlinked() }.getOrDefault(emptySet())
                     prefs.lastDocumentId = item.id
                     item.name to text
                 }

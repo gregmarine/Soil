@@ -40,6 +40,21 @@ class DocumentStore(private val store: RowStore, private val documentId: String,
         }
     }
 
+    /** The Bible links the writer took off, as [BibleUnlinked] keys. A row this build cannot read is dropped. */
+    fun unlinked(): Set<String> = guard {
+        store.query(DocumentSql.selectUnlinked(documentId)).rows.mapNotNullTo(HashSet()) { row ->
+            val words = row.textOrNull("text") ?: return@mapNotNullTo null
+            val wire = row.textOrNull("refId") ?: return@mapNotNullTo null
+            BibleUnlinked.key(words, wire)
+        }
+    }
+
+    /** Remember a Bible link taken off, so the pass never puts it back. Its own batch. */
+    fun forget(words: String, wire: String, now: Long = System.currentTimeMillis()) = guard {
+        store.exec(listOf(DocumentSql.insertUnlinked(newId(), documentId, BibleUnlinked.words(words), wire, now)))
+        Unit
+    }
+
     private fun read(): String? {
         val row = store.query(DocumentSql.selectBody(documentId)).rows.firstOrNull() ?: return null
         bodyId = row.text("id")

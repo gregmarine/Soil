@@ -71,6 +71,8 @@ dependencies {
     // The page bundle a render is written as.
     implementation(project(":ext-api"))
     implementation(project(":markdown"))
+    // A Bible reference: what a bible: link names, found in prose and typed into the Link dialog.
+    implementation(project(":bible-ref"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

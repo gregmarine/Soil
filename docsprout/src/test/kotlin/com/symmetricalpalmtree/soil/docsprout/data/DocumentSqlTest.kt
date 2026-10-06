@@ -14,6 +14,7 @@ class DocumentSqlTest {
             DocumentSql.insertRoot("doc", 5L),
             DocumentSql.insertBody("body", "doc", 5L),
             DocumentSql.setBody("body", "# Words", 6L),
+            DocumentSql.insertUnlinked("u", "doc", "john 3:16", "JHN:3:16-3:16", 7L),
         )
         for (statement in writes) {
             SeamSql.checkExec(statement.sql)
@@ -22,11 +23,12 @@ class DocumentSqlTest {
     }
 
     @Test
-    fun `the read passes the seam's checker`() {
-        val read = DocumentSql.selectBody("doc")
-        SeamSql.checkQuery(read.sql)
-        assertEquals(1, SeamSql.bindCount(read.sql))
-        assertEquals(listOf<Cell>(Cell.Text("doc")), read.args)
+    fun `the reads pass the seam's checker`() {
+        for (read in listOf(DocumentSql.selectBody("doc"), DocumentSql.selectUnlinked("doc"))) {
+            SeamSql.checkQuery(read.sql)
+            assertEquals(1, SeamSql.bindCount(read.sql))
+            assertEquals(listOf<Cell>(Cell.Text("doc")), read.args)
+        }
     }
 
     @Test

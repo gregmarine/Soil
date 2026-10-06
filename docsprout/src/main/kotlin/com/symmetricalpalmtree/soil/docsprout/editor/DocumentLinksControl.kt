@@ -54,6 +54,8 @@ internal class DocumentLinksControl(
     private val saveNow: () -> Unit,
     private val editLink: () -> Unit,
     private val pickerLauncher: ActivityResultLauncher<Intent>,
+    /** A Bible link taken off by the sheet's Remove: its words and its wire, to be remembered. */
+    private val unlinkBible: (words: String, wire: String) -> Unit,
 ) {
 
     private var busy = false
@@ -100,6 +102,7 @@ internal class DocumentLinksControl(
 
     private fun follow(url: String) {
         if (!usable() || busy) return
+        BibleLinks.wireOfAddress(url)?.let { wire -> saveNow(); handToSoil(wire); return }
         val address = SoilAddress.decode(url)
         if (address == null) { openOutside(url); return }
         val me = itemId() ?: return
@@ -141,6 +144,15 @@ internal class DocumentLinksControl(
         busy = false
     }
 
+    /** A link into the Bible: Soil opens the reader on the passage, over this document. */
+    private fun handToSoil(wire: String): Boolean {
+        val started = runCatching {
+            activity.startActivity(Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE).putExtra(Seam.EXTRA_BIBLE_WIRE, wire))
+        }.isSuccess
+        if (!started) Dialogs.problem(activity, R.string.link_failed_title, R.string.link_no_soil_body)
+        return started
+    }
+
     private fun handToSoil(targetId: String, pageId: String?): Boolean {
         val started = runCatching {
             activity.startActivity(
@@ -170,6 +182,7 @@ internal class DocumentLinksControl(
         activity.lifecycleScope.launch {
             val address = SoilAddress.decode(link.url)
             val title = when {
+                BibleLinks.labelOf(link.url) != null -> BibleLinks.labelOf(link.url)!!
                 address == null -> link.url
                 else -> item(address.itemId)?.let { activity.getString(if (address.pageId == null) R.string.link_sheet_library else R.string.link_sheet_library_page, it.name) }
                     ?: activity.getString(R.string.link_sheet_gone)
@@ -178,9 +191,19 @@ internal class DocumentLinksControl(
             ActionSheetDialog(activity).title(title)
                 .addAction(R.drawable.ic_external_link, activity.getString(R.string.link_open)) { follow(link.url) }
                 .addAction(PaperR.drawable.ic_pencil, activity.getString(R.string.link_edit)) { if (caretInto(link)) editLink() }
-                .addAction(PaperR.drawable.ic_trash, activity.getString(R.string.link_remove)) { if (caretInto(link)) RichOps.setLink(binding.rich, "") }
+                .addAction(PaperR.drawable.ic_trash, activity.getString(R.string.link_remove)) { remove(link) }
                 .show()
         }
+    }
+
+    /** The link taken off its words. A Bible link is remembered as taken off, so the pass that
+     *  links references as they are typed never puts it back. */
+    private fun remove(link: LinkSpan) {
+        val wire = BibleLinks.wireOfAddress(link.url)
+        val words = binding.rich.rangeOf(link)?.let { (a, b) -> binding.rich.text?.subSequence(a, b)?.toString() }
+        if (!caretInto(link)) return
+        RichOps.setLink(binding.rich, "")
+        if (wire != null && words != null) unlinkBible(words, wire)
     }
 
     /** The caret put inside [link], which is how the Link tool knows which link is meant. */
