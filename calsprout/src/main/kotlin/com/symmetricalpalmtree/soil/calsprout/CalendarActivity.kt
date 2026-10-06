@@ -13,6 +13,7 @@ import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.soil.calsprout.databinding.ActivityCalendarBinding
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
+import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
@@ -389,9 +390,13 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         }
     }
 
-    /** The pager title's day picker — phase 2. */
+    /** The pager title's day picker. A dialog raised at a chrome tap — the recorded exception,
+     *  not a new one — and the pick itself is a page op like every other navigation. */
     private fun showPicker() {
         if (!opened || closing || isFinishing || isDestroyed) return
+        DayPickerDialog.show(this, nav.anchor) { day ->
+            runPageOp { showMove(nav.picked(day, LocalDate.now(), nowHour())) }
+        }
     }
 
     /** The hour the clock says, for the half a Day page opens on. */

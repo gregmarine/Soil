@@ -40,4 +40,9 @@
     <string name="recognize_too_dense">Too much ink to recognise at once.</string>
     <string name="recognize_failed">The recogniser did not answer.</string>
     <string name="recognize_nothing">Nothing could be made of that ink. It has been left as it was.</string>
+
+    <!-- The day picker (DayPickerDialog): the arrows step months, or years in the month chooser. -->
+    <string name="cd_picker_prev">Previous</string>
+    <string name="cd_picker_next">Next</string>
+    <string name="cd_picker_flip">Switch between days and months</string>
 </resources>
