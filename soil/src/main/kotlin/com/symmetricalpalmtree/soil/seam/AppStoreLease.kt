@@ -102,7 +102,9 @@ class AppStoreLease private constructor(
 
     companion object {
         private const val TAG = "AppStoreLease"
-        const val MAX_BATCH = 64
+        /** Statements in one `exec`: the seam's own cap, the same as an item session's — a page of
+         *  ink flushes as one transaction of as many statements as strokes (Calsprout, 2026-10-05). */
+        const val MAX_BATCH = SeamLimits.MAX_BATCH_STATEMENTS
 
         /** The store's name in the garden: the app's package under an `app_` prefix. */
         fun storeName(packageName: String): String =

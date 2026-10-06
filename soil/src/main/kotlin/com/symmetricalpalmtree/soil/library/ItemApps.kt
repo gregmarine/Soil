@@ -55,14 +55,16 @@ object ItemApps {
     class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
 
     /**
-     * Every trusted app that opens some kind of item, or the Bible, one entry per app, by name.
+     * Every trusted app that opens some kind of item, the Bible or the calendar, one entry per
+     * app, by name.
      * What the side menu lists. Read off the main thread.
      */
     fun sproutApps(context: Context): List<SproutApp> {
         val pm = context.packageManager
         return try {
             (pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA) +
-                pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0))
+                pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0) +
+                pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_CALENDAR), 0))
                 .map { it.activityInfo.packageName }
                 .distinct()
                 .filter {
@@ -154,6 +156,45 @@ object ItemApps {
             Intent(Seam.ACTION_OPEN_BIBLE)
                 .setComponent(ComponentName(app.packageName, app.className))
                 .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+            newTask = false,
+        )
+    }
+
+    /**
+     * The screen that opens the calendar ([Seam.ACTION_OPEN_CALENDAR]), or null when no app that
+     * may be trusted offers to — [chooseBible]'s rule: a day is not an item, so there is no kind.
+     */
+    fun findCalendar(context: Context): Candidate? {
+        val pm = context.packageManager
+        val found = try {
+            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_CALENDAR), 0).map { info ->
+                val activity = info.activityInfo
+                Candidate(
+                    packageName = activity.packageName,
+                    className = activity.name,
+                    kind = null,
+                    sameKey = pm.checkSignatures(context.packageName, activity.packageName) == PackageManager.SIGNATURE_MATCH,
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "the apps could not be read: ${e.javaClass.simpleName}")
+            emptyList()
+        }
+        return chooseBible(found, context.packageName)
+    }
+
+    /**
+     * Open the calendar on [date] (ISO `yyyy-MM-dd`), or where it was left when null. In the
+     * caller's own task, as [openBible]: a link followed from a notebook or a document puts the
+     * day over that screen, so Back comes back to it.
+     */
+    fun openCalendar(context: Context, date: String?): Opened {
+        val app = findCalendar(context) ?: return Opened.NO_APP
+        return start(
+            context,
+            Intent(Seam.ACTION_OPEN_CALENDAR)
+                .setComponent(ComponentName(app.packageName, app.className))
+                .putExtra(Seam.EXTRA_CAL_DATE, date),
             newTask = false,
         )
     }

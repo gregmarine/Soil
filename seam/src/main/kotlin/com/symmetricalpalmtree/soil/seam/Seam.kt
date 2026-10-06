@@ -39,6 +39,19 @@ object Seam {
      */
     const val EXTRA_BIBLE_WIRE = "com.symmetricalpalmtree.soil.extra.BIBLE_WIRE"
 
+    /**
+     * The action of the screen Calsprout opens a day in: the calendar, which has no items of its
+     * own and so answers no [ACTION_OPEN_ITEM] (Calsprout, 2026-10-05). Soil starts it, and only
+     * Soil may: the screen is guarded by [permissionFor]. What rides the Intent is
+     * [EXTRA_CAL_DATE], or nothing, for the calendar where it was left. An app that answers this
+     * is a Sprout app too, and the side menu lists it.
+     */
+    const val ACTION_OPEN_CALENDAR = "com.symmetricalpalmtree.soil.action.OPEN_CALENDAR"
+
+    /** A day, as ISO `yyyy-MM-dd`: on [ACTION_OPEN_CALENDAR] the day to open on, and on
+     *  [ACTION_FOLLOW] in place of [EXTRA_ITEM_ID] a link to a day to follow. */
+    const val EXTRA_CAL_DATE = "com.symmetricalpalmtree.soil.extra.CAL_DATE"
+
     /** The action of Biblesprout's `<service>` that serves a passage's words (`IBibleText`),
      *  guarded by [permissionFor]: Soil binds it, and relays it as `passageText`. */
     const val ACTION_BIBLE_TEXT = "com.symmetricalpalmtree.soil.action.BIBLE_TEXT"

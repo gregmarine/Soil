@@ -110,6 +110,7 @@ extensions, debug with debug (`.dev` talks to `.dev`):
 adb -s SN078D10012852 install -r soil/build/outputs/apk/debug/soil-debug.apk
 adb -s SN078D10012852 install -r notesprout/build/outputs/apk/debug/notesprout-debug.apk
 adb -s SN078D10012852 install -r docsprout/build/outputs/apk/debug/docsprout-debug.apk
+adb -s SN078D10012852 install -r calsprout/build/outputs/apk/debug/calsprout-debug.apk
 adb -s SN078D10012852 install -r biblesprout/build/outputs/apk/debug/biblesprout-debug.apk
 adb -s SN078D10012852 install -r ext-mlkit/build/outputs/apk/debug/ext-mlkit-debug.apk
 adb -s SN078D10012852 install -r ext-soilfile/build/outputs/apk/debug/ext-soilfile-debug.apk

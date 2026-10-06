@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Calsprout's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
+     not repeated here. -->
+<resources>
+    <string name="app_name">Calsprout</string>
+
+    <string name="calendar_opening">Opening…</string>
+
+    <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
+    <string name="cd_calendar_back">Back</string>
+    <string name="cd_tool_pen">Pen</string>
+    <string name="cd_tool_eraser">Eraser</string>
+    <string name="cd_tool_lasso">Lasso</string>
+    <string name="cd_calendar_today">Go to today</string>
+    <string name="cd_calendar_view_month">Month view</string>
+    <string name="cd_calendar_view_week">Week view</string>
+    <string name="cd_calendar_view_day">Day view</string>
+    <string name="cd_calendar_events">Events</string>
+    <string name="cd_calendar_links">What links here</string>
+    <string name="cd_calendar_more">More</string>
+    <string name="cd_prev_period">Previous</string>
+    <string name="cd_next_period">Next</string>
+    <string name="cd_calendar_pick_day">Pick a day</string>
+
+    <!-- The band below the Month and Week grids, labelled in light ink on the paper itself. -->
+    <string name="calendar_notes_label">Notes</string>
+
+    <!-- The More sheet: the three doors (phases 6 and 7 wire them). -->
+    <string name="calendar_copy_page">Copy page</string>
+    <string name="calendar_paste">Paste</string>
+    <string name="calendar_export_action">Export…</string>
+
+    <string name="delete_selection_action">Delete selection</string>
+    <string name="calendar_copy_selection">Copy selection</string>
+
+    <!-- Failure wording: never a path, never a name. -->
+    <string name="calendar_store_failed_title">Calendar unavailable</string>
+    <string name="calendar_store_failed_body">Soil could not open the calendar\'s storage. Nothing was lost. Unlock the library in Soil and try again.</string>
+</resources>
