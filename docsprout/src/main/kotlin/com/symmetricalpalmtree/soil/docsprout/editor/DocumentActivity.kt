@@ -30,6 +30,7 @@ import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
 import com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
+import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -250,6 +251,7 @@ class DocumentActivity : AppCompatActivity() {
             onReflow = { tools.reflow() },
             onProofread = { proofread.promptProofread() },
             onPasteInk = { inkPaste.prompt() },
+            onBiblePassage = { askPassage() },
             askLink = { current, apply ->
                 // With no link in place, a reference the caret is on is offered: the words are
                 // selected so the link wraps all of them, and the dialog opens on them. This is how
@@ -318,6 +320,64 @@ class DocumentActivity : AppCompatActivity() {
         setIntent(intent)
         if (closing) return
         recreate()
+    }
+
+    // ── A Bible passage, as words ──────
+
+    /** Insert a Bible passage: a reference typed, its verses read from the Bible's app through
+     *  Soil, and put in at the caret under a link to the passage. */
+    private fun askPassage() {
+        if (!opened || closing) return
+        PassageDialog.ask(this) { typed ->
+            val wire = BibleLinks.wireOf(typed)
+            if (wire == null) {
+                Dialogs.problem(this, R.string.passage_not_reference_title, getString(R.string.passage_not_reference_body, typed))
+                return@ask
+            }
+            lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) { runCatching { (application as DocsproutApp).soil.seam().passageText(wire) } }
+                if (!opened || closing) return@launch
+                result.onSuccess { insertPassage(wire, it) }.onFailure { e ->
+                    Log.w(TAG, "the verses could not be read: ${e.message ?: e.javaClass.simpleName}")
+                    Dialogs.problem(
+                        this@DocumentActivity, R.string.passage_failed_title,
+                        when (e.message) {
+                            Seam.BIBLE_NO_APP -> R.string.passage_no_app_body
+                            Seam.BIBLE_TOO_LONG -> R.string.passage_too_long_body
+                            else -> R.string.passage_failed_body
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * The passage put in: the label as a link to the passage, then the verses, a paragraph per
+     * chapter run as the reader wrote them. In the rendered document the words go in as words and
+     * the link is a span; in the source they are Markdown.
+     */
+    private fun insertPassage(wire: String, markdown: String) {
+        val label = BibleLinks.labelOf(BibleLinks.addressOf(wire)) ?: wire
+        val address = BibleLinks.addressOf(wire)
+        val paragraphs = PassageText.paragraphs(markdown)
+        if (sourceShowing) {
+            val text = binding.editor.text ?: return
+            val a = minOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val b = maxOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val words = (listOf("[$label]($address)") + paragraphs.map { it.markdown }).joinToString("\n\n")
+            text.replace(a, b, words)
+            binding.editor.setSelection((a + words.length).coerceAtMost(text.length))
+        } else {
+            val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
+            val words = (listOf(label) + paragraphs.map { it.plain }).joinToString("\n")
+            RichOps.insertText(binding.rich, words, words.length, words.length)
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.edited(words = false)
+        }
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
+        bibleLinks.checkDocument()
     }
 
     /** The reference the caret sits on or touches in the rendered document, if any, as the pass would read it. */

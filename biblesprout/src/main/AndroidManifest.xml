@@ -49,6 +49,17 @@
             </intent-filter>
         </activity>
 
+        <!-- A passage's words for Soil, which relays them to a notebook or a document; bound by
+             Soil and nothing else. -->
+        <service
+            android:name=".PassageService"
+            android:exported="true"
+            android:permission="${soilPackage}.permission.SEAM">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.BIBLE_TEXT" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>

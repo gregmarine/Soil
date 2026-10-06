@@ -338,6 +338,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                     this@NotebookActivity.landReference(pageId, strokeIds, text, payload, label)
                 override fun relandReference(pageId: String, link: PageLink, before: PageText, after: PageText, payload: String, label: String) =
                     this@NotebookActivity.relandReference(pageId, link, before, after, payload, label)
+                override suspend fun passageText(wire: String): String? = withContext(Dispatchers.IO) {
+                    runCatching { (application as NotesproutApp).soil.seam().passageText(wire) }
+                        .onFailure { Log.w(TAG, "the verses could not be read: ${it.message ?: it.javaClass.simpleName}") }
+                        .getOrNull()
+                }
             },
         )
         objectBar = ObjectSelectionBar(
@@ -353,6 +358,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             onSend = { currentSelection?.let { askPadPlacement(it) } },
             onMakeText = { currentSelection?.let { convertToText(it) } },
             onBible = { currentSelection?.let { bibleRefs.convert(it) } },
+            onVerses = { loneLink()?.let { bibleRefs.expand(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -680,7 +686,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             isSticky = { it in doc.stickies },
         )
         val level = sel.contentIds.singleOrNull()?.let { doc.headings[it]?.level }
-        objectBar.show(sel.bounds, mode, level)
+        val lone = sel.contentIds.singleOrNull()?.takeIf { sel.strokeIds.isEmpty() }?.let { doc.links[it] }
+        val reference = lone != null && LinkPayload.referenceOf(lone.payload) != null && !LinkPayload.isBibleText(lone.payload)
+        objectBar.show(sel.bounds, mode, level, bibleReference = reference)
         pushExclusions()
     }
 
@@ -984,7 +992,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     /** Edit link on the bar, or the dead-target dialog's Edit: the picker prefilled. */
     /** Edit link: a Bible link's reference dialog, any other's the page picker. */
     private fun beginEdit(link: PageLink) {
-        if (LinkPayload.referenceOf(link.payload) != null) bibleRefs.edit(link) else launchPicker(wrap = null, edit = link)
+        when {
+            LinkPayload.isBibleText(link.payload) -> bibleRefs.editVerses(link)
+            LinkPayload.referenceOf(link.payload) != null -> bibleRefs.edit(link)
+            else -> launchPicker(wrap = null, edit = link)
+        }
     }
 
     /**

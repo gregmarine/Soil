@@ -79,6 +79,16 @@ interface ISoilSeam {
      */
     List<SeamBibleBacklink> bibleBacklinks(int startKey, int endKey);
 
+    /**
+     * The verses of a passage as Markdown, from the Bible's own app: a bold label line, then the
+     * verses as prose with plain verse numbers, one paragraph per chapter run. At most a chapter.
+     * Refused with Seam.BIBLE_NO_APP when Biblesprout is not installed, Seam.BIBLE_TOO_LONG for
+     * more than a chapter, Seam.BIBLE_UNREADABLE for a wire it cannot read, and
+     * Seam.BIBLE_FAILED when it did not answer. Slow on a first call: the reader may be copying
+     * its Bible out of its APK.
+     */
+    String passageText(String wire);
+
     /** A template of the paper library, or null when there is none alive by that id. */
     SeamTemplate template(String templateId);
 

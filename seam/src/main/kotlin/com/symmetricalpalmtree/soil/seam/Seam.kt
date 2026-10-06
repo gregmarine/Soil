@@ -39,6 +39,19 @@ object Seam {
      */
     const val EXTRA_BIBLE_WIRE = "com.symmetricalpalmtree.soil.extra.BIBLE_WIRE"
 
+    /** The action of Biblesprout's `<service>` that serves a passage's words (`IBibleText`),
+     *  guarded by [permissionFor]: Soil binds it, and relays it as `passageText`. */
+    const val ACTION_BIBLE_TEXT = "com.symmetricalpalmtree.soil.action.BIBLE_TEXT"
+
+    /** What `passageText` says when it cannot: the exact messages of its IllegalStateException. */
+    const val BIBLE_NO_APP = "bible: no app"
+    const val BIBLE_TOO_LONG = "bible: too long"
+    const val BIBLE_UNREADABLE = "bible: unreadable"
+    const val BIBLE_FAILED = "bible: failed"
+
+    /** The most verses one `passageText` answers: a chapter, with room (Psalm 119 has 176). */
+    const val MAX_PASSAGE_VERSES = 200
+
     // ── Export: Soil's screen, and the app's renderer behind it ──────
 
     /**

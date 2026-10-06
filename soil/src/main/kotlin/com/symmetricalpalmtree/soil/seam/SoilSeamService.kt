@@ -160,6 +160,11 @@ class SoilSeamService : Service() {
             }
         }
 
+        override fun passageText(wire: String): String = answered {
+            require(BibleAddress.isWire(wire)) { "not a wire" }
+            com.symmetricalpalmtree.soil.library.BibleTextClient.passageText(this@SoilSeamService, wire)
+        }
+
         override fun template(templateId: String): SeamTemplate? = answered {
             TemplateStore().template(templateId)?.let { SeamTemplate(it.id, it.name, it.fit) }
         }

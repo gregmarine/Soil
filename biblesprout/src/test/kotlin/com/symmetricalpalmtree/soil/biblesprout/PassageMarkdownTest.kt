@@ -3,7 +3,6 @@ package com.symmetricalpalmtree.soil.biblesprout
 import com.symmetricalpalmtree.soil.bibleref.*
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -50,33 +49,5 @@ class PassageMarkdownTest {
     @Test
     fun `no verses builds nothing`() {
         assertEquals("", PassageMarkdown.build("John 3:16", emptyList()))
-    }
-
-    @Test
-    fun `ten verses are within the cap and eleven are not`() {
-        assertTrue(PassageMarkdown.withinCap(passages("JHN:3:10-3:19")))
-        assertFalse(PassageMarkdown.withinCap(passages("JHN:3:10-3:20")))
-    }
-
-    @Test
-    fun `the cap counts across ranges and books`() {
-        assertTrue(PassageMarkdown.withinCap(passages("JHN:3:14-3:18,PRO:3:5-3:9")))   // 5 + 5
-        assertFalse(PassageMarkdown.withinCap(passages("JHN:3:14-3:18,PRO:3:5-3:10")))  // 5 + 6
-    }
-
-    @Test
-    fun `a whole chapter is refused however short`() {
-        assertFalse(PassageMarkdown.withinCap(passages("PSA:117:0-117:999")))
-        assertFalse(PassageMarkdown.withinCap(passages("JHN:3:16-3:16,PSA:117:0-117:999")))
-    }
-
-    @Test
-    fun `a cross-chapter range counts its last chapter's verses plus one, and the rows decide`() {
-        assertTrue(PassageMarkdown.withinCap(passages("JHN:3:35-4:2")))
-        assertFalse(PassageMarkdown.withinCap(passages("JHN:3:35-4:10")))
-        val rows = (1..11).map { verse("JHN", if (it < 3) 3 else 4, it, "w") }
-        assertFalse(PassageMarkdown.rowsWithinCap(rows))
-        assertTrue(PassageMarkdown.rowsWithinCap(rows.take(10)))
-        assertFalse(PassageMarkdown.rowsWithinCap(emptyList()))
     }
 }
