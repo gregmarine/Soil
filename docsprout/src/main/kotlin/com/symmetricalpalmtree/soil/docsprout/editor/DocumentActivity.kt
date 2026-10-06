@@ -26,6 +26,7 @@ import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
+import com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
@@ -105,6 +106,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
     private lateinit var links: DocumentLinksControl
+    private lateinit var bibleLinks: BibleLinkController
     private lateinit var inkPaste: InkPaste
 
     /** Soil's item picker, for the Link dialog's Choose from library. */
@@ -161,6 +163,7 @@ class DocumentActivity : AppCompatActivity() {
             unlinkBible = ::rememberUnlinked,
         )
         links.install()
+        bibleLinks = BibleLinkController(binding.rich, binding.editor, ::rendered, usable = { opened && !closing }, lifecycleScope, unlinked = { unlinked })
         inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
         // Ctrl+V and the text menu's Paste put in the last thing copied: the clipboard's ink, as
         // words, when it was copied after the text on the device's own clipboard.
@@ -231,6 +234,7 @@ class DocumentActivity : AppCompatActivity() {
         surface().post { tools.keepCaretVisible() }
         // The flags were on the other surface's text: this one is checked from the top.
         proofread.checkDocument()
+        bibleLinks.checkDocument()
     }
 
     /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
@@ -306,6 +310,7 @@ class DocumentActivity : AppCompatActivity() {
     /** A Bible link taken off: remembered now, and with the document, so no pass puts it back. */
     private fun rememberUnlinked(words: String, wire: String) {
         unlinked += BibleUnlinked.key(words, wire)
+        bibleLinks.bump()
         val documents = store ?: return
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") }
@@ -374,6 +379,7 @@ class DocumentActivity : AppCompatActivity() {
         opened = true
         itemId?.let { links.arrived(it) }
         proofread.checkDocument()
+        bibleLinks.checkDocument()
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
         Slog.d(TAG) { "opened: ${body.length} chars" }
@@ -450,6 +456,7 @@ class DocumentActivity : AppCompatActivity() {
         }
         surface().requestFocus()
         surface().post { tools.keepCaretVisible() }
+        bibleLinks.checkDocument()
     }
 
     override fun onResume() {
@@ -563,6 +570,7 @@ class DocumentActivity : AppCompatActivity() {
         super.onDestroy()
         main.removeCallbacks(autosave)
         if (::proofread.isInitialized) proofread.dispose()
+        if (::bibleLinks.isInitialized) bibleLinks.dispose()
         letGo()
     }
 
