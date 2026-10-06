@@ -62,6 +62,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.soil.notesprout.clip.BibleClipboard
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
@@ -455,6 +456,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 // tagged page by it without ever opening the file.
                 runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
                 SoilClipboard.ensureLoaded(seam)
+                BibleClipboard.refresh(seam)
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPages(item.id, pages.map { it.id }) } }
                 }
@@ -512,7 +514,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         preparePaper()
         showPage(firstLoad = true, prebuilt = linkRenderer.prebuild(doc.first.links.values.toList()))
         opened = true
-        markClipboard(SoilClipboard.hasObjects)
+        markClipboard(SoilClipboard.hasObjects || BibleClipboard.has)
         pushExclusions()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
@@ -586,7 +588,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         override fun onPaperTapped(x: Float, y: Float) {
             if (!opened || closing) return
             if (tapDismissedPopup) return
-            if (!SoilClipboard.hasObjects) return
+            if (!SoilClipboard.hasObjects && !BibleClipboard.has) return
             doObjectPaste(tapX = x, tapY = y)
         }
 
@@ -1457,8 +1459,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private fun refreshClipboardMark() {
         if (!opened || closing) return
         lifecycleScope.launch {
-            withContext(Dispatchers.IO) { runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) } }
-            if (opened && !closing) markClipboard(SoilClipboard.hasObjects)
+            withContext(Dispatchers.IO) {
+                runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) }
+                runCatching { BibleClipboard.refresh((application as NotesproutApp).soil.seam()) }
+            }
+            if (opened && !closing) markClipboard(SoilClipboard.hasObjects || BibleClipboard.has)
         }
     }
 
@@ -1577,6 +1582,22 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         if (!opened || closing) return
         val doc = document ?: return
         val pageId = doc.pageId
+        // A passage from the Bible, copied after whatever the notebook kind's slot holds: the
+        // paste asks which of it goes in, where the pen tapped.
+        if (BibleClipboard.newerThan(SoilClipboard.header)) {
+            lifecycleScope.launch {
+                val clip = withContext(Dispatchers.IO) { runCatching { BibleClipboard.read(seam()) }.getOrNull() }
+                if (!opened || closing || document?.pageId != pageId) return@launch
+                if (clip == null) {
+                    withContext(Dispatchers.IO) { runCatching { BibleClipboard.clear(seam()) } }
+                    markClipboard(SoilClipboard.hasObjects)
+                    Dialogs.problem(this@NotebookActivity, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
+                    return@launch
+                }
+                bibleRefs.pasteFromClipboard(clip, tapX, tapY)
+            }
+            return
+        }
         runPageOp {
             val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
             if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS || env.rows.isEmpty()) {
@@ -1638,11 +1659,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private suspend fun retireClipboard() {
         markClipboard(false)
         runCatching { withContext(Dispatchers.IO) { SoilClipboard.clear((application as NotesproutApp).soil.seam()) } }
+        runCatching { withContext(Dispatchers.IO) { BibleClipboard.clear((application as NotesproutApp).soil.seam()) } }
     }
 
     /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with nothing of ours to offer. */
     private fun showLassoPopup(anchor: View? = null) {
-        if (!opened || closing || !SoilClipboard.hasObjects) return
+        if (!opened || closing || !(SoilClipboard.hasObjects || BibleClipboard.has)) return
         hideFloatingBars()
         if (lassoPopup.show(anchor)) pushExclusions()
     }

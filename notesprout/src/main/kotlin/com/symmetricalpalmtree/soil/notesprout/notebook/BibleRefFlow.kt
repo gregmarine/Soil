@@ -22,7 +22,9 @@ import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import com.symmetricalpalmtree.soil.notesprout.recognition.InkRecognition
 import com.symmetricalpalmtree.soil.notesprout.recognition.SeamRecognizerPort
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
+import com.symmetricalpalmtree.soil.seamkit.clip.BibleClip
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import java.util.UUID
 import com.symmetricalpalmtree.soil.paper.R as PaperR
@@ -105,6 +107,24 @@ class BibleRefFlow(private val activity: AppCompatActivity, private val host: Ho
             if (verses) readVerses(wire) { text -> landVerses(pageId, wire, text, emptyList(), anchor = null, preferredTop = null, inkBounds = null) }
             else insert(pageId, typed, wire)
         }
+    }
+
+    /**
+     * A passage pasted from the clipboard (the reader's Copy), **asked each time**: the reference
+     * alone, landed as a link under its canonical label where the pen tapped (or the centre), or
+     * the verses with it, the clipboard's own words placed in the verses column near the tap.
+     */
+    fun pasteFromClipboard(clip: BibleClip, tapX: Float?, tapY: Float?) {
+        if (!host.alive) return
+        val pageId = host.document?.pageId ?: return
+        ActionSheetDialog(activity).title(clip.label)
+            .addAction(PaperR.drawable.ic_link, activity.getString(R.string.bible_paste_reference)) { insert(pageId, clip.label, clip.wire, tapX, tapY) }
+            .addAction(PaperR.drawable.ic_book, activity.getString(R.string.bible_paste_verses)) {
+                val passages = ReferenceCodec.decode(clip.wire)
+                if (passages == null || !VerseCap.withinCap(passages)) tooLong(clip.wire)
+                else landVerses(pageId, clip.wire, clip.text, emptyList(), anchor = null, preferredTop = tapY, inkBounds = null)
+            }
+            .show()
     }
 
     /** The lasso bar's **Verses** on a lone placed Bible reference: its passage's words landed
@@ -267,12 +287,17 @@ class BibleRefFlow(private val activity: AppCompatActivity, private val host: Ho
         Slog.d(TAG) { "converted ${strokeIds.size} strokes into a reference of ${source.length} chars" }
     }
 
-    /** The success half of an insert: the centre when it is clear, else the nearest clear spot. */
-    private fun insert(pageId: String, source: String, wire: String) {
+    /** The success half of an insert: centred on the tap when there was one, else the page's
+     *  centre, when clear, else the nearest clear spot. */
+    private fun insert(pageId: String, source: String, wire: String, tapX: Float? = null, tapY: Float? = null) {
         val doc = host.document ?: return
         if (!host.alive || doc.pageId != pageId) return
         val (w0, h0) = TextRenderer.measure(source, doc.pageWidth.toInt(), host.density, host.scaledDensity)
-        val (x, y) = FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, w0, h0, host.occupied(), host.density)
+        val (x, y) = if (tapX != null && tapY != null) {
+            FreePlacement.nearPoint(tapX, tapY, doc.pageWidth, doc.pageHeight, w0, h0, host.occupied(), host.density)
+        } else {
+            FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, w0, h0, host.occupied(), host.density)
+        }
         val (w, h) = if (doc.pageWidth - x < w0) TextRenderer.measure(source, (doc.pageWidth - x).toInt(), host.density, host.scaledDensity) else w0 to h0
         val text = PageText(UUID.randomUUID().toString(), source, x, y, w, h, 0)
         host.landReference(pageId, emptyList(), text, payload(wire), label(wire))

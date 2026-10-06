@@ -110,6 +110,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var proofread: ProofreadController
     private lateinit var links: DocumentLinksControl
     private lateinit var bibleLinks: BibleLinkController
+    private lateinit var biblePaste: BiblePaste
     private lateinit var inkPaste: InkPaste
 
     /** Soil's item picker, for the Link dialog's Choose from library. */
@@ -168,9 +169,17 @@ class DocumentActivity : AppCompatActivity() {
         links.install()
         bibleLinks = BibleLinkController(binding.rich, binding.editor, ::rendered, usable = { opened && !closing }, lifecycleScope, unlinked = { unlinked })
         inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
-        // Ctrl+V and the text menu's Paste put in the last thing copied: the clipboard's ink, as
-        // words, when it was copied after the text on the device's own clipboard.
-        val pasteLatest = { if (opened && !closing && inkPaste.newerThanText()) { inkPaste.paste(); true } else false }
+        biblePaste = BiblePaste(this, usable = { opened && !closing }, insertReference = ::insertReference, insertVerses = ::insertPassage)
+        // Ctrl+V and the text menu's Paste put in the last thing copied: a passage from the
+        // Bible, the clipboard's ink as words, or the text on the device's own clipboard.
+        val pasteLatest = {
+            when {
+                !opened || closing -> false
+                biblePaste.newerThan(inkPaste.copiedAt) -> { biblePaste.prompt(); true }
+                inkPaste.newerThanText() -> { inkPaste.paste(); true }
+                else -> false
+            }
+        }
         binding.editor.onPaste = pasteLatest
         binding.rich.onPaste = pasteLatest
         // A tap on a link follows it; any other tap is proofread's to answer.
@@ -250,7 +259,8 @@ class DocumentActivity : AppCompatActivity() {
             onWordCount = { tools.showWordCount() },
             onReflow = { tools.reflow() },
             onProofread = { proofread.promptProofread() },
-            onPasteInk = { inkPaste.prompt() },
+            // The Paste tool: the passage when one was copied after the ink, else the ink.
+            onPasteInk = { if (biblePaste.newerThan(inkPaste.copiedAt)) biblePaste.prompt() else inkPaste.prompt() },
             onBiblePassage = { askPassage() },
             askLink = { current, apply ->
                 // With no link in place, a reference the caret is on is offered: the words are
@@ -350,6 +360,27 @@ class DocumentActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** A reference put in at the caret as a link, under its canonical label. */
+    private fun insertReference(wire: String, label: String) {
+        if (!opened || closing) return
+        val address = BibleLinks.addressOf(wire)
+        if (sourceShowing) {
+            val text = binding.editor.text ?: return
+            val a = minOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val b = maxOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val words = "[$label]($address)"
+            text.replace(a, b, words)
+            binding.editor.setSelection((a + words.length).coerceAtMost(text.length))
+        } else {
+            val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
+            RichOps.insertText(binding.rich, label, label.length, label.length)
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.edited(words = false)
+        }
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
     }
 
     /**
@@ -558,6 +589,7 @@ class DocumentActivity : AppCompatActivity() {
         super.onResume()
         // The pad, or a notebook, may have copied ink while this screen was behind.
         if (::inkPaste.isInitialized) inkPaste.refresh()
+        if (::biblePaste.isInitialized) biblePaste.refresh()
     }
 
     // ── Export ──────

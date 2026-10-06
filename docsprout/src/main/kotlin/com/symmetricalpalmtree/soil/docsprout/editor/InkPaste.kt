@@ -57,7 +57,8 @@ internal class InkPaste(
     private var busy = false
 
     /** When the ink on the clipboard was copied, as last looked; null for none. Main only. */
-    private var copiedAt: Long? = null
+    var copiedAt: Long? = null
+        private set
 
     private val port = object : RecognizerPort {
         override suspend fun status(): Int = call { it.recognizerStatus() }

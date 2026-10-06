@@ -29,6 +29,9 @@ import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.seam.BibleAddress
 import com.symmetricalpalmtree.soil.seam.ISeamStore
 import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.seam.SeamClip
+import com.symmetricalpalmtree.soil.seam.SeamShared
+import com.symmetricalpalmtree.soil.seamkit.clip.BibleClip
 import com.symmetricalpalmtree.soil.seamkit.SeamStoreRows
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -121,6 +124,7 @@ class BibleActivity : AppCompatActivity() {
     private var contentsPanel: ContentsPanel? = null
     private var recentsPanel: RecentsPanel? = null
     private var gatheringRecents = false
+    private var copying = false
     private var notesPanel: NotesPanel? = null
     private var gatheringNotes = false
     private var searchPanel: SearchPanel? = null
@@ -178,6 +182,9 @@ class BibleActivity : AppCompatActivity() {
         binding.btnSearch.setOnLongClickListener { hint(R.string.cd_bible_search) }
         binding.btnFullChapter.setOnClickListener { openFullChapter() }
         binding.btnFullChapter.setOnLongClickListener { hint(R.string.bible_full_chapter) }
+        binding.btnCopy.visibility = View.VISIBLE
+        binding.btnCopy.setOnClickListener { copyPassage() }
+        binding.btnCopy.setOnLongClickListener { hint(R.string.cd_bible_copy) }
         binding.btnNotes.visibility = View.VISIBLE
         binding.btnNotes.setOnClickListener { openNotes() }
         binding.btnNotes.setOnLongClickListener { hint(R.string.cd_bible_notes) }
@@ -482,6 +489,42 @@ class BibleActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val store = runCatching { storeReady.await() }.getOrNull() ?: return@launch
             runCatching { store.writeRecentRef(wire, at, RecentChapters.KEEP) }.onFailure { Slog.d(TAG) { "recent reference not saved" } }
+        }
+    }
+
+    // --- Copy ---------------------------------------------------------------
+
+    /**
+     * **Copy**: the passage on screen, or the chapter being read as a whole chapter, to Soil's
+     * clipboard in the `bible` kind's slot, with its words, so a notebook or a document pastes
+     * it as the reference alone or the verses too without asking here again. The reader stays
+     * where it is. A tap before anything is open, or while a load runs, does nothing.
+     */
+    private fun copyPassage() {
+        if (loading || copying) return
+        val passages = passage?.let { ReferenceCodec.decode(it.wire) }
+            ?: chapter?.ref?.let { listOf(ReferenceCodec.wholeChapter(it)) }
+            ?: return
+        val wire = ReferenceCodec.encode(passages)
+        val label = ReferenceCodec.label(passages)
+        copying = true
+        lifecycleScope.launch {
+            val written = withContext(Dispatchers.IO) {
+                runCatching {
+                    val text = loader.withDatabase { db ->
+                        val verses = ArrayList<VerseRow>()
+                        for (p in passages) for (r in p.ranges) verses.addAll(db.versesForRange(r.startKey, r.endKey))
+                        PassageMarkdown.build(label, verses)
+                    }
+                    val clip = BibleClip(BibleClip.VERSION, wire, label, text, System.currentTimeMillis())
+                    val bytes = BibleClip.encode(clip) ?: error("too large")
+                    (application as BiblesproutApp).soil.seam().putClip(BibleClip.SLOT, SeamClip(BibleClip.PAYLOAD_KIND, "", clip.copiedAt), SeamShared.write(bytes))
+                }.onFailure { Log.w(TAG, "the passage was not copied: ${it.javaClass.simpleName}") }.isSuccess
+            }
+            copying = false
+            if (isFinishing || isDestroyed) return@launch
+            if (written) Toast.makeText(this@BibleActivity, getString(R.string.bible_copied_toast, label), Toast.LENGTH_SHORT).show()
+            else Dialogs.problem(this@BibleActivity, R.string.bible_copy_failed_title, R.string.bible_copy_failed_body)
         }
     }
 

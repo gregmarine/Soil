@@ -48,6 +48,9 @@
 
     <!-- Copy: the passage on screen goes to the clipboard, for a notebook or a document to paste. -->
     <string name="cd_bible_copy">Copy</string>
+    <string name="bible_copied_toast">Copied %1$s</string>
+    <string name="bible_copy_failed_title">Not copied</string>
+    <string name="bible_copy_failed_body">The passage could not be put on the clipboard.</string>
     <!-- The Notes panel: what links into the verses on screen, from the library's link index. -->
     <string name="cd_bible_notes">Notes</string>
     <string name="bible_notes_title">Notes</string>

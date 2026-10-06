@@ -78,6 +78,11 @@
     <string name="ink_paste_title">Handwriting on the clipboard</string>
     <string name="ink_paste_action">Paste as words</string>
     <string name="ink_clear_action">Clear clipboard</string>
+    <!-- A passage copied in the Bible: the paste asks which goes in. -->
+    <string name="bible_paste_title">Bible passage on the clipboard</string>
+    <string name="bible_paste_empty_body">There is no passage on the clipboard.</string>
+    <string name="bible_paste_reference">The reference, as a link</string>
+    <string name="bible_paste_verses">The verses, with the reference</string>
     <string name="ink_paste_empty_body">There is no handwriting on the clipboard. Copy some in the Scratch Pad, or with the lasso in a notebook, then paste it here.</string>
     <string name="ink_paste_no_ink_body">What is on the clipboard holds no handwriting to read.</string>
     <string name="fmt_more">More tools</string>

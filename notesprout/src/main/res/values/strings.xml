@@ -34,6 +34,9 @@
     <string name="bible_reference_unwrappable">This link is not a Bible reference made here: it wraps more than one text.</string>
     <string name="bible_verses_switch">Insert the verses</string>
     <string name="bible_verses_action">Verses</string>
+    <!-- A passage copied in the Bible: the paste asks which goes in. -->
+    <string name="bible_paste_reference">The reference, as a link</string>
+    <string name="bible_paste_verses">The verses, with the reference</string>
     <string name="bible_verses_reading">Reading verses…</string>
     <string name="bible_verses_too_long_title">Too long for a page</string>
     <string name="bible_verses_too_long_body">%1$s is more than ten verses, or a whole chapter. Only a short passage can be placed on a page as text.</string>
