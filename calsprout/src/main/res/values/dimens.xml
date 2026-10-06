@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The event editor's field height. `toolbar_button_size` is an ICON button matched to the
+         Supernote toolbar; a text field that tall stacked three times is more bar than form. 52dp
+         is still a comfortable finger target. -->
+    <dimen name="editor_field_height">52dp</dimen>
+</resources>

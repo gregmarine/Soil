@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The repeat details dialog — `RepeatDialog`'s second step, opened once a frequency has
+  been chosen from the sheet. Styled through `Dialogs.style` like `dialog_time_picker.xml`: the
+  window's own `shape_dialog_bordered` is the white and the border, so this root paints nothing, and
+  Save/Cancel are the AlertDialog's own buttons rather than views here.
+
+  Everything the editor's second and third groups used to hold, in one place and applied only on
+  **Save**: the interval, the weekday bar (weekly only), the two monthly choices (monthly only), and
+  how the series ends. `RepeatDialog` flips the two conditional blocks from its working draft;
+  nothing here is `isEnabled = false` (invisible on e-ink) and nothing carries a divider of its own.
+
+  The two counts — how often, and how many times — are the shared latch row
+  (`view_count_latches`) under a sentence line saying what the number adds up to; the
+  ± steppers they replaced are gone from every screen. The row is `<include>`d TWICE here, so every
+  lookup inside one goes through that include's own id (`rowEvery` / `rowCount`) and never through
+  the dialog root — the two rows carry the same child ids.
+
+  The inflate trap: `LatchButton` sets no size, so the seven weekday latches take `Editor.Weekday`
+  (which sets both) and every other button below carries width and height explicitly.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- How often, as a sentence over the latch row that sets it. The sentence is
+         `EventWording.repeatGlance` — the same words the editor's glance button will read, so the
+         dialog cannot describe the repeat one way and the screen behind it another. -->
+    <TextView
+        android:id="@+id/tvEvery"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/inkBlack"
+        android:textSize="16sp" />
+
+    <include
+        android:id="@+id/rowEvery"
+        layout="@layout/view_count_latches"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" />
+
+    <!-- Weekly only: seven latches, Sun … Sat (the calendar's own column order), ISO in the set. -->
+    <LinearLayout
+        android:id="@+id/rowWeekdays"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchSun"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_sun" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchMon"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_mon" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchTue"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_tue" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchWed"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_wed" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchThu"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_thu" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchFri"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_fri" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchSat"
+            style="@style/Editor.Weekday"
+            android:text="@string/day_sat" />
+
+    </LinearLayout>
+
+    <!-- Monthly only: the same day of the month, or the same ordinal weekday — both worded from the
+         start date by `RepeatDialog` ("On day 14" / "On the 2nd Tue"). -->
+    <LinearLayout
+        android:id="@+id/rowMonthly"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <RadioGroup
+            android:id="@+id/monthlyGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <androidx.appcompat.widget.AppCompatRadioButton
+                android:id="@+id/radioDayOfMonth"
+                style="@style/Widget.Soil.RadioButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/editor_field_height" />
+
+            <androidx.appcompat.widget.AppCompatRadioButton
+                android:id="@+id/radioOrdinal"
+                style="@style/Widget.Soil.RadioButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/editor_field_height" />
+
+        </RadioGroup>
+
+    </LinearLayout>
+
+    <!-- Ends: one row of one-armed latches — [Never][On a date][After] — and the
+         dependent control (the date button / the count latches) under it, shown only for the picked
+         latch. `LatchGroup` is the exclusivity now; no RadioGroup. -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/editor_ends"
+        android:textColor="@color/inkBlack"
+        android:textSize="16sp" />
+
+    <LinearLayout
+        android:id="@+id/rowEnds"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchEndsNever"
+            style="@style/Editor.Latch"
+            android:text="@string/editor_ends_never" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchEndsUntil"
+            style="@style/Editor.Latch"
+            android:text="@string/editor_ends_on_date" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchEndsCount"
+            style="@style/Editor.Latch"
+            android:text="@string/editor_ends_after_short" />
+
+    </LinearLayout>
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnUntilDate"
+        style="@style/Widget.Soil.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/editor_field_height"
+        android:layout_marginStart="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="0dp"
+        android:minWidth="0dp"
+        android:textSize="16sp"
+        android:textStyle="normal"
+        android:visibility="gone" />
+
+    <!-- "After" — the same sentence-over-latches shape as the interval above. -->
+    <LinearLayout
+        android:id="@+id/countGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvCount"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/inkBlack"
+            android:textSize="16sp" />
+
+        <include
+            android:id="@+id/rowCount"
+            layout="@layout/view_count_latches"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -45,6 +45,23 @@
             </intent-filter>
         </activity>
 
+        <!-- The calendar's own two screens, opened by it and by nothing else: one day's events, and
+             one event on a whole screen. Neither is exported; neither is a way in from outside. -->
+        <activity
+            android:name=".EventsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
+        <!-- adjustResize keeps the fields above the keyboard; stateHidden because the editor
+             raises the keyboard itself for a NEW event, from its first window focus. -->
+        <activity
+            android:name=".EventEditorActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
+
     </application>
 
 </manifest>

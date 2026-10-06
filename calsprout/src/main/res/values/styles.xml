@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ONE piece, module-local: the latch that every one-row bar on the
+  repeat and reminder dialogs is made of. The editor SCREEN has no style of its own — after the
+  rebuild it is rows of ordinary `Widget.Soil.*` controls — and Z5b's own two controls live
+  where they can be reused: the pill toggle in `:paper`, the count row as a whole layout
+  (`view_count_latches.xml`).
+
+  `LatchButton` sets no size of its own, so `Editor.Latch` sets both — the inflate trap, and the one
+  real reason a style earns its place here: seven latches is that many chances to forget. It is
+  shared by the weekday bar (multi-select, `Editor.Weekday`), the Ends row (one-armed, Z5a) and the
+  count row (Z5b) — one definition, the same look in all three.
+-->
+<resources>
+
+    <!-- One latch in a one-row latch bar — explicit width (weight) and height, the inflate trap.
+         Shared by the weekday bar (multi-select), the Ends row (one-armed) and the
+         count row. -->
+    <style name="Editor.Latch" parent="Widget.Soil.LatchButton">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">@dimen/editor_field_height</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">2dp</item>
+        <item name="android:layout_marginEnd">2dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <!-- The weekday bar's own name for the same look — one definition, no drift. -->
+    <style name="Editor.Weekday" parent="Editor.Latch" />
+
+</resources>

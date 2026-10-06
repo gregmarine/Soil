@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The time picker  — TimePickerDialog's content, styled through
+  Dialogs.style like dialog_day_picker.xml: no elevation, shape_dialog_bordered is the window's own
+  white + 2dp border, so this root paints nothing of its own and OK/Cancel are the AlertDialog's own
+  buttons, not views here.
+
+  Top to bottom: the hour and the minute as two latches with a colon between them, the dial, then the
+  AM/PM latch pair. The two latches are the preview AND the way back to the hours — the face swaps to
+  minutes by itself after an hour is picked, so without them a mistyped hour would be unreachable.
+
+  The inflate trap: `LatchButton` sets no width or height of its own, so all four latches carry both
+  explicitly.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/tvHour"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/editor_field_height"
+            android:minWidth="64dp"
+            android:textSize="24sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="@string/time_separator"
+            android:textColor="@color/inkBlack"
+            android:textSize="24sp" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/tvMinute"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/editor_field_height"
+            android:minWidth="64dp"
+            android:textSize="24sp" />
+
+    </LinearLayout>
+
+    <com.symmetricalpalmtree.soil.calsprout.ClockFaceView
+        android:id="@+id/clockFace"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:contentDescription="@string/cd_time_clock" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchAm"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/toolbar_button_size"
+            android:layout_weight="1"
+            android:text="@string/time_am" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/latchPm"
+            style="@style/Widget.Soil.LatchButton"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/toolbar_button_size"
+            android:layout_weight="1"
+            android:text="@string/time_pm" />
+
+    </LinearLayout>
+
+</LinearLayout>

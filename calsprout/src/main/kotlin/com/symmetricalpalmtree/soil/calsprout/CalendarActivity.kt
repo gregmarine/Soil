@@ -7,6 +7,8 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.Tool
@@ -81,6 +83,19 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
 
     /** Where the organizer is looking and what each control does to it — the anchor rule, pure. */
     private val nav = CalendarNavigation()
+
+    /**
+     * The Events screen, launched for a result. Registered as a property, because a launcher must
+     * be registered before the Activity is STARTED. On the way back the screen names the day it
+     * ended on, and the calendar follows it in the view it is in (Greg's "Return" decision, SN). A
+     * result that names no day (a crash, a kill) moves nothing.
+     */
+    private val eventsLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val ended = result.data?.getStringExtra(EventsActivity.EXTRA_ENDED_ON)?.let(CalendarDates::parse)
+            if (ended == null || !opened || closing || isFinishing || isDestroyed) return@registerForActivityResult
+            runPageOp { showMove(nav.picked(ended, LocalDate.now(), nowHour())) }
+        }
 
     /** The day Soil asked for, or null for the bookmark. Read once, at create. */
     private var openOn: LocalDate? = null
@@ -215,7 +230,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             onBack = { exit() },
             onView = { kind -> runPageOp { nav.toggled(kind)?.let { showMove(it) } } },
             onToday = { runPageOp { showMove(nav.todayMove(LocalDate.now(), nowHour())) } },
-            onEvents = null,   // phase 4
+            onEvents = { openEvents() },
             onLinks = null,    // phase 9
             onMore = null,     // phase 6
             onPrev = { runPageOp { step(forward = false) } },
@@ -388,6 +403,19 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             CalendarDoubleTap.Decision.Toggle -> toggleChrome()
             CalendarDoubleTap.Decision.Nothing -> Unit
         }
+    }
+
+    /**
+     * The Events door. The day it opens on is the **first day of the period showing** — the 1st of
+     * a month, a week's Sunday, or the day itself ([EventsLaunch], Greg's decision in SN).
+     */
+    private fun openEvents() {
+        if (!opened || closing || isFinishing || isDestroyed) return
+        val day = EventsLaunch.launchDay(nav.kind, nav.target.localDate)
+        Slog.d(TAG) { "events: opening $day from kind ${nav.kind}" }
+        eventsLauncher.launch(
+            Intent(this, EventsActivity::class.java).putExtra(EventsActivity.EXTRA_DAY, CalendarDates.format(day)),
+        )
     }
 
     /** The pager title's day picker. A dialog raised at a chrome tap — the recorded exception,

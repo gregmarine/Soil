@@ -72,6 +72,7 @@ class CalsproutApp : Application() {
     /** The one lease on the app store for this process; see [calendar]. */
     private var lease: ISeamStore? = null
     private var store: CalendarStore? = null
+    private var eventStore: EventStore? = null
     private val storeMutex = Mutex()
 
     /** Soil's hold on the lease: the lease dies with this binder, which lives as long as the process. */
@@ -82,7 +83,7 @@ class CalsproutApp : Application() {
         RattaEngine.register()
         soil = SeamConnection(this, BuildConfig.SOIL_PACKAGE)
         // Whatever Soil lent is dead with it: the next ask opens again.
-        soil.onLost = { appScope.launch(Dispatchers.IO) { storeMutex.withLock { lease = null; store = null } } }
+        soil.onLost = { appScope.launch(Dispatchers.IO) { storeMutex.withLock { lease = null; store = null; eventStore = null } } }
     }
 
     /**
@@ -96,7 +97,8 @@ class CalsproutApp : Application() {
         store?.let { return it }
         val seam = soil.seam()
         val opened = seam.openAppStore(CalendarSchema.SCHEMA, owner)
-        val fresh = CalendarStore(SeamStoreRows(opened))
+        val rows = SeamStoreRows(opened)
+        val fresh = CalendarStore(rows)
         try {
             fresh.ensureCalendar()
         } catch (e: Exception) {
@@ -105,8 +107,16 @@ class CalsproutApp : Application() {
         }
         lease = opened
         store = fresh
+        eventStore = EventStore(rows, fresh.calendarId)
         Log.i(TAG, "the calendar's store is open")
         fresh
+    }
+
+    /** The events half of the same store, for the same calendar — opened by [calendar] if it is
+     *  not yet. Blocking, IO only; throws as [calendar] does. */
+    suspend fun events(): EventStore {
+        calendar()
+        return storeMutex.withLock { checkNotNull(eventStore) { "the store closed" } }
     }
 
     /** A paper screen has come to the front: Soil may ask it for the panel. */

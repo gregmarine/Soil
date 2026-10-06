@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The event editor — one screen for both New and
+  Edit; The note comes in a later phase.
+
+  THREE rows, and nothing else:
+
+    1. the title field, with the event's TYPE named on the button beside it;
+    2. the two dates, the All day toggle, and — while all-day is off — the two times;
+    3. two GLANCE buttons, Repeat and Remind me.
+
+  A glance button says the word alone when the thing is unset ("Repeat", "Remind me") and the value
+  concisely when it is set ("Every 2 weeks", "1 week before"); the details live in the dialog it
+  opens (`RepeatDialog` / `RemindDialog`), which applies on its own Save and discards on Cancel. So
+  this screen has no steppers, no weekday bar, no radios and no chips: the form is three rows tall,
+  which is what leaves the note its space.
+
+  **Delete is not on this screen.** An event's one destructive verb lives on the events list, as a
+  per-row trash icon (`EventRowView`) — Greg's call. The top bar is therefore
+  `[Cancel] … title … [Save]` — Cancel at the left, the title centred on the SCREEN
+  (the events screen's FrameLayout idiom), Save at the right end, action buttons on the top bar and
+  Cancel before the action. System Back = Cancel, behind the same discard confirm.
+
+  Heights: every bordered control takes `editor_field_height` (52dp — see dimens.xml for why not the
+  62dp icon-button dimen), text 16sp throughout.
+
+  Row 2 must FIT: five controls at 16sp inside the Nomad's 749dp (≈580dp of content plus 32dp of
+  side padding). The date and time buttons therefore carry `minWidth 0dp` — a minWidth added here is
+  how the times fall off the end of the row.
+
+  The rule that bites (the inflate trap, restated): `Widget.Soil.OutlinedButton` /
+  `TextButton` / `ElevatedButton` set NO layout_width/layout_height of their own, so every button
+  below carries both explicitly — or the screen dies at inflate, and `assembleDebug` does NOT catch
+  it. Only running the screen does.
+
+  The two time buttons are `visibility="gone"` here; the Activity flips them with the toggle. GONE,
+  never `isEnabled = false` — a disabled control is invisible on e-ink.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/paperWhite"
+    android:orientation="vertical">
+
+    <!-- The bar is `[Cancel] … title … [Save]` — Cancel before the action, per the standing rule,
+         and the title centred on the SCREEN rather than on the leftover space (the events screen's
+         FrameLayout idiom — the bar-centring trap: a weighted title is centred on leftover space,
+         which changes with the two buttons' own widths). Title FIRST, buttons LAST — a later
+         match_parent child would otherwise sit on top of an earlier button (activity_events.xml's
+         topBarRow trap). -->
+    <FrameLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/toolbar_bar_thickness"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="96dp"
+            android:layout_marginEnd="96dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:singleLine="true"
+            android:text="@string/editor_title_new"
+            android:textColor="@color/inkBlack"
+            android:textSize="16sp" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnCancel"
+            style="@style/Widget.Soil.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical"
+            android:text="@string/cancel" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnSave"
+            style="@style/Widget.Soil.ElevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="8dp"
+            android:text="@string/editor_save" />
+
+    </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/inkBlack" />
+
+    <!-- The three rows. No ScrollView: three rows fit above the IME on the Nomad, and a form that
+         can scroll under a keyboard is a form that hides the field being typed into. -->
+    <LinearLayout
+        android:id="@+id/fields"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp">
+
+        <!-- ── Row 1: the title, and the type beside it ────────────────────── -->
+        <LinearLayout
+            android:id="@+id/rowTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- The one IME field on the screen. The border is the box's, so the caret and the hint
+                 sit inside the same frame every other control has. -->
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/inputTitle"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_weight="1"
+                android:background="@drawable/shape_bordered"
+                android:gravity="start|center_vertical"
+                android:hint="@string/editor_title_hint"
+                android:imeOptions="actionDone"
+                android:inputType="textCapSentences"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textColorHint="@color/inkLight"
+                android:textSize="16sp" />
+
+            <!-- Its text is the TYPE's own name ("Appointment"); tapping it opens the type sheet.
+                 No caption over it — a button that says "Appointment" does not need one. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnType"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:minWidth="140dp"
+                android:textSize="16sp"
+                android:textStyle="normal" />
+
+        </LinearLayout>
+
+        <!-- ── Row 2: the dates, All day, and the times ───────────────────── -->
+        <LinearLayout
+            android:id="@+id/rowWhen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnStartDate"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:minWidth="0dp"
+                android:textSize="16sp"
+                android:textStyle="normal" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnEndDate"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:minWidth="0dp"
+                android:textSize="16sp"
+                android:textStyle="normal" />
+
+            <TextView
+                android:id="@+id/tvAllDay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="@string/editor_all_day"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
+            <!-- The pill toggle — :sn-screen's `Widget.Soil.Toggle`, which
+                 sets its own width and height (they are the drawable's geometry, not this row's).
+                 A `CompoundButton` still, so the Activity's `isChecked` / `setOnCheckedChangeListener`
+                 are unchanged; AppCompat's switch track is what went. No ON/OFF caption — the
+                 label beside it and the fill say everything. -->
+            <androidx.appcompat.widget.AppCompatCheckBox
+                android:id="@+id/swAllDay"
+                style="@style/Widget.Soil.Toggle"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/editor_all_day" />
+
+            <!-- Both GONE while all-day; the Activity flips them from the draft, never the toggle. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnStartTime"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_editor_start_time"
+                android:minWidth="0dp"
+                android:textSize="16sp"
+                android:textStyle="normal"
+                android:visibility="gone" />
+
+            <!-- Long-press clears it — "no end time" is a real answer and needs a way back to it. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnEndTime"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/cd_editor_end_time"
+                android:minWidth="0dp"
+                android:textSize="16sp"
+                android:textStyle="normal"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- ── Row 3: the two glance buttons ──────────────────────────────── -->
+        <LinearLayout
+            android:id="@+id/rowGlance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnRepeat"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:minWidth="160dp"
+                android:textSize="16sp"
+                android:textStyle="normal" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnRemind"
+                style="@style/Widget.Soil.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:minWidth="160dp"
+                android:textSize="16sp"
+                android:textStyle="normal" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="8dp"
+        android:background="@color/inkBlack" />
+
+</LinearLayout>

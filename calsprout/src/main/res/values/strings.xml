@@ -36,4 +36,115 @@
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>
     <string name="calendar_store_failed_body">Soil could not open the calendar\'s storage. Nothing was lost. Unlock the library in Soil and try again.</string>
+
+    <!-- The Events screen: the events and their notes, for one day at a time. -->
+    <string name="events_title">Events</string>
+    <string name="cd_events_back">Back</string>
+    <string name="cd_events_add">Add event</string>
+    <string name="cd_events_prev_page">Previous page</string>
+    <string name="cd_events_next_page">Next page</string>
+    <string name="cd_events_prev_day">Previous day</string>
+    <string name="cd_events_next_day">Next day</string>
+    <string name="cd_events_pick_day">Pick a day</string>
+    <string name="events_empty">No events on this day</string>
+    <string name="events_section_today">Today</string>
+    <string name="events_section_upcoming">Upcoming</string>
+    <string name="events_page_indicator">%1$d / %2$d</string>
+    <string name="events_unavailable_title">Events unavailable</string>
+    <string name="events_unavailable_body">Soil could not read the calendar\'s storage. Nothing was lost — try again.</string>
+
+    <!-- The event editor: three rows over the note area, the two
+         glance buttons opening the repeat and reminder dialogs. Delete is the events LIST's now. -->
+    <string name="editor_title_new">New Event</string>
+    <string name="editor_title_edit">Edit Event</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_title_hint">Title</string>
+    <string name="editor_all_day">All day</string>
+    <string name="editor_no_end_time">No end time</string>
+    <string name="cd_editor_start_time">Start time</string>
+    <string name="cd_editor_end_time">End time (long-press to clear)</string>
+
+    <!-- The glance buttons' UNSET words. Set, they read EventWording.repeatGlance / reminderLabel —
+         the value alone, built from ints, never a resource. -->
+    <string name="editor_repeat">Repeat</string>
+    <string name="editor_remind">Remind me</string>
+
+    <!-- RepeatDialog: the frequency sheet, then that frequency's details. -->
+    <string name="editor_repeats">Repeats</string>
+    <string name="editor_repeat_never">Never</string>
+    <string name="editor_repeat_daily">Daily</string>
+    <string name="editor_repeat_weekly">Weekly</string>
+    <string name="editor_repeat_monthly">Monthly</string>
+    <string name="editor_repeat_yearly">Yearly</string>
+    <string name="editor_every">Every</string>
+    <string name="day_sun">Sun</string>
+    <string name="day_mon">Mon</string>
+    <string name="day_tue">Tue</string>
+    <string name="day_wed">Wed</string>
+    <string name="day_thu">Thu</string>
+    <string name="day_fri">Fri</string>
+    <string name="day_sat">Sat</string>
+    <string name="editor_monthly_day">On day %1$d</string>
+    <string name="editor_monthly_ordinal">On the %1$s %2$s</string>
+    <string name="ordinal_1">1st</string>
+    <string name="ordinal_2">2nd</string>
+    <string name="ordinal_3">3rd</string>
+    <string name="ordinal_4">4th</string>
+    <string name="ordinal_last">last</string>
+    <string name="editor_ends">Ends</string>
+    <string name="editor_ends_never">Never</string>
+    <string name="editor_ends_on_date">On a date</string>
+    <string name="editor_ends_after_short">After</string>
+    <string name="editor_times_one">1 time</string>
+    <string name="editor_times_n">%1$d times</string>
+
+    <!-- The shared count row: six presets and the way past them. The presets themselves are
+         numbers, written by `CountLatches` — a digit is not a word. -->
+    <string name="editor_more">More</string>
+    <string name="cd_keypad_backspace">Backspace</string>
+    <string name="cd_keypad_done">Done</string>
+
+    <!-- RemindDialog: one reminder, or None. -->
+    <string name="editor_days">Days</string>
+    <string name="editor_weeks">Weeks</string>
+    <string name="editor_remind_none">None</string>
+
+    <!-- Cancel discards, but never silently. -->
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_body">This event has unsaved changes.</string>
+    <string name="editor_discard_confirm">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
+    <string name="editor_problem_title">Cannot save</string>
+    <string name="editor_problem_empty_title">Give the event a title.</string>
+    <string name="editor_problem_until">The \"ends on\" date is before the start.</string>
+    <string name="editor_save_failed">Soil could not save the event. Nothing was changed.</string>
+
+    <!-- Delete, on the events LIST: a trash icon per row. -->
+    <string name="cd_events_delete">Delete event</string>
+    <string name="events_delete_title">Delete %1$s?</string>
+    <string name="events_delete_body_once">This event will be removed.</string>
+    <string name="events_delete_body_series">Delete every occurrence of %1$s?</string>
+    <string name="events_delete_confirm">Delete</string>
+    <string name="events_delete_failed_title">Cannot delete</string>
+    <string name="events_delete_failed">Soil could not delete the event. Nothing was changed.</string>
+
+    <!-- The three scopes, for an edit (the editor) or a delete (the list). -->
+    <string name="scope_title_edit">Change which events?</string>
+    <string name="scope_title_delete">Delete which events?</string>
+    <string name="scope_this">This occurrence</string>
+    <string name="scope_following">This and following</string>
+    <string name="scope_all">All events</string>
+
+    <!-- The time picker dialog. -->
+    <string name="time_title">Time</string>
+    <string name="cd_time_clock">Clock face</string>
+    <string name="time_separator">:</string>
+    <string name="time_am">AM</string>
+    <string name="time_pm">PM</string>
+    <string name="type_sheet_title">Type</string>
+
+    <!-- The note section: two latches over the area, and the text half's hint. -->
+    <string name="editor_note_handwriting">Handwriting</string>
+    <string name="editor_note_text">Text</string>
+    <string name="editor_note_hint">Note</string>
 </resources>
