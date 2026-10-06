@@ -48,8 +48,14 @@
 
     <!-- Copy: the passage on screen goes to the clipboard, for a notebook or a document to paste. -->
     <string name="cd_bible_copy">Copy</string>
-    <!-- The Notes panel: what links into the verses on screen. -->
+    <!-- The Notes panel: what links into the verses on screen, from the library's link index. -->
     <string name="cd_bible_notes">Notes</string>
+    <string name="bible_notes_title">Notes</string>
+    <string name="bible_notes_empty">Nothing links into %1$s</string>
+    <!-- A row's own words: "Study · Page 4", "Sermon · Document". -->
+    <string name="bible_notes_page_word">Page</string>
+    <string name="bible_notes_document_word">Document</string>
+    <string name="bible_notes_no_soil">Soil could not be asked to open it.</string>
 
     <string name="bible_title">Bible</string>
     <string name="bible_page_indicator">%1$d / %2$d</string>

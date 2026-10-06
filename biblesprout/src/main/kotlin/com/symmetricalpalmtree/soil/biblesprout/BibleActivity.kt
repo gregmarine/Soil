@@ -121,6 +121,8 @@ class BibleActivity : AppCompatActivity() {
     private var contentsPanel: ContentsPanel? = null
     private var recentsPanel: RecentsPanel? = null
     private var gatheringRecents = false
+    private var notesPanel: NotesPanel? = null
+    private var gatheringNotes = false
     private var searchPanel: SearchPanel? = null
     private var lastSearch: SearchResults? = null
     private var searching = false
@@ -176,6 +178,9 @@ class BibleActivity : AppCompatActivity() {
         binding.btnSearch.setOnLongClickListener { hint(R.string.cd_bible_search) }
         binding.btnFullChapter.setOnClickListener { openFullChapter() }
         binding.btnFullChapter.setOnLongClickListener { hint(R.string.bible_full_chapter) }
+        binding.btnNotes.visibility = View.VISIBLE
+        binding.btnNotes.setOnClickListener { openNotes() }
+        binding.btnNotes.setOnLongClickListener { hint(R.string.cd_bible_notes) }
         binding.btnPrevPage.setOnClickListener { turnTo(pageIndex - 1) }
         binding.btnPrevPage.setOnLongClickListener { hint(R.string.cd_bible_prev_page) }
         binding.btnNextPage.setOnClickListener { turnTo(pageIndex + 1) }
@@ -212,6 +217,7 @@ class BibleActivity : AppCompatActivity() {
         // A Dialog outliving its finishing Activity is a window leak.
         contentsPanel?.dismiss()
         recentsPanel?.dismiss()
+        notesPanel?.dismiss()
         searchPanel?.dismiss()
         footnotePopup?.dismiss()
         binding.root.removeCallbacks(showLoading)
@@ -477,6 +483,61 @@ class BibleActivity : AppCompatActivity() {
             val store = runCatching { storeReady.await() }.getOrNull() ?: return@launch
             runCatching { store.writeRecentRef(wire, at, RecentChapters.KEEP) }.onFailure { Slog.d(TAG) { "recent reference not saved" } }
         }
+    }
+
+    // --- the Notes ----------------------------------------------------------
+
+    /**
+     * The Notes panel: everything in the library that cites **what is on screen**. The scope is
+     * the chapter's whole verse band, or in passage mode the passage's own ranges
+     * ([NotesModel.scope]); nothing open yet is an empty scope and a silent no-op. The rows come
+     * from Soil's link index over the seam, on IO, one ask per range; Soil that will not answer is
+     * an empty list, never a dialog. One showing and one gather at a time, the Recents' rule.
+     * **Counts and durations only** in the log.
+     */
+    private fun openNotes() {
+        if (notesPanel != null || gatheringNotes) return
+        val scope = NotesModel.scope(chapter?.ref, passage?.let { ReferenceCodec.decode(it.wire) })
+        if (scope.isEmpty()) return
+        gatheringNotes = true
+        lifecycleScope.launch {
+            val began = SystemClock.elapsedRealtime()
+            val rows = withContext(Dispatchers.IO) {
+                runCatching {
+                    val seam = (application as BiblesproutApp).soil.seam()
+                    scope.flatMap { range -> seam.bibleBacklinks(range.startKey, range.endKey) }
+                }.getOrElse { e ->
+                    Log.w(TAG, "the notes could not be read: ${e.javaClass.simpleName}")
+                    emptyList()
+                }
+            }
+            gatheringNotes = false
+            if (notesPanel != null || isFinishing || isDestroyed) return@launch
+            val groups = NotesModel.group(rows)
+            Slog.d(TAG) { "notes: ${groups.size} entr(ies) of ${rows.size} row(s) over ${scope.size} range(s) in ${SystemClock.elapsedRealtime() - began} ms" }
+            notesPanel = NotesPanel(
+                this@BibleActivity,
+                binding.title.text.toString(),
+                groups,
+                onDismissed = { notesPanel = null },
+                onPicked = ::followNote,
+            ).also { it.show() }
+        }
+    }
+
+    /** A row followed: Soil opens the page, or the document, in its app over this reader, and
+     *  Back comes back here. */
+    private fun followNote(group: NotesModel.NoteGroup) {
+        if (isFinishing) return
+        Slog.d(TAG) { "open a note: ${group.kind}" }
+        val started = runCatching {
+            startActivity(
+                Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, group.itemId)
+                    .putExtra(Seam.EXTRA_PAGE_ID, group.pageId.takeIf { it.isNotEmpty() }),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.bible_notes_title, R.string.bible_notes_no_soil)
     }
 
     // --- the Search ---------------------------------------------------------
