@@ -14,4 +14,7 @@ object BibleUnlinked {
     fun words(raw: String): String = raw.trim().replace(Regex("\\s+"), " ").lowercase().take(MAX_WORDS)
 
     fun key(words: String, wire: String): String = words(words) + "\u0000" + wire
+
+    /** Whether [key] names [wire], whatever its words: a reference allowed again is allowed in every spelling. */
+    fun names(key: String, wire: String): Boolean = key.endsWith("\u0000" + wire)
 }

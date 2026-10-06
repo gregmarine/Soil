@@ -55,6 +55,12 @@ class DocumentStore(private val store: RowStore, private val documentId: String,
         Unit
     }
 
+    /** A reference allowed again, by its wire: the pass may link it once more. Its own batch. */
+    fun allowAgain(wire: String, now: Long = System.currentTimeMillis()) = guard {
+        store.exec(listOf(DocumentSql.deleteUnlinked(documentId, wire, now)))
+        Unit
+    }
+
     private fun read(): String? {
         val row = store.query(DocumentSql.selectBody(documentId)).rows.firstOrNull() ?: return null
         bodyId = row.text("id")

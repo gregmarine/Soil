@@ -15,6 +15,7 @@ class DocumentSqlTest {
             DocumentSql.insertBody("body", "doc", 5L),
             DocumentSql.setBody("body", "# Words", 6L),
             DocumentSql.insertUnlinked("u", "doc", "john 3:16", "JHN:3:16-3:16", 7L),
+            DocumentSql.deleteUnlinked("doc", "JHN:3:16-3:16", 8L),
         )
         for (statement in writes) {
             SeamSql.checkExec(statement.sql)

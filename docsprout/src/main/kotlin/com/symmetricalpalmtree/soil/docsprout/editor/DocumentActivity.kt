@@ -20,6 +20,8 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.bibleref.ReferenceScan
+import com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck
 import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
@@ -249,10 +251,21 @@ class DocumentActivity : AppCompatActivity() {
             onProofread = { proofread.promptProofread() },
             onPasteInk = { inkPaste.prompt() },
             askLink = { current, apply ->
-                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed ->
+                // With no link in place, a reference the caret is on is offered: the words are
+                // selected so the link wraps all of them, and the dialog opens on them. This is how
+                // a reference the writer unlinked is linked again.
+                val onReference = if (current == null && rendered()) referenceAtCaret() else null
+                onReference?.let { binding.rich.setSelection(it.start, it.end) }
+                val prefill = onReference?.let { binding.rich.text?.subSequence(it.start, it.end)?.toString() }
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }, prefill = prefill) { typed ->
                     // Words that read as a Bible reference link into the Bible, under the words as typed.
                     val wire = if (typed.isEmpty()) null else BibleLinks.wireOf(typed)
-                    if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
+                    if (wire != null) {
+                        apply(BibleLinks.addressOf(wire), typed)
+                        allowAgain(wire)
+                    } else {
+                        apply(typed, typed)
+                    }
                 }
             },
         )
@@ -305,6 +318,28 @@ class DocumentActivity : AppCompatActivity() {
         setIntent(intent)
         if (closing) return
         recreate()
+    }
+
+    /** The reference the caret sits on or touches in the rendered document, if any, as the pass would read it. */
+    private fun referenceAtCaret(): ReferenceScan.Hit? {
+        val text = binding.rich.text?.toString() ?: return null
+        val caret = binding.rich.selectionStart.takeIf { it >= 0 && it == binding.rich.selectionEnd } ?: return null
+        val lines = ProofreadCheck.lineRegion(text, caret, caret)
+        if (lines.end <= lines.start) return null
+        val slice = text.substring(lines.start, lines.end)
+        return ReferenceScan.scan(slice).map { ReferenceScan.Hit(lines.start + it.start, lines.start + it.end, it.passages) }
+            .firstOrNull { caret in it.start..it.end }
+    }
+
+    /** A reference linked again by hand: whatever removal was remembered for its wire is forgotten,
+     *  in memory and with the document, and the pass may link it once more. */
+    private fun allowAgain(wire: String) {
+        if (!unlinked.removeAll { BibleUnlinked.names(it, wire) }) return
+        bibleLinks.bump()
+        val documents = store ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { documents.allowAgain(wire) }.onFailure { Log.w(TAG, "an allowed reference was not remembered: ${it.javaClass.simpleName}") }
+        }
     }
 
     /** A Bible link taken off: remembered now, and with the document, so no pass puts it back. */

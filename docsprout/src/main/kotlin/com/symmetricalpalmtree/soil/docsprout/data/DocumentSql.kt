@@ -39,6 +39,12 @@ object DocumentSql {
         id, documentId, now, now, words, wire,
     )
 
+    /** A reference allowed again: every memory row naming its wire is soft-deleted. */
+    fun deleteUnlinked(documentId: String, wire: String, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET deletedAt = ? WHERE parentId = ? AND type = 'bible_unlinked' AND refId = ? AND deletedAt IS NULL",
+        now, documentId, wire,
+    )
+
     fun selectUnlinked(documentId: String): Statement = Statement(
         "SELECT text, refId FROM $TABLE WHERE parentId = ? AND type = 'bible_unlinked' AND deletedAt IS NULL",
         documentId,

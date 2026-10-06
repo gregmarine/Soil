@@ -32,5 +32,7 @@ class BibleLinksTest {
         assertEquals(BibleUnlinked.key("John  3:16", "JHN:3:16-3:16"), BibleUnlinked.key(" john 3:16 ", "JHN:3:16-3:16"))
         assert(BibleUnlinked.key("John 3:16", "JHN:3:16-3:16") != BibleUnlinked.key("Jn 3:16", "JHN:3:16-3:16"))
         assertEquals("john 3:16", BibleUnlinked.words("John\n3:16"))
+        assert(BibleUnlinked.names(BibleUnlinked.key("Jn 3:16", "JHN:3:16-3:16"), "JHN:3:16-3:16"))
+        assert(!BibleUnlinked.names(BibleUnlinked.key("Jn 3:16", "JHN:3:16-3:16"), "JHN:3:17-3:17"))
     }
 }
