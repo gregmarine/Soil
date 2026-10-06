@@ -23,6 +23,22 @@ object Seam {
     /** On that activity, as meta-data: the kind of item it opens. */
     const val META_KIND = "com.symmetricalpalmtree.soil.kind"
 
+    /**
+     * The action of the screen an app opens a Bible passage in: Biblesprout's reader, which has no
+     * items of its own and so answers no [ACTION_OPEN_ITEM]. Soil starts it, and only Soil may:
+     * the screen is guarded by [permissionFor]. What rides the Intent is [EXTRA_BIBLE_WIRE], or
+     * nothing, for the reader where it was left. An app that answers this is a Sprout app too,
+     * and the side menu lists it.
+     */
+    const val ACTION_OPEN_BIBLE = "com.symmetricalpalmtree.soil.action.OPEN_BIBLE"
+
+    /**
+     * A passage, in the wire form `:bible-ref`'s codec writes (`JHN:3:14-3:18,PRO:3:5-3:6`): on
+     * [ACTION_OPEN_BIBLE] the passage to open on, and on [ACTION_FOLLOW] in place of
+     * [EXTRA_ITEM_ID] a link into the Bible to follow. Never logged: it names where someone reads.
+     */
+    const val EXTRA_BIBLE_WIRE = "com.symmetricalpalmtree.soil.extra.BIBLE_WIRE"
+
     // ── Export: Soil's screen, and the app's renderer behind it ──────
 
     /**

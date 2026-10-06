@@ -55,13 +55,14 @@ object ItemApps {
     class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
 
     /**
-     * Every trusted app that opens some kind of item, one entry per app, by name. What the side
-     * menu lists. Read off the main thread.
+     * Every trusted app that opens some kind of item, or the Bible, one entry per app, by name.
+     * What the side menu lists. Read off the main thread.
      */
     fun sproutApps(context: Context): List<SproutApp> {
         val pm = context.packageManager
         return try {
-            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA)
+            (pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA) +
+                pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0))
                 .map { it.activityInfo.packageName }
                 .distinct()
                 .filter {

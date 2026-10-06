@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.seam;
 
 import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
+import com.symmetricalpalmtree.soil.seam.ISeamStore;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
 import com.symmetricalpalmtree.soil.seam.SeamClip;
@@ -94,6 +95,16 @@ interface ISoilSeam {
      * session is ended and the file is closed and tidied.
      */
     ISeamItem openItem(String itemId, in SeamSchema schema, IBinder owner);
+
+    /**
+     * The app's own store, for an app that keeps its data in Soil and not in item files
+     * (Biblesprout's position and recents): one encrypted database per app, named after the
+     * calling package, made on first use and brought to [schema] (its steps are the only DDL it
+     * ever sees; `schema.kind` names it). Under the global key, re-keyed and backed up with
+     * everything else. The lease answers the caller's uid alone and ends when [owner] dies or
+     * `close()` is called. Refused while the library is not open.
+     */
+    ISeamStore openAppStore(in SeamSchema schema, IBinder owner);
 
     // ── The clipboard: one slot per kind of item, in the index, so a copy outlives the app ──────
 

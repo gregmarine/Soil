@@ -318,6 +318,15 @@ class SoilSeamService : Service() {
 
         private val sent = ThreadLocal<SeamBytes?>()
 
+        override fun openAppStore(schema: SeamSchema, owner: IBinder): ISeamStore = answered {
+            val uid = Binder.getCallingUid()
+            // The store is the caller's own: named after its package, which Android names, never
+            // the schema's kind, so no app can ask for another's.
+            val packageName = packageManager.getNameForUid(uid)?.substringBefore(':')
+                ?: throw IllegalStateException("the caller has no package")
+            AppStoreLease.open(this@SoilSeamService, packageName, schema, uid, owner, ::requireOpen)
+        }
+
         override fun openItem(itemId: String, schema: SeamSchema, owner: IBinder): ISeamItem = answered {
             val item = IndexStore().aliveItem(itemId) ?: throw IllegalStateException(NO_SUCH_ITEM)
             // An app opens items of its own kind and no other.
