@@ -150,6 +150,16 @@ class SoilSeamService : Service() {
             }
         }
 
+        override fun bibleBacklinks(startKey: Int, endKey: Int): List<SeamBibleBacklink> = answered {
+            require(startKey in 1..66_999_999 && endKey >= startKey) { "not a verse span" }
+            IndexStore().bibleBacklinks(startKey, endKey).map {
+                SeamBibleBacklink(
+                    linkId = it.linkId, sourceItemId = it.sourceItemId, sourceKind = it.sourceKind, sourceName = it.sourceName,
+                    sourcePageId = it.sourcePageId, pageNumber = it.pageNumber, wire = it.wire, startKey = it.startKey, endKey = it.endKey,
+                )
+            }
+        }
+
         override fun template(templateId: String): SeamTemplate? = answered {
             TemplateStore().template(templateId)?.let { SeamTemplate(it.id, it.name, it.fit) }
         }

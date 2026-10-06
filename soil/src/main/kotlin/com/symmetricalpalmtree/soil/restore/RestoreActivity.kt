@@ -233,7 +233,11 @@ class RestoreActivity : AppCompatActivity() {
         Slog.d(TAG) { "restore outcome: ${outcome::class.simpleName}" }
         if (outcome !is RestoreEngine.Outcome.Refused) {
             // The index is closed: open it again under whichever key is now this device's, so Home finds the library open.
-            withContext(Dispatchers.IO) { SoilIndex.ensureReady(applicationContext) }
+            withContext(Dispatchers.IO) {
+                SoilIndex.ensureReady(applicationContext)
+                // The restored files are the truth of what links where: the index follows them.
+                runCatching { com.symmetricalpalmtree.soil.data.index.LinkRebuild.rebuild(applicationContext) }
+            }
             Library.refresh(applicationContext)
         }
         hideProgress()

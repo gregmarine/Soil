@@ -2,7 +2,7 @@ package com.symmetricalpalmtree.soil.data.item
 
 import android.content.Context
 import com.symmetricalpalmtree.soil.data.index.IndexStore
-import com.symmetricalpalmtree.soil.data.index.LinkRow
+import com.symmetricalpalmtree.soil.data.index.LinkRows
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -98,10 +98,8 @@ object ItemSessions {
     private fun mirrorLinks(itemId: String, connection: Connection) {
         if (!SoilIndex.isReady()) return
         try {
-            val links = connection.rows.query(Statement(SeamLinks.READ)).rows.map {
-                LinkRow(it.text("id"), it.text("pageId"), it.text("targetItemId"), it.textOrNull("targetPageId"))
-            }
-            IndexStore().replaceLinks(itemId, links)
+            val links = connection.rows.query(Statement(SeamLinks.READ)).rows.map { LinkRows.of(it) }
+            IndexStore().replaceLinks(itemId, LinkRows.indexable(links))
         } catch (t: Throwable) {
             Slog.d(TAG) { "the link mirror was not indexed: ${t.javaClass.simpleName}" }
         }
@@ -114,6 +112,15 @@ object ItemSessions {
         live(itemId, holder).rows
             .stream(statement, { columns -> RowsBuilder(columns) }) { builder, cells -> builder.add(cells) }
             .build()
+
+    /** Re-read the mirror of an item some app holds open, for a rebuild of the index. False when
+     *  no file is open for it: the rebuild then reads the file itself. */
+    @Synchronized
+    fun remirror(itemId: String): Boolean {
+        val connection = connections[itemId] ?: return false
+        mirrorLinks(itemId, connection)
+        return true
+    }
 
     /** The item's own name for itself, when its file is open. A shut file is written at its next open. */
     @Synchronized

@@ -27,7 +27,35 @@ object ItemFlags {
 }
 
 /** One link as the mirror in a file states it. */
-data class LinkRow(val id: String, val pageId: String, val targetItemId: String, val targetPageId: String?)
+/**
+ * One row of a file's link mirror, as read: a link to an item, or ([bibleWire] non-null) one
+ * range of a link into the Bible, whose [targetItemId] is `''`.
+ */
+data class LinkRow(
+    val id: String,
+    val pageId: String,
+    val targetItemId: String,
+    val targetPageId: String?,
+    val bibleWire: String? = null,
+    val bibleStart: Int? = null,
+    val bibleEnd: Int? = null,
+) {
+    val isBible: Boolean get() = bibleWire != null
+}
+
+/** One link into the Bible, with the source item's name and kind from the item table, and the
+ *  page's number from the page order (0 for an item with no pages: a document). */
+data class BibleBacklink(
+    val linkId: String,
+    val sourceItemId: String,
+    val sourceKind: String,
+    val sourceName: String,
+    val sourcePageId: String,
+    val pageNumber: Int,
+    val wire: String,
+    val startKey: Int,
+    val endKey: Int,
+)
 
 /** One link into an item, with the source item's name and kind from the item table. */
 data class Backlink(
@@ -138,12 +166,36 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         statements += Statement("DELETE FROM link WHERE sourceItemId = ?", itemId)
         for (l in links) {
             statements += Statement(
-                "INSERT OR REPLACE INTO link (id, sourceItemId, sourcePageId, targetItemId, targetPageId) VALUES (?, ?, ?, ?, ?)",
-                l.id, itemId, l.pageId, l.targetItemId, l.targetPageId,
+                "INSERT OR REPLACE INTO link (id, sourceItemId, sourcePageId, targetItemId, targetPageId, bibleWire, bibleStart, bibleEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                l.id, itemId, l.pageId, l.targetItemId, l.targetPageId, l.bibleWire, l.bibleStart?.toLong(), l.bibleEnd?.toLong(),
             )
         }
         rows.exec(statements)
     }
+
+    /**
+     * Every link into the verses `startKey..endKey` from an item that is alive: the classic
+     * two-comparison overlap, `bibleStart <= endKey AND bibleEnd >= startKey`, in reading order
+     * then by source, at most [limit]. What the reader's Notes panel shows.
+     */
+    fun bibleBacklinks(startKey: Int, endKey: Int, limit: Int = 500): List<BibleBacklink> =
+        rows.query(
+            Statement(
+                "SELECT l.id, l.sourceItemId, i.kind, i.name, l.sourcePageId, l.bibleWire, l.bibleStart, l.bibleEnd, p.position FROM link l " +
+                    "JOIN item i ON i.id = l.sourceItemId " +
+                    "LEFT JOIN item_page p ON p.itemId = l.sourceItemId AND p.pageId = l.sourcePageId " +
+                    "WHERE l.bibleStart <= ? AND l.bibleEnd >= ? AND i.deletedAt IS NULL " +
+                    "ORDER BY l.bibleStart, i.name, l.sourcePageId, l.id LIMIT ?",
+                endKey.toLong(), startKey.toLong(), limit.toLong(),
+            ),
+        ).rows.map {
+            BibleBacklink(
+                linkId = it.text("id"), sourceItemId = it.text("sourceItemId"), sourceKind = it.text("kind"),
+                sourceName = it.text("name"), sourcePageId = it.text("sourcePageId"),
+                pageNumber = it.longOrNull("position")?.toInt()?.plus(1) ?: 0,
+                wire = it.text("bibleWire"), startKey = it.long("bibleStart").toInt(), endKey = it.long("bibleEnd").toInt(),
+            )
+        }
 
     /** Every link into [targetItemId] from an item that is alive, by source name then page. */
     fun backlinks(targetItemId: String): List<Backlink> =

@@ -4,6 +4,7 @@ import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.ISeamStore;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
+import com.symmetricalpalmtree.soil.seam.SeamBibleBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
 import com.symmetricalpalmtree.soil.seam.SeamClip;
 import com.symmetricalpalmtree.soil.seam.SeamRecognizer;
@@ -70,6 +71,13 @@ interface ISoilSeam {
      * a page itself.
      */
     List<SeamBacklink> backlinks(String itemId);
+
+    /**
+     * Every link into the verses startKey..endKey (the codec's verse keys), from items that are
+     * alive, one row per range of each link, in reading order: what the Bible's Notes panel
+     * shows. At most a few hundred.
+     */
+    List<SeamBibleBacklink> bibleBacklinks(int startKey, int endKey);
 
     /** A template of the paper library, or null when there is none alive by that id. */
     SeamTemplate template(String templateId);

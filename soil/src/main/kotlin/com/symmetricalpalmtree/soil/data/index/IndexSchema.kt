@@ -10,8 +10,9 @@ import com.symmetricalpalmtree.soil.data.Schema
  * named by the row's id. Ids are stable and never reused; a delete is soft.
  *
  * Links are here since step 4: one row per link in the library, mirrored from each file's
- * `soil_link` table whenever an app writes it. Covers and the library's shape since step 6; the
- * clipboard, tags and each item's page order since step 7.
+ * `soil_link` table whenever an app writes it, and since step 10 a link into the Bible too.
+ * Covers and the library's shape since step 6; the clipboard, tags and each item's page order
+ * since step 7.
  */
 object IndexSchema {
 
@@ -169,5 +170,17 @@ object IndexSchema {
     /** Export presets were set aside before they shipped (2026-10-03, `BACKLOG.md`); the table goes. */
     private val V9 = listOf("DROP TABLE IF EXISTS export_preset;")
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8, V9))
+    /**
+     * A link into the Bible: no target item (`targetItemId` is `''`, never an id), and the
+     * passage it names, as the file's mirror carries it: the whole wire and the verse-key span of
+     * one of its ranges. "What links into these verses" is an overlap on the span.
+     */
+    private val V10 = listOf(
+        """ALTER TABLE link ADD COLUMN bibleWire TEXT;""",
+        """ALTER TABLE link ADD COLUMN bibleStart INTEGER;""",
+        """ALTER TABLE link ADD COLUMN bibleEnd INTEGER;""",
+        """CREATE INDEX link_bible ON link(bibleStart, bibleEnd);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10))
 }
