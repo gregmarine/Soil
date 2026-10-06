@@ -214,3 +214,13 @@ and then the notebook's Send to Scratch Pad, its placement sheet, `sendInkToPad`
   Insert bar's Bible reference, or by lassoing handwriting.
 - **A link the pass declined, offered later.** A reference the writer unlinked is linked again
   only by the Link tool on its words; there is no list of removed references to review.
+
+---
+
+## One leave button on every screen
+
+**Raised by Greg 2026-10-05, at Calsprout's phase 1 walk. To revisit after Calsprout is done.**
+
+Notesprout and Docsprout leave with an "X" on the top bar; Biblesprout, the Scratch Pad and
+Calsprout leave with a back arrow. One or the other everywhere, probably the arrow. Decide once,
+then change the two apps that differ.
