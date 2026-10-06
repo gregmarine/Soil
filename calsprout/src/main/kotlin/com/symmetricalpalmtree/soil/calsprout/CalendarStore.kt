@@ -40,7 +40,7 @@ class CalendarStore(
      */
     class StoredPage(val periodId: String?, val pageId: String?, val width: Float, val height: Float, val strokes: List<Pair<Long, Stroke>>)
 
-    class Counts(val periods: Long, val pages: Long, val strokes: Long)
+    class Counts(val periods: Long, val pages: Long, val strokes: Long, val events: Long)
 
     // ── Opening ──────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ class CalendarStore(
     /** The row counts — logged at open, never used for anything else. */
     fun counts(): Counts = guard {
         val row = store.query(CalendarSql.selectCounts()).rows.first()
-        Counts(row.long("periods"), row.long("pages"), row.long("strokes"))
+        Counts(row.long("periods"), row.long("pages"), row.long("strokes"), row.long("events"))
     }
 
     // ── Reading ──────────────────────────────────────────────────────────────

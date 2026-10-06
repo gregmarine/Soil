@@ -92,10 +92,10 @@ class FakeCalendarStore : RowStore {
             strokesOf(text(s, 0)).map { (order, stroke) -> row(order, stroke) }
         "maxOrder" -> listOf("maxOrder") to listOf(listOf(Cell.Integer(strokesOf(text(s, 0)).maxOfOrNull { it.first } ?: -1L)))
         "state" -> listOf("key", "value") to state.map { (k, v) -> listOf(Cell.Text(k), Cell.Text(v)) }
-        "counts" -> listOf("periods", "pages", "strokes") to listOf(
+        "counts" -> listOf("periods", "pages", "strokes", "events") to listOf(
             listOf(
                 Cell.Integer(periods.size.toLong()), Cell.Integer(pages.size.toLong()),
-                Cell.Integer(pages.sumOf { it.strokes.size }.toLong()),
+                Cell.Integer(pages.sumOf { it.strokes.size }.toLong()), Cell.Integer(0),
             ),
         )
         else -> error("unreachable")

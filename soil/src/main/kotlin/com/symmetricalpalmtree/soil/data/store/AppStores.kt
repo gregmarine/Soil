@@ -40,7 +40,10 @@ object AppStores {
      */
     @Synchronized
     fun open(context: Context, name: String, schema: Schema): RowStore {
-        open[name]?.let { return it.rows }
+        // A store this process already holds may be asked for at a newer schema than it was
+        // opened with — a Sprout app updated while Soil ran (Calsprout's events step, 2026-10-05).
+        // The steps it is missing run now; a current store costs one PRAGMA.
+        open[name]?.let { SoilDb.migrate(it.db, schema); return it.rows }
         val app = context.applicationContext
         val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
         val file = SoilFiles.storeFile(app, name)

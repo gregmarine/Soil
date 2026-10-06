@@ -292,7 +292,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             document = doc
             val bookmark = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val counts = runCatching { store.counts() }.getOrNull()
-                Slog.d(TAG) { "rows: ${counts?.periods} period(s), ${counts?.pages} page(s), ${counts?.strokes} stroke(s)" }
+                Slog.d(TAG) { "rows: ${counts?.periods} period(s), ${counts?.pages} page(s), ${counts?.strokes} stroke(s), ${counts?.events} event(s)" }
                 store.readBookmark()
             }
             val today = LocalDate.now()

@@ -28,7 +28,7 @@ class CalendarSqlTest {
     @Test
     fun schemaShape() {
         assertEquals("calsprout", CalendarSchema.KIND)
-        assertEquals(1, CalendarSchema.SCHEMA.version)
+        assertEquals(2, CalendarSchema.SCHEMA.version)
         val step = CalendarSchema.SCHEMA.steps[0]
         assertEquals(6, step.size)
         assertEquals(5, step.count { it.trimStart().startsWith("CREATE TABLE") })
@@ -159,7 +159,7 @@ class CalendarSqlTest {
         )
         assertEquals("SELECT COALESCE(MAX(\"order\"), -1) AS maxOrder FROM stroke WHERE pageId = ?", CalendarSql.selectMaxOrder("g1").sql)
         assertEquals(
-            "SELECT (SELECT COUNT(*) FROM period) AS periods, (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM stroke) AS strokes",
+            "SELECT (SELECT COUNT(*) FROM period) AS periods, (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM stroke) AS strokes, (SELECT COUNT(*) FROM event) AS events",
             CalendarSql.selectCounts().sql,
         )
     }

@@ -99,6 +99,6 @@ object CalendarSql : InkDocument.StrokeSql by InkSql {
     fun selectCounts(): Statement =
         Statement(
             "SELECT (SELECT COUNT(*) FROM period) AS periods, (SELECT COUNT(*) FROM page) AS pages, " +
-                "(SELECT COUNT(*) FROM stroke) AS strokes",
+                "(SELECT COUNT(*) FROM stroke) AS strokes, (SELECT COUNT(*) FROM event) AS events",
         )
 }

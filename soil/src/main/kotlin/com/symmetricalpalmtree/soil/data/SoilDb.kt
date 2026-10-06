@@ -87,7 +87,7 @@ object SoilDb {
 
     /** Each pending step in its own transaction, the version stamped inside it: a step either
      *  lands whole with its number or not at all. */
-    private fun migrate(db: ZeticDB, schema: Schema) {
+    fun migrate(db: ZeticDB, schema: Schema) {
         for ((version, statements) in schema.pending(db.version)) {
             db.beginTransaction()
             try {
