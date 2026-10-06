@@ -166,6 +166,7 @@ class DocumentActivity : AppCompatActivity() {
             unlinkBible = ::rememberUnlinked,
         )
         links.install()
+        installRelinkMenu()
         bibleLinks = BibleLinkController(binding.rich, binding.editor, ::rendered, usable = { opened && !closing }, lifecycleScope, unlinked = { unlinked })
         inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
         biblePaste = BiblePaste(this, usable = { opened && !closing }, insertReference = ::insertReference, insertVerses = ::insertPassage)
@@ -262,21 +263,13 @@ class DocumentActivity : AppCompatActivity() {
             onPasteInk = { if (biblePaste.newerThan(inkPaste.copiedAt)) biblePaste.prompt() else inkPaste.prompt() },
             onBiblePassage = { askPassage() },
             askLink = { current, apply ->
-                // With no link in place, a reference the caret is on is offered: the words are
-                // selected so the link wraps all of them, and the dialog opens on them. This is how
-                // a reference the writer unlinked is linked again.
-                val onReference = if (current == null && rendered()) referenceAtCaret() else null
-                onReference?.let { binding.rich.setSelection(it.start, it.end) }
-                val prefill = onReference?.words
-                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }, prefill = prefill) { typed ->
-                    // Words that read as a Bible reference link into the Bible, under the words as typed.
-                    val wire = if (typed.isEmpty()) null else BibleLinks.wireOf(typed)
-                    if (wire != null) {
-                        apply(BibleLinks.addressOf(wire), typed)
-                        allowAgain(wire)
-                    } else {
-                        apply(typed, typed)
-                    }
+                // The Link tool is for addresses and the library. Only an existing Bible link's
+                // Edit reads its field as a reference, since that is what the field shows for one;
+                // a reference the writer unlinked comes back through the selection's Relink Bible.
+                val editingBible = current != null && BibleLinks.labelOf(current) != null
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed ->
+                    val wire = if (editingBible && typed.isNotEmpty()) BibleLinks.wireOf(typed) else null
+                    if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
                 }
             },
         )
@@ -410,13 +403,50 @@ class DocumentActivity : AppCompatActivity() {
         bibleLinks.checkDocument()
     }
 
-    /** The reference the caret or the selection touches in the rendered document, if any, as the pass would read it. */
-    private fun referenceAtCaret(): ReferenceLinker.Hit? {
+    /** The reference the caret or the selection touches in the rendered document, when it is one
+     *  the writer unlinked: the one case the selection's menu offers Relink Bible for. */
+    private fun unlinkedReferenceAtCaret(): ReferenceLinker.Hit? {
         val text = binding.rich.text?.toString() ?: return null
         val a = binding.rich.selectionStart
         val b = binding.rich.selectionEnd
         if (a < 0 || b < 0) return null
-        return ReferenceLinker.hitAt(text, a, b)
+        val hit = ReferenceLinker.hitAt(text, a, b) ?: return null
+        return hit.takeIf { BibleUnlinked.key(it.words, it.wire) in unlinked }
+    }
+
+    /**
+     * **Relink Bible** on the selection's own menu, beside Cut, Copy and Paste, in the rendered
+     * document: there when the caret or the selection touches a reference the writer took the
+     * link off (Greg, 2026-10-05). One tap: the words are selected whole, linked, and the removal
+     * forgotten, so the pass may link that reference again. The Link tool is left to addresses.
+     */
+    private fun installRelinkMenu() {
+        val callback = object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                if (opened && !closing && unlinkedReferenceAtCaret() != null) {
+                    menu.add(0, MENU_RELINK_BIBLE, 0, R.string.bible_relink_action)
+                }
+                return true
+            }
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean = false
+            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                if (item.itemId != MENU_RELINK_BIBLE) return false
+                relinkBible()
+                mode.finish()
+                return true
+            }
+            override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
+        }
+        binding.rich.customSelectionActionModeCallback = callback
+        binding.rich.customInsertionActionModeCallback = callback
+    }
+
+    private fun relinkBible() {
+        if (!opened || closing || sourceShowing) return
+        val hit = unlinkedReferenceAtCaret() ?: return
+        binding.rich.setSelection(hit.start, hit.end)
+        RichOps.setLink(binding.rich, hit.address, hit.words)
+        allowAgain(hit.wire)
     }
 
     /** A reference linked again by hand: whatever removal was remembered for its wire is forgotten,
@@ -711,6 +741,7 @@ class DocumentActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val MENU_RELINK_BIBLE = 0x5B1B
         private const val TAG = "DocumentActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
         private const val AUTOSAVE_DELAY_MS = 2_000L

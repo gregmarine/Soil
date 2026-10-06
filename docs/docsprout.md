@@ -102,7 +102,8 @@ The switch and the person's own words are per device, in Docsprout's own prefere
 `bible:` address, which a Bible reference in the words becomes on its own after a pause in
 typing; in the rendered document a tap follows it at once and a long press offers Open, Edit
 link and Remove link; a button lists what links to this document, only when something does. A
-removed reference is remembered with the document and the Link tool on the words links it again.
+removed reference is remembered with the document; Relink Bible on the selection's menu puts it
+back.
 
 ### A Bible passage
 

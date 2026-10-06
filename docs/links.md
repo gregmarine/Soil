@@ -57,9 +57,11 @@ span over the words, no character moves and one undo takes it off; in the source
 characters. Left alone: words already in a link, code or a raw block, and a reference the caret
 is touching, read again once the caret has moved. The Link tool also takes a typed reference.
 **Remove** on a Bible link is remembered with the document (a `bible_unlinked` row: the words
-folded, and the wire), and the pass never puts it back; the Link tool with the caret on the
-words opens on the reference, and confirming links it again and forgets the removal. Such a link
-is mirrored one row per range of its wire (`PUT_BIBLE`).
+folded, and the wire), and the pass never puts it back; **Relink Bible** on the selection's own
+menu (beside Cut, Copy and Paste), there only when the selection touches a removed reference,
+links it again in one tap and forgets the removal. The Link tool is for addresses and the
+library and never makes a Bible link from plain words. Such a link is mirrored one row per range
+of its wire (`PUT_BIBLE`).
 
 In the rendered document a tap on a link follows it at once; a long press offers Open, Edit
 link and Remove link. A web address goes to the device's browser. Another document takes this

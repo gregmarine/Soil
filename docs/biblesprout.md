@@ -79,7 +79,8 @@ Phase 2 (the reader), 2026-10-05; phases 3 to 8, 2026-10-05.
 - Copy in the reader, Paste in a notebook or a document, asked each time: the reference, or the
   verses with it. No Send.
 - A removed reference link in a document is remembered with the document and never linked
-  again by the pass; the Link tool on the words links it again and forgets the removal.
+  again by the pass; Relink Bible, on the selection's own menu and only for a removed reference,
+  links it again and forgets the removal. The Link tool stays the tool for addresses.
 
 Proposed by the build and standing until Greg says otherwise: the `bible:` address; the mirror's
 three Bible columns with an empty item id; one mirror row per range; `ACTION_OPEN_BIBLE` for an

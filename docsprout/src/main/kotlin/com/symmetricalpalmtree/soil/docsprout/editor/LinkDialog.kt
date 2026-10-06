@@ -22,15 +22,15 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  *
  * A link into the library is ids, which mean nothing to read: the field is left empty for one,
  * and a line above it says the link points into the library. Words that read as a Bible
- * reference ("John 3:16") link into the Bible, and such a link shows its reference in the field;
- * with no link in place, [prefill] (a reference the caret is on) is offered the same way, which
- * is how a reference the writer unlinked is linked again.
+ * A link into the Bible shows its reference in the field, and its Edit reads the field as a
+ * reference; the tool never makes a Bible link from plain words (the pass does, and the
+ * selection's Relink Bible puts a removed one back).
  * The IME is asked for on the way in and never hidden. An address is the writer's and is never
  * logged.
  */
 internal object LinkDialog {
 
-    fun ask(activity: Activity, current: String?, onChooseFromLibrary: () -> Unit, prefill: String? = null, apply: (String) -> Unit) {
+    fun ask(activity: Activity, current: String?, onChooseFromLibrary: () -> Unit, apply: (String) -> Unit) {
         if (activity.isFinishing || activity.isDestroyed) return
         val density = activity.resources.displayMetrics.density
         val pad = (12 * density).toInt()
@@ -45,7 +45,7 @@ internal object LinkDialog {
             setPadding(pad, pad, pad, pad)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine()
-            val shown = reference ?: current ?: prefill
+            val shown = reference ?: current
             if (!shown.isNullOrEmpty() && !intoLibrary) { setText(shown); setSelection(0, shown.length) }
         }
         var dialog: AlertDialog? = null
