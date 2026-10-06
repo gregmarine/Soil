@@ -424,7 +424,9 @@ class DocumentActivity : AppCompatActivity() {
         val callback = object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 if (opened && !closing && unlinkedReferenceAtCaret() != null) {
-                    menu.add(0, MENU_RELINK_BIBLE, 0, R.string.bible_relink_action)
+                    // Last on the menu: the framework's own items (Cut, Copy, Paste, Select all,
+                    // Share…) order below a hundred, and this is an occasional act.
+                    menu.add(0, MENU_RELINK_BIBLE, MENU_RELINK_ORDER, R.string.bible_relink_action)
                 }
                 return true
             }
@@ -742,6 +744,7 @@ class DocumentActivity : AppCompatActivity() {
 
     companion object {
         private const val MENU_RELINK_BIBLE = 0x5B1B
+        private const val MENU_RELINK_ORDER = 100
         private const val TAG = "DocumentActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
         private const val AUTOSAVE_DELAY_MS = 2_000L
