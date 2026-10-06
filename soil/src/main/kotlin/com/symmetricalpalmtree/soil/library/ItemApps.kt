@@ -113,6 +113,45 @@ object ItemApps {
         )
     }
 
+    /**
+     * The screen that opens the Bible ([Seam.ACTION_OPEN_BIBLE]), or null when no app that may be
+     * trusted offers to. It names no kind: a passage is not an item. Pure over the candidates.
+     */
+    fun chooseBible(candidates: List<Candidate>, hubPackage: String): Candidate? =
+        candidates
+            .filter { it.sameKey && Seam.sameBuild(hubPackage, it.packageName) }
+            .minWithOrNull(compareBy(Candidate::packageName).thenBy(Candidate::className))
+
+    fun findBible(context: Context): Candidate? {
+        val pm = context.packageManager
+        val found = try {
+            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0).map { info ->
+                val activity = info.activityInfo
+                Candidate(
+                    packageName = activity.packageName,
+                    className = activity.name,
+                    kind = null,
+                    sameKey = pm.checkSignatures(context.packageName, activity.packageName) == PackageManager.SIGNATURE_MATCH,
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "the apps could not be read: ${e.javaClass.simpleName}")
+            emptyList()
+        }
+        return chooseBible(found, context.packageName)
+    }
+
+    /** Open the Bible on [wire], a passage in the codec's form; the reader decodes it. */
+    fun openBible(context: Context, wire: String): Opened {
+        val app = findBible(context) ?: return Opened.NO_APP
+        return start(
+            context,
+            Intent(Seam.ACTION_OPEN_BIBLE)
+                .setComponent(ComponentName(app.packageName, app.className))
+                .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+        )
+    }
+
     private fun start(context: Context, intent: Intent): Opened = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         Opened.YES

@@ -329,6 +329,8 @@
     <string name="follow_failed_title">Can\'t follow this link</string>
     <string name="follow_locked_body">The library is not open. Open it in Soil, then follow the link again.</string>
     <string name="follow_gone_body">What this link points to is no longer in the library.</string>
+    <string name="follow_no_bible_body">Biblesprout is not installed.</string>
+    <string name="follow_bible_failed_body">The Bible could not be opened.</string>
     <string name="pick_page_title">Link to</string>
     <string name="pick_page_whole">The whole notebook</string>
     <string name="pick_page_numbered">Page %1$d</string>
