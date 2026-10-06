@@ -51,6 +51,22 @@ object ReferenceLinker {
         return Plan(hits, held)
     }
 
+    /**
+     * The reference the caret or the selection `[from, to]` touches in [text], if any: a hit on
+     * the caret's line that the range overlaps or sits at either end of. What the Link tool offers
+     * when nothing is linked yet, which is how an unlinked reference is linked again.
+     */
+    fun hitAt(text: String, from: Int, to: Int): Hit? {
+        val a = minOf(from, to).coerceIn(0, text.length)
+        val b = maxOf(from, to).coerceIn(0, text.length)
+        val lines = ProofreadCheck.lineRegion(text, a, b)
+        if (lines.end <= lines.start) return null
+        val slice = text.substring(lines.start, lines.end)
+        return ReferenceScan.scan(slice)
+            .map { Hit(lines.start + it.start, lines.start + it.end, text.substring(lines.start + it.start, lines.start + it.end), it.wire) }
+            .firstOrNull { a <= it.end && b >= it.start }
+    }
+
     /** What is not prose in Markdown source: code, addresses, and every link whole. */
     fun markdownProtected(text: String): BooleanArray {
         val skip = ProofreadTokenizer.skipMask(text)

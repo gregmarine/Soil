@@ -20,8 +20,6 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
-import com.symmetricalpalmtree.soil.bibleref.ReferenceScan
-import com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck
 import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
@@ -29,6 +27,7 @@ import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
 import com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController
+import com.symmetricalpalmtree.soil.docsprout.editor.bible.ReferenceLinker
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
@@ -268,7 +267,7 @@ class DocumentActivity : AppCompatActivity() {
                 // a reference the writer unlinked is linked again.
                 val onReference = if (current == null && rendered()) referenceAtCaret() else null
                 onReference?.let { binding.rich.setSelection(it.start, it.end) }
-                val prefill = onReference?.let { binding.rich.text?.subSequence(it.start, it.end)?.toString() }
+                val prefill = onReference?.words
                 LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }, prefill = prefill) { typed ->
                     // Words that read as a Bible reference link into the Bible, under the words as typed.
                     val wire = if (typed.isEmpty()) null else BibleLinks.wireOf(typed)
@@ -411,15 +410,13 @@ class DocumentActivity : AppCompatActivity() {
         bibleLinks.checkDocument()
     }
 
-    /** The reference the caret sits on or touches in the rendered document, if any, as the pass would read it. */
-    private fun referenceAtCaret(): ReferenceScan.Hit? {
+    /** The reference the caret or the selection touches in the rendered document, if any, as the pass would read it. */
+    private fun referenceAtCaret(): ReferenceLinker.Hit? {
         val text = binding.rich.text?.toString() ?: return null
-        val caret = binding.rich.selectionStart.takeIf { it >= 0 && it == binding.rich.selectionEnd } ?: return null
-        val lines = ProofreadCheck.lineRegion(text, caret, caret)
-        if (lines.end <= lines.start) return null
-        val slice = text.substring(lines.start, lines.end)
-        return ReferenceScan.scan(slice).map { ReferenceScan.Hit(lines.start + it.start, lines.start + it.end, it.passages) }
-            .firstOrNull { caret in it.start..it.end }
+        val a = binding.rich.selectionStart
+        val b = binding.rich.selectionEnd
+        if (a < 0 || b < 0) return null
+        return ReferenceLinker.hitAt(text, a, b)
     }
 
     /** A reference linked again by hand: whatever removal was remembered for its wire is forgotten,
@@ -437,6 +434,7 @@ class DocumentActivity : AppCompatActivity() {
     private fun rememberUnlinked(words: String, wire: String) {
         unlinked += BibleUnlinked.key(words, wire)
         bibleLinks.bump()
+        android.widget.Toast.makeText(this, R.string.bible_unlinked_toast, android.widget.Toast.LENGTH_LONG).show()
         val documents = store ?: return
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") }

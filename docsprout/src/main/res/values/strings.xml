@@ -79,6 +79,7 @@
     <string name="ink_paste_action">Paste as words</string>
     <string name="ink_clear_action">Clear clipboard</string>
     <!-- A passage copied in the Bible: the paste asks which goes in. -->
+    <string name="bible_unlinked_toast">Link removed. To put it back, select the words and tap Link.</string>
     <string name="bible_paste_title">Bible passage on the clipboard</string>
     <string name="bible_paste_empty_body">There is no passage on the clipboard.</string>
     <string name="bible_paste_reference">The reference, as a link</string>

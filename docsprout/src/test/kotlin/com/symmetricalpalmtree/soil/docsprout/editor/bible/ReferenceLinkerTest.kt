@@ -71,4 +71,17 @@ class ReferenceLinkerTest {
         val (_, between) = ReferenceLinker.rewriteMarkdown(text, hits, 12)
         assertEquals(12 + "[](bible:JHN:3:16-3:16)".length, between)
     }
+
+    @Test
+    fun `the Link tool finds the reference the caret or the selection touches`() {
+        val text = "see John 3:16 today\nActs 1:3\n"
+        assertEquals("John 3:16", ReferenceLinker.hitAt(text, 8, 8)?.words)
+        assertEquals("John 3:16", ReferenceLinker.hitAt(text, 4, 4)?.words)
+        assertEquals("John 3:16", ReferenceLinker.hitAt(text, 13, 13)?.words)
+        assertEquals("John 3:16", ReferenceLinker.hitAt(text, 4, 13)?.words)
+        assertEquals("John 3:16", ReferenceLinker.hitAt(text, 2, 6)?.words)
+        assertEquals("Acts 1:3", ReferenceLinker.hitAt(text, 22, 22)?.words)
+        assertEquals(null, ReferenceLinker.hitAt(text, 15, 18))
+        assertEquals(null, ReferenceLinker.hitAt("plain words", 3, 3))
+    }
 }

@@ -141,7 +141,12 @@ object ItemApps {
         return chooseBible(found, context.packageName)
     }
 
-    /** Open the Bible on [wire], a passage in the codec's form; the reader decodes it. */
+    /**
+     * Open the Bible on [wire], a passage in the codec's form; the reader decodes it. In the
+     * caller's own task, never a new one: a link followed from a notebook or a document puts the
+     * reader over that screen, so Back and the reader's swipe up come back to it, whatever
+     * reader may be alive in Biblesprout's own task from the menu.
+     */
     fun openBible(context: Context, wire: String): Opened {
         val app = findBible(context) ?: return Opened.NO_APP
         return start(
@@ -149,11 +154,12 @@ object ItemApps {
             Intent(Seam.ACTION_OPEN_BIBLE)
                 .setComponent(ComponentName(app.packageName, app.className))
                 .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+            newTask = false,
         )
     }
 
-    private fun start(context: Context, intent: Intent): Opened = try {
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    private fun start(context: Context, intent: Intent, newTask: Boolean = true): Opened = try {
+        context.startActivity(if (newTask) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else intent)
         Opened.YES
     } catch (e: Exception) {
         Log.w(TAG, "an item could not be opened: ${e.javaClass.simpleName}")
