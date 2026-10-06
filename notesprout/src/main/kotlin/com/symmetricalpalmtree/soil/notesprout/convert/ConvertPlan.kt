@@ -6,6 +6,10 @@ import com.symmetricalpalmtree.soil.markdown.rich.RichAttr
 import com.symmetricalpalmtree.soil.markdown.rich.RichBlock
 import com.symmetricalpalmtree.soil.markdown.rich.RichDoc
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
+import com.symmetricalpalmtree.soil.markdown.rich.RichSpan
+import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
+import com.symmetricalpalmtree.soil.seam.BibleAddress
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.notesprout.data.PageContent
 
@@ -16,7 +20,8 @@ import com.symmetricalpalmtree.soil.notesprout.data.PageContent
  * and a text object are words already. So the page is cut into [Piece]s from top to bottom: each
  * heading and text object in its place, and between them the ink that sits above the next one,
  * read as one stretch. A link's wrapped ink and objects are part of the page like any other (the
- * link itself, a jump, does not come across); a sticky note's content is not on the page and is
+ * link itself, a jump, does not come across, except a Bible reference, whose words come across
+ * linked to their passage); a sticky note's content is not on the page and is
  * left out.
  *
  * What is read is a person's words, not Markdown: each paragraph goes into the document as plain
@@ -41,9 +46,26 @@ object ConvertPlan {
             val words = oneLine(h.text)
             if (words.isNotEmpty()) placed += Placed(h.y, h.x, listOf(RichBlock(RichAttr.heading(h.level.coerceIn(1, 6)), words)))
         }
-        for (t in content.texts + content.links.flatMap { it.texts }) {
+        for (t in content.texts) {
             val blocks = RichParse.parse(t.text).doc.blocks
             if (blocks.isNotEmpty()) placed += Placed(t.y, t.x, blocks)
+        }
+        for (link in content.links) {
+            // A Bible reference comes across as what it is: its words, linked to the passage. The
+            // verses placed under one, and any other link's texts, come across as their words.
+            val wire = LinkPayload.referenceOf(link.payload)?.takeIf { !LinkPayload.isBibleText(link.payload) }
+            val reference = link.texts.singleOrNull()?.takeIf { wire != null }
+            if (wire != null && reference != null) {
+                val words = oneLine(reference.text)
+                if (words.isNotEmpty()) {
+                    placed += Placed(reference.y, reference.x, listOf(RichBlock(RichAttr.PARAGRAPH, words, listOf(RichSpan(0, words.length, RichStyle.LINK, BibleAddress(wire).encode())))))
+                }
+                continue
+            }
+            for (t in link.texts) {
+                val blocks = RichParse.parse(t.text).doc.blocks
+                if (blocks.isNotEmpty()) placed += Placed(t.y, t.x, blocks)
+            }
         }
         placed.sortWith(compareBy<Placed> { it.y }.thenBy { it.x })
 
