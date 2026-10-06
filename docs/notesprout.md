@@ -39,13 +39,15 @@ return, so a notebook in the background holds no file. Frame silence while the p
 - **Objects**: typed headings (H1 to H6), Markdown text objects (the `:markdown` module, from
   SN whole), six shapes, sticky notes with an editor of their own over the notebook's store.
   The Insert bar places each at the nearest clear spot; the lasso's bar knows what it caught:
-  H, Make text, Link, Edit link, Unlink, Copy, Cut, Tag, Send, Delete. Every act is one undo
-  step, ink and objects together.
+  H, Make text, Bible, Verses, Link, Edit link, Unlink, Copy, Cut, Tag, Send, Delete. Every act
+  is one undo step, ink and objects together.
 - **The Contents** lists the headings as a tree and goes to the page tapped.
 - **Recognition**: H on ink makes a heading, Make text a text object, Tag on ink opens the tag
   screen prefilled, through Soil's relay and behind the consent flow (`extensions.md`).
-- **Links** and the picker: `links.md`. **Copy, paste and Send**: `clipboard.md`. **Tags**:
-  `tags.md`. **Templates**: `templates.md`.
+- **Links** and the picker, and a **Bible reference** on the page (the lasso's Bible, the
+  Insert bar's Bible reference, the verses placed under one): `links.md`. **Copy, paste and
+  Send**, and a passage pasted from the Bible: `clipboard.md`. **Tags**: `tags.md`.
+  **Templates**: `templates.md`.
 
 ## What it gives Soil
 

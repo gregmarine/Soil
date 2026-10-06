@@ -22,7 +22,7 @@ or an extension converts it.
 | Notebook ink | Sketchbook | Ink drawn into the raster |
 | Notebook ink | Document | Recognised text. **Done 2026-10-04** (`docs/clipboard.md`) |
 | Document text | Notebook | A text object on the page |
-| Bible passage | Notebook or document | Verses as text, with the reference |
+| Bible passage | Notebook or document | Verses as text, with the reference. **Done 2026-10-05** (`docs/clipboard.md`) |
 | Sketch | Notebook | An image on the page, which notebooks do not have today |
 
 These are the same conversions the Scratch Pad's "send to" needs, so one mechanism in Soil
@@ -158,7 +158,7 @@ preset is for, not from the SN screen.
 - **Starter content.** A new document that begins with words already in it (a letter, minutes),
   chosen when it is made. Apart from paper: it is content, not a background.
 - **Bible lookup.** SN's editor could insert a passage. It waits for Biblesprout, which owns
-  the text.
+  the text. **Done 2026-10-05**: Insert a Bible passage (`docs/docsprout.md`).
 - **A password on the text PDF.** Docsprout writes that PDF itself with Android's own writer,
   which cannot protect one. Protection is `:ext-pdf`'s work, so the text PDF would have to pass
   through it.
@@ -201,3 +201,16 @@ wish is one way for both: the pad gets a Paste that places the clipboard's ink (
 and then the notebook's Send to Scratch Pad, its placement sheet, `sendInkToPad` and
 `PadTransfer` can go.
 
+## The Bible: what Biblesprout left out
+
+**Set aside 2026-10-05, as the Biblesprout effort was built.**
+
+- **A text size setting in the reader.** SN fixed 30sp at 1.5; it stays fixed.
+- **Red letters.** Stored in the Bible, never rendered, as in SN.
+- **A second translation.** The BSB alone; the builder takes any USFM, the reader one file.
+- **Commentaries**, as the design says: may come later.
+- **References linked in a notebook's text objects.** A typed text on a page is not read for
+  references; only a document's words are. A text object's reference is linked through the
+  Insert bar's Bible reference, or by lassoing handwriting.
+- **A link the pass declined, offered later.** A reference the writer unlinked is linked again
+  only by the Link tool on its words; there is no list of removed references to review.
