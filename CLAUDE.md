@@ -19,12 +19,11 @@ editor and its Markdown editor, type-to-format, Proofread, a document's export a
 text files, links both ways, the Scratch Pad's Send reworked as a clipboard, Convert from a
 notebook, and these documents. `docs/design.md` §16 lists the phases.
 
-**The Biblesprout effort is done** (2026-10-05): the Bible reader as a Sprout app with no items,
-its state in Soil's app store over the seam, a shared reference module, references linked as
-they are typed in a document and converted from handwriting in a notebook, back references in
-Soil's link index and the reader's Notes panel, the verses as words, the `bible` clipboard, and
-these documents. `docs/design.md` §16 lists the phases. On the branch `biblesprout`, to merge
-when Greg is happy with it.
+**The Biblesprout effort is done and merged** (2026-10-05): the Bible reader as a Sprout app
+with no items, its state in Soil's app store over the seam, a shared reference module,
+references linked as they are typed in a document and converted from handwriting in a notebook,
+back references in Soil's link index and the reader's Notes panel, the verses as words, the
+`bible` clipboard, and these documents. `docs/design.md` §16 lists the phases.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
