@@ -20,6 +20,30 @@
     <string name="cd_contents">Contents</string>
     <string name="insert_heading">Heading</string>
     <string name="insert_text">Text</string>
+    <string name="insert_bible">Bible reference</string>
+    <!-- A Bible reference on the page: the user's own words, linked to the passage they name. -->
+    <string name="bible_action">Bible</string>
+    <string name="bible_reference_title">Bible reference</string>
+    <string name="bible_reference_hint">John 3:16</string>
+    <string name="bible_reference_save">Link</string>
+    <string name="bible_reference_unknown_title">Not a Bible reference</string>
+    <string name="bible_reference_unknown_body">“%1$s” does not read as a Bible reference. Edit it, or cancel and leave the ink as it was.</string>
+    <string name="bible_reference_edit_action">Edit</string>
+    <string name="bible_reference_linked_toast">Linked to %1$s</string>
+    <string name="bible_reference_problem_title">Can\'t edit this link</string>
+    <string name="bible_reference_unwrappable">This link is not a Bible reference made here: it wraps more than one text.</string>
+    <string name="bible_verses_switch">Insert the verses</string>
+    <string name="bible_verses_action">Verses</string>
+    <!-- A passage copied in the Bible: the paste asks which goes in. -->
+    <string name="bible_paste_reference">The reference, as a link</string>
+    <string name="bible_paste_verses">The verses, with the reference</string>
+    <string name="bible_verses_reading">Reading verses…</string>
+    <string name="bible_verses_too_long_title">Too long for a page</string>
+    <string name="bible_verses_too_long_body">%1$s is more than ten verses, or a whole chapter. Only a short passage can be placed on a page as text.</string>
+    <string name="bible_verses_no_room_title">No room on this page</string>
+    <string name="bible_verses_no_room_body">The verses of %1$s don\'t fit on this page. Try a page with more free space.</string>
+    <string name="bible_verses_unavailable_title">Verses unavailable</string>
+    <string name="bible_verses_unavailable_body">The verses could not be read. Biblesprout may not be installed, or Soil could not reach it.</string>
     <string name="insert_sticky">Sticky note</string>
     <string name="heading_edit_title">Heading</string>
     <string name="text_edit_title">Text</string>

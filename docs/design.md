@@ -80,7 +80,7 @@ Notes:
 
 - Documents are plain documents. Nothing elaborate.
 - Biblesprout uses Notesprout for notes. Commentaries may come later. It may never have files
-  of its own.
+  of its own. **As built (2026-10-05):** `biblesprout.md`.
 - Paintsprout may one day work with sketchbooks too. Undecided.
 - Every existing name is free to reuse, because Soil replaces everything.
 
@@ -104,6 +104,8 @@ Soil offers an app two kinds of storage.
 
 The app store is how Notesprout SN's extensions store data today: the app declares its tables
 once, sends SQL to the owner, and gets rows back. Every statement is checked before it runs.
+**As built (2026-10-05):** `openAppStore` on the seam, an `ISeamStore` over `garden/app_<package>.db`
+(`seam.md`); Biblesprout's position and recents are the first in it.
 
 ### Rules
 
@@ -144,9 +146,10 @@ Items are completely decoupled. A sketchbook or document belongs to no notebook.
   fixed pages. Linking into a document more precisely is set aside; see `BACKLOG.md`.
 - **As built (2026-10-04):** a document links out as well, to a page of a notebook or to another
   document, and lists what links to it (`links.md`).
-- Soil keeps one index of every link, since it writes every file. *Proposed:* kept current at
-  each write, with a way to rebuild it from the whole library, as the Bible's notes index works
-  today.
+- Soil keeps one index of every link, since it writes every file. **As built (2026-10-05):**
+  kept current at each write, and rebuilt from every file after a restore and from Settings
+  (`LinkRebuild`); a link into the Bible is in it too, one row per verse range, so the reader
+  lists what cites the verses on its screen (`links.md`, `biblesprout.md`).
 - *Proposed:* an item locked with its own passphrase is indexed but never prompted for until
   it is followed.
 
@@ -219,7 +222,8 @@ A menu entry can do one of three things:
 | Open something that has no files | Biblesprout, Calsprout, the Scratch Pad |
 
 *Proposed* quick-launch entries: Notesprout, Sketchsprout, Docsprout, Biblesprout, Calsprout
-and the Scratch Pad. Tags are reached from the library.
+and the Scratch Pad. Tags are reached from the library. **As built:** a row for each Sprout
+app installed, Biblesprout's opening the reader where it was left (`shell.md`).
 
 Apps do not need browsers of their own. There is one library, in Soil.
 
@@ -494,6 +498,24 @@ The Docsprout effort, on the branch `docsprout`, twelve phases, each walked on t
 | 9 | Links, both directions | `links.md` |
 | 10 | The Scratch Pad's Send reworked as a clipboard; ink pasted as words | `clipboard.md`, `scratchpad.md` |
 | 11 | Convert, from a notebook | `docsprout.md` |
+| 12 | These documents | |
+
+The Biblesprout effort, on the branch `biblesprout`, twelve phases, each walked on the Nomad
+(2026-10-05):
+
+| Phase | What | Document |
+|---|---|---|
+| 1 | `:bible-ref`: the canon, the parser, the wire, references in prose; `BibleAddress` | `biblesprout.md` |
+| 2 | The app-store lease on the seam; the reader: the Bible, the chapter flow, Contents, Recents, Search, cross-references, footnotes, the passage view; the side-menu row | `seam.md`, `biblesprout.md` |
+| 3 | A link into the Bible followed through Soil | `links.md` |
+| 4 | A Bible target in the link mirror and the index; `bibleBacklinks`; the rebuild from files | `links.md`, `seam.md` |
+| 5 | Docsprout: `bible:` links by hand, Remove remembered, Proofread leaves a reference alone | `docsprout.md`, `links.md` |
+| 6 | Docsprout: references linked as they are typed | `docsprout.md`, `links.md` |
+| 7 | The reader's Notes panel | `biblesprout.md` |
+| 8 | Notesprout: a Bible reference on the page, from the lasso or typed; SN's Bible links read | `notesprout.md`, `links.md` |
+| 9 | The verses as words: `passageText` through Soil; Verses on a page; Insert a Bible passage in a document | `seam.md`, `links.md`, `docsprout.md` |
+| 10 | The `bible` clipboard: Copy in the reader, Paste in both apps, asked each time | `clipboard.md` |
+| 11 | The edges: Convert carries a reference, a backup carries the store, a restore rebuilds the index | `docsprout.md`, `backup.md` |
 | 12 | These documents | |
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.

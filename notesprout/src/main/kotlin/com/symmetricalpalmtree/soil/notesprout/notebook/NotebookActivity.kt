@@ -36,6 +36,7 @@ import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerActivity
 import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerRelay
 import com.symmetricalpalmtree.soil.notesprout.links.LinkTrail
 import com.symmetricalpalmtree.soil.notesprout.links.PickerSource
+import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.TrailEntry
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLabels
@@ -61,6 +62,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.soil.notesprout.clip.BibleClipboard
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
@@ -116,6 +118,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private lateinit var toolbar: NotebookToolbar
     private lateinit var paletteBar: PaletteBar
     private lateinit var insertBar: InsertBar
+    private lateinit var bibleRefs: BibleRefFlow
     private lateinit var objectBar: ObjectSelectionBar
     private lateinit var lassoPopup: LassoPopup
     private lateinit var tagsPopup: TagsPopup
@@ -244,6 +247,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             navigateToPage = { pageId -> runPageOp { flipTo(document?.pages?.indexOfFirst { it.id == pageId } ?: -1) } },
             leaveFor = ::leaveFor,
             openElsewhere = ::openElsewhere,
+            openBible = ::openBible,
             editLink = ::beginEdit,
             removeLink = ::unlink,
         )
@@ -322,6 +326,26 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         )
         binding.btnInsert.setOnClickListener { paper.releaseRender(); if (insertBar.isShowing) hideInsertBar() else showInsertBar() }
         binding.btnContents.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); showContents() }
+        bibleRefs = BibleRefFlow(
+            this,
+            object : BibleRefFlow.Host {
+                override val alive: Boolean get() = opened && !closing
+                override val document: NotebookDocument? get() = this@NotebookActivity.document
+                override val recognizerPort: SeamRecognizerPort get() = this@NotebookActivity.recognizerPort
+                override val density: Float get() = this@NotebookActivity.density
+                override val scaledDensity: Float get() = this@NotebookActivity.scaledDensity
+                override fun occupied(): List<Bounds> = this@NotebookActivity.occupied()
+                override fun landReference(pageId: String, strokeIds: List<String>, text: PageText, payload: String, label: String) =
+                    this@NotebookActivity.landReference(pageId, strokeIds, text, payload, label)
+                override fun relandReference(pageId: String, link: PageLink, before: PageText, after: PageText, payload: String, label: String) =
+                    this@NotebookActivity.relandReference(pageId, link, before, after, payload, label)
+                override suspend fun passageText(wire: String): String? = withContext(Dispatchers.IO) {
+                    runCatching { (application as NotesproutApp).soil.seam().passageText(wire) }
+                        .onFailure { Log.w(TAG, "the verses could not be read: ${it.message ?: it.javaClass.simpleName}") }
+                        .getOrNull()
+                }
+            },
+        )
         objectBar = ObjectSelectionBar(
             root = binding.root, paperView = paper.asView(), bar = binding.selectionToolbar, subBar = binding.selectionSubBar,
             band = { chromeBand() }, releaseRender = { paper.releaseRender() },
@@ -334,6 +358,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             onTag = { currentSelection?.let { tagSelection(it) } },
             onSend = { currentSelection?.let { askPadPlacement(it) } },
             onMakeText = { currentSelection?.let { convertToText(it) } },
+            onBible = { currentSelection?.let { bibleRefs.convert(it) } },
+            onVerses = { loneLink()?.let { bibleRefs.expand(it) } },
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(
@@ -430,6 +456,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 // tagged page by it without ever opening the file.
                 runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
                 SoilClipboard.ensureLoaded(seam)
+                BibleClipboard.refresh(seam)
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPages(item.id, pages.map { it.id }) } }
                 }
@@ -487,7 +514,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         preparePaper()
         showPage(firstLoad = true, prebuilt = linkRenderer.prebuild(doc.first.links.values.toList()))
         opened = true
-        markClipboard(SoilClipboard.hasObjects)
+        markClipboard(SoilClipboard.hasObjects || BibleClipboard.has)
         pushExclusions()
         // Not pen-idle-gated: the pen is already over the glass on its way to write. A boundary
         // frame, not a frame during writing.
@@ -561,7 +588,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         override fun onPaperTapped(x: Float, y: Float) {
             if (!opened || closing) return
             if (tapDismissedPopup) return
-            if (!SoilClipboard.hasObjects) return
+            if (!SoilClipboard.hasObjects && !BibleClipboard.has) return
             doObjectPaste(tapX = x, tapY = y)
         }
 
@@ -661,7 +688,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             isSticky = { it in doc.stickies },
         )
         val level = sel.contentIds.singleOrNull()?.let { doc.headings[it]?.level }
-        objectBar.show(sel.bounds, mode, level)
+        val lone = sel.contentIds.singleOrNull()?.takeIf { sel.strokeIds.isEmpty() }?.let { doc.links[it] }
+        val reference = lone != null && LinkPayload.referenceOf(lone.payload) != null && !LinkPayload.isBibleText(lone.payload)
+        objectBar.show(sel.bounds, mode, level, bibleReference = reference)
         pushExclusions()
     }
 
@@ -756,6 +785,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             InsertBar.Kind.HEADING -> ObjectDialogs.heading(this, "", onSave = { words -> if (words.isNotEmpty()) insertHeading(words) })
             InsertBar.Kind.TEXT -> ObjectDialogs.text(this, "", onSave = { source -> if (source.isNotEmpty()) insertText(source) })
             InsertBar.Kind.STICKY -> insertSticky()
+            InsertBar.Kind.BIBLE -> bibleRefs.insertAtCentre()
         }
     }
 
@@ -962,7 +992,76 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     }
 
     /** Edit link on the bar, or the dead-target dialog's Edit: the picker prefilled. */
-    private fun beginEdit(link: PageLink) = launchPicker(wrap = null, edit = link)
+    /** Edit link: a Bible link's reference dialog, any other's the page picker. */
+    private fun beginEdit(link: PageLink) {
+        when {
+            LinkPayload.isBibleText(link.payload) -> bibleRefs.editVerses(link)
+            LinkPayload.referenceOf(link.payload) != null -> bibleRefs.edit(link)
+            else -> launchPicker(wrap = null, edit = link)
+        }
+    }
+
+    /**
+     * A Bible reference landed as one step: the ink it replaced erased, the text written, the
+     * link wrapped around it, the page read again and the link selected; the wrapped ink comes
+     * off the paper in the same frame.
+     */
+    private fun landReference(pageId: String, strokeIds: List<String>, text: PageText, payload: String, label: String) {
+        val doc = document ?: return
+        runPageOp {
+            if (doc.pageId != pageId) return@runPageOp
+            val ink = if (strokeIds.isNotEmpty()) doc.erase(strokeIds) else null
+            val placed = doc.createText(text)
+            val link = doc.wrap(emptySet(), setOf(placed.id), payload)
+            if (link == null) {
+                // Nothing to wrap: the text stays as a conversion would have left it.
+                undo.record(NotebookAction.Converted(pageId, ink, null, placed))
+            } else {
+                undo.record(NotebookAction.BibleRefCreated(pageId, ink, placed, link))
+            }
+            doc.flushUntilClean()
+            val prebuilt = linkRenderer.prebuild(doc.links.values.toList())
+            syncRenderers(prebuilt)
+            val landed = link?.let { doc.links[it.id] }
+            pendingSelection = landed?.let { l -> { selectObject(l.id, l.bounds) } } ?: { selectObject(placed.id, placed.bounds) }
+            if (strokeIds.isNotEmpty()) paper.removeStrokes(strokeIds) else paper.clearSelection()
+            pendingSelection?.let { pendingSelection = null; it() }
+            paper.notifyContentChanged()
+            refreshContents()
+            if (link != null) bibleRefs.toastLinked(label)
+        }
+    }
+
+    /** A Bible reference edited: its words and its payload rewritten together, one step, the
+     *  page read again so the link's box follows the words. */
+    private fun relandReference(pageId: String, link: PageLink, before: PageText, after: PageText, payload: String, label: String) {
+        val doc = document ?: return
+        runPageOp {
+            if (doc.pageId != pageId || link.id !in doc.links) return@runPageOp
+            doc.updateText(after)
+            doc.setLinkPayload(link, payload)
+            undo.record(NotebookAction.BibleRefEdited(pageId, link.id, before, after, link.payload, payload))
+            doc.reloadCurrent()
+            syncRenderers(linkRenderer.prebuild(doc.links.values.toList()))
+            doc.links[link.id]?.let { selectObject(it.id, it.bounds) }
+            paper.notifyContentChanged()
+            bibleRefs.toastLinked(label)
+        }
+    }
+
+    /** A link into the Bible: Soil opens the reader on the passage, over this notebook. */
+    private fun openBible(wire: String) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
+    }
 
     /**
      * The relay carries this notebook's pages to the picker through the live store, never a
@@ -1360,8 +1459,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private fun refreshClipboardMark() {
         if (!opened || closing) return
         lifecycleScope.launch {
-            withContext(Dispatchers.IO) { runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) } }
-            if (opened && !closing) markClipboard(SoilClipboard.hasObjects)
+            withContext(Dispatchers.IO) {
+                runCatching { SoilClipboard.refresh((application as NotesproutApp).soil.seam()) }
+                runCatching { BibleClipboard.refresh((application as NotesproutApp).soil.seam()) }
+            }
+            if (opened && !closing) markClipboard(SoilClipboard.hasObjects || BibleClipboard.has)
         }
     }
 
@@ -1480,6 +1582,22 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         if (!opened || closing) return
         val doc = document ?: return
         val pageId = doc.pageId
+        // A passage from the Bible, copied after whatever the notebook kind's slot holds: the
+        // paste asks which of it goes in, where the pen tapped.
+        if (BibleClipboard.newerThan(SoilClipboard.header)) {
+            lifecycleScope.launch {
+                val clip = withContext(Dispatchers.IO) { runCatching { BibleClipboard.read(seam()) }.getOrNull() }
+                if (!opened || closing || document?.pageId != pageId) return@launch
+                if (clip == null) {
+                    withContext(Dispatchers.IO) { runCatching { BibleClipboard.clear(seam()) } }
+                    markClipboard(SoilClipboard.hasObjects)
+                    Dialogs.problem(this@NotebookActivity, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
+                    return@launch
+                }
+                bibleRefs.pasteFromClipboard(clip, tapX, tapY)
+            }
+            return
+        }
         runPageOp {
             val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
             if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS || env.rows.isEmpty()) {
@@ -1541,11 +1659,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private suspend fun retireClipboard() {
         markClipboard(false)
         runCatching { withContext(Dispatchers.IO) { SoilClipboard.clear((application as NotesproutApp).soil.seam()) } }
+        runCatching { withContext(Dispatchers.IO) { BibleClipboard.clear((application as NotesproutApp).soil.seam()) } }
     }
 
     /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with nothing of ours to offer. */
     private fun showLassoPopup(anchor: View? = null) {
-        if (!opened || closing || !SoilClipboard.hasObjects) return
+        if (!opened || closing || !(SoilClipboard.hasObjects || BibleClipboard.has)) return
         hideFloatingBars()
         if (lassoPopup.show(anchor)) pushExclusions()
     }

@@ -8,6 +8,8 @@ import com.symmetricalpalmtree.soil.crypto.SoilLockedException
 import com.symmetricalpalmtree.soil.data.Schema
 import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
+import com.symmetricalpalmtree.soil.data.index.LinkRows
+import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.seam.SeamLimits
 import com.symmetricalpalmtree.soil.seam.SeamLinks
@@ -96,11 +98,50 @@ object ItemFiles {
         return db
     }
 
-    /** Soil's own tables beside the app's: the link mirror ([SeamLinks]). `soil_meta` is made at
-     *  [create] alone, since a file without it is not an item. */
+    /** Soil's own tables beside the app's: the link mirror ([SeamLinks]), with its Bible columns
+     *  added to a file made before them. `soil_meta` is made at [create] alone, since a file
+     *  without it is not an item. */
     private fun ownTables(db: ZeticDB) {
         db.execSQL(SeamLinks.CREATE)
         db.execSQL(SeamLinks.CREATE_INDEX)
+        if (!hasColumn(db, SeamLinks.TABLE, "bibleWire")) {
+            db.execSQL(SeamLinks.ADD_BIBLE_WIRE)
+            db.execSQL(SeamLinks.ADD_BIBLE_START)
+            db.execSQL(SeamLinks.ADD_BIBLE_END)
+        }
+        db.execSQL(SeamLinks.CREATE_BIBLE_INDEX)
+    }
+
+    private fun hasColumn(db: ZeticDB, table: String, column: String): Boolean =
+        db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+            val name = c.getColumnIndex("name")
+            while (c.moveToNext()) if (c.getString(name) == column) return true
+            false
+        }
+
+    /**
+     * The link mirror of item [id], read from its file without a session: what a rebuild of the
+     * index reads for an item no app holds. The file is opened as it is, brought to no schema,
+     * given its own tables, read and closed. Blocking; IO only.
+     *
+     * @throws ItemRefused when the file is another item's
+     */
+    fun readLinkMirror(context: Context, id: String, kind: String): List<com.symmetricalpalmtree.soil.data.index.LinkRow> {
+        val app = context.applicationContext
+        val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
+        val file = SoilFiles.itemFile(app, id)
+        val db = when (val key = KeyOpener.keyFor(app, id, file, passphrase)) {
+            is com.symmetricalpalmtree.soil.data.FileKey.Passphrase -> com.symmetricalpalmtree.soil.crypto.SoilCrypto.openRaw(file, key.value)
+            is com.symmetricalpalmtree.soil.data.FileKey.Raw -> com.symmetricalpalmtree.soil.crypto.SoilCrypto.openRawKey(file, key.value)
+        }
+        try {
+            val verdict = ItemMeta.verdict(readMeta(db), id, kind)
+            if (verdict != ItemMeta.Verdict.OK) throw ItemRefused(verdict)
+            ownTables(db)
+            return SqlCipherRowStore(db).query(com.symmetricalpalmtree.soil.paper.store.Statement(SeamLinks.READ)).rows.map { LinkRows.of(it) }
+        } finally {
+            runCatching { db.close() }
+        }
     }
 
     /** Fold what is written into the file and close it. Never throws. */

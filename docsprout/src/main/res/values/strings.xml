@@ -63,11 +63,28 @@
     <string name="fmt_reflow">Join wrapped lines into paragraphs  ·  Ctrl+Shift+F</string>
     <string name="fmt_proofread">Proofread</string>
     <string name="fmt_paste_ink">Paste handwriting as words</string>
+    <string name="fmt_bible_passage">Insert a Bible passage</string>
+    <string name="passage_title">Bible passage</string>
+    <string name="passage_hint">John 3:16</string>
+    <string name="passage_insert">Insert</string>
+    <string name="passage_not_reference_title">Not a Bible reference</string>
+    <string name="passage_not_reference_body">“%1$s” does not read as a Bible reference.</string>
+    <string name="passage_failed_title">Verses unavailable</string>
+    <string name="passage_no_app_body">Biblesprout is not installed.</string>
+    <string name="passage_too_long_body">That is more than a chapter. Insert a shorter passage.</string>
+    <string name="passage_failed_body">The verses could not be read from the Bible.</string>
 
     <!-- Ink from the clipboard, as words -->
     <string name="ink_paste_title">Handwriting on the clipboard</string>
     <string name="ink_paste_action">Paste as words</string>
     <string name="ink_clear_action">Clear clipboard</string>
+    <!-- A passage copied in the Bible: the paste asks which goes in. -->
+    <string name="bible_unlinked_toast">Link removed. To put it back, select the words and choose Relink Bible.</string>
+    <string name="bible_relink_action">Relink Bible</string>
+    <string name="bible_paste_title">Bible passage on the clipboard</string>
+    <string name="bible_paste_empty_body">There is no passage on the clipboard.</string>
+    <string name="bible_paste_reference">The reference, as a link</string>
+    <string name="bible_paste_verses">The verses, with the reference</string>
     <string name="ink_paste_empty_body">There is no handwriting on the clipboard. Copy some in the Scratch Pad, or with the lasso in a notebook, then paste it here.</string>
     <string name="ink_paste_no_ink_body">What is on the clipboard holds no handwriting to read.</string>
     <string name="fmt_more">More tools</string>

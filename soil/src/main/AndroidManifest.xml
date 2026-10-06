@@ -12,6 +12,13 @@
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.action.OPEN_ITEM" />
         </intent>
+        <!-- Biblesprout: the one Sprout app with no items, found by the screen that opens a passage. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.OPEN_BIBLE" />
+        </intent>
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.BIBLE_TEXT" />
+        </intent>
         <!-- The extensions: a recogniser is a service Soil binds on an app's behalf. -->
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />

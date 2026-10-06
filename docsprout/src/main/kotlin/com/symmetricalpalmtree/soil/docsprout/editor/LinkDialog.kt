@@ -21,8 +21,12 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  * typed into the field. With a link already in place the dialog also offers to take it off.
  *
  * A link into the library is ids, which mean nothing to read: the field is left empty for one,
- * and a line above it says the link points into the library. The IME is asked for on the way in
- * and never hidden. An address is the writer's and is never logged.
+ * and a line above it says the link points into the library. Words that read as a Bible
+ * A link into the Bible shows its reference in the field, and its Edit reads the field as a
+ * reference; the tool never makes a Bible link from plain words (the pass does, and the
+ * selection's Relink Bible puts a removed one back).
+ * The IME is asked for on the way in and never hidden. An address is the writer's and is never
+ * logged.
  */
 internal object LinkDialog {
 
@@ -31,6 +35,8 @@ internal object LinkDialog {
         val density = activity.resources.displayMetrics.density
         val pad = (12 * density).toInt()
         val intoLibrary = current != null && SoilAddress.isSoil(current)
+        // A link into the Bible reads as its reference, which is what the field holds to edit.
+        val reference = current?.let { BibleLinks.labelOf(it) }
         val input = AppCompatEditText(activity).apply {
             setHint(R.string.link_field_hint)
             textSize = 16f
@@ -39,7 +45,8 @@ internal object LinkDialog {
             setPadding(pad, pad, pad, pad)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine()
-            if (!current.isNullOrEmpty() && !intoLibrary) { setText(current); setSelection(0, current.length) }
+            val shown = reference ?: current
+            if (!shown.isNullOrEmpty() && !intoLibrary) { setText(shown); setSelection(0, shown.length) }
         }
         var dialog: AlertDialog? = null
         val choose = AppCompatButton(activity).apply {

@@ -378,7 +378,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
 
     suspend fun setLinkPayload(link: PageLink, payload: String) {
         val after = link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload))
-        withContext(Dispatchers.IO) { store.setLinkPayload(pageId, after) }
+        withContext(Dispatchers.IO) { store.setLinkPayload(pageId, after, before = link.payload) }
         links[after.id] = after
         onObjectsChanged()
     }
@@ -419,6 +419,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkCreated -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.relink(a.pageId, a.link) }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.before) }
+            is NotebookAction.BibleRefCreated -> objects(a.pageId) {
+                a.ink?.let { ink.revert(it) }
+                store.unlink(a.pageId, a.link)
+                store.deleteObjects(listOf(a.text.id), emptyList())
+            }
+            is NotebookAction.BibleRefEdited -> objects(a.pageId) { store.setTextContent(a.beforeText); setPayloadOf(a.linkId, a.beforePayload) }
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.from)
             is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
@@ -453,6 +459,12 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkCreated -> objects(a.pageId) { store.relink(a.pageId, a.link) }
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.after) }
+            is NotebookAction.BibleRefCreated -> objects(a.pageId) {
+                a.ink?.let { ink.reapply(it) }
+                store.restoreText(a.pageId, a.text)
+                store.relink(a.pageId, a.link)
+            }
+            is NotebookAction.BibleRefEdited -> objects(a.pageId) { store.setTextContent(a.afterText); setPayloadOf(a.linkId, a.afterPayload) }
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.to)
             is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids); store.remirrorPage(a.pageId) }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
@@ -464,7 +476,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     /** A replay of a payload edit: the link is on the page by now (the replay landed there). */
     private fun setPayloadOf(linkId: String, payload: String) {
         val link = links[linkId] ?: return
-        store.setLinkPayload(pageId, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)))
+        store.setLinkPayload(pageId, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)), before = link.payload)
     }
 
     /** An ink-only replay: in memory on the page, then flushed. */

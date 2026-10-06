@@ -46,7 +46,7 @@ class SchemaTest {
 
     @Test
     fun theIndexIsAtVersionSeven_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesFoldersClipboardTagsAndPages() {
-        assertEquals(9, IndexSchema.SCHEMA.version)
+        assertEquals(10, IndexSchema.SCHEMA.version)
         val held = IndexSchema.SCHEMA.steps[6].joinToString("\n")
         assertTrue(held.contains("CREATE TABLE clipboard ("))
         assertTrue(held.contains("kind TEXT PRIMARY KEY"))
@@ -77,5 +77,14 @@ class SchemaTest {
         assertTrue(ddl.contains("deletedAt INTEGER"))
         assertTrue(ddl.contains("keyScope TEXT NOT NULL DEFAULT 'GLOBAL'"))
         assertTrue(ddl.contains("CREATE TABLE meta"))
+    }
+
+    @Test
+    fun `step ten gives a link a Bible target`() {
+        val bible = IndexSchema.SCHEMA.steps[9].joinToString("\n")
+        assertTrue(bible.contains("ALTER TABLE link ADD COLUMN bibleWire TEXT"))
+        assertTrue(bible.contains("ALTER TABLE link ADD COLUMN bibleStart INTEGER"))
+        assertTrue(bible.contains("ALTER TABLE link ADD COLUMN bibleEnd INTEGER"))
+        assertTrue(bible.contains("CREATE INDEX link_bible ON link(bibleStart, bibleEnd)"))
     }
 }

@@ -150,6 +150,21 @@ class SoilSeamService : Service() {
             }
         }
 
+        override fun bibleBacklinks(startKey: Int, endKey: Int): List<SeamBibleBacklink> = answered {
+            require(startKey in 1..66_999_999 && endKey >= startKey) { "not a verse span" }
+            IndexStore().bibleBacklinks(startKey, endKey).map {
+                SeamBibleBacklink(
+                    linkId = it.linkId, sourceItemId = it.sourceItemId, sourceKind = it.sourceKind, sourceName = it.sourceName,
+                    sourcePageId = it.sourcePageId, pageNumber = it.pageNumber, wire = it.wire, startKey = it.startKey, endKey = it.endKey,
+                )
+            }
+        }
+
+        override fun passageText(wire: String): String = answered {
+            require(BibleAddress.isWire(wire)) { "not a wire" }
+            com.symmetricalpalmtree.soil.library.BibleTextClient.passageText(this@SoilSeamService, wire)
+        }
+
         override fun template(templateId: String): SeamTemplate? = answered {
             TemplateStore().template(templateId)?.let { SeamTemplate(it.id, it.name, it.fit) }
         }
@@ -317,6 +332,15 @@ class SoilSeamService : Service() {
             }
 
         private val sent = ThreadLocal<SeamBytes?>()
+
+        override fun openAppStore(schema: SeamSchema, owner: IBinder): ISeamStore = answered {
+            val uid = Binder.getCallingUid()
+            // The store is the caller's own: named after its package, which Android names, never
+            // the schema's kind, so no app can ask for another's.
+            val packageName = packageManager.getNameForUid(uid)?.substringBefore(':')
+                ?: throw IllegalStateException("the caller has no package")
+            AppStoreLease.open(this@SoilSeamService, packageName, schema, uid, owner, ::requireOpen)
+        }
 
         override fun openItem(itemId: String, schema: SeamSchema, owner: IBinder): ISeamItem = answered {
             val item = IndexStore().aliveItem(itemId) ?: throw IllegalStateException(NO_SUCH_ITEM)

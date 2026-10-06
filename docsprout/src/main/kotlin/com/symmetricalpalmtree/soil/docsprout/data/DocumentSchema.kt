@@ -23,6 +23,10 @@ object DocumentSchema {
     const val TYPE_DOCUMENT = "document"
     const val TYPE_BODY = "body"
 
+    /** A Bible link the writer took off: its words in `text`, its wire in `refId`, under the root.
+     *  A row type, not a step: the table's shape is unchanged. */
+    const val TYPE_BIBLE_UNLINKED = "bible_unlinked"
+
     /** The root row's `parentId`. */
     const val ROOT_PARENT = ""
 

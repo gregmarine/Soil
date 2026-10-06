@@ -2,7 +2,9 @@
 
 A lasso selection wraps into a link that points at a page of this notebook, at another item,
 or at a page of one. Page level on both ends; a link to a whole item is a link with no page.
-A document links too, and is linked to: always as a whole, since it has no pages.
+A document links too, and is linked to: always as a whole, since it has no pages. A notebook
+and a document both link into the Bible, to a passage, and the Bible's reader lists what links
+into the verses on its screen.
 
 ## In the notebook
 
@@ -17,6 +19,17 @@ so a converted notebook's links read. The item slot may name any kind of item; w
 the library says. A link to an item of another kind (a document), and a backlink from one, is
 followed by asking Soil, with `Seam.ACTION_FOLLOW`, to open it in the app for its kind, over
 the notebook.
+
+SN's kinds 3 and 4 read too: a **Bible reference** (`L1|1|3|<wire>|`, the wire in the item
+slot) and the **verses** placed under one (kind 4). A reference on the page is a text of the
+user's own words wrapped in such a link: the lasso bar's Bible on ink recognises it as one line
+and offers it in the reference dialog to correct, the Insert bar's Bible reference opens the
+dialog empty, Edit link on one opens the dialog on its words; words that are not a reference are
+refused with the words kept, and nothing is written. The dialog's "Insert the verses", and
+Verses on a placed reference, put the passage's words in the verses column (`VersePlacement`:
+a tenth in from the left, the nearest clear band, refused with an alert when the page has no
+room) under a kind-4 link whose Edit is the text dialog; the cap is ten verses and never a
+chapter (`VerseCap`). A tap on either hands the wire to Soil, which opens the reader.
 
 ## The picker
 
@@ -35,6 +48,21 @@ whose address is a `soil:` address (`SoilAddress`: `soil:<item>` or `soil:<item>
 the text stays plain Markdown. `DocumentLinks` mirrors every such address to `soil_link` in the
 same batch as the words, under the page `""`, which is the document itself.
 
+A **Bible reference links on its own** (Greg, 2026-10-05). About 1.5 s after typing stops the
+changed lines are read for references (`ReferenceScan`, SN's whole grammar, chapter-only forms
+included; a book with a capital, a two-letter alias with its period), and each becomes a link
+whose address is `bible:<wire>` under the words as typed; the whole document is read on open,
+after an import or a paste, and on a change of surface. In the rendered document the link is a
+span over the words, no character moves and one undo takes it off; in the source it is
+characters. Left alone: words already in a link, code or a raw block, and a reference the caret
+is touching, read again once the caret has moved. The Link tool also takes a typed reference.
+**Remove** on a Bible link is remembered with the document (a `bible_unlinked` row: the words
+folded, and the wire), and the pass never puts it back; **Relink Bible** on the selection's own
+menu (beside Cut, Copy and Paste), there only when the selection touches a removed reference,
+links it again in one tap and forgets the removal. The Link tool is for addresses and the
+library and never makes a Bible link from plain words. Such a link is mirrored one row per range
+of its wire (`PUT_BIBLE`).
+
 In the rendered document a tap on a link follows it at once; a long press offers Open, Edit
 link and Remove link. A web address goes to the device's browser. Another document takes this
 one's place, with a trail and a Back button (`DocTrail`); a notebook opens in Notesprout at the
@@ -43,14 +71,27 @@ page. A button lists what links to the document, only when something does, and g
 ## In Soil
 
 `FollowLinkActivity` answers `ACTION_FOLLOW`: it looks the item up and starts the app for its
-kind, or says what is gone.
+kind, or says what is gone; handed a wire instead (`EXTRA_BIBLE_WIRE`), it starts the Bible's
+reader on the passage (`ItemApps.openBible`).
 
 
 Every file carries `soil_link`, the one Soil table an app writes, in the same batch as the link
-row, through exactly the three statements the checker admits. Soil re-reads the mirror after
+row, through exactly the four statements the checker admits. Soil re-reads the mirror after
 any batch naming it into the index's `link` table, so the index is always rebuildable from the
 files. `backlinks(itemId)` answers what links into an item, from alive sources only; the page
 sheet lists what links to the page and goes there.
 
+**A link into the Bible** has no target item: `targetItemId` is `''` (the column is `NOT NULL`
+in every file; `''` is never an id) and three columns, `bibleWire`, `bibleStart`, `bibleEnd`,
+carry the whole wire and the verse-key span of one of its ranges, one row per range (ids
+`<linkId>` and `<linkId>#<n>`), so a page of Proverbs finds a link that also names John. Soil
+adds the columns to a file made before them on its next open, and to the index at step 10. A
+row is indexed only when `LinkRows` finds it sound: an item id and no span, or no item, a wire
+the codec reads and a span that is one of the wire's own ranges. `bibleBacklinks(start, end)`
+answers by overlap, with the source's name, kind and page number, for the reader's Notes
+panel (`biblesprout.md`). `LinkRebuild` re-reads every alive item's mirror, through its open
+session or from its file, after a restore and from the Settings row **Links**.
+
 Walked on the Nomad, phase 5, 2026-10-01; documents on both ends, Docsprout's phase 9,
-2026-10-04. A link to a heading inside a document is in `BACKLOG.md`.
+2026-10-04; the Bible on both ends, Biblesprout's phases 3 to 8, 2026-10-05. A link to a
+heading inside a document is in `BACKLOG.md`.

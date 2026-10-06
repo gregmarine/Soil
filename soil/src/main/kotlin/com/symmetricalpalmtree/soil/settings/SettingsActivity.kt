@@ -2,6 +2,8 @@ package com.symmetricalpalmtree.soil.settings
 
 import android.content.Intent
 import android.os.Bundle
+import com.symmetricalpalmtree.soil.data.index.SoilIndex
+import com.symmetricalpalmtree.soil.data.index.LinkRebuild
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AlertDialog
@@ -89,6 +91,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_cloud), cloudDetail()) { onCloudTap() })
         // Through the gate: while the key is unsaved or the library locked, this leads to the screen that opens it.
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_encryption), getString(R.string.settings_encryption_detail)) { Screens.open(this, Screen.ENCRYPTION) })
+        binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_links), getString(R.string.settings_links_detail)) { rebuildLinks() })
     }
 
     // ── Cloud ──────
@@ -160,6 +163,21 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /** Every installed recogniser in each of its languages, and None. A missing recogniser is said, not offered. */
+    /** The link index rebuilt from every file: the way back when a write was missed. */
+    private fun rebuildLinks() {
+        if (!SoilIndex.isReady()) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_locked); return }
+        lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) { runCatching { LinkRebuild.rebuild(applicationContext) }.getOrNull() }
+            if (isFinishing || isDestroyed) return@launch
+            val body = when {
+                outcome == null -> getString(R.string.settings_links_failed)
+                outcome.skipped == 0 -> getString(R.string.settings_links_done, outcome.items)
+                else -> getString(R.string.settings_links_done_skipped, outcome.items, outcome.skipped)
+            }
+            Dialogs.confirm(this@SettingsActivity, getString(R.string.settings_links), body)
+        }
+    }
+
     private fun askRecognizer() {
         if (installed.isEmpty()) {
             com.symmetricalpalmtree.soil.paper.core.Dialogs.problem(this, R.string.settings_recognizer, R.string.settings_recognizer_none_installed_body)

@@ -55,13 +55,14 @@ object ItemApps {
     class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
 
     /**
-     * Every trusted app that opens some kind of item, one entry per app, by name. What the side
-     * menu lists. Read off the main thread.
+     * Every trusted app that opens some kind of item, or the Bible, one entry per app, by name.
+     * What the side menu lists. Read off the main thread.
      */
     fun sproutApps(context: Context): List<SproutApp> {
         val pm = context.packageManager
         return try {
-            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA)
+            (pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_ITEM), PackageManager.GET_META_DATA) +
+                pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0))
                 .map { it.activityInfo.packageName }
                 .distinct()
                 .filter {
@@ -112,8 +113,53 @@ object ItemApps {
         )
     }
 
-    private fun start(context: Context, intent: Intent): Opened = try {
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    /**
+     * The screen that opens the Bible ([Seam.ACTION_OPEN_BIBLE]), or null when no app that may be
+     * trusted offers to. It names no kind: a passage is not an item. Pure over the candidates.
+     */
+    fun chooseBible(candidates: List<Candidate>, hubPackage: String): Candidate? =
+        candidates
+            .filter { it.sameKey && Seam.sameBuild(hubPackage, it.packageName) }
+            .minWithOrNull(compareBy(Candidate::packageName).thenBy(Candidate::className))
+
+    fun findBible(context: Context): Candidate? {
+        val pm = context.packageManager
+        val found = try {
+            pm.queryIntentActivities(Intent(Seam.ACTION_OPEN_BIBLE), 0).map { info ->
+                val activity = info.activityInfo
+                Candidate(
+                    packageName = activity.packageName,
+                    className = activity.name,
+                    kind = null,
+                    sameKey = pm.checkSignatures(context.packageName, activity.packageName) == PackageManager.SIGNATURE_MATCH,
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "the apps could not be read: ${e.javaClass.simpleName}")
+            emptyList()
+        }
+        return chooseBible(found, context.packageName)
+    }
+
+    /**
+     * Open the Bible on [wire], a passage in the codec's form; the reader decodes it. In the
+     * caller's own task, never a new one: a link followed from a notebook or a document puts the
+     * reader over that screen, so Back and the reader's swipe up come back to it, whatever
+     * reader may be alive in Biblesprout's own task from the menu.
+     */
+    fun openBible(context: Context, wire: String): Opened {
+        val app = findBible(context) ?: return Opened.NO_APP
+        return start(
+            context,
+            Intent(Seam.ACTION_OPEN_BIBLE)
+                .setComponent(ComponentName(app.packageName, app.className))
+                .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+            newTask = false,
+        )
+    }
+
+    private fun start(context: Context, intent: Intent, newTask: Boolean = true): Opened = try {
+        context.startActivity(if (newTask) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else intent)
         Opened.YES
     } catch (e: Exception) {
         Log.w(TAG, "an item could not be opened: ${e.javaClass.simpleName}")

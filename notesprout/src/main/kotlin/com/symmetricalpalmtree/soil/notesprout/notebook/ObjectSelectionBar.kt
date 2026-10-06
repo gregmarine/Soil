@@ -22,6 +22,8 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *
  * - **H** on a lone heading: the H1–H6 sub-bar picks its level. On ink alone, the level the ink
  *   is recognised into a heading at. **Make text** on ink alone: recognised into a text object.
+ *   **Bible** on ink alone: recognised into a reference, a text wrapped in a link to its passage.
+ *   **Verses** on a lone Bible reference: its passage's words placed below it.
  * - **Link** on anything that holds no link: wrap it into one.
  * - **Edit link** and **Unlink** on a lone link. A selection that holds a link among other
  *   things can only be deleted: a link is never nested.
@@ -50,6 +52,10 @@ class ObjectSelectionBar(
     private val onSend: () -> Unit,
     /** Ink alone: recognised into a text object. */
     private val onMakeText: () -> Unit,
+    /** Ink alone: recognised into a Bible reference, a text wrapped in a link to its passage. */
+    private val onBible: () -> Unit,
+    /** A lone Bible reference: its verses placed below it as words. */
+    private val onVerses: () -> Unit,
 ) {
     private val density = root.resources.displayMetrics.density
     private val headingButton: AppCompatImageButton
@@ -59,6 +65,8 @@ class ObjectSelectionBar(
     private val tagButton: AppCompatImageButton
     private val sendButton: AppCompatImageButton
     private val textButton: AppCompatImageButton
+    private val bibleButton: AppCompatImageButton
+    private val versesButton: AppCompatImageButton
     private val levelButtons: List<AppCompatImageButton>
     private var barPlacement: SelectionAnchor.Placement? = null
 
@@ -72,6 +80,10 @@ class ObjectSelectionBar(
         bar.addView(headingButton)
         textButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_text_recognition, ctx.getString(R.string.text_convert_action)) { onMakeText() }
         bar.addView(textButton)
+        bibleButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_book, ctx.getString(R.string.bible_action)) { onBible() }
+        bar.addView(bibleButton)
+        versesButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, ctx.getString(R.string.bible_verses_action)) { onVerses() }
+        bar.addView(versesButton)
         linkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, ctx.getString(R.string.link_action)) { onLink() }
         bar.addView(linkButton)
         editLinkButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_edit, ctx.getString(R.string.link_edit_action)) { onEditLink() }
@@ -93,11 +105,13 @@ class ObjectSelectionBar(
         }
     }
 
-    fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?) {
+    fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?, bibleReference: Boolean = false) {
         val band = band() ?: return
         // H on a heading changes its level; on ink alone it recognises the ink into one.
         headingButton.visibility = if (mode == SelectionMode.HEADING || mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
         textButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
+        bibleButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
+        versesButton.visibility = if (mode == SelectionMode.LINK && bibleReference) View.VISIBLE else View.GONE
         val wrappable = mode != SelectionMode.LINK && mode != SelectionMode.MIXED_WITH_LINK
         linkButton.visibility = if (wrappable) View.VISIBLE else View.GONE
         editLinkButton.visibility = if (mode == SelectionMode.LINK) View.VISIBLE else View.GONE

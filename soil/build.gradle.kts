@@ -56,6 +56,8 @@ android {
 
 dependencies {
     implementation(project(":seam"))
+    // The one thing Soil reads of a Bible reference: that a mirror row's span is its wire's own.
+    implementation(project(":bible-ref"))
     // The documents that cross the seam, shared with every Sprout app.
     implementation(project(":seam-kit"))
     implementation(project(":ext-api"))

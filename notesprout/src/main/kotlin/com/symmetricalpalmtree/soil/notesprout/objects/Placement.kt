@@ -25,8 +25,19 @@ object FreePlacement {
     const val GAP_DP = 8f
     const val STEP_DP = 16f
 
-    fun nearCentre(pageW: Float, pageH: Float, w: Float, h: Float, occupied: List<Bounds>, density: Float): Pair<Float, Float> {
-        val centre = TextPlacement.centred(pageW, pageH, w, h)
+    fun nearCentre(pageW: Float, pageH: Float, w: Float, h: Float, occupied: List<Bounds>, density: Float): Pair<Float, Float> =
+        near(TextPlacement.centred(pageW, pageH, w, h), pageW, pageH, w, h, occupied, density)
+
+    /** [nearCentre]'s rule around a point instead: the box centred on ([px], [py]), kept on the
+     *  page, when clear, else the nearest clear spot to it. */
+    fun nearPoint(px: Float, py: Float, pageW: Float, pageH: Float, w: Float, h: Float, occupied: List<Bounds>, density: Float): Pair<Float, Float> {
+        val x = (px - w / 2f).coerceIn(0f, (pageW - w).coerceAtLeast(0f))
+        val y = (py - h / 2f).coerceIn(0f, (pageH - h).coerceAtLeast(0f))
+        return near(x to y, pageW, pageH, w, h, occupied, density)
+    }
+
+    private fun near(preferred: Pair<Float, Float>, pageW: Float, pageH: Float, w: Float, h: Float, occupied: List<Bounds>, density: Float): Pair<Float, Float> {
+        val centre = preferred
         if (occupied.isEmpty()) return centre
         if (!(pageW > 0f && pageH > 0f) || w > pageW || h > pageH || !w.isFinite() || !h.isFinite()) return centre
         val gap = GAP_DP * max(density, 0f)

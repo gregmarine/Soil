@@ -43,7 +43,7 @@ All under `~/git/Notesprout/apps/notesprout_sn/docs/` unless a path says otherwi
 | Objects: sticky notes, text, shapes | `objects.md` |
 | Page templates | `templates.md` |
 | Shared paper-screen code | `sn-screen.md` |
-| Bible | `~/git/Notesprout/extensions/bible/docs/bible.md` |
+| Bible | `~/git/Notesprout/extensions/bible/docs/bible.md` (the reader as built in SN; Soil's is `docs/biblesprout.md`) |
 | Sketch | `~/git/Notesprout/extensions/sketch/docs/sketch.md` |
 | The `.soil` file format | `~/git/Notesprout/docs/soil-file-format.md` |
 | The library index format | `~/git/Notesprout/docs/global-index-format.md` |

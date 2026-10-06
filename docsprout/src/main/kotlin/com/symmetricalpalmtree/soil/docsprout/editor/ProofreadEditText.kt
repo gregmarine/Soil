@@ -48,6 +48,17 @@ open class ProofreadEditText @JvmOverloads constructor(context: Context, attrs: 
     /** Called with the character offset of a confirmed single tap — the proofread popup's hook. */
     var onWordTap: ((Int) -> Unit)? = null
 
+    /** Called whenever the caret or the selection moves: the reference pass looks again at what it
+     *  left for a caret that was in the way. */
+    var onCaretMoved: (() -> Unit)? = null
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        // Called from the constructor too, before this class's own fields exist.
+        @Suppress("SENSELESS_COMPARISON")
+        if (onCaretMoved != null) onCaretMoved?.invoke()
+    }
+
     /** Offset under the last tap-shaped finger-up, against the layout that was actually tapped. */
     private var tappedOffset = -1
 

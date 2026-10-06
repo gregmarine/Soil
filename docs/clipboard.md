@@ -41,4 +41,20 @@ new page or the current one, as one `InkWire` document with fresh ids on arrival
 in memory (`sendInkToPad`, `PadTransfer`) and the pad lands it selected as it opens over the
 notebook. Replacing that with the same copy and paste is in `BACKLOG.md`.
 
+## A passage from the Bible
+
+Reworked from SN's Send on 2026-10-05 (Greg): the reader copies, the apps paste, and the paste
+asks each time.
+
+- **The reader copies.** Copy on its top bar puts the passage on screen, or the chapter being
+  read as a whole chapter, on the `bible` kind's slot: the wire, its label and the verses as the
+  reader's Markdown (`seamkit.clip.BibleClip`), so a paste needs nothing more from the reader.
+  The reader stays where it is.
+- **A paste asks: the reference, or the verses with it.** In a document, Ctrl+V and the Paste
+  tool take the passage when it was copied after the clipboard's ink and the device's text:
+  the reference goes in as a link under its label, the verses as paragraphs under that link. In
+  a notebook, the lasso popup's Paste and a pen tap on bare paper do the same: the reference as
+  a linked text where the pen tapped, the verses in the verses column near it, under the page's
+  cap. Clear clipboard empties this slot too.
+
 Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04.

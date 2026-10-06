@@ -9,6 +9,7 @@ import android.text.Spanned
 import android.text.TextWatcher
 import android.util.Log
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.CodeSpan
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.LinkSpan
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichCodec
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichEditText
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
@@ -380,6 +381,8 @@ internal class ProofreadController(
             if (b > a) java.util.Arrays.fill(skip, a, b, true)
         }
         for (span in text.getSpans(0, text.length, CodeSpan::class.java)) mark(text.getSpanStart(span), text.getSpanEnd(span))
+        // A link into the Bible is a reference, not prose: its words are not judged.
+        for (span in text.getSpans(0, text.length, LinkSpan::class.java)) if (BibleLinks.wireOfAddress(span.url) != null) mark(text.getSpanStart(span), text.getSpanEnd(span))
         for (block in RichCodec.blocks(text)) if (block.attr.kind == RichKind.RAW) mark(text.getSpanStart(block), text.getSpanEnd(block))
         return skip
     }

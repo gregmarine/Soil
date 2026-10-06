@@ -15,10 +15,12 @@ class DocumentLinksTest {
     private val b = "33333333-3333-3333-3333-333333333333"
     private val page = "44444444-4444-4444-4444-444444444444"
 
+    private fun item(id: String, pageId: String? = null) = DocumentLinks.Target.Item(SoilAddress(id, pageId))
+
     @Test
     fun `a document's links into the library are listed once each, in the order they appear`() {
         val markdown = "See [one](soil:$a) and [a page](soil:$b/$page), then [one again](soil:$a).\n\n- [the web](http://example.com)\n"
-        assertEquals(listOf(SoilAddress(a), SoilAddress(b, page)), DocumentLinks.targets(markdown, me))
+        assertEquals(listOf(item(a), item(b, page)), DocumentLinks.targets(markdown, me))
     }
 
     @Test
@@ -34,7 +36,7 @@ class DocumentLinksTest {
 
     @Test
     fun `the mirror drops the document's links and puts each one, in statements the seam admits`() {
-        val statements = DocumentLinks.mirror(me, listOf(SoilAddress(a), SoilAddress(b, page)))
+        val statements = DocumentLinks.mirror(me, listOf(item(a), item(b, page)))
         assertEquals(listOf(SeamLinks.DROP_PAGE, SeamLinks.PUT, SeamLinks.PUT), statements.map { it.sql })
         statements.forEach { SeamSql.checkExec(it.sql); assertEquals(it.args.size, SeamSql.bindCount(it.sql)) }
         assertEquals(listOf<Cell>(Cell.Text("")), statements[0].args)
@@ -64,5 +66,26 @@ class DocumentLinksTest {
         assertEquals(listOf(a, b), DocTrail.decode(DocTrail.encode(listOf(a, b))))
         assertEquals(listOf(a), DocTrail.decode("$a\nnot an id!\n\n"))
         assertTrue(DocTrail.decode(null).isEmpty())
+    }
+
+    @Test
+    fun `a link into the Bible is a target too, once, with its ranges`() {
+        val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
+        val markdown = "See [John 3:14-18; Prov 3:5-6](bible:$wire) and [again](bible:$wire), not [this](bible:nonsense) nor [this](bible:jhn:3:16-3:16)."
+        val targets = DocumentLinks.targets(markdown, me)
+        assertEquals(1, targets.size)
+        val bible = targets[0] as DocumentLinks.Target.Bible
+        assertEquals(wire, bible.wire)
+        assertEquals(2, bible.ranges.size)
+    }
+
+    @Test
+    fun `the mirror puts one row per range of a Bible link, in statements the seam admits`() {
+        val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
+        val statements = DocumentLinks.mirror(me, listOf(item(a), DocumentLinks.targetOf("bible:$wire", me)!!))
+        assertEquals(listOf(SeamLinks.DROP_PAGE, SeamLinks.PUT, SeamLinks.PUT_BIBLE, SeamLinks.PUT_BIBLE), statements.map { it.sql })
+        statements.forEach { SeamSql.checkExec(it.sql); assertEquals(it.args.size, SeamSql.bindCount(it.sql)) }
+        assertEquals(listOf(Cell.Text("$me:1"), Cell.Text(""), Cell.Text(wire), Cell.Integer(43003014), Cell.Integer(43003018)), statements[2].args)
+        assertEquals(listOf(Cell.Text("$me:1#1"), Cell.Text(""), Cell.Text(wire), Cell.Integer(20003005), Cell.Integer(20003006)), statements[3].args)
     }
 }

@@ -373,6 +373,22 @@ class SelfTestActivity : AppCompatActivity() {
         check("Enter on an empty quote line ends the quote", "> quote\n\nout\n")
 
         typeToFormat()
+        bibleLinks()
+    }
+
+    /** The reference pass on the rendered surface: a span over the words, the caret untouched, one step to undo. */
+    private fun bibleLinks() {
+        load("see John 3:16 today\n")
+        view.setSelection(0)
+        val text = view.text!!.toString()
+        val plan = com.symmetricalpalmtree.soil.docsprout.editor.bible.ReferenceLinker.plan(
+            text, com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck.Region(0, text.length), BooleanArray(text.length), emptySet(), 0,
+        )
+        com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController.applyRendered(view, plan.hits)
+        check("a reference found by the pass is a link over its words", "see [John 3:16](bible:JHN:3:16-3:16) today\n")
+        if (view.selectionStart != 0) fail("the caret moved to ${view.selectionStart}")
+        view.undo()
+        check("one undo takes the link off and keeps the words", "see John 3:16 today\n")
     }
 
     private fun typeToFormat() {

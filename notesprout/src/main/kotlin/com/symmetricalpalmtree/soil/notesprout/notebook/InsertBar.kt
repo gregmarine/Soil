@@ -23,7 +23,7 @@ class InsertBar(
 ) {
     /** The buttons' order is this order; a new kind is appended, never inserted. The shapes were
      *  set aside on 2026-09-30 (BACKLOG.md). */
-    enum class Kind { HEADING, TEXT, STICKY }
+    enum class Kind { HEADING, TEXT, STICKY, BIBLE }
 
     private val bar = AnchoredBar(root, bar, anchor, bandBottom)
 
@@ -44,12 +44,14 @@ class InsertBar(
             Kind.HEADING -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading
             Kind.TEXT -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_text_recognition
             Kind.STICKY -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_sticker_2
+            Kind.BIBLE -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_book
         }
 
         private fun hintOf(kind: Kind): Int = when (kind) {
             Kind.HEADING -> R.string.insert_heading
             Kind.TEXT -> R.string.insert_text
             Kind.STICKY -> R.string.insert_sticky
+            Kind.BIBLE -> R.string.insert_bible
         }
     }
 }

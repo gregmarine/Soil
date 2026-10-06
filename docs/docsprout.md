@@ -98,9 +98,19 @@ The switch and the person's own words are per device, in Docsprout's own prefere
 
 ### Links
 
-`links.md`. In short: a link is a web address or a `soil:` address chosen from the library; in
-the rendered document a tap follows it at once and a long press offers Open, Edit link and
-Remove link; a button lists what links to this document, only when something does.
+`links.md`. In short: a link is a web address, a `soil:` address chosen from the library, or a
+`bible:` address, which a Bible reference in the words becomes on its own after a pause in
+typing; in the rendered document a tap follows it at once and a long press offers Open, Edit
+link and Remove link; a button lists what links to this document, only when something does. A
+removed reference is remembered with the document; Relink Bible on the selection's menu puts it
+back.
+
+### A Bible passage
+
+**Insert a Bible passage**, on the format bar: a reference typed, its verses read from
+Biblesprout through Soil (`passageText`), and put in at the caret under a link to the passage, a
+paragraph per chapter run. A passage copied in the reader pastes the same way, asked each time
+whether the reference alone goes in (`clipboard.md`).
 
 ### Handwriting as words
 
@@ -166,7 +176,8 @@ without a restart, panels sit in the flow, nothing is disabled (hidden, or a toa
 - SN's Markdown set as is; tables, code blocks and images wait.
 - Type-to-format on line starts and on closed inline pairs.
 - In scope: import of `.md` and `.txt`, Proofread, handwriting by both routes, links both ways.
-- Bible lookup waits for Biblesprout.
+- Bible lookup waits for Biblesprout. **Done 2026-10-05**, as Insert a Bible passage, with
+  references linked as they are typed (Greg's decisions in `biblesprout.md`).
 - The export page size is chosen at export and remembered.
 - Document templates wait, as two ideas: paper behind a document, and starter content.
 - New document asks for the name first.

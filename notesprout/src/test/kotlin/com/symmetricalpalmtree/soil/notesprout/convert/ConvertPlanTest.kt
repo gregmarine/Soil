@@ -7,6 +7,7 @@ import com.symmetricalpalmtree.soil.markdown.rich.RichAttr
 import com.symmetricalpalmtree.soil.markdown.rich.RichBlock
 import com.symmetricalpalmtree.soil.notesprout.data.PageContent
 import com.symmetricalpalmtree.soil.notesprout.objects.Heading
+import com.symmetricalpalmtree.soil.notesprout.objects.PageLink
 import com.symmetricalpalmtree.soil.notesprout.objects.PageText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -50,6 +51,17 @@ class ConvertPlanTest {
     fun `a text object is Markdown already and comes across as its blocks`() {
         val pieces = ConvertPlan.pieces(PageContent(emptyList(), texts = listOf(text("- one\n- two", 50f))))
         assertEquals(2, words(pieces.single()).size)
+    }
+
+    @Test
+    fun `a Bible reference comes across as its words linked to the passage, the verses as words`() {
+        val wire = "JHN:3:14-3:18"
+        val reference = PageLink("l1", "L1|1|3|$wire|", 1, 10f, 50f, 200f, 40f, 0, emptyList(), texts = listOf(text("Jn 3:14-18", 50f)))
+        val verses = PageLink("l2", "L1|1|4|$wire|", 1, 10f, 120f, 200f, 40f, 0, emptyList(), texts = listOf(text("**John 3:14–18**\n\n14 Just as", 120f)))
+        val pieces = ConvertPlan.pieces(PageContent(emptyList(), links = listOf(reference, verses)))
+        val md = pieces.map { ConvertPlan.markdown(words(it)) }
+        assertEquals("[Jn 3:14-18](bible:$wire)\n", md[0])
+        assertTrue(md[1]!!.startsWith("**John 3:14–18**"))
     }
 
     @Test

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Biblesprout's own strings. `ok` and `cancel` come from :paper and are not repeated here. -->
+<resources>
+    <string name="app_name">Biblesprout</string>
+
+    <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
+    <string name="cd_bible_back">Back</string>
+    <string name="cd_bible_contents">Contents</string>
+    <string name="cd_bible_recents">Recents</string>
+    <!-- A text button, not a glyph: there is no icon for "the whole chapter this came from". -->
+    <string name="bible_full_chapter">Full chapter</string>
+    <string name="cd_bible_prev_page">Previous page</string>
+    <string name="cd_bible_next_page">Next page</string>
+
+    <!-- The Contents panel: book rows that open into a chapter grid, paginated. -->
+    <string name="bible_contents_title">Contents</string>
+    <string name="cd_bible_expand">Show chapters</string>
+    <string name="cd_bible_collapse">Hide chapters</string>
+    <string name="cd_bible_contents_first">First page</string>
+    <string name="cd_bible_contents_prev">Previous page</string>
+    <string name="cd_bible_contents_next">Next page</string>
+    <string name="cd_bible_contents_last">Last page</string>
+
+    <!-- The Recents panel: the chapters picked from the Contents and the passages followed here,
+         newest first. -->
+    <string name="bible_recents_title">Recents</string>
+    <string name="bible_recents_empty">No recents</string>
+    <!-- "<medium date>, <time>" — when a chapter or a passage was opened. -->
+    <string name="bible_recents_when">%1$s, %2$s</string>
+
+    <!-- Search: the field takes a reference or words. -->
+    <string name="cd_bible_search">Search</string>
+    <string name="bible_search_hint">Reference or words</string>
+    <string name="bible_search_help_jump_title">Go to a passage</string>
+    <string name="bible_search_help_jump_examples">John 3:16 · Gen 1:5-10 · Psalm 23\nJohn 3:14-17, Acts 1:3 · 1 Cor 13</string>
+    <string name="bible_search_help_words_title">Search the text</string>
+    <string name="bible_search_help_words_examples">shepherd · love your enemies · living water</string>
+    <string name="bible_searching">Searching…</string>
+    <!-- %1$s = what was typed -->
+    <string name="bible_search_none">No results for “%1$s”</string>
+    <!-- %1$d = the count, %2$s = what was typed -->
+    <plurals name="bible_search_count">
+        <item quantity="one">%1$d result for “%2$s”</item>
+        <item quantity="other">%1$d results for “%2$s”</item>
+    </plurals>
+    <!-- The list is capped; the count is not. %1$d = shown, %2$d = found, %3$s = what was typed -->
+    <string name="bible_search_capped">First %1$d of %2$d results for “%3$s”</string>
+
+    <!-- Copy: the passage on screen goes to the clipboard, for a notebook or a document to paste. -->
+    <string name="cd_bible_copy">Copy</string>
+    <string name="bible_copied_toast">Copied %1$s</string>
+    <string name="bible_copy_failed_title">Not copied</string>
+    <string name="bible_copy_failed_body">The passage could not be put on the clipboard.</string>
+    <!-- The Notes panel: what links into the verses on screen, from the library's link index. -->
+    <string name="cd_bible_notes">Notes</string>
+    <string name="bible_notes_title">Notes</string>
+    <string name="bible_notes_empty">Nothing links into %1$s</string>
+    <!-- A row's own words: "Study · Page 4", "Sermon · Document". -->
+    <string name="bible_notes_page_word">Page</string>
+    <string name="bible_notes_document_word">Document</string>
+    <string name="bible_notes_no_soil">Soil could not be asked to open it.</string>
+
+    <string name="bible_title">Bible</string>
+    <string name="bible_page_indicator">%1$d / %2$d</string>
+    <!-- Book name + chapter number, the reader's top-bar title (e.g. "Genesis 1"). -->
+    <string name="bible_chapter_title">%1$s %2$d</string>
+    <!-- A footnote popup's heading: the book, then the note's own "chapter:verse" label. -->
+    <string name="bible_chapter_title_text">%1$s %2$s</string>
+    <string name="bible_loading">Loading…</string>
+
+    <string name="bible_unavailable_title">Bible unavailable</string>
+    <string name="bible_unavailable_body">This chapter could not be opened. Close the Bible and open it again.</string>
+    <string name="bible_passage_unavailable_body">This passage could not be opened. Close the Bible and open it again.</string>
+</resources>

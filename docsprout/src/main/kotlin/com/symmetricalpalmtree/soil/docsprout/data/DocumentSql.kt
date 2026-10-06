@@ -32,4 +32,21 @@ object DocumentSql {
 
     fun setBody(bodyId: String, markdown: String, now: Long): Statement =
         Statement("UPDATE $TABLE SET text = ?, updatedAt = ? WHERE id = ?", markdown, now, bodyId)
+
+    /** A Bible link taken off: its words and its wire, remembered under the root. */
+    fun insertUnlinked(id: String, documentId: String, words: String, wire: String, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, createdAt, updatedAt, text, refId) VALUES (?, ?, 'bible_unlinked', ?, ?, ?, ?)",
+        id, documentId, now, now, words, wire,
+    )
+
+    /** A reference allowed again: every memory row naming its wire is soft-deleted. */
+    fun deleteUnlinked(documentId: String, wire: String, now: Long): Statement = Statement(
+        "UPDATE $TABLE SET deletedAt = ? WHERE parentId = ? AND type = 'bible_unlinked' AND refId = ? AND deletedAt IS NULL",
+        now, documentId, wire,
+    )
+
+    fun selectUnlinked(documentId: String): Statement = Statement(
+        "SELECT text, refId FROM $TABLE WHERE parentId = ? AND type = 'bible_unlinked' AND deletedAt IS NULL",
+        documentId,
+    )
 }

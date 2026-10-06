@@ -42,4 +42,14 @@ class ItemAppsTest {
         assertEquals(other, ItemApps.choose(listOf(notesDev, other), "notebook", dev))
         assertEquals(other, ItemApps.choose(listOf(other, notesDev), "notebook", dev))
     }
+
+    @Test
+    fun `the Bible opens in a trusted app of the same build, whatever kind it names`() {
+        val bibleDev = Candidate("com.symmetricalpalmtree.soil.biblesprout.dev", "Read", null, sameKey = true)
+        val bible = Candidate("com.symmetricalpalmtree.soil.biblesprout", "Read", null, sameKey = true)
+        assertEquals(bibleDev, ItemApps.chooseBible(listOf(bible, bibleDev), dev))
+        assertEquals(bible, ItemApps.chooseBible(listOf(bible, bibleDev), release))
+        assertNull(ItemApps.chooseBible(listOf(bibleDev.copy(sameKey = false)), dev))
+        assertNull(ItemApps.chooseBible(emptyList(), dev))
+    }
 }

@@ -23,6 +23,7 @@ data class WordSpan(val start: Int, val end: Int, val word: String)
  *   literal text.
  * - **URLs** (`http://`, `https://`, `www.`) and **email addresses**.
  * - **Link/image targets** — the `(...)` of `[label](target)`; the label is still checked.
+ * - **Links into the Bible** — the whole `[reference](bible:…)`: a reference is not prose.
  *
  * Inside prose, a word is a run of letters/digits with internal apostrophes (`'` or `’`), so
  * "don't" is one token — the bundled dictionary carries common contractions. Hyphens and
@@ -36,6 +37,7 @@ object ProofreadTokenizer {
     private val URL = Regex("""\b(?:https?://|www\.)[^\s>)]+""")
     private val EMAIL = Regex("""\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+""")
     private val LINK_TARGET = Regex("""]\([^)]*\)""")
+    private val BIBLE_LINK = Regex("""\[[^\]\n]*]\(bible:[^)]*\)""")
 
     /** Word spans of [text]'s prose, in document order. */
     fun wordSpans(text: String): List<WordSpan> =
@@ -54,6 +56,8 @@ object ProofreadTokenizer {
         markRegex(text, skip, URL)
         markRegex(text, skip, EMAIL)
         markLinkTargets(text, skip)
+        // A link into the Bible is a reference, words and all: "Jn", "Cor" and a verse list are not prose to judge.
+        markRegex(text, skip, BIBLE_LINK)
         return skip
     }
 

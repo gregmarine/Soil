@@ -2,7 +2,9 @@ package com.symmetricalpalmtree.soil.seam;
 
 import com.symmetricalpalmtree.soil.seam.ISeamClient;
 import com.symmetricalpalmtree.soil.seam.ISeamItem;
+import com.symmetricalpalmtree.soil.seam.ISeamStore;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
+import com.symmetricalpalmtree.soil.seam.SeamBibleBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
 import com.symmetricalpalmtree.soil.seam.SeamClip;
 import com.symmetricalpalmtree.soil.seam.SeamRecognizer;
@@ -70,6 +72,23 @@ interface ISoilSeam {
      */
     List<SeamBacklink> backlinks(String itemId);
 
+    /**
+     * Every link into the verses startKey..endKey (the codec's verse keys), from items that are
+     * alive, one row per range of each link, in reading order: what the Bible's Notes panel
+     * shows. At most a few hundred.
+     */
+    List<SeamBibleBacklink> bibleBacklinks(int startKey, int endKey);
+
+    /**
+     * The verses of a passage as Markdown, from the Bible's own app: a bold label line, then the
+     * verses as prose with plain verse numbers, one paragraph per chapter run. At most a chapter.
+     * Refused with Seam.BIBLE_NO_APP when Biblesprout is not installed, Seam.BIBLE_TOO_LONG for
+     * more than a chapter, Seam.BIBLE_UNREADABLE for a wire it cannot read, and
+     * Seam.BIBLE_FAILED when it did not answer. Slow on a first call: the reader may be copying
+     * its Bible out of its APK.
+     */
+    String passageText(String wire);
+
     /** A template of the paper library, or null when there is none alive by that id. */
     SeamTemplate template(String templateId);
 
@@ -94,6 +113,16 @@ interface ISoilSeam {
      * session is ended and the file is closed and tidied.
      */
     ISeamItem openItem(String itemId, in SeamSchema schema, IBinder owner);
+
+    /**
+     * The app's own store, for an app that keeps its data in Soil and not in item files
+     * (Biblesprout's position and recents): one encrypted database per app, named after the
+     * calling package, made on first use and brought to [schema] (its steps are the only DDL it
+     * ever sees; `schema.kind` names it). Under the global key, re-keyed and backed up with
+     * everything else. The lease answers the caller's uid alone and ends when [owner] dies or
+     * `close()` is called. Refused while the library is not open.
+     */
+    ISeamStore openAppStore(in SeamSchema schema, IBinder owner);
 
     // ── The clipboard: one slot per kind of item, in the index, so a copy outlives the app ──────
 

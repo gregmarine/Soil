@@ -20,12 +20,16 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentSchema
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentStore
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
+import com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController
+import com.symmetricalpalmtree.soil.docsprout.editor.bible.ReferenceLinker
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
+import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -81,6 +85,9 @@ class DocumentActivity : AppCompatActivity() {
     private val ops = Mutex()
     private var session: ISeamItem? = null
     private var store: DocumentStore? = null
+
+    /** The Bible links the writer took off ([BibleUnlinked] keys): never linked again by the pass. */
+    private val unlinked = HashSet<String>()
     private var itemId: String? = null
 
     /** The text the file is known to hold. Read and written only on Main, inside [ops]. */
@@ -101,6 +108,8 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
     private lateinit var links: DocumentLinksControl
+    private lateinit var bibleLinks: BibleLinkController
+    private lateinit var biblePaste: BiblePaste
     private lateinit var inkPaste: InkPaste
 
     /** Soil's item picker, for the Link dialog's Choose from library. */
@@ -154,12 +163,23 @@ class DocumentActivity : AppCompatActivity() {
         links = DocumentLinksControl(
             this, binding, prefs, itemId = { itemId }, usable = { opened && !closing },
             saveNow = ::save, editLink = { format.run(FormatTool.LINK) }, pickerLauncher = linkPicker,
+            unlinkBible = ::rememberUnlinked,
         )
         links.install()
+        installRelinkMenu()
+        bibleLinks = BibleLinkController(binding.rich, binding.editor, ::rendered, usable = { opened && !closing }, lifecycleScope, unlinked = { unlinked })
         inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
-        // Ctrl+V and the text menu's Paste put in the last thing copied: the clipboard's ink, as
-        // words, when it was copied after the text on the device's own clipboard.
-        val pasteLatest = { if (opened && !closing && inkPaste.newerThanText()) { inkPaste.paste(); true } else false }
+        biblePaste = BiblePaste(this, usable = { opened && !closing }, insertReference = ::insertReference, insertVerses = ::insertPassage)
+        // Ctrl+V and the text menu's Paste put in the last thing copied: a passage from the
+        // Bible, the clipboard's ink as words, or the text on the device's own clipboard.
+        val pasteLatest = {
+            when {
+                !opened || closing -> false
+                biblePaste.newerThan(inkPaste.copiedAt) -> { biblePaste.prompt(); true }
+                inkPaste.newerThanText() -> { inkPaste.paste(); true }
+                else -> false
+            }
+        }
         binding.editor.onPaste = pasteLatest
         binding.rich.onPaste = pasteLatest
         // A tap on a link follows it; any other tap is proofread's to answer.
@@ -226,6 +246,7 @@ class DocumentActivity : AppCompatActivity() {
         surface().post { tools.keepCaretVisible() }
         // The flags were on the other surface's text: this one is checked from the top.
         proofread.checkDocument()
+        bibleLinks.checkDocument()
     }
 
     /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
@@ -238,9 +259,18 @@ class DocumentActivity : AppCompatActivity() {
             onWordCount = { tools.showWordCount() },
             onReflow = { tools.reflow() },
             onProofread = { proofread.promptProofread() },
-            onPasteInk = { inkPaste.prompt() },
+            // The Paste tool: the passage when one was copied after the ink, else the ink.
+            onPasteInk = { if (biblePaste.newerThan(inkPaste.copiedAt)) biblePaste.prompt() else inkPaste.prompt() },
+            onBiblePassage = { askPassage() },
             askLink = { current, apply ->
-                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed -> apply(typed, typed) }
+                // The Link tool is for addresses and the library. Only an existing Bible link's
+                // Edit reads its field as a reference, since that is what the field shows for one;
+                // a reference the writer unlinked comes back through the selection's Relink Bible.
+                val editingBible = current != null && BibleLinks.labelOf(current) != null
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed ->
+                    val wire = if (editingBible && typed.isNotEmpty()) BibleLinks.wireOf(typed) else null
+                    if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
+                }
             },
         )
         val controls = FormatBar.build(
@@ -294,6 +324,155 @@ class DocumentActivity : AppCompatActivity() {
         recreate()
     }
 
+    // ── A Bible passage, as words ──────
+
+    /** Insert a Bible passage: a reference typed, its verses read from the Bible's app through
+     *  Soil, and put in at the caret under a link to the passage. */
+    private fun askPassage() {
+        if (!opened || closing) return
+        PassageDialog.ask(this) { typed ->
+            val wire = BibleLinks.wireOf(typed)
+            if (wire == null) {
+                Dialogs.problem(this, R.string.passage_not_reference_title, getString(R.string.passage_not_reference_body, typed))
+                return@ask
+            }
+            lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) { runCatching { (application as DocsproutApp).soil.seam().passageText(wire) } }
+                if (!opened || closing) return@launch
+                result.onSuccess { insertPassage(wire, it) }.onFailure { e ->
+                    Log.w(TAG, "the verses could not be read: ${e.message ?: e.javaClass.simpleName}")
+                    Dialogs.problem(
+                        this@DocumentActivity, R.string.passage_failed_title,
+                        when (e.message) {
+                            Seam.BIBLE_NO_APP -> R.string.passage_no_app_body
+                            Seam.BIBLE_TOO_LONG -> R.string.passage_too_long_body
+                            else -> R.string.passage_failed_body
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    /** A reference put in at the caret as a link, under its canonical label. */
+    private fun insertReference(wire: String, label: String) {
+        if (!opened || closing) return
+        val address = BibleLinks.addressOf(wire)
+        if (sourceShowing) {
+            val text = binding.editor.text ?: return
+            val a = minOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val b = maxOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val words = "[$label]($address)"
+            text.replace(a, b, words)
+            binding.editor.setSelection((a + words.length).coerceAtMost(text.length))
+        } else {
+            val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
+            RichOps.insertText(binding.rich, label, label.length, label.length)
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.edited(words = false)
+        }
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
+    }
+
+    /**
+     * The passage put in: the label as a link to the passage, then the verses, a paragraph per
+     * chapter run as the reader wrote them. In the rendered document the words go in as words and
+     * the link is a span; in the source they are Markdown.
+     */
+    private fun insertPassage(wire: String, markdown: String) {
+        val label = BibleLinks.labelOf(BibleLinks.addressOf(wire)) ?: wire
+        val address = BibleLinks.addressOf(wire)
+        val paragraphs = PassageText.paragraphs(markdown)
+        if (sourceShowing) {
+            val text = binding.editor.text ?: return
+            val a = minOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val b = maxOf(binding.editor.selectionStart, binding.editor.selectionEnd).coerceIn(0, text.length)
+            val words = (listOf("[$label]($address)") + paragraphs.map { it.markdown }).joinToString("\n\n")
+            text.replace(a, b, words)
+            binding.editor.setSelection((a + words.length).coerceAtMost(text.length))
+        } else {
+            val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
+            val words = (listOf(label) + paragraphs.map { it.plain }).joinToString("\n")
+            RichOps.insertText(binding.rich, words, words.length, words.length)
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.edited(words = false)
+        }
+        surface().requestFocus()
+        surface().post { tools.keepCaretVisible() }
+        bibleLinks.checkDocument()
+    }
+
+    /** The reference the caret or the selection touches in the rendered document, when it is one
+     *  the writer unlinked: the one case the selection's menu offers Relink Bible for. */
+    private fun unlinkedReferenceAtCaret(): ReferenceLinker.Hit? {
+        val text = binding.rich.text?.toString() ?: return null
+        val a = binding.rich.selectionStart
+        val b = binding.rich.selectionEnd
+        if (a < 0 || b < 0) return null
+        val hit = ReferenceLinker.hitAt(text, a, b) ?: return null
+        return hit.takeIf { BibleUnlinked.key(it.words, it.wire) in unlinked }
+    }
+
+    /**
+     * **Relink Bible** on the selection's own menu, beside Cut, Copy and Paste, in the rendered
+     * document: there when the caret or the selection touches a reference the writer took the
+     * link off (Greg, 2026-10-05). One tap: the words are selected whole, linked, and the removal
+     * forgotten, so the pass may link that reference again. The Link tool is left to addresses.
+     */
+    private fun installRelinkMenu() {
+        val callback = object : android.view.ActionMode.Callback {
+            override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                if (opened && !closing && unlinkedReferenceAtCaret() != null) {
+                    // Last on the menu: the framework's own items (Cut, Copy, Paste, Select all,
+                    // Share…) order below a hundred, and this is an occasional act.
+                    menu.add(0, MENU_RELINK_BIBLE, MENU_RELINK_ORDER, R.string.bible_relink_action)
+                }
+                return true
+            }
+            override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean = false
+            override fun onActionItemClicked(mode: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                if (item.itemId != MENU_RELINK_BIBLE) return false
+                relinkBible()
+                mode.finish()
+                return true
+            }
+            override fun onDestroyActionMode(mode: android.view.ActionMode) = Unit
+        }
+        binding.rich.customSelectionActionModeCallback = callback
+        binding.rich.customInsertionActionModeCallback = callback
+    }
+
+    private fun relinkBible() {
+        if (!opened || closing || sourceShowing) return
+        val hit = unlinkedReferenceAtCaret() ?: return
+        binding.rich.setSelection(hit.start, hit.end)
+        RichOps.setLink(binding.rich, hit.address, hit.words)
+        allowAgain(hit.wire)
+    }
+
+    /** A reference linked again by hand: whatever removal was remembered for its wire is forgotten,
+     *  in memory and with the document, and the pass may link it once more. */
+    private fun allowAgain(wire: String) {
+        if (!unlinked.removeAll { BibleUnlinked.names(it, wire) }) return
+        bibleLinks.bump()
+        val documents = store ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { documents.allowAgain(wire) }.onFailure { Log.w(TAG, "an allowed reference was not remembered: ${it.javaClass.simpleName}") }
+        }
+    }
+
+    /** A Bible link taken off: remembered now, and with the document, so no pass puts it back. */
+    private fun rememberUnlinked(words: String, wire: String) {
+        unlinked += BibleUnlinked.key(words, wire)
+        bibleLinks.bump()
+        android.widget.Toast.makeText(this, R.string.bible_unlinked_toast, android.widget.Toast.LENGTH_LONG).show()
+        val documents = store ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") }
+        }
+    }
+
     // ── Open ──────
 
     private suspend fun open() {
@@ -316,6 +495,8 @@ class DocumentActivity : AppCompatActivity() {
                     val documents = DocumentStore(SeamRowStore(opened), item.id)
                     store = documents
                     val text = documents.load()
+                    unlinked.clear()
+                    unlinked += runCatching { documents.unlinked() }.getOrDefault(emptySet())
                     prefs.lastDocumentId = item.id
                     item.name to text
                 }
@@ -354,6 +535,7 @@ class DocumentActivity : AppCompatActivity() {
         opened = true
         itemId?.let { links.arrived(it) }
         proofread.checkDocument()
+        bibleLinks.checkDocument()
         // The screen stopped while the file was being read: it is put down as a stop puts it.
         if (!started) park()
         Slog.d(TAG) { "opened: ${body.length} chars" }
@@ -430,12 +612,14 @@ class DocumentActivity : AppCompatActivity() {
         }
         surface().requestFocus()
         surface().post { tools.keepCaretVisible() }
+        bibleLinks.checkDocument()
     }
 
     override fun onResume() {
         super.onResume()
         // The pad, or a notebook, may have copied ink while this screen was behind.
         if (::inkPaste.isInitialized) inkPaste.refresh()
+        if (::biblePaste.isInitialized) biblePaste.refresh()
     }
 
     // ── Export ──────
@@ -543,6 +727,7 @@ class DocumentActivity : AppCompatActivity() {
         super.onDestroy()
         main.removeCallbacks(autosave)
         if (::proofread.isInitialized) proofread.dispose()
+        if (::bibleLinks.isInitialized) bibleLinks.dispose()
         letGo()
     }
 
@@ -558,6 +743,8 @@ class DocumentActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val MENU_RELINK_BIBLE = 0x5B1B
+        private const val MENU_RELINK_ORDER = 100
         private const val TAG = "DocumentActivity"
         private const val NO_SUCH_ITEM = "there is no such item"
         private const val AUTOSAVE_DELAY_MS = 2_000L

@@ -13,7 +13,7 @@ their pages:
 | **Notesprout** | Handwritten notebooks | Notebooks |
 | **Sketchsprout** | Raster pencil and ink sketching | Sketchbooks |
 | **Docsprout** | Written documents in Markdown | Documents |
-| **Biblesprout** | Bible reader | None of its own |
+| **Biblesprout** | Bible reader; its position and recents in Soil's app store | None of its own |
 | **Calsprout** | Calendar and events | None yet; one calendar |
 
 Soil replaces Notesprout SN and its extensions. It is the successor, not a companion.

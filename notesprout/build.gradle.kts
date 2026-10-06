@@ -65,6 +65,8 @@ dependencies {
     implementation(project(":seam-kit"))
     implementation(project(":ext-api"))
     implementation(project(":markdown"))
+    // A Bible reference: what a Bible link names, read from the lasso's words and typed into its dialog.
+    implementation(project(":bible-ref"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
