@@ -1,9 +1,7 @@
 package com.symmetricalpalmtree.soil.docsprout.editor
 
-import com.symmetricalpalmtree.soil.bibleref.Canon
 import com.symmetricalpalmtree.soil.bibleref.ReferenceCodec
-import com.symmetricalpalmtree.soil.bibleref.ReferenceParser
-import com.symmetricalpalmtree.soil.bibleref.ReferenceResolver
+import com.symmetricalpalmtree.soil.bibleref.ReferenceText
 import com.symmetricalpalmtree.soil.seam.BibleAddress
 
 /**
@@ -14,11 +12,7 @@ import com.symmetricalpalmtree.soil.seam.BibleAddress
 object BibleLinks {
 
     /** The wire [typed] names, or null when it is not a reference (or a chapter is out of range). */
-    fun wireOf(typed: String): String? {
-        val passages = ReferenceResolver.normalize(ReferenceParser.parseAll(typed), Canon::chapterCount)
-        if (passages.isEmpty() || !ReferenceResolver.valid(passages, Canon::chapterCount) { true }) return null
-        return ReferenceCodec.encode(passages)
-    }
+    fun wireOf(typed: String): String? = ReferenceText.wireOf(typed)
 
     /** The address a reference links to. */
     fun addressOf(wire: String): String = BibleAddress(wire).encode()
@@ -27,5 +21,5 @@ object BibleLinks {
     fun wireOfAddress(url: String): String? = BibleAddress.decode(url)?.wire?.takeIf { ReferenceCodec.decode(it) != null }
 
     /** The canonical label of a `bible:` address, or null for any other. */
-    fun labelOf(url: String): String? = wireOfAddress(url)?.let { ReferenceCodec.decode(it) }?.let { ReferenceCodec.label(it) }
+    fun labelOf(url: String): String? = wireOfAddress(url)?.let { ReferenceText.labelOf(it) }
 }

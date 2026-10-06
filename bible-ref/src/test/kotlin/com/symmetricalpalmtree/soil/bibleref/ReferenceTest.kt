@@ -206,4 +206,15 @@ class ReferenceTest {
         assertFalse(ReferenceCodec.isWire("JHN|3"))
         assertFalse(ReferenceCodec.isWire("J".repeat(ReferenceCodec.MAX_WIRE_CHARS + 1)))
     }
+
+    @Test
+    fun `typed words become a wire, and a wire a label`() {
+        assertEquals("JHN:3:14-3:18", ReferenceText.wireOf("Jn 3:14-18"))
+        assertEquals("JUD:1:24-1:24", ReferenceText.wireOf("Jude 24"))
+        assertNull(ReferenceText.wireOf("Genesis 51"))
+        assertNull(ReferenceText.wireOf("just words"))
+        assertNull(ReferenceText.wireOf(""))
+        assertEquals("John 3:14–18", ReferenceText.labelOf("JHN:3:14-3:18"))
+        assertNull(ReferenceText.labelOf("nonsense"))
+    }
 }

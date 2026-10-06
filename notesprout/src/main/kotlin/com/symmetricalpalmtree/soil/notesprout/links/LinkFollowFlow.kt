@@ -50,6 +50,8 @@ class LinkFollowFlow(
     /** Open an item that is not a notebook, in its own app, over this screen: Soil's to do.
      *  This notebook stays where it is, and closing what opened comes back to it. */
     private val openElsewhere: (itemId: String) -> Unit,
+    /** A passage: Soil opens the Bible's reader on the wire, over this notebook. */
+    private val openBible: (wire: String) -> Unit,
     private val editLink: (PageLink) -> Unit,
     /** Unwrap the link, its content kept: the other way out of a dead end. Undoable. */
     private val removeLink: (PageLink) -> Unit,
@@ -90,6 +92,13 @@ class LinkFollowFlow(
                     busy = false
                 }
                 is LinkNav.Follow.OtherItem -> followOut(link, me, plan)
+                is LinkNav.Follow.Bible -> {
+                    busy = false
+                    if (alive()) {
+                        Slog.d(TAG) { "follow: a passage, handed to Soil" }
+                        openBible(plan.wire)
+                    }
+                }
             }
         }
     }

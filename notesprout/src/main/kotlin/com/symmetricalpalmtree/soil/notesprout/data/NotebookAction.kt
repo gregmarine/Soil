@@ -65,6 +65,16 @@ sealed interface NotebookAction {
     /** Where a link points, rewritten. Both payloads, so either direction is one write. */
     class LinkEdited(val pageId: String, val linkId: String, val before: String, val after: String) : NotebookAction
 
+    /** A Bible reference made: the ink it consumed (none for an insert), the text of the user's
+     *  own words, and the link wrapping it, one step. */
+    class BibleRefCreated(val pageId: String, val ink: InkAction.Erased?, val text: PageText, val link: PageLink) : NotebookAction
+
+    /** A Bible reference edited: its words and its payload, together. */
+    class BibleRefEdited(
+        val pageId: String, val linkId: String,
+        val beforeText: PageText, val afterText: PageText, val beforePayload: String, val afterPayload: String,
+    ) : NotebookAction
+
     /** The page re-papered: the template row ids before and after (`""` is blank). Either direction is one write. */
     class TemplateChanged(val pageId: String, val from: String, val to: String) : NotebookAction
 

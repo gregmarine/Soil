@@ -5,6 +5,7 @@ import com.symmetricalpalmtree.gpaper.core.model.StrokePoint
 import com.symmetricalpalmtree.gpaper.core.model.StrokeStyle
 import com.symmetricalpalmtree.soil.paper.store.Cell
 import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.seam.SeamLinks
 import com.symmetricalpalmtree.soil.seam.SeamSql
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,17 +37,19 @@ class NotebookSqlTest {
         NotebookSql.insertLink(link, "p1", 0, 10L),
         NotebookSql.reparent("s1", "l1", 10L),
         NotebookSql.setLinkPayload("l1", "L1|1|0||p2", 10L),
-        NotebookSql.mirror(link, "p1", "nb"),
+        NotebookSql.mirror(link, "p1", "nb").single(),
         NotebookSql.mirrorDrop("l1"),
         NotebookSql.mirrorDropPage("p1"),
         NotebookSql.insertTemplate("t1", "nb", "LINED", 1404, 1872, byteArrayOf(1, 2), 10L),
         NotebookSql.setPageTemplate("p1", "t1", 10L),
         NotebookSql.insertRow(NotebookRow("r1", "p1", "heading", 2, text = "## T", x = 1f, y = 2f, width = 3f, height = 4f, flags = 2L), 10L),
-        NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb"),
+        NotebookSql.mirrorRows("l1", "L1|1|0||p2", "p1", "nb").single(),
+        NotebookSql.mirrorRows("b1", "L1|1|3|JHN:3:14-3:18,PRO:3:5-3:6|", "p1", "nb")[0],
     )
 
 
     private val reads = listOf(
+        NotebookSql.selectLinkPayload("l1"),
         NotebookSql.selectRoot("nb"),
         NotebookSql.selectPages("nb"),
         NotebookSql.selectLiveDescendantIds("p1"),
@@ -117,12 +120,27 @@ class NotebookSqlTest {
 
     @Test
     fun `the mirror is written in Soil's statements, and only the mirror names a soil table`() {
-        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirror(link, "p1", "nb").sql))
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirror(link, "p1", "nb").single().sql))
         assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDrop("l1").sql))
         assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorDropPage("p1").sql))
-        assertEquals(4, writes.count { SeamSql.writesLinkMirror(it.sql) })
-        assertEquals(listOf<Cell>(Cell.Text("l1"), Cell.Text("p1"), Cell.Text("nb"), Cell.Text("p2")), NotebookSql.mirror(link, "p1", "nb").args)
-        assertEquals(Cell.Null, NotebookSql.mirror(link.copy(payload = "L1|0|1|other|"), "p1", "nb").args[3])
+        assertEquals(5, writes.count { SeamSql.writesLinkMirror(it.sql) })
+        assertEquals(listOf<Cell>(Cell.Text("l1"), Cell.Text("p1"), Cell.Text("nb"), Cell.Text("p2")), NotebookSql.mirror(link, "p1", "nb").single().args)
+        assertEquals(Cell.Null, NotebookSql.mirror(link.copy(payload = "L1|0|1|other|"), "p1", "nb").single().args[3])
+    }
+
+    @Test
+    fun `a link into the Bible mirrors one row per range, and drops them all`() {
+        val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
+        val rows = NotebookSql.mirrorRows("b1", "L1|1|3|$wire|", "p1", "nb")
+        assertEquals(2, rows.size)
+        assertEquals(listOf(SeamLinks.PUT_BIBLE, SeamLinks.PUT_BIBLE), rows.map { it.sql })
+        assertEquals(listOf<Cell>(Cell.Text("b1"), Cell.Text("p1"), Cell.Text(wire), Cell.Integer(43003014), Cell.Integer(43003018)), rows[0].args)
+        assertEquals(Cell.Text("b1#1"), rows[1].args[0])
+        val drops = NotebookSql.mirrorDrops("b1", "L1|1|3|$wire|")
+        assertEquals(listOf(Cell.Text("b1"), Cell.Text("b1#1")), drops.map { it.args[0] })
+        assertEquals(listOf(Cell.Text("l1")), NotebookSql.mirrorDrops("l1", "L1|1|0||p2").map { it.args[0] })
+        assertEquals(1, NotebookSql.mirrorRows("x", "nonsense", "p1", "nb").size)
+        assertEquals(SeamLinks.DROP, NotebookSql.mirrorRows("x", "nonsense", "p1", "nb").single().sql)
     }
 
     @Test
@@ -167,8 +185,8 @@ class NotebookSqlTest {
 
     @Test
     fun `a pasted link's mirror row is the same statement as a wrapped link's`() {
-        assertEquals(NotebookSql.mirror(link, "p1", "nb").sql, NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb").sql)
-        assertEquals(NotebookSql.mirror(link, "p1", "nb").args, NotebookSql.mirrorRow("l1", "L1|1|0||p2", "p1", "nb").args)
-        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorRow("l1", "garbage", "p1", "nb").sql))
+        assertEquals(NotebookSql.mirror(link, "p1", "nb").single().sql, NotebookSql.mirrorRows("l1", "L1|1|0||p2", "p1", "nb").single().sql)
+        assertEquals(NotebookSql.mirror(link, "p1", "nb").single().args, NotebookSql.mirrorRows("l1", "L1|1|0||p2", "p1", "nb").single().args)
+        assertTrue(SeamSql.writesLinkMirror(NotebookSql.mirrorRows("l1", "garbage", "p1", "nb").single().sql))
     }
 }

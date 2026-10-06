@@ -25,6 +25,22 @@ class LinksTest {
     }
 
     @Test
+    fun `the Bible kinds carry a wire in the item slot, as SN wrote them, and decode to no item`() {
+        val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
+        assertEquals("L1|1|3|$wire|", LinkPayload.encode(1, LinkPayload.KIND_BIBLE, wire, null))
+        assertEquals("L1|1|4|$wire|", LinkPayload.encode(1, LinkPayload.KIND_BIBLE_TEXT, wire, null))
+        assertEquals(LinkPayload.Decoded(1, 3, null, null, wire), LinkPayload.decode("L1|1|3|$wire|"))
+        assertEquals(wire, LinkPayload.referenceOf("L1|1|4|$wire|"))
+        assertTrue(LinkPayload.isBibleText("L1|1|4|$wire|"))
+        assertTrue(!LinkPayload.isBibleText("L1|1|3|$wire|"))
+        assertNull(LinkPayload.referenceOf("L1|1|0||p1"))
+        assertNull(LinkTarget.of("L1|1|3|$wire|", "me"))
+        assertEquals(LinkNav.Follow.Bible(wire), LinkNav.planFollow("L1|1|3|$wire|", "me"))
+        assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, LinkPayload.KIND_BIBLE, "not a wire", null) }
+        assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, LinkPayload.KIND_BIBLE, wire, "p") }
+    }
+
+    @Test
     fun `encode refuses a caller's mistake`() {
         assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(2, 0, null, "p") }
         assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, 0, "nb", "p") }
@@ -36,7 +52,7 @@ class LinksTest {
 
     @Test
     fun `decode never throws and answers null for what it cannot read`() {
-        for (bad in listOf("", "nonsense", "L2|1|0||p", "L1|5|0||p", "L1|1|3|JHN:3:16|", "L1|1|4|x|", "L1|1|0|nb|p", "L1|1|1||", "L1|1|2|nb|", "L1|1|0||" + "x".repeat(65), "L1|x|0||p", "L1|1|0||p|extra")) {
+        for (bad in listOf("", "nonsense", "L2|1|0||p", "L1|5|0||p", "L1|1|3||", "L1|1|3|jhn:3:16-3:16|", "L1|1|3|JHN:3:16-3:16|p", "L1|1|0|nb|p", "L1|1|1||", "L1|1|2|nb|", "L1|1|0||" + "x".repeat(65), "L1|x|0||p", "L1|1|0||p|extra")) {
             assertNull(bad, LinkPayload.decode(bad))
         }
         assertEquals(LinkPayload.CHROME_NONE, LinkPayload.chromeOf("nonsense"))

@@ -12,6 +12,7 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema.TABLE
 import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
 import com.symmetricalpalmtree.soil.paper.ink.StrokeBlob
+import com.symmetricalpalmtree.soil.bibleref.ReferenceCodec
 import com.symmetricalpalmtree.soil.paper.store.Statement
 import com.symmetricalpalmtree.soil.seam.SeamLinks
 
@@ -265,17 +266,37 @@ object NotebookSql : InkDocument.StrokeSql {
 
     // ── The link mirror: Soil's table, written in the same batch as the link ──────
 
-    /** The mirror row for [l], or the drop of one it cannot have: a payload Soil cannot name
-     *  points nowhere in the library. */
-    fun mirror(l: PageLink, pageId: String, ownItemId: String): Statement = mirrorRow(l.id, l.payload, pageId, ownItemId)
+    /** The mirror rows for [l] (one for a link to an item, one per range for a link into the
+     *  Bible), or the drop of what it cannot have: a payload Soil cannot name points nowhere. */
+    fun mirror(l: PageLink, pageId: String, ownItemId: String): List<Statement> = mirrorRows(l.id, l.payload, pageId, ownItemId)
 
     /** The same, for a link row a paste writes: its id, its payload, the page it lands on. */
-    fun mirrorRow(linkId: String, payload: String?, pageId: String, ownItemId: String): Statement {
-        val target = LinkTarget.of(payload.orEmpty(), ownItemId) ?: return mirrorDrop(linkId)
-        return Statement(SeamLinks.PUT, linkId, pageId, target.itemId, target.pageId)
+    fun mirrorRows(linkId: String, payload: String?, pageId: String, ownItemId: String): List<Statement> {
+        val text = payload.orEmpty()
+        LinkPayload.referenceOf(text)?.let { wire ->
+            val passages = ReferenceCodec.decode(wire) ?: return mirrorDrops(linkId, text)
+            val ranges = passages.flatMap { it.ranges }
+            return ranges.mapIndexed { n, r ->
+                Statement(SeamLinks.PUT_BIBLE, SeamLinks.rangeId(linkId, n), pageId, wire, r.startKey.toLong(), r.endKey.toLong())
+            }
+        }
+        val target = LinkTarget.of(text, ownItemId) ?: return listOf(mirrorDrop(linkId))
+        return listOf(Statement(SeamLinks.PUT, linkId, pageId, target.itemId, target.pageId))
     }
 
     fun mirrorDrop(linkId: String): Statement = Statement(SeamLinks.DROP, linkId)
+
+    /** Every mirror row of [linkId] dropped: one, or for a link into the Bible one per range of
+     *  its [payload] (a wire that cannot be read drops the first row alone, the only one written). */
+    fun mirrorDrops(linkId: String, payload: String?): List<Statement> {
+        val wire = LinkPayload.referenceOf(payload.orEmpty()) ?: return listOf(mirrorDrop(linkId))
+        val count = ReferenceCodec.decode(wire)?.sumOf { it.ranges.size } ?: 1
+        return (0 until count).map { n -> Statement(SeamLinks.DROP, SeamLinks.rangeId(linkId, n)) }
+    }
+
+    /** A link row's payload, for the drops of its mirror rows. */
+    fun selectLinkPayload(id: String): Statement =
+        Statement("SELECT text FROM $TABLE WHERE id = ? AND type = 'link'", id)
 
     fun mirrorDropPage(pageId: String): Statement = Statement(SeamLinks.DROP_PAGE, pageId)
 }

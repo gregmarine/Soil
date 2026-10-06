@@ -46,7 +46,7 @@ internal class ProofreadSheets(
                 }
                 controller.checkDocument()
             }
-            sheet.addAction(R.drawable.ic_book, activity.getString(R.string.proofread_dictionary)) {
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_book, activity.getString(R.string.proofread_dictionary)) {
                 promptUserDictionary()
             }
             sheet.addAction(PaperR.drawable.ic_eye_off, activity.getString(R.string.proofread_off)) {
@@ -76,7 +76,7 @@ internal class ProofreadSheets(
         for (suggestion in suggestions) {
             sheet.addAction(null, suggestion) { controller.replaceFlag(span, suggestion) }
         }
-        sheet.addAction(R.drawable.ic_book, activity.getString(R.string.proofread_add)) {
+        sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_book, activity.getString(R.string.proofread_add)) {
             controller.addToDictionary(word)
         }
         sheet.addAction(PaperR.drawable.ic_eye_off, activity.getString(R.string.proofread_ignore)) {

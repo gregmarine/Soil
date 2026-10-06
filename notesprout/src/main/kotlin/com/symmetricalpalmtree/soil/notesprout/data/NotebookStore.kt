@@ -202,7 +202,9 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
             store.query(NotebookSql.selectLiveDescendantIds(id)).rows.map { it.text("id") }
         }
         val all = (ids + children).distinct()
-        val statements = all.map { NotebookSql.softDelete(it, now) } + linkIds.map { NotebookSql.mirrorDrop(it) }
+        val statements = all.map { NotebookSql.softDelete(it, now) } + linkIds.flatMap { id ->
+            NotebookSql.mirrorDrops(id, store.query(NotebookSql.selectLinkPayload(id)).rows.firstOrNull()?.textOrNull("text"))
+        }
         if (statements.isNotEmpty()) run(statements)
     }
 
@@ -228,7 +230,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         val now = System.currentTimeMillis()
         execAll(
             l.childIds.map { NotebookSql.reparent(it, pageId, now) } +
-                NotebookSql.softDelete(l.id, now) + NotebookSql.mirrorDrop(l.id),
+                NotebookSql.softDelete(l.id, now) + NotebookSql.mirrorDrops(l.id, l.payload),
         )
     }
 
@@ -243,9 +245,12 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         )
     }
 
-    /** Where the link points, rewritten, and its mirror row with it. */
-    fun setLinkPayload(pageId: String, l: PageLink) = execAll(
-        listOf(NotebookSql.setLinkPayload(l.id, l.payload, System.currentTimeMillis()), NotebookSql.mirror(l, pageId, notebookId)),
+    /** Where the link points, rewritten, and its mirror rows with it: the old rows dropped first,
+     *  since a passage of several ranges is several rows and a retarget may have fewer. */
+    fun setLinkPayload(pageId: String, l: PageLink, before: String? = null) = execAll(
+        listOf(NotebookSql.setLinkPayload(l.id, l.payload, System.currentTimeMillis())) +
+            (if (before != null) NotebookSql.mirrorDrops(l.id, before) else emptyList()) +
+            NotebookSql.mirror(l, pageId, notebookId),
     )
 
     /**
@@ -268,7 +273,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     /** Make the page's mirror rows exactly its live links: after a restore brought links back. */
     fun remirrorPage(pageId: String) = guard {
         val links = readLinksOf(pageId)
-        run(listOf(NotebookSql.mirrorDropPage(pageId)) + links.map { NotebookSql.mirror(it, pageId, notebookId) })
+        run(listOf(NotebookSql.mirrorDropPage(pageId)) + links.flatMap { NotebookSql.mirror(it, pageId, notebookId) })
     }
 
     /** Every link in [links] with each wrapped sticky's content read: the snapshot a delete carries. */
@@ -450,7 +455,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         val now = System.currentTimeMillis()
         run(
             plan.rows.map { NotebookSql.insertRow(it, now) } +
-                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.map { NotebookSql.mirrorRow(it.id, it.text, it.parentId, notebookId) } +
+                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.flatMap { NotebookSql.mirrorRows(it.id, it.text, it.parentId, notebookId) } +
                 renumber(next, now) + NotebookSql.setLastOpened(notebookId, page.id, now),
         )
         Slog.d(TAG) { "pasted a page at $pos (${plan.contentIds.size} rows, ${next.size} pages)" }
@@ -483,7 +488,7 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
         val now = System.currentTimeMillis()
         run(
             plan.rows.map { NotebookSql.insertRow(it, now) } +
-                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.map { NotebookSql.mirrorRow(it.id, it.text, it.parentId, notebookId) },
+                plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.flatMap { NotebookSql.mirrorRows(it.id, it.text, it.parentId, notebookId) },
         )
         Slog.d(TAG) { "pasted ${plan.contentIds.size} rows onto a page" }
         plan
