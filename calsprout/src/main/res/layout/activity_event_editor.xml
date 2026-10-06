@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   The event editor — one screen for both New and
-  Edit; The note comes in a later phase.
+  Edit; 
 
-  THREE rows, and nothing else:
+  THREE rows over the note area, and nothing else:
 
     1. the title field, with the event's TYPE named on the button beside it;
     2. the two dates, the All day toggle, and — while all-day is off — the two times;
@@ -250,6 +250,35 @@
                 android:textSize="16sp"
                 android:textStyle="normal" />
 
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- The note's two latches , on this row's right end — Greg's call: the row
+                 had the room, and a header row of their own cost the note area its height. Exactly
+                 one is down; each carries an explicit layout_width (the LatchButton style sets
+                 none — the inflate trap). -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnNoteHandwriting"
+                style="@style/Widget.Soil.LatchButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:drawableStart="@drawable/ic_pen"
+                android:drawablePadding="6dp"
+                android:text="@string/editor_note_handwriting" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnNoteText"
+                style="@style/Widget.Soil.LatchButton"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/editor_field_height"
+                android:layout_marginStart="8dp"
+                android:drawableStart="@drawable/ic_cursor_text"
+                android:drawablePadding="6dp"
+                android:text="@string/editor_note_text" />
+
         </LinearLayout>
 
     </LinearLayout>
@@ -259,5 +288,88 @@
         android:layout_height="1dp"
         android:layout_marginTop="8dp"
         android:background="@color/inkBlack" />
+
+    <!-- ── The note : the area under the fields; its two latches sit on row 3 ──
+         The area is whichever half is showing — the bounded paper surface (added into notePaper in
+         code) or the multi-line text field — one VISIBLE at a time; the other is INVISIBLE, never
+         GONE, so the paper keeps its measured size and the firmware's disable bands stay honest.
+         The selection bar is the LAST child of noteHost: it floats over both halves and, being
+         last, sits on top (the FrameLayout z-order trap). -->
+    <LinearLayout
+        android:id="@+id/noteSection"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/noteHost"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <FrameLayout
+                android:id="@+id/notePaper"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <!-- The text half: the "Notes" label — the same geometry
+                 `CalendarTemplate.bandLabel` draws on the paper half (14 sp, light ink, 8 dp in,
+                 4 dp down) — above the field. No border: the area's edges are the section's.
+                 gravity top so a short note sits where the ink would. The wrapper, not the
+                 EditText, is what shows/hides now — INVISIBLE, never GONE, so the field keeps the
+                 caret it was left with. -->
+            <LinearLayout
+                android:id="@+id/noteTextHalf"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="invisible">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="8dp"
+                    android:paddingTop="4dp"
+                    android:includeFontPadding="false"
+                    android:text="@string/calendar_notes_label"
+                    android:textColor="@color/inkLight"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/inputNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:gravity="top|start"
+                    android:hint="@string/editor_note_hint"
+                    android:importantForAutofill="no"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:paddingStart="16dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="8dp"
+                    android:textColor="@color/inkBlack"
+                    android:textColorHint="@color/inkLight"
+                    android:textSize="16sp" />
+
+            </LinearLayout>
+
+            <!-- The lasso's bar — Delete only (there is nothing to send to). Built in code by
+                 :sn-screen's InkSelectionBar; LAST so it is on top. -->
+            <LinearLayout
+                android:id="@+id/noteSelectionBar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:background="@drawable/shape_dialog_bordered"
+                android:orientation="horizontal"
+                android:padding="4dp"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

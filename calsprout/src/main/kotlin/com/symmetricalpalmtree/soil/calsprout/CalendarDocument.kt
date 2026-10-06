@@ -9,6 +9,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkPage
 import com.symmetricalpalmtree.soil.paper.store.Statement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
 
 /**
  * The calendar's page — in memory, over [CalendarStore]. The screen owns the paper and the
@@ -36,11 +37,24 @@ import kotlinx.coroutines.withContext
  */
 class CalendarDocument(
     private val store: CalendarStore,
+    /** Where the showing page's [DayMark]s come from — [EventStore] in the app, a fake in tests. */
+    marks: MarkSource,
     /** The paper surface in px — the size a page with no recorded size of its own takes. */
     private val surfaceSize: () -> Pair<Float, Float>,
 ) : InkPage {
 
     private val ink = InkDocument(CalendarSql, TAG)
+
+    private val markSource = marks
+
+    /**
+     * The showing page's events, by day — **empty before the first [show]**, and read in the same
+     * IO hop as the page's strokes, so a page and its marks are never one navigation apart.
+     * [CalendarActivity] bakes them into the page's template and compares them structurally in
+     * its bake key.
+     */
+    var marks: Map<LocalDate, List<DayMark>> = emptyMap()
+        private set
 
     /** The page showing. Set by the first [show]; the screen never asks before it. */
     lateinit var target: CalendarTarget
@@ -77,17 +91,27 @@ class CalendarDocument(
     // ── Showing ──────────────────────────────────────────────────────────────
 
     /**
-     * Show [next]. The target's page is read **before** the departing page is flushed, and the
-     * bookmark is written **before** the in-memory swap: every store round-trip a show makes comes
-     * first, so a show that throws leaves the document — and with it the paper and the organizer —
-     * exactly where it was. Returns without a store round-trip when [next] is already showing.
+     * Show [next]. The target's page **and its marks** are read in one IO hop **before** the
+     * departing page is flushed, and the bookmark is written **before** the in-memory swap: every
+     * store round-trip a show makes comes first, so a show that throws leaves the document — and
+     * with it the paper and the organizer — exactly where it was.
+     *
+     * Returns without a store round-trip when [next] is already showing — **unless**
+     * [refreshMarks] says to re-read them, and then it is one hop that reads the marks alone: no
+     * page read, no flush, no bookmark. That path is the way back from the **events screen**, the
+     * one thing that changes what a page's marks are while the page itself has not moved.
      */
-    suspend fun show(next: CalendarTarget) {
-        if (isOpen && next == target) return
-        val stored = withContext(Dispatchers.IO) { store.readPage(next) }
+    suspend fun show(next: CalendarTarget, refreshMarks: Boolean = false) {
+        if (isOpen && next == target) {
+            if (!refreshMarks) return
+            marks = withContext(Dispatchers.IO) { readMarks(next) }
+            return
+        }
+        val (stored, fresh) = withContext(Dispatchers.IO) { store.readPage(next) to readMarks(next) }
         if (isOpen) flushUntilClean()
         withContext(Dispatchers.IO) { store.saveBookmark(next) }
         target = next
+        marks = fresh
         periodId = stored.periodId ?: CalendarStore.newId()
         pageMinted = stored.pageId != null
         val id = stored.pageId ?: CalendarStore.newId()
@@ -106,6 +130,12 @@ class CalendarDocument(
                 sizeDirty = pageMinted
             }
         }
+    }
+
+    /** The marks a page of [t] shows — the range is [GridMarks]', never guessed here. Blocking. */
+    private fun readMarks(t: CalendarTarget): Map<LocalDate, List<DayMark>> {
+        val (from, to) = GridMarks.rangeOf(t)
+        return markSource.marksFor(from, to)
     }
 
     // ── Mutations (Main, synchronous) ────────────────────────────────────────

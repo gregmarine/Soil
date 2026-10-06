@@ -2,13 +2,19 @@ package com.symmetricalpalmtree.soil.calsprout
 
 import android.app.Activity
 import android.os.Bundle
+import android.text.InputFilter
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.calsprout.databinding.ActivityEventEditorBinding
 import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
@@ -23,13 +29,12 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
- * One event, on a whole screen — new or existing. Notesprout SN's editor, Greg's own design; the
- * note comes in the next phase.
+ * One event, on a whole screen — new or existing. Notesprout SN's editor, Greg's own design.
  *
  * **Not exported.** Like [EventsActivity] it is launched only in this process, by the events
  * screen, so there is no caller check to make.
  *
- * **The shape is three rows.** The title with the type beside it; the dates, the All day toggle
+ * **The shape is three rows over the note area.** The title with the type beside it; the dates, the All day toggle
  * and the times; then two **glance** buttons. A glance button says the word alone when the thing
  * is unset ("Repeat", "Remind me") and the value concisely when it is set ("Every 2 weeks",
  * "1 week before"); the details live in [RepeatDialog] and [RemindDialog], which apply on their
@@ -48,13 +53,34 @@ import java.time.LocalDate
  * screen prefills with **exactly** those two dates and hands [EventStore.edit] the **stored**
  * original.
  *
+ * ## The note
+ *
+ * Two halves behind one toggle — [NoteSurface]'s bounded paper and `inputNote` — and **both
+ * contents are always kept**: the latch chooses what is shown, and Save writes the ink and the
+ * text whichever of them was on the glass. [NoteKind.defaultFor] decides where a showing starts.
+ *
+ * [applyKind] is the whole showing rule and every change routes through it, because there are two
+ * inputs to it and only one of them is a tap: the kind, and whether the keyboard is up. The paper
+ * cannot be written on under the IME (the layout shrinks, the page does not — see [NoteSurface]),
+ * so `blocked` is the *or* of "the Text half is showing" and "the keyboard is up", and a
+ * Handwriting-latch tap with the IME up therefore sets the kind now and shows the surface when the
+ * keyboard goes down. **Nothing here ever hides the IME**; the person uses the keyboard's own key.
+ *
+ * **Save reads the note on Main, before the IO hop.** The pen keeps writing while the store call
+ * runs, and the page is Main-thread state — so both possible [NoteWrite]s are built here and the
+ * store is handed a lookup ([EventStore.edit] is what decides which id the fields land under).
+ *
  * IME rules (Ratta): the keyboard is asked for with the **explicit** flag 0, from
- * [onWindowFocusChanged] behind a once-per-showing latch for a NEW event's title. It is **never
- * hidden**: on Supernote hiding the IME kills hardware key delivery too.
+ * [onWindowFocusChanged] behind a once-per-showing latch for a NEW event's title, and directly
+ * from the Text latch's tap, which is a user act on a window that already has focus. It is
+ * **never hidden**: on Supernote hiding the IME kills hardware key delivery too.
  */
 class EventEditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityEventEditorBinding
+
+    /** The note's handwriting half — null only before `onCreate` built it. */
+    private var note: NoteSurface? = null
 
     /** The event as the store holds it — null for a new one. The scope ops are computed against
      *  **this**, never against the draft. */
@@ -76,13 +102,39 @@ class EventEditorActivity : AppCompatActivity() {
     /** A NEW event owes this showing one keyboard, raised at the first window focus. */
     private var pendingTitleFocus = false
 
+    /** Which half of the note is showing. Seeded by [NoteKind.defaultFor] at load, then the latches'. */
+    private var noteKind = NoteKind.HANDWRITING
+
+    /** Whether the keyboard is up — half of [applyKind]'s rule, and the half nobody taps. */
+    private var imeVisible = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEventEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // The note's one template — the same palette/density recipe CalendarActivity builds its
+        // grid bakes from.
+        val notePalette = CalendarTemplate.Palette(
+            ink = ContextCompat.getColor(this, R.color.inkBlack),
+            light = ContextCompat.getColor(this, R.color.inkLight),
+        )
+        val noteDensity = resources.displayMetrics.density
+        val notesLabel = getString(R.string.calendar_notes_label)
+        note = NoteSurface(
+            this, binding.noteHost, binding.notePaper, binding.noteSelectionBar,
+            getString(R.string.delete_selection_action),
+        ) { w, h -> CalendarTemplate.note(w, h, noteDensity, notePalette, notesLabel) }
         // followIme: the fields must stay visible with the keyboard up — the layout resizes, the
         // keyboard is never hidden.
         TopGuard.applyInsetPadding(binding.root, followIme = true)
+        // The note's own listener, on the note's own view: the root's returns the insets
+        // unconsumed, so this one still hears them, and the keyboard's half of the showing rule
+        // stays here.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.noteSection) { _, insets ->
+            imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            applyKind()
+            insets
+        }
 
         viewedDay = CalendarDates.parse(intent.getStringExtra(EXTRA_DAY).orEmpty()) ?: LocalDate.now()
         val eventId = intent.getStringExtra(EXTRA_EVENT_ID)
@@ -103,6 +155,11 @@ class EventEditorActivity : AppCompatActivity() {
             loaded = true
             pendingTitleFocus = true
             binding.inputTitle.setText(draft.title)
+            // An empty page at the area's own size: a new event has no ink and no minted size, and
+            // the surface takes the area's first layout for one that has none.
+            note?.show(draft.id, emptyList(), 0f, 0f)
+            noteKind = NoteKind.defaultFor(hasStrokes = false, hasText = false)
+            applyKind()
             render()
         } else {
             load(eventId)
@@ -129,9 +186,10 @@ class EventEditorActivity : AppCompatActivity() {
 
     private fun load(id: String) {
         lifecycleScope.launch {
-            val e = withContext(Dispatchers.IO) { readEvent(id) }
+            val read = withContext(Dispatchers.IO) { readEvent(id) }
             if (isFinishing || isDestroyed) return@launch
-            if (e == null) { failAndClose(); return@launch }
+            if (read == null) { failAndClose(); return@launch }
+            val e = read.event
             original = e
             // The prefill: the occurrence being looked at, not the series anchor. A direct `copy`,
             // deliberately — this is not a user edit, so none of the field rules may run over it,
@@ -144,14 +202,29 @@ class EventEditorActivity : AppCompatActivity() {
             loaded = true
             binding.inputTitle.setText(draft.title)
             binding.inputTitle.setSelection(binding.inputTitle.text?.length ?: 0)
-            Slog.d(TAG) { "loaded ${e.id}: recurring=${e.recurring}, ${e.reminders.size} reminder(s)" }
+            // The note: its text into the field, its ink and its minted size onto the paper, and
+            // then the kind rule over what the event actually holds.
+            binding.inputNote.setText(draft.noteText)
+            note?.show(e.id, read.ink, e.noteWidth, e.noteHeight)
+            noteKind = NoteKind.defaultFor(hasStrokes = read.ink.isNotEmpty(), hasText = draft.noteText.isNotBlank())
+            applyKind()
+            Slog.d(TAG) { "loaded ${e.id}: recurring=${e.recurring}, ${e.reminders.size} reminder(s), ${read.ink.size} note stroke(s), $noteKind" }
             render()
         }
     }
 
-    /** Blocking, IO only. Null is "the store could not answer". */
-    private suspend fun readEvent(id: String): Event? = try {
-        (application as CalsproutApp).events().get(id)
+    /** One showing's worth of store: the event, and its note's ink. */
+    private class Read(val event: Event, val ink: List<Pair<Long, Stroke>>)
+
+    /**
+     * Blocking, IO only. Null is "the store could not answer" — **the note included**: a note that
+     * failed to read is not an empty note, and putting an empty page on the glass would let the
+     * next Save write that emptiness over ink the person still has.
+     */
+    private suspend fun readEvent(id: String): Read? = try {
+        val store = (application as CalsproutApp).events()
+        val e = store.get(id)
+        if (e == null) null else Read(e, store.readNote(id))
     } catch (e: StoreUnavailable) {
         Slog.d(TAG) { "store unavailable: ${e.javaClass.simpleName}" }
         null
@@ -162,7 +235,7 @@ class EventEditorActivity : AppCompatActivity() {
 
     /** Nothing to edit and nothing to fix: explain, then leave on the dialog's **dismiss**. */
     private fun failAndClose() {
-        Dialogs.confirm(this, R.string.editor_problem_title, R.string.events_unavailable_body) { finish() }
+        Dialogs.confirm(this, R.string.editor_problem_title, R.string.events_unavailable_body) { finishWithHandoff() }
     }
 
     // ── Wiring ───────────────────────────────────────────────────────────────
@@ -215,6 +288,55 @@ class EventEditorActivity : AppCompatActivity() {
             if (!ready()) return@setOnClickListener
             RemindDialog.show(this, draft) { saved -> edit { saved } }
         }
+
+        wireNote()
+    }
+
+    // ── The note ─────────────────────────────────────────────────────────────
+
+    private fun wireNote() {
+        // Two latches, exactly one down. `isSelected` is what every latch on this screen uses —
+        // it is what the bordered background keys on.
+        binding.btnNoteHandwriting.setOnClickListener { showKind(NoteKind.HANDWRITING) }
+        binding.btnNoteText.setOnClickListener { showKind(NoteKind.TEXT) }
+
+        // The cap is the store's ([EventRules.NOTE_TEXT_MAX]); the filter is only so the field
+        // stops accepting keystrokes it would silently drop at save.
+        binding.inputNote.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(EventRules.NOTE_TEXT_MAX))
+        binding.inputNote.doAfterTextChanged {
+            // As with the title: the field owns the text while it is being typed into, and
+            // `render()` never writes it back.
+            if (loaded) draft = draft.withNoteText(it?.toString().orEmpty())
+        }
+    }
+
+    /**
+     * A latch tapped. Text takes the keyboard with it — the half exists to be typed into, and
+     * asking for the IME here is safe where `onResume` is not: a tap is a user act on a window
+     * that already has focus. Flag 0, never `SHOW_IMPLICIT` (see the class note).
+     */
+    private fun showKind(kind: NoteKind) {
+        noteKind = kind
+        applyKind()
+        if (kind != NoteKind.TEXT) return
+        binding.inputNote.requestFocus()
+        getSystemService(InputMethodManager::class.java)?.showSoftInput(binding.inputNote, 0)
+    }
+
+    /**
+     * The whole showing rule, from the kind and the keyboard — the one place either of them lands.
+     *
+     * The half that is not showing goes `INVISIBLE`, never `GONE`: the paper must keep its
+     * measured size (the page was minted at it) and the text field must keep the caret it was
+     * left with. `blocked` additionally excludes the surface from the firmware, which is what
+     * stops ink appearing over the keyboard or over the text half.
+     */
+    private fun applyKind() {
+        val handwriting = noteKind == NoteKind.HANDWRITING
+        binding.btnNoteHandwriting.isSelected = handwriting
+        binding.btnNoteText.isSelected = !handwriting
+        binding.noteTextHalf.visibility = if (handwriting) View.INVISIBLE else View.VISIBLE
+        note?.blocked = !handwriting || imeVisible
     }
 
     /** Whether the draft exists and nothing is being written — the one gate every control that
@@ -304,25 +426,40 @@ class EventEditorActivity : AppCompatActivity() {
      * The write itself, at [scope]. A brand-new event takes [EventStore.save] with `isNew = true`;
      * anything else takes [EventStore.edit], which for a one-off original at [Scope.ALL] is the
      * same in-place `editSeries` a whole-series edit takes.
+     *
+     * The note's two answers are built **here**, on Main, before the IO hop: the page is
+     * Main-thread state and the pen keeps writing while the store call runs. Which of them is
+     * used is the store's own decision ([EventStore.edit] resolves the scope and asks for the id
+     * the edited fields landed under), so it is handed a lookup rather than a value.
      */
     private fun write(scope: Scope) {
         if (busy) return
         busy = true
+        val surface = note
+        // The page size, before the event is built from the draft: minted once there is ink,
+        // otherwise the size the event already held, riding through unchanged.
+        surface?.mintedSize()?.let { (w, h) -> draft = draft.withNoteSize(w, h) }
         val edited = draft.toEvent(System.currentTimeMillis())
         val existing = original
         val day = viewedDay
+        val newId = CalendarStore.newId()
+        val writes = HashMap<String, NoteWrite>(2)
+        writes[edited.id] = surface?.write(edited.id) ?: NoteWrite.NONE
+        // Only a recurring original can land under a new id (EventWrites.editLandsUnder), and a
+        // copy re-encodes every stroke — so the second answer is built only when it can be asked for.
+        if (existing?.recurrence != null) writes[newId] = surface?.write(newId) ?: NoteWrite.NONE
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 try {
                     val store = (application as CalsproutApp).events()
                     if (existing == null) {
-                        store.save(edited, isNew = true)
+                        store.save(edited, isNew = true, writes.getValue(edited.id))
                         true
                     } else {
                         // Null means the viewed day maps to no occurrence any more — another
                         // writer moved the series under us. Nothing was written, and saying so is
                         // better than a silent no-op.
-                        store.edit(scope, existing, edited, day) != null
+                        store.edit(scope, existing, edited, day, newId) { writes.getValue(it) } != null
                     }
                 } catch (e: StoreUnavailable) {
                     Slog.d(TAG) { "save failed: store unavailable" }
@@ -338,9 +475,9 @@ class EventEditorActivity : AppCompatActivity() {
                 Dialogs.problem(this@EventEditorActivity, R.string.editor_problem_title, R.string.editor_save_failed)
                 return@launch
             }
-            Slog.d(TAG) { "saved ${edited.id} at $scope" }
+            Slog.d(TAG) { "saved ${edited.id} at $scope, ${writes.getValue(edited.id).statements.size} in-place note statement(s)" }
             setResult(Activity.RESULT_OK)
-            finish()
+            finishWithHandoff()
         }
     }
 
@@ -350,16 +487,56 @@ class EventEditorActivity : AppCompatActivity() {
      *  moved, and it is a two-button dialog because "Discard" is the destructive half. */
     private fun leave() {
         if (busy) return
-        val moved = loaded && draft.changedFrom(initialDraft)
-        if (!moved) { finish(); return }
+        // Ink counts as moved: the note is held in memory until Save, so leaving throws it away too.
+        val moved = loaded && (draft.changedFrom(initialDraft) || note?.hasUnsavedChanges == true)
+        if (!moved) { finishWithHandoff(); return }
         Dialogs.style(
             AlertDialog.Builder(this)
                 .setTitle(R.string.editor_discard_title)
                 .setMessage(R.string.editor_discard_body)
-                .setPositiveButton(R.string.editor_discard_confirm) { _, _ -> finish() }
+                .setPositiveButton(R.string.editor_discard_confirm) { _, _ -> finishWithHandoff() }
                 .setNegativeButton(R.string.editor_keep_editing, null)
                 .create(),
         ).show()
+    }
+
+    // ── The note surface's half of the EPD handoff ───────────────────────────
+
+    /** `releaseForHandoff()` and then `finish()` — the reason no exit here calls `finish()` alone. */
+    private fun finishWithHandoff() {
+        note?.handoff()
+        finish()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        note?.resume()
+        (application as CalsproutApp).front(front)
+    }
+
+    override fun onPause() {
+        (application as CalsproutApp).left(front)
+        super.onPause()
+    }
+
+    /** The note's paper is paper in front: Soil's shell asks it for the panel as it asks the
+     *  calendar's page. */
+    private val front = object : CalsproutApp.FrontPaper {
+        override fun penIsActive(): Boolean = note?.paper?.isPenActive == true
+        override fun letPanelGo() { note?.paper?.let { if (!it.isPenActive) it.releaseRender() } }
+        override fun letPipelineGo() { note?.handoff() }
+    }
+
+    override fun onDestroy() {
+        note?.release()
+        note = null
+        super.onDestroy()
+    }
+
+    /** Observer only — the note's finger gestures and its bar's chrome-release. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        note?.onTouch(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     companion object {

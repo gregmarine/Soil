@@ -4,12 +4,14 @@ import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.gpaper.core.model.StrokePoint
 import com.symmetricalpalmtree.soil.paper.core.CalendarTarget
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
+import com.symmetricalpalmtree.soil.paper.ink.StoreUnavailable
 import com.symmetricalpalmtree.soil.paper.store.Cell
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * The calendar's page over the statement-recording fake: **opening writes only the bookmark**,
@@ -31,7 +33,25 @@ class CalendarDocumentTest {
     )
 
     private fun text(cell: Cell) = (cell as Cell.Text).value
-    private fun doc(fake: FakeCalendarStore) = CalendarDocument(CalendarStore(fake)) { surface }
+    private fun doc(fake: FakeCalendarStore, marks: MarkSource = MarkSource { _, _ -> emptyMap() }) =
+        CalendarDocument(CalendarStore(fake), marks) { surface }
+
+    /** A [MarkSource] that counts what it was asked and answers a fixed picture — or throws. */
+    private class FakeMarks(
+        private val byDay: Map<LocalDate, List<DayMark>> = emptyMap(),
+        private val fail: Boolean = false,
+    ) : MarkSource {
+        val ranges = ArrayList<Pair<LocalDate, LocalDate>>()
+        val reads: Int get() = ranges.size
+
+        override fun marksFor(from: LocalDate, to: LocalDate): Map<LocalDate, List<DayMark>> {
+            ranges += from to to
+            if (fail) throw StoreUnavailable(IllegalStateException("gone"))
+            return byDay.filterKeys { !it.isBefore(from) && !it.isAfter(to) }
+        }
+    }
+
+    private fun mark(title: String) = DayMark(title, allDay = true, startMinute = null, glyph = Glyph.CAKE)
     private fun nonState(fake: FakeCalendarStore) = fake.statements.filter { !it.sql.startsWith("INSERT OR REPLACE INTO state") }
 
     @Test
@@ -219,5 +239,83 @@ class CalendarDocumentTest {
         assertFalse(d.revert(InkAction.Drew("never-shown", stroke("a"))))
         assertTrue(fake.execs.isEmpty())
         assertEquals(month, d.target)
+    }
+
+    // ── Marks ────────────────────────────────────────────────────────────────
+
+    @Test
+    fun showingAPageReadsItsMarksForTheWholeGrid() = runBlocking {
+        val sep3 = LocalDate.of(2026, 9, 3)
+        val marks = FakeMarks(mapOf(sep3 to listOf(mark("Ann"))))
+        val d = doc(FakeCalendarStore(), marks)
+        assertEquals(emptyMap<LocalDate, List<DayMark>>(), d.marks)   // empty before the first show
+        d.show(month)
+        // The month grid's 42 cells, out-of-month days included.
+        assertEquals(listOf(LocalDate.of(2026, 8, 30) to LocalDate.of(2026, 10, 10)), marks.ranges)
+        assertEquals(mapOf(sep3 to listOf(mark("Ann"))), d.marks)
+    }
+
+    @Test
+    fun showingTheSamePageReadsNoMarks_unlessTheReturnPathAsks() = runBlocking {
+        val fake = FakeCalendarStore()
+        val marks = FakeMarks()
+        val d = doc(fake, marks)
+        d.show(month)
+        assertEquals(1, marks.reads)
+        fake.calls.clear()
+
+        // Same target, no refresh: nothing at all.
+        d.show(month)
+        assertEquals(1, marks.reads)
+        assertTrue(fake.calls.isEmpty())
+
+        // Same target, refresh: exactly one marks read and NOT one store call — no page read, no
+        // flush, no bookmark.
+        d.show(month, refreshMarks = true)
+        assertEquals(2, marks.reads)
+        assertTrue(fake.calls.isEmpty())
+    }
+
+    @Test
+    fun navigatingToAnotherPageReReadsTheMarks() = runBlocking {
+        val marks = FakeMarks()
+        val d = doc(FakeCalendarStore(), marks)
+        d.show(month)
+        d.show(nextMonth)
+        assertEquals(2, marks.reads)
+        assertEquals(LocalDate.of(2026, 9, 27) to LocalDate.of(2026, 11, 7), marks.ranges[1])
+    }
+
+    @Test
+    fun aDayPageAsksAboutItsOneDay() = runBlocking {
+        val marks = FakeMarks()
+        val d = doc(FakeCalendarStore(), marks)
+        d.show(CalendarTarget(CalendarTarget.KIND_DAY, "2026-09-01", CalendarTarget.HALF_PM))
+        assertEquals(listOf(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 1)), marks.ranges)
+    }
+
+    @Test
+    fun aFailedMarksReadThrowsAndChangesNothing() = runBlocking {
+        val sep3 = LocalDate.of(2026, 9, 3)
+        val fake = FakeCalendarStore()
+        val source = SwitchableMarks(FakeMarks(mapOf(sep3 to listOf(mark("Ann")))))
+        val d = CalendarDocument(CalendarStore(fake), source) { surface }
+        d.show(month)
+        d.addStroke(stroke("a"))
+        val marksBefore = d.marks
+
+        source.live = FakeMarks(fail = true)
+        assertTrue(runCatching { d.show(nextMonth) }.exceptionOrNull() is StoreUnavailable)
+        assertEquals(month, d.target)
+        assertEquals(marksBefore, d.marks)
+        assertEquals(listOf("a"), d.strokes.map { it.id })
+
+        assertTrue(runCatching { d.show(month, refreshMarks = true) }.exceptionOrNull() is StoreUnavailable)
+        assertEquals(marksBefore, d.marks)
+    }
+
+    /** A [MarkSource] whose answer can be swapped mid-test. */
+    private class SwitchableMarks(var live: MarkSource) : MarkSource {
+        override fun marksFor(from: LocalDate, to: LocalDate) = live.marksFor(from, to)
     }
 }

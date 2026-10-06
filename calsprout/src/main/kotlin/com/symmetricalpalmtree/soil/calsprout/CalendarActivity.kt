@@ -94,7 +94,9 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val ended = result.data?.getStringExtra(EventsActivity.EXTRA_ENDED_ON)?.let(CalendarDates::parse)
             if (ended == null || !opened || closing || isFinishing || isDestroyed) return@registerForActivityResult
-            runPageOp { showMove(nav.picked(ended, LocalDate.now(), nowHour())) }
+            // Force the bake: an event may have been added or deleted, and the grid's marks are
+            // baked into the template.
+            runPageOp { showMove(nav.picked(ended, LocalDate.now(), nowHour()), forceBake = true) }
         }
 
     /** The day Soil asked for, or null for the bookmark. Read once, at create. */
@@ -106,11 +108,17 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     private var bakeKey: BakeKey? = null
     private var baked: android.graphics.Bitmap? = null
 
+    /**
+     * [marks] is compared **structurally**, not by a hash: a collision here is a page that silently
+     * keeps showing an event the person just deleted. A `Map` of a handful of small data classes
+     * costs nothing to compare against the page-sized bitmap it decides.
+     */
     private data class BakeKey(
         val target: CalendarTarget,
         val today: LocalDate,
         val width: Int,
         val height: Int,
+        val marks: Map<LocalDate, List<DayMark>>,
     )
 
     // ── What the skeleton asks for ───────────────────────────────────────────
@@ -302,8 +310,9 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             binding.root.awaitLaidOut()
             // The first open of all mints the store, which derives a key: seconds, under the
             // "Opening…" box. A store Soil will not lend throws here.
-            val store = (application as CalsproutApp).calendar()
-            doc = CalendarDocument(store) { surfaceSize() }
+            val app = application as CalsproutApp
+            val store = app.calendar()
+            doc = CalendarDocument(store, app.events()) { surfaceSize() }
             document = doc
             val bookmark = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val counts = runCatching { store.counts() }.getOrNull()
@@ -338,7 +347,8 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         pushExclusions()   // swap the block-all rect for the real chrome rects
         // Deliberately NOT pen-idle-gated: a boundary frame, nothing has been drawn yet.
         binding.openingOverlay.visibility = View.GONE
-        Slog.d(TAG) { "page ${doc.target.kind}/${doc.target.date}/${doc.target.half} loaded: ${doc.strokes.size} strokes" }
+        // Counts only — never a title: an event's words are the person's own.
+        Slog.d(TAG) { "page ${doc.target.kind}/${doc.target.date}/${doc.target.half} loaded: ${doc.strokes.size} strokes, ${doc.marks.size} marked day(s)" }
     }
 
     private suspend fun View.awaitLaidOut() {
@@ -375,11 +385,13 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
      * landed. The order matters — [CalendarNavigation.shown] is what moves the anchor, and a show
      * that threw (a store gone out from under us) must leave the organizer exactly where it was.
      */
-    private suspend fun showMove(m: CalendarNavigation.Move, firstLoad: Boolean = false) {
+    private suspend fun showMove(m: CalendarNavigation.Move, firstLoad: Boolean = false, forceBake: Boolean = false) {
         val doc = document ?: return
-        doc.show(m.target)
+        // [forceBake] is only ever set by the events screen's return, and that is exactly the case
+        // where the page may not have moved while its marks did: ask for them again.
+        doc.show(m.target, refreshMarks = forceBake)
         nav.shown(m)
-        showPage(firstLoad)
+        showPage(firstLoad, forceBake)
     }
 
     /** One period forward or back in the showing view — the pager's buttons and the finger swipe. */
@@ -436,7 +448,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
      * `setTemplate` → `loadStrokes`, which is a single EPD refresh. Any selection goes first,
      * because a data-in call would dismiss it anyway and it belongs to the page being left.
      */
-    private fun showPage(firstLoad: Boolean) {
+    private fun showPage(firstLoad: Boolean, forceBake: Boolean = false) {
         val doc = document ?: return
         paper.clearSelection()
         selectionActive = false
@@ -445,7 +457,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         hideEraserBar()      // a floating bar never survives a content swap
         dismissCollapsed()   // and neither do the corner button's rows
         if (!firstLoad) paper.clearForContentSwap()
-        applyTemplate()
+        applyTemplate(force = forceBake)
         paper.loadStrokes(doc.strokes)
         toolbar.setTitle(titleOf(doc.target))
         // The latch says what is on the paper. It rides this frame; it is never one of its own.
@@ -459,10 +471,10 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
      * changes neither pays for neither. The replaced bitmap is recycled — g-paper holds only the
      * one it was last given.
      */
-    private fun applyTemplate() {
+    private fun applyTemplate(force: Boolean = false) {
         val doc = document ?: return
-        val key = BakeKey(doc.target, LocalDate.now(), doc.pageWidth.toInt(), doc.pageHeight.toInt())
-        if (key == bakeKey && baked != null) return
+        val key = BakeKey(doc.target, LocalDate.now(), doc.pageWidth.toInt(), doc.pageHeight.toInt(), doc.marks)
+        if (!force && key == bakeKey && baked != null) return
         val fresh = bakeTemplate(doc.target)
         val old = baked
         bakeKey = key
@@ -478,10 +490,11 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         val today = LocalDate.now()
         val density = resources.displayMetrics.density
         val notes = getString(R.string.calendar_notes_label)
+        val marks = document?.marks.orEmpty()
         return when (t.kind) {
-            CalendarTarget.KIND_WEEK -> CalendarTemplate.week(weekGeometry(), t.localDate, today, density, palette, notes)
-            CalendarTarget.KIND_DAY -> CalendarTemplate.day(dayGeometry(), t.half, density, palette)
-            else -> CalendarTemplate.month(monthGeometry(), t.localDate, today, density, palette, notes)
+            CalendarTarget.KIND_WEEK -> CalendarTemplate.week(weekGeometry(), t.localDate, today, density, palette, notes, marks)
+            CalendarTarget.KIND_DAY -> CalendarTemplate.day(dayGeometry(), t.half, density, palette, marks[t.localDate].orEmpty())
+            else -> CalendarTemplate.month(monthGeometry(), t.localDate, today, density, palette, notes, marks)
         }
     }
 
