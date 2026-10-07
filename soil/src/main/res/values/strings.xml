@@ -386,8 +386,8 @@
     <string name="search_page_card_unnumbered">%1$s · a page</string>
 
     <!-- The Scratch Pad's Send -->
-    <string name="scratch_copy_page">Copy page to clipboard</string>
-    <string name="scratch_copy_selection">Copy selection to clipboard</string>
+    <string name="scratch_copy_page">Copy page</string>
+    <string name="scratch_copy_selection">Copy selection</string>
     <string name="scratch_copied_toast">Copied to the clipboard</string>
     <string name="scratch_nothing_to_copy_title">Nothing to copy</string>
     <string name="scratch_nothing_to_copy_body">There is no ink here to copy. Write something first, or lasso what you want to copy.</string>
