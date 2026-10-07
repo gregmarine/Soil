@@ -5,6 +5,11 @@ import com.symmetricalpalmtree.soil.paper.ink.InkStore
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
+import com.symmetricalpalmtree.soil.paper.templates.PagePaper
+import com.symmetricalpalmtree.soil.paper.templates.PageTemplate
+import com.symmetricalpalmtree.soil.paper.templates.PaperSource
+import com.symmetricalpalmtree.soil.paper.templates.TemplateDigest
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import java.util.UUID
 
@@ -69,6 +74,48 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
 
     fun setLastOpened(pageId: String) =
         execAll(listOf(SketchbookSql.setLastOpened(sketchbookId, pageId, System.currentTimeMillis())))
+
+    // ── Paper ──────
+
+    /** The paper could not be drawn at the page's size. */
+    class PaperRenderFailed : Exception("the paper could not be rendered")
+
+    /** The sketchbook's template rows, blob-free. */
+    fun templateDigests(): List<TemplateDigest> = guard {
+        store.query(SketchbookSql.selectTemplateDigests(sketchbookId)).rows.map {
+            TemplateDigest(it.text("id"), it.textOrNull("text"), it.realOrNull("width")?.toFloat(), it.realOrNull("height")?.toFloat(), it.longOrNull("blobLength"))
+        }
+    }
+
+    /** A template row's pixels, or null when the row is gone or holds none. */
+    fun templateBlob(id: String): ByteArray? = guard {
+        if (id.isEmpty()) null else store.query(SketchbookSql.selectTemplateBlob(id)).rows.firstOrNull()?.blobOrNull("blob")
+    }
+
+    fun setPageTemplate(pageId: String, templateId: String) =
+        execAll(listOf(SketchbookSql.setPageTemplate(pageId, templateId, System.currentTimeMillis())))
+
+    /**
+     * Re-paper [page] with [paper]: **reuse before mint** — a row this file already holds that is
+     * the wanted paper at the page's exact size is pointed at, and only otherwise is another
+     * render stored (templates.md's rule). Answers the template id the page now points at, or
+     * null when it already did. Blocking, IO only.
+     */
+    fun changeTemplate(page: SketchPage, paper: PaperSource, dpi: Float): String? {
+        val token = PagePaper.token(paper)
+        val w = page.width.toInt(); val h = page.height.toInt()
+        val target = if (token.isEmpty()) "" else PageTemplate.reusableId(templateDigests(), token, w, h, prefer = page.templateId)
+            ?: run {
+                val bitmap = PagePaper.render(paper, w, h, dpi) ?: throw PaperRenderFailed()
+                val blob = try { BuiltInTemplates.toWebp(bitmap) } finally { bitmap.recycle() }
+                val id = newId()
+                execAll(listOf(SketchbookSql.insertTemplate(id, sketchbookId, token, w, h, blob, System.currentTimeMillis())))
+                id
+            }
+        if (target == page.templateId) return null
+        setPageTemplate(page.id, target)
+        return target
+    }
 
     // ── Pages ──────
 

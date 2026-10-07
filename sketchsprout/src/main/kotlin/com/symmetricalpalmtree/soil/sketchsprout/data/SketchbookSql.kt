@@ -68,6 +68,27 @@ object SketchbookSql {
         pageId,
     )
 
+    // ── Templates: a page's paper, shared rows under the sketchbook ──────
+
+    /** Every template row, blob-free: what the reuse rule reads. */
+    fun selectTemplateDigests(sketchbookId: String): Statement = Statement(
+        "SELECT id, text, width, height, length(blob) AS blobLength FROM $TABLE WHERE parentId = ? AND type = 'template' AND deletedAt IS NULL",
+        sketchbookId,
+    )
+
+    fun selectTemplateBlob(id: String): Statement =
+        Statement("SELECT blob FROM $TABLE WHERE id = ? AND type = 'template' AND deletedAt IS NULL", id)
+
+    /** Paper stored for this sketchbook: the token in `text`, the size it was rendered at, the pixels. */
+    fun insertTemplate(id: String, sketchbookId: String, token: String, width: Int, height: Int, blob: ByteArray, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, width, height, blob) VALUES (?, ?, 'template', 0, ?, ?, ?, ?, ?, ?)",
+        id, sketchbookId, now, now, token, width.toDouble(), height.toDouble(), blob,
+    )
+
+    /** Point a page at a template row, or at nothing (`""`): the one write of a re-papering. */
+    fun setPageTemplate(pageId: String, templateId: String, now: Long): Statement =
+        Statement("UPDATE $TABLE SET refId = ?, updatedAt = ? WHERE id = ? AND type = 'page'", templateId, now, pageId)
+
     // ── The rasters ──────
 
     /** The one live raster row of [type] under [pageId] — its id and its picture. */

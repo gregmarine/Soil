@@ -64,6 +64,15 @@ class SketchEditTest {
     }
 
     @Test
+    fun `a re-papering costs nothing and keeps both rows through a re-index`() {
+        val e = SketchEdit.TemplateChanged("p1", 2, "", "t9")
+        assertEquals(0L, e.bytes)
+        assertSame(e, e.withIndex(2))
+        assertEquals("t9", e.withIndex(3).to)
+        assertEquals("", e.withIndex(3).from)
+    }
+
+    @Test
     fun `a page entry re-indexed keeps everything but the index`() {
         val before = listOf(page("a"))
         val after = listOf(page("a"), page("c"))

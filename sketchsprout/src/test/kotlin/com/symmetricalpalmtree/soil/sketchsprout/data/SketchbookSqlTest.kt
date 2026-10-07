@@ -21,6 +21,8 @@ class SketchbookSqlTest {
         SketchbookSql.restore("p1"),
         SketchbookSql.insertRaster("r1", "p1", SketchbookSchema.TYPE_SKETCH_GRAPHITE, picture, 10L),
         SketchbookSql.updateRaster("r1", picture, 11L),
+        SketchbookSql.insertTemplate("t1", "sb", "LINED", 1404, 1872, picture, 10L),
+        SketchbookSql.setPageTemplate("p1", "t1", 10L),
     )
 
     private val reads = listOf(
@@ -29,6 +31,8 @@ class SketchbookSqlTest {
         SketchbookSql.selectRaster("p1", SketchbookSchema.TYPE_SKETCH_INK),
         SketchbookSql.selectRasterId("p1", SketchbookSchema.TYPE_SKETCH_INK),
         SketchbookSql.selectLiveDescendantIds("p1"),
+        SketchbookSql.selectTemplateDigests("sb"),
+        SketchbookSql.selectTemplateBlob("t1"),
     )
 
     @Test

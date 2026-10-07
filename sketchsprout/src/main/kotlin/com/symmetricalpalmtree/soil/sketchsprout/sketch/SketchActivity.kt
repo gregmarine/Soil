@@ -18,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -44,6 +45,11 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.ink.PaperScreenActivity
 import com.symmetricalpalmtree.soil.paper.ink.awaitPenIdle
+import com.symmetricalpalmtree.soil.paper.templates.Bitmaps
+import com.symmetricalpalmtree.soil.paper.templates.PageTemplate
+import com.symmetricalpalmtree.soil.paper.templates.PaperSource
+import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
+import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
 import com.symmetricalpalmtree.soil.seam.ISeamItem
 import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamLimits
@@ -59,6 +65,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore
 import com.symmetricalpalmtree.soil.sketchsprout.databinding.ActivitySketchBinding
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterEditBuilder
+import com.symmetricalpalmtree.soil.sketchsprout.raster.PageFlatten
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterImage
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import com.symmetricalpalmtree.soil.sketchsprout.save.SketchSaver
@@ -113,8 +120,12 @@ import java.io.File
  *   a swipe past the last page makes one, a two-finger swipe makes one either side; Delete page
  *   is on the long-press sheet behind a confirm. A turn flushes the page it leaves by copy alone
  *   and lets the encode run on; an insert, a delete and a page replay await the write.
- * - **Plain white paper in this phase**; the paper library's templates are laid under the raster
- *   in phase 4, the guides in phase 5.
+ * - **The paper is the sheet.** A page's template row (the paper library's, reused by bytes as
+ *   the notebook reuses them) is decoded and handed to g-paper as the **sheet** — never as the
+ *   template, which the Supernote's direct raster path does not flatten onto the panel. The sheet
+ *   is drawn over white and under both rasters on the window and the panel alike, and is never
+ *   in the engine's own render, so the cover and the export compose the page themselves
+ *   ([PageFlatten]). The guides (phase 5) join the paper in the same one sheet.
  * - **The smudge is a gesture on top of being a tool**: a one-finger rub under any tool goes
  *   straight into the engine's smudge sweep, fed from [dispatchTouchEvent] before the base feeds
  *   the page gestures, so those see it standing down on the same event that armed it.
@@ -130,6 +141,22 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     private lateinit var toolbar: SketchToolbar
     private lateinit var saver: SketchSaver
     private lateinit var prefs: SketchPrefs
+
+    /** The paper under the pages shown lately, by template row id: decoded off Main before the
+     *  load that sets it. The engine holds the sheet by reference, so a cached bitmap stays alive
+     *  until it leaves the cache after the sheet has moved on. */
+    private val paperCache = LinkedHashMap<String, Bitmap>()
+
+    /** Soil's template picker, started for a result. Registered as a property: a launcher must
+     *  be registered before the Activity is STARTED. */
+    private val templatePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK))
+    }
+
+    /** Soil's screen is up over this one in another process: the pipeline is handed over as for
+     *  any Soil screen, and the session is not parked. */
+    private var soilScreenShowing = false
+    private var inAppHandoff = false
 
     /** The shade panel — Atelier's sixteen tones, hung under whichever pen button was re-tapped
      *  (top bar or mini row). Null until `onCreate` builds it. */
@@ -405,14 +432,27 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 // The library learns the page order at every open: it names a page by it without
                 // ever opening the file.
                 runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
-                // Soil's New sketchbook may have chosen a paper. Phase 4 lays it; until then the
-                // pick is consumed and logged, never left on the intent to be re-read.
-                intent.getStringExtra(Seam.EXTRA_TEMPLATE_PICK)?.let {
+                // Soil's New sketchbook chose the paper: the first page takes it, as any pick is
+                // taken, and not as an undo step. Consumed once.
+                var pages = loaded.pages
+                intent.getStringExtra(Seam.EXTRA_TEMPLATE_PICK)?.let { encoded ->
                     intent.removeExtra(Seam.EXTRA_TEMPLATE_PICK)
-                    Slog.d(TAG) { "a paper was picked; laid from phase 4" }
+                    val pick = TemplatePick.decode(encoded)
+                    if (pick != null && pick !is TemplatePick.Blank) {
+                        runCatching {
+                            val paperSource = paperOf(pick)
+                            val first = pages.first()
+                            if (paperSource != null) {
+                                s.changeTemplate(first, paperSource, resources.displayMetrics.densityDpi.toFloat())?.let { id ->
+                                    pages = pages.map { if (it.id == first.id) it.copy(templateId = id) else it }
+                                }
+                                runCatching { seam.templateUsed(pick.cardId) }
+                            }
+                        }.onFailure { Log.w(TAG, "the new sketchbook's paper could not be laid: ${it.javaClass.simpleName}") }
+                    }
                 }
                 prefs.lastSketchbookId = item.id
-                loaded to item.name
+                SketchbookStore.Loaded(pages, loaded.currentId) to item.name
             }
         } catch (e: CancellationException) {
             throw e
@@ -479,9 +519,12 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (!firstLoad) paper.clearForContentSwap()
         val width = page.width.toInt(); val height = page.height.toInt()
         paper.setPageSize(width, height)
-        paper.setTemplate(null)   // plain white in this phase; the paper lands in the sheet from phase 4
+        paper.setTemplate(null)   // the paper is the SHEET: the direct raster path never flattens a template
         if (isFinishing || isDestroyed) return
         val s = store ?: return
+        // The page's paper, decoded off Main, set BEFORE the rasters load so the engine rebuilds
+        // once for all three. A failure is a log line and white, never a dialog.
+        paper.setSheet(paperFor(page))
         val decoded = ArrayList<Pair<RasterLayer, Bitmap?>>(RasterRows.LAYERS.size)
         for (layer in RasterRows.LAYERS) {
             val bitmap = withContext(Dispatchers.IO) {
@@ -503,6 +546,123 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         saver.pageKey = page.id
         saver.markClean()
         toolbar.setPage(pages.indexOf(page) + 1, pages.size)
+    }
+
+    // ── Paper ────────────────────────────────────────────────────────────────
+
+    /** [page]'s paper as a page-sized bitmap, from the cache or decoded now; null for blank. */
+    private suspend fun paperFor(page: SketchPage): Bitmap? {
+        val id = page.templateId.takeIf { it.isNotEmpty() } ?: return null
+        paperCache[id]?.let { return it }
+        val s = store ?: return null
+        val bitmap = withContext(Dispatchers.IO) {
+            runCatching { Bitmaps.decodeBounded(s.templateBlob(id), MAX_TEMPLATE_EDGE) }
+                .onFailure { Log.w(TAG, "the page's paper could not be read: ${it.javaClass.simpleName}") }
+                .getOrNull()
+        } ?: return null
+        if (paperCache.size >= PAPER_CACHE_SIZE) paperCache.remove(paperCache.keys.first())
+        paperCache[id] = bitmap
+        return bitmap
+    }
+
+    /** The pick names a card; the pixels are read here, through the seam. IO only. */
+    private suspend fun paperOf(pick: TemplatePick): PaperSource? = when (pick) {
+        TemplatePick.Blank -> PaperSource.Blank
+        is TemplatePick.BuiltIn -> PaperSource.BuiltIn(pick.kind)
+        is TemplatePick.Static -> try {
+            val seam = (application as SketchsproutApp).soil.seam()
+            val info = seam.template(pick.id)
+            if (info == null) null else PaperSource.Image(SeamShared.readAndClose(seam.templateImage(pick.id)), TemplateFit.sanitize(info.fit))
+        } catch (e: Exception) {
+            Log.w(TAG, "the template could not be read: ${e.javaClass.simpleName}")
+            null
+        }
+    }
+
+    /** Page template on the sheet: Soil's picker, started for a result with the page's token so
+     *  the paper in force is ticked. */
+    private fun openTemplatePicker() {
+        if (!opened || closing || soilScreenShowing) return
+        val page = currentPage ?: return
+        val s = store ?: return
+        lifecycleScope.launch {
+            val token = withContext(Dispatchers.IO) { runCatching { PageTemplate.tokenOf(s.templateDigests(), page.templateId) }.getOrNull() }
+            if (!opened || closing || soilScreenShowing) return@launch
+            val intent = Intent(Seam.ACTION_PICK_TEMPLATE)
+                .setPackage(BuildConfig.SOIL_PACKAGE)
+                .putExtra(Seam.EXTRA_CURRENT_TOKEN, token)
+            startSoilScreen { templatePickerLauncher.launch(intent) }
+        }
+    }
+
+    private fun startSoilScreen(launch: () -> Unit) {
+        soilScreenShowing = true
+        hideFloatingBars()
+        dismissCollapsed()
+        inAppHandoff = true
+        paper.releaseForHandoff()
+        try {
+            launch()
+        } catch (e: Exception) {
+            Log.w(TAG, "Soil's screen would not open: ${e.javaClass.simpleName}")
+            onSoilScreenClosed()
+            Dialogs.problem(this, R.string.open_failed_title, R.string.open_no_soil)
+        }
+    }
+
+    /** The result callback runs before `onResume`: the pipeline is reclaimed first of all. */
+    private fun onSoilScreenClosed() {
+        soilScreenShowing = false
+        inAppHandoff = false
+        if (opened) paper.resumeDrawing()
+    }
+
+    private fun onTemplatePicked(resultCode: Int, encoded: String?) {
+        onSoilScreenClosed()
+        if (resultCode != android.app.Activity.RESULT_OK) return
+        // A pick this build cannot read is a cancel, never Blank.
+        val pick = TemplatePick.decode(encoded) ?: return
+        applyPick(pick)
+    }
+
+    /** The page takes the pick: one undo step, the sheet re-set under the rasters in place. */
+    private fun applyPick(pick: TemplatePick) {
+        val page = currentPage ?: return
+        val s = store ?: return
+        runPageOp {
+            if (currentPage?.id != page.id) return@runPageOp
+            val source = withContext(Dispatchers.IO) { paperOf(pick) }
+            if (source == null) {
+                Dialogs.problem(this@SketchActivity, R.string.template_gone_title, R.string.template_gone_body)
+                return@runPageOp
+            }
+            val target = try {
+                withContext(Dispatchers.IO) { s.changeTemplate(page, source, resources.displayMetrics.densityDpi.toFloat()) }
+            } catch (e: SketchbookStore.PaperRenderFailed) {
+                Dialogs.problem(this@SketchActivity, R.string.template_render_failed_title, R.string.template_render_failed_body)
+                return@runPageOp
+            } catch (e: Exception) {
+                showProblem(R.string.page_failed_title, R.string.page_failed_body)
+                return@runPageOp
+            }
+            // An apply is the one thing that makes paper recent, re-picking the paper in force included.
+            withContext(Dispatchers.IO) { runCatching { (application as SketchsproutApp).soil.seam().templateUsed(pick.cardId) } }
+            if (target == null) return@runPageOp
+            undo.record(SketchEdit.TemplateChanged(page.id, pages.indexOf(page), page.templateId, target))
+            applyTemplate(page.id, target)
+        }
+    }
+
+    /** Point [pageId] at [templateId] in the page list and, when it is the page showing, under
+     *  the rasters. The file was already written. */
+    private suspend fun applyTemplate(pageId: String, templateId: String) {
+        pages = pages.map { if (it.id == pageId) it.copy(templateId = templateId) else it }
+        val here = currentPage ?: return
+        if (here.id != pageId) return
+        val updated = here.copy(templateId = templateId)
+        currentPage = updated
+        paper.awaitPenIdle()
+        paper.setSheet(paperFor(updated))
     }
 
     // ── Page turns, inserts and deletes ──────────────────────────────────────
@@ -603,6 +763,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         paper.releaseRender()
         ActionSheetDialog(this)
             .title(getString(R.string.page_sheet_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
             .show()
     }
@@ -635,6 +796,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             when (edit) {
                 is SketchEdit.RasterChanged -> applyEdit(edit, generation, undoing)
                 is SketchEdit.PagesChanged -> applyPages(edit, generation, undoing)
+                is SketchEdit.TemplateChanged -> applyTemplateEdit(edit, generation, undoing)
             }
         } catch (e: CancellationException) {
             throw e
@@ -708,14 +870,44 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         return true
     }
 
+    /** Take back — or put back — a re-papering: the page points at the other row, in the file
+     *  and under the rasters. Walks to the page first, as a pixel entry does. */
+    private suspend fun applyTemplateEdit(edit: SketchEdit.TemplateChanged, generation: Int, undoing: Boolean): Boolean {
+        val here = currentPage ?: return false
+        val s = store ?: return false
+        if (edit.pageKey != here.id && !walkToPage(edit.pageKey)) {
+            Log.w(TAG, "a re-papered page could not be reached; the entry was dropped")
+            return false
+        }
+        paper.awaitPenIdle()
+        if (isFinishing || isDestroyed || closing) return false
+        if (undo.generation != generation) {
+            undo.pushUndoBeneath(edit, generation)
+            return false
+        }
+        val target = if (undoing) edit.from else edit.to
+        try {
+            withContext(Dispatchers.IO) { s.setPageTemplate(edit.pageKey, target) }
+        } catch (e: Exception) {
+            showProblem(R.string.page_failed_title, R.string.page_failed_body)
+            throw e
+        }
+        applyTemplate(edit.pageKey, target)
+        return true
+    }
+
     /** Walk back to the page [edit] was made on, bounded by the distance it recorded, flushing
      *  the page being left by copy alone as a turn does. */
     private suspend fun walkTo(edit: SketchEdit.RasterChanged): Boolean {
         val here = currentPage ?: return false
-        val target = pages.firstOrNull { it.id == edit.pageKey } ?: return false
         val i = pages.indexOf(here)
-        val steps = PageTurn.maxSteps(i, edit.pageIndex)
-        if (kotlin.math.abs(pages.indexOf(target) - i) > steps) Log.w(TAG, "an edit's page sits further than it recorded; walking anyway")
+        val target = pages.firstOrNull { it.id == edit.pageKey } ?: return false
+        if (kotlin.math.abs(pages.indexOf(target) - i) > PageTurn.maxSteps(i, edit.pageIndex)) Log.w(TAG, "an edit's page sits further than it recorded; walking anyway")
+        return walkToPage(edit.pageKey)
+    }
+
+    private suspend fun walkToPage(pageKey: String): Boolean {
+        val target = pages.firstOrNull { it.id == pageKey } ?: return false
         if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the replay's turn; the raster stays dirty")
         loadPage(target, firstLoad = false)
         rememberLastOpened(target)
@@ -982,7 +1174,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     }
 
     private fun dumpPage() {
-        val bmp = paper.renderToBitmap() ?: run { Log.w(TAG, "dump: nothing to render"); return }
+        val bmp = flattenShowingPage() ?: run { Log.w(TAG, "dump: nothing to render"); return }
         val dir = File(getExternalFilesDir(null), "dump").apply { mkdirs() }
         val f = File(dir, "page.png")
         f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -1045,6 +1237,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     override fun onResume() {
         super.onResume()
         (application as SketchsproutApp).front(this)
+        // Back from Soil's picker: the pipeline first of all (the result callback reclaimed it).
         debugDoors?.let {
             val filter = IntentFilter("$packageName.SKETCH_FILL").apply { addAction("$packageName.SKETCH_DUMP") }
             ContextCompat.registerReceiver(this, it, filter, ContextCompat.RECEIVER_EXPORTED)
@@ -1079,10 +1272,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     override fun onStop() {
         super.onStop()
         val open = session ?: return
-        // The cover on every way out, the close included: a sketchbook put down shows the library
-        // what it last showed.
-        captureCover()
-        if (closing) return
+        // The cover on every way out but a hand-off to Soil's picker over this screen, the close
+        // included: a sketchbook put down shows the library what it last showed.
+        if (!inAppHandoff) captureCover()
+        if (closing || inAppHandoff) return
         // The flush first, awaited — a parked session takes no write — then the park.
         appScope.launch {
             withContext(NonCancellable) {
@@ -1102,7 +1295,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     private fun captureCover() {
         if (!opened || paper.isPenActive) return
         val id = itemId ?: return
-        val full = runCatching { paper.renderToBitmap() }.getOrNull() ?: return
+        val full = runCatching { flattenShowingPage() }.getOrNull() ?: return
         appScope.launch(Dispatchers.IO) {
             try {
                 val bytes = CoverSnapshot.encode(full)
@@ -1112,6 +1305,21 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             } finally {
                 full.recycle()
             }
+        }
+    }
+
+    /** The showing page as the export sees it: white, its paper, graphite, ink — composed here
+     *  because the engine's own render never includes the sheet the paper rides on. Main thread. */
+    private fun flattenShowingPage(): Bitmap? {
+        val page = currentPage ?: return null
+        val w = page.width.toInt(); val h = page.height.toInt()
+        if (w <= 0 || h <= 0) return null
+        val graphite = paper.getPageRaster(RasterLayer.GRAPHITE)
+        val ink = paper.getPageRaster(RasterLayer.INK)
+        return try {
+            PageFlatten.flatten(w, h, paperCache[page.templateId], graphite, ink)
+        } finally {
+            graphite?.recycle(); ink?.recycle()
         }
     }
 
@@ -1180,6 +1388,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     private companion object {
         const val TAG = "SketchActivity"
         const val NO_SUCH_ITEM = "there is no such item"
+
+        /** A page's paper is authored at the page's size; the bound only guards a foreign blob. */
+        const val MAX_TEMPLATE_EDGE = 4096
+        const val PAPER_CACHE_SIZE = 3
 
         /** How long after a pen lift the screen still counts as active for the menu. */
         const val PEN_RECENT_MS = 1_500L

@@ -14,7 +14,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterTile
  * the pixels that were there. [RasterChanged] carries them, and [bytes] is what lets the stack
  * bound a history that is no longer free to hold.
  *
- * **[PagesChanged] is the one non-pixel kind**: a page inserted or deleted from this screen. It
+ * **[PagesChanged] and [TemplateChanged] are the non-pixel kinds**: a page inserted or deleted from this screen. It
  * carries the page list before and after and the ids a delete soft-deleted, so the replay is one
  * [com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore.reconcile] in either direction.
  * It costs no bytes, so the byte budget can never evict one.
@@ -88,6 +88,18 @@ sealed class SketchEdit {
 
         override fun withIndex(index: Int): PagesChanged =
             if (index == pageIndex) this else copy(pageIndex = index)
+    }
+
+    /** A page re-papered: the template row it pointed at before and after (`""` = blank). Undo
+     *  points it back; the sheet under the raster follows. Costs nothing. */
+    data class TemplateChanged(
+        override val pageKey: String,
+        override val pageIndex: Int,
+        val from: String,
+        val to: String,
+    ) : SketchEdit() {
+        override val bytes: Long get() = 0L
+        override fun withIndex(index: Int): TemplateChanged = if (index == pageIndex) this else copy(pageIndex = index)
     }
 
     companion object {
