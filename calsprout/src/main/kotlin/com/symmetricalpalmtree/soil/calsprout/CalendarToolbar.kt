@@ -14,8 +14,9 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 
 /**
  * The calendar's chrome (Greg, 2026-10-05): Back and the three tools on the top bar, then the
- * three view latches, Today, Events and Links at its far end; the pager — prev, the
- * period's title, next — alone on the bottom bar. The tool half is `:paper`'s [PaperToolbar];
+ * three view latches, Today and Events at its far end; the pager — prev, the period's title,
+ * next — centred on the bottom bar, with the Links door at its far end (Greg, 2026-10-06: the
+ * Bible reader's Notes in this subject, the same icon, the same place). The tool half is `:paper`'s [PaperToolbar];
  * this adds what is the calendar's own: the fixed tool values, the navigation controls, the doors
  * and the title behind the frame-silence gate.
  *

@@ -215,7 +215,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         CollapsedChrome.Entry.mirroring(R.drawable.ic_calendar_day, binding.btnDay),
         CollapsedChrome.Entry.mirroring(R.drawable.ic_calendar_star, binding.btnToday),
         CollapsedChrome.Entry.mirroring(R.drawable.ic_calendar_event, binding.btnEvents),
-        CollapsedChrome.Entry.mirroring(R.drawable.ic_link, binding.btnLinks),
+        CollapsedChrome.Entry.mirroring(com.symmetricalpalmtree.soil.paper.R.drawable.ic_notebook, binding.btnLinks),
     )
 
     override fun showPage() = showPage(firstLoad = false)

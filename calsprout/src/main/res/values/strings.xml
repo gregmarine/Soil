@@ -16,7 +16,7 @@
     <string name="cd_calendar_view_week">Week view</string>
     <string name="cd_calendar_view_day">Day view</string>
     <string name="cd_calendar_events">Events</string>
-    <string name="cd_calendar_links">What links here</string>
+    <string name="cd_calendar_links">Notes</string>
     <string name="cd_prev_period">Previous</string>
     <string name="cd_next_period">Next</string>
     <string name="cd_calendar_pick_day">Pick a day</string>

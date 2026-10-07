@@ -116,13 +116,6 @@
                     android:src="@drawable/ic_calendar_event"
                     android:visibility="gone" />
 
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnLinks"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_calendar_links"
-                    android:src="@drawable/ic_link"
-                    android:visibility="gone" />
-
 
             </LinearLayout>
 
@@ -148,13 +141,23 @@
             android:layout_height="1dp"
             android:background="@color/inkBlack" />
 
-        <!-- The pager only, centred on the SCREEN: [‹] [title] [›]. -->
+        <!-- The pager, centred on the SCREEN: [‹] [title] [›]; and at the far end the Links door —
+             the Bible reader's Notes in this subject: the notes and documents about the period
+             showing (Greg, 2026-10-06) — present only while something links into it. -->
         <FrameLayout
             android:id="@+id/bottomBarRow"
             android:layout_width="match_parent"
             android:layout_height="@dimen/toolbar_bar_thickness"
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnLinks"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:layout_gravity="end|center_vertical"
+                android:contentDescription="@string/cd_calendar_links"
+                android:src="@drawable/ic_notebook"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
