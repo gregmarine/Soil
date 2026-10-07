@@ -13,8 +13,19 @@
     <string name="cd_tool_eraser">Eraser</string>
     <string name="cd_tool_smudge">Smudge</string>
 
-    <!-- The pager's indicator: this page of that many. -->
+    <!-- The pager: this page of that many, and its two arrows. -->
     <string name="sketch_page_indicator">%1$d / %2$d</string>
+    <string name="cd_prev_page">Previous page</string>
+    <string name="cd_next_page">Next page</string>
+
+    <!-- The page sheet, on a finger long-press. Delete asks once; the export, copy and paste rows
+         join in their phases. -->
+    <string name="page_sheet_title">This page</string>
+    <string name="page_sheet_delete">Delete page</string>
+    <string name="delete_page_title">Delete this page?</string>
+    <string name="delete_confirm">Delete</string>
+    <string name="page_failed_title">Page</string>
+    <string name="page_failed_body">The page could not be changed. The sketchbook is as it was.</string>
 
     <!-- Opening: never a path, never a name. -->
     <string name="open_failed_title">Can\'t open sketchbook</string>

@@ -8,7 +8,7 @@
 
   Top bar: Back and the tools on the left (Pencil · Pen · Eraser · Smudge; Guides joins in phase
   5), the sketchbook's name centred in the band the buttons leave free.
-  Bottom bar: the page indicator, centred on the SCREEN (the arrows join in phase 3).
+  Bottom bar: the pager, centred on the SCREEN — prev, the indicator, next.
 
   openingOverlay starts VISIBLE: the screen covers its own first frame, so the launch reads as one
   continuous "Opening…".
@@ -137,18 +137,27 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPrevPage"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_prev_page"
+                    android:src="@drawable/ic_page_prev" />
+
                 <TextView
                     android:id="@+id/pageIndicator"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:minWidth="96dp"
-                    android:minHeight="@dimen/toolbar_button_size"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:minWidth="56dp"
                     android:singleLine="true"
                     android:textColor="@color/inkBlack"
-                    android:textSize="16sp" />
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnNextPage"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_next_page"
+                    android:src="@drawable/ic_page_next" />
             </LinearLayout>
 
         </FrameLayout>

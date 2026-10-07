@@ -58,6 +58,16 @@ object SketchbookSql {
     fun restore(id: String): Statement =
         Statement("UPDATE $TABLE SET deletedAt = NULL WHERE id = ?", id)
 
+    /** Everything alive under a page, at any depth: its rasters and guides. What a page delete
+     *  takes with it and a page restore brings back. */
+    fun selectLiveDescendantIds(pageId: String): Statement = Statement(
+        "WITH RECURSIVE under(id) AS (" +
+            "SELECT id FROM $TABLE WHERE parentId = ? AND deletedAt IS NULL " +
+            "UNION SELECT n.id FROM $TABLE n JOIN under u ON n.parentId = u.id WHERE n.deletedAt IS NULL" +
+            ") SELECT id FROM under",
+        pageId,
+    )
+
     // ── The rasters ──────
 
     /** The one live raster row of [type] under [pageId] — its id and its picture. */

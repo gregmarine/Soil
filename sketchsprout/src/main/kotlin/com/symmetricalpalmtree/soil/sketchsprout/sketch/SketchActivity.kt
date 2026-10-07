@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.PageMode
 import com.symmetricalpalmtree.gpaper.core.PaperListener
 import com.symmetricalpalmtree.gpaper.core.RasterLayer
+import com.symmetricalpalmtree.gpaper.core.RasterPatch
 import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
@@ -34,6 +35,8 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
+import com.symmetricalpalmtree.soil.paper.chrome.UndoRedoStack
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.CoverSnapshot
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Immersive
@@ -55,6 +58,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchPage
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore
 import com.symmetricalpalmtree.soil.sketchsprout.databinding.ActivitySketchBinding
+import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterEditBuilder
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterImage
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import com.symmetricalpalmtree.soil.sketchsprout.save.SketchSaver
@@ -98,8 +102,19 @@ import java.io.File
  * - **Saves are [SketchSaver]'s**: debounced through the pen-idle gate up to a deadline, one
  *   raster at a time, each raster its own row; every leave flushes; a flush that fails is a
  *   dialog, because the pixels have no other copy.
+ * - **Undo is pixels — and pages.** The before-image of everything one contact changed is read on
+ *   a 64 px grid ([RasterEditBuilder]) between `onRasterWillChange` and `onPenLifted`, and taken
+ *   back with `swapPageRaster(layer, …)`, which leaves the arrays holding the other side — so one
+ *   entry is its own redo. The history is bounded by bytes ([SketchEdit.UNDO_BUDGET_BYTES]). A
+ *   page insert or delete is an entry too ([SketchEdit.PagesChanged]), replayed by one reconcile
+ *   of the file. **Undo and redo are gestures only** (Greg, 2026-10-07): the two- and three-finger
+ *   double-taps every Soil paper screen has.
+ * - **The screen turns, inserts and deletes its own pages.** Arrows and the one-finger swipe turn;
+ *   a swipe past the last page makes one, a two-finger swipe makes one either side; Delete page
+ *   is on the long-press sheet behind a confirm. A turn flushes the page it leaves by copy alone
+ *   and lets the encode run on; an insert, a delete and a page replay await the write.
  * - **Plain white paper in this phase**; the paper library's templates are laid under the raster
- *   in phase 4, the guides in phase 5, the undo in phase 3, the page sheet with it.
+ *   in phase 4, the guides in phase 5.
  * - **The smudge is a gesture on top of being a tool**: a one-finger rub under any tool goes
  *   straight into the engine's smudge sweep, fed from [dispatchTouchEvent] before the base feeds
  *   the page gestures, so those see it standing down on the same event that armed it.
@@ -154,6 +169,14 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     /** The pages as the store lists them, and the one on the glass. Null before the first load. */
     private var pages: List<SketchPage> = emptyList()
     private var currentPage: SketchPage? = null
+
+    /** This sitting's history — pixels, so it is bounded by bytes as well as by count. It survives
+     *  a page turn (each entry carries the page it happened on) and dies with the screen. */
+    private val undo = UndoRedoStack<SketchEdit>(cost = { it.bytes }, budgetBytes = SketchEdit.UNDO_BUDGET_BYTES)
+
+    /** The open contact's before-image, from its first change to the pen lifting. */
+    private var openEdit: RasterEditBuilder? = null
+    private var openEditReadNanos = 0L
 
     /** When the pen last lifted, as the engine told it — a hand writing lifts the pen between
      *  strokes for longer than the engine's own tail, so a recent lift counts as active too. */
@@ -272,7 +295,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             btnSmudge = binding.btnSmudge,
             title = binding.title,
             pageIndicator = binding.pageIndicator,
+            btnPrevPage = binding.btnPrevPage,
+            btnNextPage = binding.btnNextPage,
             onBack = { exit() },
+            onPrevPage = { runPageOp { turnPageNow(PageTurn.Direction.PREV) } },
+            onNextPage = { runPageOp { turnPageNow(PageTurn.Direction.NEXT) } },
             // An actual tool change — including a pencil↔gel-pen switch, which never moves
             // `paper.tool`: the shade panel shows the kind that is leaving.
             onToolTapped = { dismissCollapsed(); hidePaletteBar() },
@@ -383,7 +410,6 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                     intent.removeExtra(Seam.EXTRA_TEMPLATE_PICK)
                     Slog.d(TAG) { "a paper was picked; laid from phase 4" }
                 }
-                intent.removeExtra(Seam.EXTRA_PAGE_ID)   // landing on a page is phase 3's
                 prefs.lastSketchbookId = item.id
                 loaded to item.name
             }
@@ -405,7 +431,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (isFinishing || isDestroyed || closing) return
         pages = loadedBook.first.pages
         toolbar.setTitle(loadedBook.second)
-        val first = pages.firstOrNull { it.id == loadedBook.first.currentId } ?: pages.first()
+        // Opened via a link or the library's page search: land on the page named, once.
+        val asked = intent.getStringExtra(Seam.EXTRA_PAGE_ID)?.also { intent.removeExtra(Seam.EXTRA_PAGE_ID) }
+        val first = pages.firstOrNull { it.id == asked } ?: pages.firstOrNull { it.id == loadedBook.first.currentId } ?: pages.first()
         loadPage(first, firstLoad = true)
         if (isFinishing || isDestroyed || closing) return
         // Before `opened`, which is what the block-all rect waits on: the tools are in place before
@@ -436,6 +464,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      * before the last strokes.
      */
     private suspend fun loadPage(page: SketchPage, firstLoad: Boolean) {
+        // A contact that never got its pen-up leaves a half-gathered entry tagged with the page
+        // being left; carried across the turn it would go on collecting the next page's cells
+        // under the old page's key. The honest loss.
+        openEdit = null
         if (saver.isPushPending(page.id)) {
             val t0 = SystemClock.elapsedRealtime()
             saver.awaitPushes(page.id)
@@ -470,6 +502,242 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         saver.pageKey = page.id
         saver.markClean()
         toolbar.setPage(pages.indexOf(page) + 1, pages.size)
+    }
+
+    // ── Page turns, inserts and deletes ──────────────────────────────────────
+
+    /**
+     * One page along, or stay put at the edge. **This page's pixels are frozen first, not written
+     * first** ([SketchSaver.flushForTurn]): the copy is taken before anything moves and the encode
+     * goes on in the background; [loadPage] waits for a page's own writes before reading it back.
+     */
+    private suspend fun turnPageNow(direction: PageTurn.Direction) {
+        val here = currentPage ?: return
+        val i = pages.indexOf(here)
+        val target = PageTurn.targetIndex(i, pages.size, direction) ?: run {
+            Slog.d(TAG) { "page turn refused at the edge (page ${i + 1}/${pages.size})" }
+            return
+        }
+        if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the turn; the raster stays dirty")
+        val to = pages[target]
+        loadPage(to, firstLoad = false)
+        rememberLastOpened(to)
+        Slog.d(TAG) { "turned to page ${target + 1}/${pages.size}" }
+    }
+
+    private suspend fun rememberLastOpened(page: SketchPage) {
+        val s = store ?: return
+        withContext(Dispatchers.IO) { runCatching { s.setLastOpened(page.id) }.onFailure { Log.w(TAG, "the last page was not remembered: ${it.javaClass.simpleName}") } }
+    }
+
+    /** The library learns the page order at every change: it names a page by it without opening the file. */
+    private suspend fun tellPages() {
+        val id = itemId ?: return
+        val ids = pages.map { it.id }
+        withContext(Dispatchers.IO) { runCatching { (application as SketchsproutApp).soil.seam().setPages(id, ids) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") } }
+    }
+
+    /** A blank page on the side [after] names, landed on. **This page's pixels go first**, awaited:
+     *  the row is about to be read beside it. Recorded as one structural entry. */
+    private suspend fun insertPageNow(after: Boolean) {
+        val here = currentPage ?: return
+        val s = store ?: return
+        if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the insert; its pixels stay parked")
+        val before = pages
+        val (next, page) = try {
+            withContext(Dispatchers.IO) { s.insertPage(before, here.id, after) }
+        } catch (e: Exception) {
+            Log.w(TAG, "the page could not be inserted: ${e.javaClass.simpleName}")
+            showProblem(R.string.page_failed_title, R.string.page_failed_body)
+            return
+        }
+        pages = next
+        val at = next.indexOf(page)
+        undo.remap { it.withIndex(PageTurn.reindexAfterInsert(it.pageIndex, at)) }
+        // Recorded AFTER the re-index, so the entry is never shifted by its own insert — and
+        // through `record`, which clears the redo side: a new edit forks the history here.
+        undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.INSERTED, page.id, at, before, next, emptyList(), here.id, page.id))
+        loadPage(page, firstLoad = false)
+        tellPages()
+        Slog.d(TAG) { "inserted page ${at + 1}/${next.size}" }
+    }
+
+    /**
+     * Delete the page on the glass and land on the one before it. **The doomed page IS flushed
+     * first**: what the undo brings back is whatever was last saved, so a mark made just before
+     * the long-press must be in the row. The only page is replaced by a fresh blank one.
+     */
+    private suspend fun deletePageNow() {
+        val here = currentPage ?: return
+        val s = store ?: return
+        if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the delete; its pixels stay parked")
+        saver.cancelTimers()
+        saver.markClean()
+        val before = pages
+        val at = before.indexOf(here)
+        val (next, landing, taken) = try {
+            withContext(Dispatchers.IO) { s.deletePage(before, here) }
+        } catch (e: Exception) {
+            Log.w(TAG, "the page could not be deleted: ${e.javaClass.simpleName}")
+            showProblem(R.string.page_failed_title, R.string.page_failed_body)
+            return
+        }
+        pages = next
+        // Pixel entries for the page that went are dropped by KEY (the only thing that certainly
+        // names it); page entries are never dropped, so insert-then-delete undoes twice, honestly.
+        undo.remap { edit ->
+            if (edit is SketchEdit.RasterChanged && edit.pageKey == here.id) null
+            else edit.withIndex(PageTurn.reindexAfterDelete(edit.pageIndex, at))
+        }
+        undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.DELETED, here.id, at, before, next, taken, here.id, landing.id))
+        loadPage(landing, firstLoad = false)
+        tellPages()
+        Slog.d(TAG) { "deleted a page; now page ${next.indexOf(landing) + 1}/${next.size}" }
+    }
+
+    /** The page sheet, on a finger long-press: it asks; it never acts. Delete in this phase; the
+     *  copy, paste and export rows join in theirs. */
+    private fun showPageSheet() {
+        if (!opened || closing) return
+        paper.releaseRender()
+        ActionSheetDialog(this)
+            .title(getString(R.string.page_sheet_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
+            .show()
+    }
+
+    private fun confirmDeletePage() {
+        if (!opened || closing) return
+        Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(R.string.delete_page_title)
+                .setPositiveButton(R.string.delete_confirm) { _, _ -> runPageOp { deletePageNow() } }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null)
+                .create(),
+        ).show()
+    }
+
+    // ── Undo and redo ────────────────────────────────────────────────────────
+
+    /**
+     * Take one edit back — or put it back — by swapping pixels, **and never by reloading the
+     * page**: a reload would read the stored row, which still holds the image as it was before the
+     * swap, and put it straight back. A pixel entry made on another page walks back to it first
+     * ([walkTo]); the pen-idle gate is waited on; a mark that landed while it waited puts the entry
+     * back **beneath** what landed, and the gesture simply has to be repeated.
+     */
+    private suspend fun doReplay(undoing: Boolean) {
+        closeOpenEdit()   // a smudge entry held open for the chatter window is written first
+        val edit = (if (undoing) undo.popUndo() else undo.popRedo()) ?: return
+        val generation = undo.generation
+        val applied = try {
+            when (edit) {
+                is SketchEdit.RasterChanged -> applyEdit(edit, generation, undoing)
+                is SketchEdit.PagesChanged -> applyPages(edit, generation, undoing)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            // Failed mid-replay: put the entry back so the history never silently loses a step.
+            if (undoing) undo.pushUndo(edit) else undo.pushRedo(edit)
+            throw t
+        }
+        if (!applied) return
+        if (undoing) undo.pushRedo(edit) else undo.pushUndo(edit)
+    }
+
+    /** Whether the swap actually landed — false means the entry was put back, or dropped. */
+    private suspend fun applyEdit(edit: SketchEdit.RasterChanged, generation: Int, undoing: Boolean): Boolean {
+        val here = currentPage ?: return false
+        if (edit.pageKey != here.id && !walkTo(edit)) {
+            Log.w(TAG, "an edit's page could not be reached; the entry was dropped")
+            return false
+        }
+        paper.awaitPenIdle()
+        if (isFinishing || isDestroyed || closing) return false
+        if (undo.generation != generation) {
+            undo.pushUndoBeneath(edit, generation)
+            Slog.d(TAG) { "a mark landed while the replay waited for the pen; the entry was put back beneath it" }
+            return false
+        }
+        val tiles = if (undoing) edit.tiles.asReversed() else edit.tiles
+        // The entry's own layer: a `RasterPatch` carries none.
+        paper.swapPageRaster(edit.layer, tiles.map { RasterPatch(Rect(it.left, it.top, it.left + it.width, it.top + it.height), it.pixels) })
+        saver.markDirty(edit.layer)
+        saver.schedule()
+        Slog.d(TAG) { "${if (undoing) "undo" else "redo"}: ${edit.tiles.size} ${RasterRows.name(edit.layer)} tiles swapped" }
+        return true
+    }
+
+    /** Take back — or put back — one page insert or delete: one reconcile of the file to the list
+     *  on the other side, landing where that side landed. This page's pixels go first, awaited. */
+    private suspend fun applyPages(edit: SketchEdit.PagesChanged, generation: Int, undoing: Boolean): Boolean {
+        if (currentPage == null) return false
+        val s = store ?: return false
+        if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the page replay; its pixels stay parked")
+        paper.awaitPenIdle()
+        if (isFinishing || isDestroyed || closing) return false
+        if (undo.generation != generation) {
+            undo.pushUndoBeneath(edit, generation)
+            Slog.d(TAG) { "a mark landed while the page replay waited for the pen; the entry was put back beneath it" }
+            return false
+        }
+        val target = if (undoing) edit.before else edit.after
+        val landing = if (undoing) edit.landingBefore else edit.landingAfter
+        val restore = if (undoing) edit.takenIds else emptyList()
+        val delete = if (undoing) emptyList() else edit.takenIds
+        try {
+            withContext(Dispatchers.IO) { s.reconcile(pages, target, restore, delete, landing) }
+        } catch (e: Exception) {
+            showProblem(R.string.page_failed_title, R.string.page_failed_body)
+            throw e
+        }
+        pages = target
+        // The entry's own index is the position in both directions, so an undo and the redo after
+        // it are exact inverses. Pixel entries are never dropped by a replay — only a fresh delete
+        // drops them: marks made on an inserted page sit on the redo side waiting for its return.
+        val at = edit.pageIndex
+        val back = if (undoing) edit.kind == SketchEdit.PagesChanged.Kind.DELETED else edit.kind == SketchEdit.PagesChanged.Kind.INSERTED
+        if (back) undo.remap { it.withIndex(PageTurn.reindexAfterInsert(it.pageIndex, at)) }
+        else undo.remap { it.withIndex(PageTurn.reindexAfterDelete(it.pageIndex, at)) }
+        val to = target.firstOrNull { it.id == landing } ?: target.first()
+        loadPage(to, firstLoad = false)
+        tellPages()
+        Slog.d(TAG) { "${if (undoing) "undo" else "redo"} of a page ${edit.kind.name.lowercase()}: now page ${target.indexOf(to) + 1}/${target.size}" }
+        return true
+    }
+
+    /** Walk back to the page [edit] was made on, bounded by the distance it recorded, flushing
+     *  the page being left by copy alone as a turn does. */
+    private suspend fun walkTo(edit: SketchEdit.RasterChanged): Boolean {
+        val here = currentPage ?: return false
+        val target = pages.firstOrNull { it.id == edit.pageKey } ?: return false
+        val i = pages.indexOf(here)
+        val steps = PageTurn.maxSteps(i, edit.pageIndex)
+        if (kotlin.math.abs(pages.indexOf(target) - i) > steps) Log.w(TAG, "an edit's page sits further than it recorded; walking anyway")
+        if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the replay's turn; the raster stays dirty")
+        loadPage(target, firstLoad = false)
+        rememberLastOpened(target)
+        return true
+    }
+
+    private val closeOpenEditRunnable = Runnable { closeOpenEdit() }
+
+    /** Close the open contact's before-image into one history entry. Idempotent. */
+    private fun closeOpenEdit() {
+        paper.asView().removeCallbacks(closeOpenEditRunnable)
+        val builder = openEdit ?: return
+        openEdit = null
+        if (builder.tooBig) {
+            Log.w(TAG, "that contact covered more than the history can hold; it cannot be taken back")
+            return
+        }
+        val edit = builder.build() ?: return
+        undo.record(edit)
+        Slog.d(TAG) {
+            "undo entry: ${RasterRows.name(edit.layer)}, ${edit.tiles.size} tiles, ${edit.bytes} B, " +
+                "read ${openEditReadNanos / 1_000_000} ms on the main thread (${undo.undoBytes} B held)"
+        }
     }
 
     // ── The tools ────────────────────────────────────────────────────────────
@@ -582,6 +850,36 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
          *  into its style's page image and dropped the object by the time this fires. */
         override fun onStrokeCommitted(stroke: Stroke) = Unit
 
+        /**
+         * One of the page's two rasters is **about to** change — the one moment the pixels that
+         * are there can still be read, and so the one moment an undo entry can be made of them.
+         * The layered form is the one the engine calls; the rect is fed to the open contact's
+         * builder, which reads each 64 px cell once. One contact is one raster; a second layer
+         * inside one contact closes the entry on its own layer and opens a fresh one.
+         */
+        override fun onRasterWillChange(layer: RasterLayer, rect: Rect) {
+            if (!opened || closing) return
+            val page = currentPage ?: return
+            val open = openEdit
+            if (open != null && open.layer != layer) {
+                Slog.d(TAG) { "one contact reported ${open.layer} then $layer; the first entry was closed" }
+                closeOpenEdit()
+            }
+            val builder = openEdit
+                ?.also { paper.asView().removeCallbacks(closeOpenEditRunnable) }
+                ?: RasterEditBuilder(page.id, pages.indexOf(page), layer, page.width.toInt(), page.height.toInt()).also {
+                    openEdit = it
+                    openEditReadNanos = 0L
+                }
+            val t0 = System.nanoTime()
+            builder.touch(rect.left, rect.top, rect.right, rect.bottom) { cell ->
+                // The engine's array, straight into the tile — no copy. It goes back to the engine
+                // as it stands, and the swap leaves it holding the other side of the edit.
+                paper.readPageRaster(layer, Rect(cell.left, cell.top, cell.left + cell.width, cell.top + cell.height))?.pixels
+            }
+            openEditReadNanos += System.nanoTime() - t0
+        }
+
         /** One of the page's rasters changed — a mark composited at pen-up, or one batch of a
          *  rubbing sweep. This is what arms the save, **for that raster alone**. */
         override fun onRasterChanged(layer: RasterLayer, rect: Rect) {
@@ -593,6 +891,16 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         override fun onPenLifted() {
             lastPenLiftAt = SystemClock.uptimeMillis()
             saver.notePenLifted()   // a save past its deadline copies here, between strokes
+            // A light rub with the stylus makes the tip switch chatter — four contacts a second —
+            // and each was its own undo entry. Under the smudge the entry stays open a beat, and a
+            // contact that lands inside it continues the same one.
+            if (paper.tool == Tool.SMUDGE) {
+                val v = paper.asView()
+                v.removeCallbacks(closeOpenEditRunnable)
+                v.postDelayed(closeOpenEditRunnable, SMUDGE_CHATTER_MS)
+            } else {
+                closeOpenEdit()
+            }
         }
 
         override fun onToolChanged(tool: Tool) = toolbar.sync(tool)
@@ -601,10 +909,21 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     // ── Gestures ─────────────────────────────────────────────────────────────
 
     private val gestureListener = object : PageGestures.Listener {
+        override fun onFlipNext() = runPageOp {
+            // Swiping past the last page makes one — the sketchbook grows where you draw.
+            val here = currentPage ?: return@runPageOp
+            if (pages.indexOf(here) < pages.size - 1) turnPageNow(PageTurn.Direction.NEXT) else insertPageNow(after = true)
+        }
+        override fun onFlipPrevious() = runPageOp { turnPageNow(PageTurn.Direction.PREV) }
+        override fun onInsertAfter() = runPageOp { insertPageNow(after = true) }
+        override fun onInsertBefore() = runPageOp { insertPageNow(after = false) }
+        override fun onUndo() = runPageOp { doReplay(undoing = true) }
+        override fun onRedo() = runPageOp { doReplay(undoing = false) }
+        // The long-press asks; it never acts.
+        override fun onPageSheetRequested() = showPageSheet()
         // A finger double-tap hides / shows the chrome. Nothing on this surface answers a single
-        // tap, so there is no collision rule here. Turns, inserts, undo and the page sheet are
-        // phase 3's. The shade panel belongs to the chrome that is flipping: it is hung off a
-        // button that is about to be `GONE`, or off rows that are about to be.
+        // tap, so there is no collision rule here. The shade panel belongs to the chrome that is
+        // flipping: it is hung off a button that is about to be `GONE`, or off rows that are.
         override fun onFingerDoubleTap(x: Float, y: Float) {
             hidePaletteBar()
             toggleChrome()
@@ -648,9 +967,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             }
             strokes += Stroke(id = "test-$i-${System.nanoTime()}", points = points, color = tools.penColor, width = tools.penWidth, style = tools.penStyle)
         }
+        closeOpenEdit()
         try {
             paper.addStrokes(strokes)
         } finally {
+            closeOpenEdit()   // a composited bake produces no pen-up; one entry for the whole door
             toolbar.restorePen()
         }
         // A belt on the engine's own `onRasterChanged(layer, …)`, which has already marked these.
@@ -861,6 +1182,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
         /** How long after a pen lift the screen still counts as active for the menu. */
         const val PEN_RECENT_MS = 1_500L
+
+        /** How long an undo entry stays open after a smudge contact lifts, so a chattering tip
+         *  switch (~250 ms a contact on the Nomad) continues the entry rather than minting one. */
+        const val SMUDGE_CHATTER_MS = 300L
 
         /** A hop of the smudge rub — the travel that fixes a direction. About 1 mm at 300 ppi. */
         const val SMUDGE_HOP_PX = 10f

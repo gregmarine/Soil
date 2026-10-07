@@ -28,6 +28,7 @@ class SketchbookSqlTest {
         SketchbookSql.selectPages("sb"),
         SketchbookSql.selectRaster("p1", SketchbookSchema.TYPE_SKETCH_INK),
         SketchbookSql.selectRasterId("p1", SketchbookSchema.TYPE_SKETCH_INK),
+        SketchbookSql.selectLiveDescendantIds("p1"),
     )
 
     @Test

@@ -2,7 +2,9 @@ package com.symmetricalpalmtree.soil.sketchsprout.data
 
 import com.symmetricalpalmtree.gpaper.core.RasterLayer
 import com.symmetricalpalmtree.soil.paper.ink.InkStore
+import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.paper.store.RowStore
+import com.symmetricalpalmtree.soil.paper.store.Statement
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import java.util.UUID
 
@@ -67,6 +69,78 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
 
     fun setLastOpened(pageId: String) =
         execAll(listOf(SketchbookSql.setLastOpened(sketchbookId, pageId, System.currentTimeMillis())))
+
+    // ── Pages ──────
+
+    /** A blank page the size and paper of the current one, before or after it. Answers the new
+     *  list and the page, which is the new last-open. */
+    fun insertPage(pages: List<SketchPage>, currentId: String, after: Boolean): Pair<List<SketchPage>, SketchPage> {
+        val i = pages.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        val from = pages[i]
+        val page = SketchPage(newId(), from.width, from.height, from.templateId)
+        val pos = PageMath.insertPosition(i, after)
+        val next = pages.toMutableList().also { it.add(pos, page) }
+        val now = System.currentTimeMillis()
+        execAll(
+            listOf(SketchbookSql.insertPage(page.id, sketchbookId, pos, page.width, page.height, page.templateId, now)) +
+                renumber(next, now) + SketchbookSql.setLastOpened(sketchbookId, page.id, now),
+        )
+        return next to page
+    }
+
+    /**
+     * Soft-delete [victim] and everything alive under it, and land on the page before it. The
+     * only page is replaced by a fresh blank one, so a sketchbook always has a page. Answers the
+     * new list, the landing page, and the ids taken with the page, which an undo brings back.
+     */
+    fun deletePage(pages: List<SketchPage>, victim: SketchPage): Triple<List<SketchPage>, SketchPage, List<String>> = guard {
+        val now = System.currentTimeMillis()
+        val under = store.query(SketchbookSql.selectLiveDescendantIds(victim.id)).rows.map { it.text("id") }
+        val statements = ArrayList<Statement>(under.size + pages.size + 3)
+        statements += SketchbookSql.softDelete(victim.id, now)
+        under.forEach { statements += SketchbookSql.softDelete(it, now) }
+        val next: List<SketchPage>
+        val landing: SketchPage
+        if (pages.size <= 1) {
+            landing = SketchPage(newId(), victim.width, victim.height, victim.templateId)
+            next = listOf(landing)
+            statements += SketchbookSql.insertPage(landing.id, sketchbookId, 0, landing.width, landing.height, landing.templateId, now)
+        } else {
+            val i = pages.indexOfFirst { it.id == victim.id }
+            next = pages.filter { it.id != victim.id }
+            landing = next[PageMath.indexAfterDelete(i, pages.size)]
+            statements += renumber(next, now)
+        }
+        statements += SketchbookSql.setLastOpened(sketchbookId, landing.id, now)
+        run(statements)
+        Triple(next, landing, under)
+    }
+
+    /**
+     * Make the live page set exactly [target], in that order, restore and soft-delete the given
+     * content ids with it, and land on [currentId]. The one primitive behind both directions of a
+     * page insert or delete's replay. A row is restored **in place**: it keeps its id and its
+     * order, so a page that comes back comes back with its pictures.
+     */
+    fun reconcile(alive: List<SketchPage>, target: List<SketchPage>, restoreIds: List<String>, deleteIds: List<String>, currentId: String) {
+        val now = System.currentTimeMillis()
+        val aliveIds = alive.map { it.id }.toSet()
+        val targetIds = target.map { it.id }.toSet()
+        val statements = ArrayList<Statement>()
+        for (page in target) if (page.id !in aliveIds) {
+            statements += SketchbookSql.insertPage(page.id, sketchbookId, 0, page.width, page.height, page.templateId, now)
+            statements += SketchbookSql.restore(page.id)
+        }
+        for (id in aliveIds) if (id !in targetIds) statements += SketchbookSql.softDelete(id, now)
+        restoreIds.forEach { statements += SketchbookSql.restore(it) }
+        deleteIds.forEach { statements += SketchbookSql.softDelete(it, now) }
+        statements += renumber(target, now)
+        statements += SketchbookSql.setLastOpened(sketchbookId, currentId, now)
+        execAll(statements)
+    }
+
+    private fun renumber(pages: List<SketchPage>, now: Long): List<Statement> =
+        pages.mapIndexed { i, page -> SketchbookSql.setOrder(page.id, i, now) }
 
     /** The page's picture of one raster, as stored, or null for a layer nothing has been drawn on
      *  (no row, or a row carrying nothing). The bytes are not checked here: [RasterRows.fitsPage]
