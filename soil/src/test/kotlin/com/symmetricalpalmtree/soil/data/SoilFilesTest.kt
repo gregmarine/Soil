@@ -12,6 +12,8 @@ class SoilFilesTest {
     fun aStoreIsNamedByItsFile() {
         assertEquals("scratchpad", SoilFiles.storeName("scratchpad.db"))
         assertEquals("com.example.app", SoilFiles.storeName("com.example.app.db"))
+        // The calendar's store over the seam: carried by a backup like any store in the garden.
+        assertEquals("app_com.symmetricalpalmtree.soil.calsprout.dev", SoilFiles.storeName("app_com.symmetricalpalmtree.soil.calsprout.dev.db"))
     }
 
     @Test
