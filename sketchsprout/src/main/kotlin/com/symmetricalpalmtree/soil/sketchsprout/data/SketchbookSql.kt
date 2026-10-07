@@ -89,6 +89,27 @@ object SketchbookSql {
     fun setPageTemplate(pageId: String, templateId: String, now: Long): Statement =
         Statement("UPDATE $TABLE SET refId = ?, updatedAt = ? WHERE id = ? AND type = 'page'", templateId, now, pageId)
 
+    // ── The guides: a page's grid and reference image, tools and never marks ──────
+
+    /** The one live guide row of [type] under [pageId]: its id, its settings and its picture. */
+    fun selectGuide(pageId: String, type: String): Statement = Statement(
+        "SELECT id, text, blob FROM $TABLE WHERE parentId = ? AND type = ? AND deletedAt IS NULL",
+        pageId, type,
+    )
+
+    fun insertGuide(id: String, pageId: String, type: String, text: String, blob: ByteArray?, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE (id, parentId, type, \"order\", createdAt, updatedAt, text, blob) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        id, pageId, type, SketchbookSchema.SKETCH_ORDER.toLong(), now, now, text, blob,
+    )
+
+    /** A guide row's settings and picture, in place. */
+    fun updateGuide(id: String, text: String, blob: ByteArray?, now: Long): Statement =
+        Statement("UPDATE $TABLE SET text = ?, blob = ?, updatedAt = ? WHERE id = ?", text, blob, now, id)
+
+    /** A guide row's settings alone — an opacity or a visibility pick leaves the picture as it is. */
+    fun updateGuideText(id: String, text: String, now: Long): Statement =
+        Statement("UPDATE $TABLE SET text = ?, updatedAt = ? WHERE id = ?", text, now, id)
+
     // ── The rasters ──────
 
     /** The one live raster row of [type] under [pageId] — its id and its picture. */

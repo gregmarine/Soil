@@ -23,6 +23,10 @@ class SketchbookSqlTest {
         SketchbookSql.updateRaster("r1", picture, 11L),
         SketchbookSql.insertTemplate("t1", "sb", "LINED", 1404, 1872, picture, 10L),
         SketchbookSql.setPageTemplate("p1", "t1", 10L),
+        SketchbookSql.insertGuide("g1", "p1", SketchbookSchema.TYPE_GUIDE_GRID, "{}", null, 10L),
+        SketchbookSql.insertGuide("g2", "p1", SketchbookSchema.TYPE_GUIDE_IMAGE, "{}", picture, 10L),
+        SketchbookSql.updateGuide("g2", "{}", picture, 11L),
+        SketchbookSql.updateGuideText("g1", "{}", 11L),
     )
 
     private val reads = listOf(
@@ -33,6 +37,7 @@ class SketchbookSqlTest {
         SketchbookSql.selectLiveDescendantIds("p1"),
         SketchbookSql.selectTemplateDigests("sb"),
         SketchbookSql.selectTemplateBlob("t1"),
+        SketchbookSql.selectGuide("p1", SketchbookSchema.TYPE_GUIDE_GRID),
     )
 
     @Test

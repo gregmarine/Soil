@@ -10,6 +10,9 @@ import com.symmetricalpalmtree.soil.paper.templates.PagePaper
 import com.symmetricalpalmtree.soil.paper.templates.PageTemplate
 import com.symmetricalpalmtree.soil.paper.templates.PaperSource
 import com.symmetricalpalmtree.soil.paper.templates.TemplateDigest
+import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideGrid
+import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideImage
+import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideRows
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import java.util.UUID
 
@@ -184,6 +187,56 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
         statements += renumber(target, now)
         statements += SketchbookSql.setLastOpened(sketchbookId, currentId, now)
         execAll(statements)
+    }
+
+    // ── Guides ──────
+
+    /** A page's two guide rows as read: either may be absent; [imageBytes] is null for no picture. */
+    class Guides(val grid: GuideGrid?, val image: GuideImage?, val imageBytes: ByteArray?)
+
+    fun readGuides(pageId: String): Guides = guard {
+        val gridRow = store.query(SketchbookSql.selectGuide(pageId, SketchbookSchema.TYPE_GUIDE_GRID)).rows.firstOrNull()
+        val imageRow = store.query(SketchbookSql.selectGuide(pageId, SketchbookSchema.TYPE_GUIDE_IMAGE)).rows.firstOrNull()
+        val bytes = imageRow?.blobOrNull("blob")?.takeIf { it.isNotEmpty() }
+        Guides(
+            grid = gridRow?.let { GuideRows.decodeGrid(it.textOrNull("text")) },
+            image = imageRow?.let { GuideRows.decodeImage(it.textOrNull("text")) },
+            imageBytes = bytes,
+        )
+    }
+
+    /** The page's grid row: written in place, minted on first use, soft-deleted for Off (null). */
+    fun writeGrid(pageId: String, grid: GuideGrid?) = guard {
+        val now = System.currentTimeMillis()
+        val existing = store.query(SketchbookSql.selectGuide(pageId, SketchbookSchema.TYPE_GUIDE_GRID)).rows.firstOrNull()?.textOrNull("id")
+        val statement = when {
+            grid == null -> existing?.let { SketchbookSql.softDelete(it, now) } ?: return@guard
+            existing != null -> SketchbookSql.updateGuideText(existing, GuideRows.encodeGrid(grid), now)
+            else -> SketchbookSql.insertGuide(newId(), pageId, SketchbookSchema.TYPE_GUIDE_GRID, GuideRows.encodeGrid(grid), null, now)
+        }
+        run(listOf(statement))
+    }
+
+    /** The page's reference image row: [bytes] with [image] writes or replaces it; null bytes
+     *  soft-delete it. A picture over the cap is refused before anything is sent. */
+    fun writeImage(pageId: String, image: GuideImage?, bytes: ByteArray?) {
+        if (bytes != null && bytes.size > RasterRows.MAX_BYTES) throw RasterTooLarge(bytes.size)
+        guard {
+            val now = System.currentTimeMillis()
+            val existing = store.query(SketchbookSql.selectGuide(pageId, SketchbookSchema.TYPE_GUIDE_IMAGE)).rows.firstOrNull()?.textOrNull("id")
+            val statement = when {
+                bytes == null || image == null -> existing?.let { SketchbookSql.softDelete(it, now) } ?: return@guard
+                existing != null -> SketchbookSql.updateGuide(existing, GuideRows.encodeImage(image), bytes, now)
+                else -> SketchbookSql.insertGuide(newId(), pageId, SketchbookSchema.TYPE_GUIDE_IMAGE, GuideRows.encodeImage(image), bytes, now)
+            }
+            run(listOf(statement))
+        }
+    }
+
+    /** The image row's settings alone, when the page has one. */
+    fun setImageSettings(pageId: String, image: GuideImage) = guard {
+        val existing = store.query(SketchbookSql.selectGuide(pageId, SketchbookSchema.TYPE_GUIDE_IMAGE)).rows.firstOrNull()?.textOrNull("id") ?: return@guard
+        run(listOf(SketchbookSql.updateGuideText(existing, GuideRows.encodeImage(image), System.currentTimeMillis())))
     }
 
     private fun renumber(pages: List<SketchPage>, now: Long): List<Statement> =

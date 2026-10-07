@@ -6,8 +6,8 @@
   Both bars go to paper.setExclusionRects (via PaperChrome) after layout, so ink never lands under
   chrome. Chrome sits flush at the top edge.
 
-  Top bar: Back and the tools on the left (Pencil · Pen · Eraser · Smudge; Guides joins in phase
-  5), the sketchbook's name centred in the band the buttons leave free.
+  Top bar: Back and the tools on the left (Pencil · Pen · Eraser · Smudge · Guides), the
+  sketchbook's name centred in the band the buttons leave free.
   Bottom bar: the pager, centred on the SCREEN — prev, the indicator, next.
 
   openingOverlay starts VISIBLE: the screen covers its own first frame, so the launch reads as one
@@ -78,6 +78,13 @@
                     style="@style/Widget.Soil.ToolbarButton"
                     android:contentDescription="@string/cd_tool_smudge"
                     android:src="@drawable/ic_smudge" />
+
+                <!-- The guides: a grid and a reference image under the page. Not a tool. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnGuides"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_sketch_guides"
+                    android:src="@drawable/ic_grid" />
             </LinearLayout>
 
             <!-- The sketchbook's name, centred in the band the two button groups leave free; the
@@ -233,6 +240,19 @@
          anything it could overlap — the floating-bar rule. GONE the whole time openingOverlay is up. -->
     <LinearLayout
         android:id="@+id/paletteBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- The guides panel — Grid, the counts, Reference, the opacities — hung under the Guides
+         button (top bar or the overflow's own) by :paper's AnchoredBar. The same lifecycle as the
+         shade panel. -->
+    <LinearLayout
+        android:id="@+id/guidesBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"

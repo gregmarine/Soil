@@ -167,6 +167,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      *  (top bar or mini row). Null until `onCreate` builds it. */
     private var paletteBar: PaletteBar? = null
 
+    /** The guides, and the sheet under the page with them: the grid, the reference image, their
+     *  panel and their picker. Null until `onCreate` builds it. */
+    private var guides: SketchGuides? = null
+
     /** The finger rub that smudges graphite. Coordinates are converted to the paper's at the down. */
     private val smudge = SmudgeRub(
         hopPx = SMUDGE_HOP_PX,
@@ -259,23 +263,32 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         },
     )
 
-    /** The shade panel is this screen's own floating chrome: the pen refuses under it and a finger
-     *  landing on it is not a page gesture. */
-    override fun extraFloatingRects(): List<Rect> = paletteBar?.rects() ?: emptyList()
+    /** The shade panel and the guides panel are this screen's own floating chrome: the pen refuses
+     *  under them and a finger landing on them is not a page gesture. */
+    override fun extraFloatingRects(): List<Rect> = (paletteBar?.rects() ?: emptyList()) + (guides?.rects() ?: emptyList())
 
-    override fun extraFloatingContains(x: Int, y: Int): Boolean = paletteBar?.contains(x, y) == true
+    override fun extraFloatingContains(x: Int, y: Int): Boolean = paletteBar?.contains(x, y) == true || guides?.contains(x, y) == true
 
-    /** The mini toolbar's rows are coming down — the panel hung under one of them goes with them.
+    /** The mini toolbar's rows are coming down — a panel hung under one of them goes with them.
      *  No exclusion push here: [CollapsedChrome]'s own `onChanged` follows. */
-    override fun onCollapsedClosing() { takeDownPaletteBar() }
+    override fun onCollapsedClosing() { takeDownPaletteBar(); guides?.takeDown() }
 
-    /** …and a contact **inside** the panel must not take the rows down under it. */
-    override fun keepCollapsedUnder(x: Int, y: Int): Boolean = paletteBar?.contains(x, y) == true
+    /** …and a contact **inside** either panel must not take the rows down under it. */
+    override fun keepCollapsedUnder(x: Int, y: Int): Boolean = paletteBar?.contains(x, y) == true || guides?.contains(x, y) == true
 
     override fun hideFloatingBars() {
         super.hideFloatingBars()
         hidePaletteBar()
+        guides?.hide()
     }
+
+    /** Back · Guides — the top bar's doors, mirrored. Guides takes an `onTap`: the top bar's
+     *  button is `GONE` while collapsed, so the panel hangs under this row's button instead, and
+     *  the rows stay up beneath it. */
+    override fun collapsedOverflow(): List<CollapsedChrome.Entry> = listOfNotNull(
+        backEntry(),
+        CollapsedChrome.Entry.mirroring(com.symmetricalpalmtree.soil.paper.R.drawable.ic_grid, binding.btnGuides) { anchor -> toggleGuidesBar(anchor) },
+    )
 
     /** The sketchbook opens with its bars as they were left. */
     override val initialChromeHidden: Boolean get() = prefs.chromeHidden
@@ -325,17 +338,19 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             btnPen = binding.btnPen,
             btnEraser = binding.btnEraser,
             btnSmudge = binding.btnSmudge,
+            btnGuides = binding.btnGuides,
             title = binding.title,
             pageIndicator = binding.pageIndicator,
             btnPrevPage = binding.btnPrevPage,
             btnNextPage = binding.btnNextPage,
             onBack = { exit() },
+            onGuides = { toggleGuidesBar(binding.btnGuides) },
             onPrevPage = { runPageOp { turnPageNow(PageTurn.Direction.PREV) } },
             // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
             onNextPage = { gestureListener.onFlipNext() },
             // An actual tool change — including a pencil↔gel-pen switch, which never moves
             // `paper.tool`: the shade panel shows the kind that is leaving.
-            onToolTapped = { dismissCollapsed(); hidePaletteBar() },
+            onToolTapped = { dismissCollapsed(); hidePaletteBar(); guides?.hide() },
             // The armed kind's own button: the pencil's or the pen's.
             onPenReTap = { alt -> togglePaletteBar(if (alt) binding.btnPen else binding.btnPencil) },
             onPenKindPicked = { alt -> pickTools(toolbar.state.withKind(kindOf(alt))) },
@@ -351,6 +366,20 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             paper = paper,
             armedLevel = { toolbar.state.armedShade },
             onPicked = { level -> pickTools(toolbar.state.withShade(level)) },
+        )
+        // Registers its picker here, in `onCreate`, before the screen is started — the
+        // activity-result contract's one rule.
+        guides = SketchGuides(
+            activity = this,
+            paper = paper,
+            root = binding.root,
+            barView = binding.guidesBar,
+            anchor = binding.btnGuides,
+            bandBottom = { chromeBand()?.last },
+            store = { store },
+            usable = { opened && !closing },
+            onBarChanged = { pushExclusions() },
+            onSheet = { sheet -> paper.setSheet(sheet); currentSheet = sheet },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -521,6 +550,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         }
         dismissCollapsed()   // a floating row never survives a content swap
         hidePaletteBar()     // nor a panel hung under one
+        guides?.hide()       // nor the guides panel — it is this page's
         val width = page.width.toInt(); val height = page.height.toInt()
         val s = store ?: return
         // **Everything is read and decoded before the paper is touched**: the page's paper
@@ -528,7 +558,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         // each hundreds of milliseconds on a drawn page. The outgoing page stays on the glass
         // the whole time, and what follows is one synchronous run of engine calls.
         val t0 = SystemClock.elapsedRealtime()
-        val sheet = paperFor(page)
+        val paperBitmap = paperFor(page)
+        // The sheet: the paper, the page's reference image and its grid, one bitmap.
+        val sheet = guides?.load(page, paperBitmap) ?: paperBitmap
         val decoded = withContext(Dispatchers.IO) {
             RasterRows.LAYERS.map { layer ->
                 async {
@@ -677,9 +709,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (here.id != pageId) return
         val updated = here.copy(templateId = templateId)
         currentPage = updated
-        val sheet = paperFor(updated)
+        val paperBitmap = paperFor(updated)
         paper.awaitPenIdle()
-        if (sheet !== currentSheet) { paper.setSheet(sheet); currentSheet = sheet }
+        guides?.setPaper(paperBitmap)
     }
 
     // ── Page turns, inserts and deletes ──────────────────────────────────────
@@ -980,8 +1012,17 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             return
         }
         if (!opened || closing) return
+        guides?.hide()   // one floating panel at a time
         val shown = if (anchor == null) bar.show() else bar.show(anchor)
         if (shown) pushExclusions()
+    }
+
+    /** Open the guides panel under [anchor], or close it — the Guides button's toggle, from the
+     *  top bar or the collapsed overflow's own button. Opening it closes the shade panel. */
+    private fun toggleGuidesBar(anchor: View) {
+        val g = guides ?: return
+        if (!g.isShowing) hidePaletteBar()
+        g.toggle(anchor)
     }
 
     /** Idempotent; answers whether it was showing, so a caller inside [CollapsedChrome]'s close
@@ -1004,14 +1045,19 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      *  a contact that both dismissed and re-opened the bar would make the toggle re-open what it
      *  meant to close, every time. */
     override fun dismissFloatingOnContact(ev: MotionEvent, index: Int) {
-        val bar = paletteBar ?: return
-        if (!bar.isShowing) return
         val x = ev.getX(index).toInt()
         val y = ev.getY(index).toInt()
         if (floatingContains(x, y)) return
-        val toggler = if (toolbar.state.isPen) binding.btnPen else binding.btnPencil
-        if (PaperToolbar.rectOf(toggler)?.contains(x, y) == true) return
-        hidePaletteBar()
+        paletteBar?.let { bar ->
+            if (bar.isShowing) {
+                val toggler = if (toolbar.state.isPen) binding.btnPen else binding.btnPencil
+                if (PaperToolbar.rectOf(toggler)?.contains(x, y) != true) hidePaletteBar()
+            }
+        }
+        guides?.let { g ->
+            // The Pick… button is inside the panel, so the picker's round trip leaves it open.
+            if (g.isShowing && PaperToolbar.rectOf(binding.btnGuides)?.contains(x, y) != true) g.hide()
+        }
     }
 
     /** The smudge rub's feed, before the base feeds the page gestures. A sequence qualifies at the
@@ -1136,6 +1182,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         // flipping: it is hung off a button that is about to be `GONE`, or off rows that are.
         override fun onFingerDoubleTap(x: Float, y: Float) {
             hidePaletteBar()
+            guides?.hide()
             toggleChrome()
         }
     }
@@ -1352,6 +1399,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         closing = true
         dismissCollapsed()
         hidePaletteBar()
+        guides?.hide()
         saver.cancelTimers()
         leaveWhenFlushed()
     }

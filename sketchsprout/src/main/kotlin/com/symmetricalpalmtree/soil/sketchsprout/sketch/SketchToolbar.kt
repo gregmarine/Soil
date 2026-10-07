@@ -12,8 +12,8 @@ import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
 import com.symmetricalpalmtree.soil.sketchsprout.R
 
 /**
- * The sketch screen's chrome: Back, the pencil, the gel pen, the rubber and the smudge on the top
- * bar (Guides joins in phase 5), the sketchbook's name between the groups; the pager on the
+ * The sketch screen's chrome: Back, the pencil, the gel pen, the rubber, the smudge and Guides on
+ * the top bar, the sketchbook's name between the groups; the pager on the
  * bottom bar. **The arrows no-op at a bound, never disable**: a greyed control is invisible on
  * e-ink, so a turn at either edge simply stays put. The tool half is `:paper`'s [PaperToolbar] — with **no lasso button**, which is
  * what `btnLasso`'s nullability is for: a raster page has no objects to select.
@@ -45,11 +45,14 @@ class SketchToolbar(
     btnEraser: ImageButton,
     /** The stylus smudge — [Tool.SMUDGE]. */
     btnSmudge: ImageButton,
+    /** The guides — opens the guides panel; not a tool, so it arms nothing. */
+    btnGuides: ImageButton,
     private val title: TextView,
     private val pageIndicator: TextView,
     btnPrevPage: ImageButton,
     btnNextPage: ImageButton,
     onBack: () -> Unit,
+    onGuides: () -> Unit,
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
     /** Any actual tool change — the screen takes down anything that belonged to the old tool. A
@@ -119,7 +122,8 @@ class SketchToolbar(
             onPenReTap = onPenReTap,
             btnSmudge = btnSmudge,
         )
-        listOf(btnPrevPage, btnNextPage).forEach { androidx.appcompat.widget.TooltipCompat.setTooltipText(it, it.contentDescription) }
+        listOf(btnGuides, btnPrevPage, btnNextPage).forEach { androidx.appcompat.widget.TooltipCompat.setTooltipText(it, it.contentDescription) }
+        btnGuides.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onGuides() }
         btnPrevPage.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onPrevPage() }
         btnNextPage.setOnClickListener { PenIdle.releaseRenderIfIdle(paper); onNextPage() }
         pageIndicator.text = ""
