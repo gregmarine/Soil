@@ -46,7 +46,10 @@ class SchemaTest {
 
     @Test
     fun theIndexIsAtVersionSeven_withSoftDeletesStableIdsAPageCountAnOpenedStampLinksTemplatesFoldersClipboardTagsAndPages() {
-        assertEquals(10, IndexSchema.SCHEMA.version)
+        assertEquals(11, IndexSchema.SCHEMA.version)
+        val cal = IndexSchema.SCHEMA.steps[10].joinToString("\n")
+        assertTrue(cal.contains("ALTER TABLE link ADD COLUMN calDate TEXT"))
+        assertTrue(cal.contains("CREATE INDEX link_cal ON link(calDate)"))
         val held = IndexSchema.SCHEMA.steps[6].joinToString("\n")
         assertTrue(held.contains("CREATE TABLE clipboard ("))
         assertTrue(held.contains("kind TEXT PRIMARY KEY"))

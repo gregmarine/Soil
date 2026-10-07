@@ -267,7 +267,7 @@ class DocumentActivity : AppCompatActivity() {
                 // Edit reads its field as a reference, since that is what the field shows for one;
                 // a reference the writer unlinked comes back through the selection's Relink Bible.
                 val editingBible = current != null && BibleLinks.labelOf(current) != null
-                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }) { typed ->
+                LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }, onChooseDay = { links.chooseDay(current, apply) }) { typed ->
                     val wire = if (editingBible && typed.isNotEmpty()) BibleLinks.wireOf(typed) else null
                     if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
                 }

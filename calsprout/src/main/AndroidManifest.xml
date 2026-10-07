@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The seam's first guard. Android grants it only to an app signed with Soil's key. -->
+    <uses-permission android:name="${soilPackage}.permission.SEAM" />
+
+    <queries>
+        <package android:name="${soilPackage}" />
+    </queries>
+
+    <application
+        android:name=".CalsproutApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Soil">
+
+        <!-- The icon in Soil's app drawer and the row in its side menu: the calendar where it was
+             left. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The calendar, opened by Soil on a day (a link followed) and by nothing else: the
+             screen is guarded by Soil's permission. What arrives is a day, or nothing. Standard
+             launch mode on purpose: a day followed from a notebook or a document opens over that
+             screen, so Back comes back. -->
+        <activity
+            android:name=".CalendarActivity"
+            android:exported="true"
+            android:permission="${soilPackage}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.OPEN_CALENDAR" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- The calendar's own two screens, opened by it and by nothing else: one day's events, and
+             one event on a whole screen. Neither is exported; neither is a way in from outside. -->
+        <activity
+            android:name=".EventsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait" />
+
+        <!-- adjustResize keeps the fields above the keyboard; stateHidden because the editor
+             raises the keyboard itself for a NEW event, from its first window focus. -->
+        <activity
+            android:name=".EventEditorActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
+
+        <!-- The calendar's pages for Soil's export screen (its render-only mode): Soil binds
+             this, guarded by its own permission, under a key only the calendar reads. -->
+        <service
+            android:name=".RenderService"
+            android:exported="true"
+            android:permission="${soilPackage}.permission.SEAM">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.RENDER" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.kind"
+                android:value="calendar" />
+        </service>
+
+    </application>
+
+</manifest>

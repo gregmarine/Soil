@@ -3,6 +3,9 @@ package com.symmetricalpalmtree.soil.seamkit.clip
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.gpaper.core.model.StrokePoint
 import com.symmetricalpalmtree.gpaper.core.model.StrokeStyle
+import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
+import com.symmetricalpalmtree.soil.paper.templates.TemplateToken
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -61,5 +64,67 @@ class InkClipTest {
         )
         assertEquals(listOf("a"), InkClip.strokesOf(env).map { it.id })
         assertNotNull(ClipEnvelope.encode(env))
+    }
+
+    // ── Copy page: a page payload ──────
+
+    private fun ids(): () -> String { var n = 0; return { "id-${n++}" } }
+    private val grid = byteArrayOf(10, 20, 30)
+    private val otherGrid = byteArrayOf(11, 21, 31)
+
+    @Test
+    fun `one page is a template row, a page row at the page's size and its ink in writing order`() {
+        val ink = listOf(4L to stroke("a", 1f, 2f), 9L to stroke("b", 5f, 6f))
+        val env = InkClip.pageEnvelopeOf(listOf(InkClip.PageInk(1404f, 1872f, grid, ink)), 77L, ids())!!
+        assertEquals(ClipEnvelope.KIND_PAGE, env.kind)
+        assertEquals("", env.sourceNotebookId)
+        assertEquals(77L, env.copiedAt)
+        assertEquals(listOf("template", "page", "stroke", "stroke"), env.rows.map { it.type })
+        val template = env.rows[0]
+        assertEquals(TemplateToken.ofImage(grid, TemplateFit.FIT), template.text)
+        assertTrue(TemplateToken.isImage(template.text!!))
+        assertEquals(1404f, template.width)
+        assertEquals(1872f, template.height)
+        assertArrayEquals(grid, template.blobBytes())
+        val page = env.rows[1]
+        assertEquals(template.id, page.refId)
+        assertEquals(0, page.order)
+        assertEquals(1404f to 1872f, InkClip.pageSizeOf(env))
+        val strokes = env.rows.drop(2)
+        assertEquals(listOf(page.id, page.id), strokes.map { it.parentId })
+        assertEquals(listOf(4, 9), strokes.map { it.order })
+        assertEquals(listOf("a", "b"), InkClip.strokesOf(env).map { it.id })
+        assertEquals(listOf(1f, 11f), InkClip.strokesOf(env)[0].points.map { it.x })
+        assertEquals(env, ClipEnvelope.decode(ClipEnvelope.encode(env)))
+    }
+
+    @Test
+    fun `two pages travel in order, each on its own paper, and two on one paper share a template row`() {
+        val am = InkClip.PageInk(1404f, 1872f, grid, listOf(0L to stroke("am", 1f, 1f)))
+        val pm = InkClip.PageInk(1404f, 1872f, otherGrid, listOf(0L to stroke("pm", 2f, 2f)))
+        val env = InkClip.pageEnvelopeOf(listOf(am, pm), 1L, ids())!!
+        assertEquals(listOf("template", "template", "page", "page", "stroke", "stroke"), env.rows.map { it.type })
+        val pages = env.rows.filter { it.type == "page" }
+        assertEquals(listOf(0, 1), pages.map { it.order })
+        assertEquals(listOf(env.rows[0].id, env.rows[1].id), pages.map { it.refId })
+        assertEquals(listOf(pages[0].id, pages[1].id), env.rows.filter { it.type == "stroke" }.map { it.parentId })
+
+        val shared = InkClip.pageEnvelopeOf(listOf(am, InkClip.PageInk(1404f, 1872f, grid, emptyList())), 1L, ids())!!
+        assertEquals(1, shared.rows.count { it.type == "template" })
+        assertEquals(listOf(shared.rows[0].id, shared.rows[0].id), shared.rows.filter { it.type == "page" }.map { it.refId })
+    }
+
+    @Test
+    fun `a page with no paper pastes blank, a page with no size is left out, an empty page still travels, nothing is null`() {
+        val blank = InkClip.pageEnvelopeOf(listOf(InkClip.PageInk(100f, 200f, null, listOf(0L to stroke("a", 1f, 1f)))), 1L, ids())!!
+        assertEquals(listOf("page", "stroke"), blank.rows.map { it.type })
+        assertEquals("", blank.rows[0].refId)
+        assertNull(InkClip.pageEnvelopeOf(emptyList(), 1L, ids()))
+        assertNull(InkClip.pageEnvelopeOf(listOf(InkClip.PageInk(0f, 0f, grid, emptyList())), 1L, ids()))
+        val env = InkClip.pageEnvelopeOf(listOf(InkClip.PageInk(0f, 0f, grid, emptyList()), InkClip.PageInk(10f, 10f, byteArrayOf(), emptyList())), 1L, ids())!!
+        assertEquals(listOf("page"), env.rows.map { it.type })
+        assertEquals(0, env.rows[0].order)
+        assertNotNull(ClipEnvelope.decode(ClipEnvelope.encode(env)))
+        assertNull(InkClip.pageSizeOf(InkClip.envelopeOf(listOf(stroke("a", 1f, 1f)), 1L)!!))
     }
 }

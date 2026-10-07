@@ -6,15 +6,18 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 import com.symmetricalpalmtree.soil.paper.core.StrokeCodec
 import com.symmetricalpalmtree.soil.paper.ink.StrokeBlob
 import com.symmetricalpalmtree.soil.paper.ink.StrokeRows
+import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
+import com.symmetricalpalmtree.soil.paper.templates.TemplateToken
 
 /**
  * **Ink on the clipboard**, for the two things that are not a notebook: the Scratch Pad, which
  * copies its ink there, and a document, which pastes ink as recognised words.
  *
- * There is one clipboard for ink and it is the notebook kind's ([SLOT]): the pad writes what a
- * lasso Copy in a notebook would have written, an objects payload of stroke rows, so a notebook
- * pastes the pad's ink with the Paste it already has, and a document reads ink whether it was
- * copied on the pad or lassoed in a notebook. Pure.
+ * There is one clipboard for ink and it is the notebook kind's ([SLOT]): the pad and the calendar
+ * write what a lasso Copy in a notebook would have written, an objects payload of stroke rows
+ * ([envelopeOf]), or what its Copy page would have, a page payload ([pageEnvelopeOf]), so a
+ * notebook pastes their ink with the Paste it already has, and a document reads ink whichever
+ * surface copied it. Pure.
  */
 object InkClip {
 
@@ -51,6 +54,66 @@ object InkClip {
                 )
             },
         )
+    }
+
+    private const val TYPE_TEMPLATE = "template"
+    private const val TYPE_PAGE = "page"
+
+    /** One page as a Copy page captures it: its size, its paper as a picture's bytes (or null for
+     *  blank), its ink `(order, stroke)` in writing order. */
+    class PageInk(val width: Float, val height: Float, val paper: ByteArray?, val strokes: List<Pair<Long, Stroke>>)
+
+    /**
+     * [pages] as a notebook's own Copy page would have put them on the clipboard — a
+     * [ClipEnvelope.KIND_PAGE] payload — so the notebook's page sheet pastes them before or after
+     * the page showing, every page in order (the calendar's Copy page of a Day: AM then PM — Greg,
+     * 2026-10-05). A page's paper travels as a `template` row carrying the picture under the
+     * [TemplateToken.ofImage] token, so a notebook that already holds the same bytes reuses its
+     * row rather than minting another; two pages on the same bytes share one row; a page with no
+     * paper pastes blank. The page row is at the page's size, the stroke rows its ink. No notebook
+     * is named as the source. Null when every page is unusable (no size); an empty page still
+     * travels, so a blank half of a Day pastes as a blank papered page.
+     */
+    fun pageEnvelopeOf(pages: List<PageInk>, now: Long, newId: () -> String): ClipEnvelope? {
+        val usable = pages.filter { it.width > 0f && it.height > 0f }
+        if (usable.isEmpty()) return null
+        val templates = LinkedHashMap<String, ClipRow>()
+        val pageRows = ArrayList<ClipRow>(usable.size)
+        val strokeRows = ArrayList<ClipRow>()
+        for ((i, page) in usable.withIndex()) {
+            val paper = page.paper?.takeIf { it.isNotEmpty() }
+            val template = paper?.let { bytes ->
+                templates.getOrPut(TemplateToken.ofImage(bytes, TemplateFit.FIT)) {
+                    ClipRow(
+                        id = newId(), parentId = "", type = TYPE_TEMPLATE, order = 0, text = TemplateToken.ofImage(bytes, TemplateFit.FIT),
+                        width = page.width, height = page.height, blob = ClipRow.encodeBlob(bytes),
+                    )
+                }
+            }
+            val pageId = newId()
+            pageRows += ClipRow(id = pageId, parentId = "", type = TYPE_PAGE, order = i, refId = template?.id ?: "", width = page.width, height = page.height)
+            for ((order, s) in page.strokes) {
+                if (s.points.isEmpty()) continue
+                strokeRows += ClipRow(
+                    id = s.id, parentId = pageId, type = TYPE_STROKE, order = order.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
+                    color = InkColorCodec.encode(s.color), strokeWidth = s.width, style = s.style.name,
+                    blob = ClipRow.encodeBlob(StrokeBlob.encode(s)),
+                )
+            }
+        }
+        // Every template row first, then the pages, then their ink: the order a paste inserts in.
+        return ClipEnvelope(
+            version = ClipEnvelope.VERSION, kind = ClipEnvelope.KIND_PAGE, sourceNotebookId = "", copiedAt = now,
+            rows = templates.values.toList() + pageRows + strokeRows,
+        )
+    }
+
+    /** The size the payload's first page row names, or null when it names none. */
+    fun pageSizeOf(env: ClipEnvelope): Pair<Float, Float>? {
+        val page = env.rows.firstOrNull { it.type == TYPE_PAGE } ?: return null
+        val w = page.width ?: return null
+        val h = page.height ?: return null
+        return w to h
     }
 
     /**

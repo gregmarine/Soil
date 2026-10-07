@@ -5,6 +5,7 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.gpaper.core.model.Bounds
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.notesprout.clip.ClipRow
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectClip
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.PageClip
@@ -440,26 +441,31 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     }
 
     /**
-     * Paste [env]'s page beside [currentId] and land on it: [insertPage]'s shape with the
-     * payload's rows in place of one blank row, the pasted links mirrored, in one transaction.
-     * Answers the new list, the pasted page, and the ids the paste created, which an undo takes
-     * away. Throws on a payload with no page: the caller checks the clipboard first.
+     * Paste [env]'s pages beside [currentId] and land on the first of them: [insertPage]'s shape
+     * with the payload's rows in place of one blank row — every page row the payload carries, in
+     * its order, each after the one before (before = all of them before the showing page) — the
+     * pasted links mirrored, in one transaction. Answers the new list, the page landed on, and
+     * the ids the paste created, which an undo takes away. Throws on a payload with no page: the
+     * caller checks the clipboard first.
      */
     fun pasteAt(pages: List<PageRef>, currentId: String, env: ClipEnvelope, before: Boolean): Triple<List<PageRef>, PageRef, List<String>> = guard {
         val i = pages.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
         val pos = PageMath.insertPosition(i, after = !before)
-        val plan = PageClip.plan(env, notebookId, pos, resolveTemplate(env)) { newId() } ?: throw IllegalArgumentException("the payload holds no page")
-        val pageRow = plan.rows.first { it.type == NotebookSchema.TYPE_PAGE }
-        val page = PageRef(pageRow.id, pageRow.width ?: 0f, pageRow.height ?: 0f, pageRow.refId.orEmpty())
-        val next = pages.toMutableList().also { it.add(pos, page) }
+        val plan = PageClip.plan(env, notebookId, pos, { resolveTemplate(env, it) }) { newId() } ?: throw IllegalArgumentException("the payload holds no page")
+        val pasted = plan.pageIds.map { id ->
+            val row = plan.rows.first { it.type == NotebookSchema.TYPE_PAGE && it.id == id }
+            PageRef(row.id, row.width ?: 0f, row.height ?: 0f, row.refId.orEmpty())
+        }
+        val next = pages.toMutableList().also { it.addAll(pos, pasted) }
+        val landing = pasted.first()
         val now = System.currentTimeMillis()
         run(
             plan.rows.map { NotebookSql.insertRow(it, now) } +
                 plan.rows.filter { it.type == NotebookSchema.TYPE_LINK }.flatMap { NotebookSql.mirrorRows(it.id, it.text, it.parentId, notebookId) } +
-                renumber(next, now) + NotebookSql.setLastOpened(notebookId, page.id, now),
+                renumber(next, now) + NotebookSql.setLastOpened(notebookId, landing.id, now),
         )
-        Slog.d(TAG) { "pasted a page at $pos (${plan.contentIds.size} rows, ${next.size} pages)" }
-        Triple(next, page, plan.contentIds)
+        Slog.d(TAG) { "pasted ${pasted.size} page(s) at $pos (${plan.contentIds.size} rows, ${next.size} pages)" }
+        Triple(next, landing, plan.contentIds)
     }
 
     /**
@@ -495,13 +501,12 @@ class NotebookStore(store: RowStore, private val notebookId: String) : InkStore(
     }
 
     /**
-     * How this file reaches the payload's template: a row already here under that id (always,
-     * for a same-notebook paste); the same paper under another id, by content; else the carried
-     * row is brought in, and a payload naming a template it does not carry pastes blank.
+     * How this file reaches [pageRow]'s template: a row already here under that id (always, for
+     * a same-notebook paste); the same paper under another id, by content; else the carried row
+     * is brought in, and a page naming a template the payload does not carry pastes blank.
      */
-    private fun resolveTemplate(env: ClipEnvelope): PageClip.Template {
-        val pageRow = env.rows.firstOrNull { it.type == NotebookSchema.TYPE_PAGE }
-        val wanted = pageRow?.refId?.takeIf { it.isNotEmpty() } ?: return PageClip.Template.None
+    private fun resolveTemplate(env: ClipEnvelope, pageRow: ClipRow): PageClip.Template {
+        val wanted = pageRow.refId?.takeIf { it.isNotEmpty() } ?: return PageClip.Template.None
         val digests = templateDigests()
         if (digests.any { it.id == wanted }) return PageClip.Template.Reuse(wanted)
         val carried = env.rows.firstOrNull { it.type == NotebookSchema.TYPE_TEMPLATE && it.id == wanted } ?: return PageClip.Template.None

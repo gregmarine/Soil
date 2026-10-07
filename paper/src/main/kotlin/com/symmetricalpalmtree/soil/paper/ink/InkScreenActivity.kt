@@ -190,7 +190,19 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
         override fun onToolChanged(tool: Tool) = syncTool(tool)
 
         override fun onPenLifted() { lastPenLiftAt = android.os.SystemClock.uptimeMillis() }
+
+        override fun onPaperTapped(x: Float, y: Float) {
+            if (!opened || closing) return
+            onLassoTap(x, y)
+        }
     }
+
+    /**
+     * A stylus tap on bare paper under the armed lasso with nothing selected — the notebook's
+     * tap-to-place: a screen whose clipboard holds strokes pastes them centred here. Nothing by
+     * default.
+     */
+    protected open fun onLassoTap(x: Float, y: Float) {}
 
     /** When the pen last lifted, as the engine told it. */
     @Volatile

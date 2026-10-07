@@ -19,6 +19,10 @@
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.action.BIBLE_TEXT" />
         </intent>
+        <!-- Calsprout: the Sprout app with no items that opens a day. -->
+        <intent>
+            <action android:name="com.symmetricalpalmtree.soil.action.OPEN_CALENDAR" />
+        </intent>
         <!-- The extensions: a recogniser is a service Soil binds on an app's behalf. -->
         <intent>
             <action android:name="com.symmetricalpalmtree.soil.ext.RECOGNIZER" />

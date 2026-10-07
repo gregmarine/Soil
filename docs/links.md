@@ -33,16 +33,18 @@ chapter (`VerseCap`). A tap on either hands the wire to Soil, which opens the re
 
 ## The picker
 
-Three shelves: this notebook's pages (the one being written on left out, the numbers counting
+Four shelves: this notebook's pages (the one being written on left out, the numbers counting
 the whole notebook), the library's items through Soil's item picker (a notebook or a document),
-and a notebook's pages.
+a notebook's pages, and a calendar day on the shared day picker (kind 5, `L1|1|5|<day>|`,
+the day in the item slot; Calsprout, 2026-10-06).
 Page cards show the page in miniature, named by its heading; another notebook is read through a
 session of its own, closed the moment it is left. New page and New notebook are offered where
 the target does not exist yet. A link never targets its own home.
 
 ## In a document
 
-The Link tool takes a typed address, or **Choose from library**: Soil's item picker, which for
+The Link tool takes a typed address, **Choose a day** (the shared day picker; the address
+`cal:<day>`, the words the day's own when nothing is selected), or **Choose from library**: Soil's item picker, which for
 a notebook goes on to ask for a page. The link is stored in the Markdown as an ordinary link
 whose address is a `soil:` address (`SoilAddress`: `soil:<item>` or `soil:<item>/<page>`), so
 the text stays plain Markdown. `DocumentLinks` mirrors every such address to `soil_link` in the
@@ -72,11 +74,12 @@ page. A button lists what links to the document, only when something does, and g
 
 `FollowLinkActivity` answers `ACTION_FOLLOW`: it looks the item up and starts the app for its
 kind, or says what is gone; handed a wire instead (`EXTRA_BIBLE_WIRE`), it starts the Bible's
-reader on the passage (`ItemApps.openBible`).
+reader on the passage (`ItemApps.openBible`); handed a day (`EXTRA_CAL_DATE`), the calendar on
+that Day page (`ItemApps.openCalendar`), in the caller's task so Back comes back.
 
 
 Every file carries `soil_link`, the one Soil table an app writes, in the same batch as the link
-row, through exactly the four statements the checker admits. Soil re-reads the mirror after
+row, through exactly the five statements the checker admits. Soil re-reads the mirror after
 any batch naming it into the index's `link` table, so the index is always rebuildable from the
 files. `backlinks(itemId)` answers what links into an item, from alive sources only; the page
 sheet lists what links to the page and goes there.
@@ -89,9 +92,14 @@ adds the columns to a file made before them on its next open, and to the index a
 row is indexed only when `LinkRows` finds it sound: an item id and no span, or no item, a wire
 the codec reads and a span that is one of the wire's own ranges. `bibleBacklinks(start, end)`
 answers by overlap, with the source's name, kind and page number, for the reader's Notes
-panel (`biblesprout.md`). `LinkRebuild` re-reads every alive item's mirror, through its open
+panel (`biblesprout.md`). **A link to a day of the calendar** has no target item either and one
+column, `calDate`, the day as `yyyy-MM-dd` (`PUT_CAL`; added to a file on open and to the index
+at step 11, indexed); a row is sound with no item, nothing of the Bible and a day `CalAddress`
+reads. `calBacklinks(from, to)` answers by range, for the calendar's Notes door
+(`calsprout.md`). `LinkRebuild` re-reads every alive item's mirror, through its open
 session or from its file, after a restore and from the Settings row **Links**.
 
 Walked on the Nomad, phase 5, 2026-10-01; documents on both ends, Docsprout's phase 9,
-2026-10-04; the Bible on both ends, Biblesprout's phases 3 to 8, 2026-10-05. A link to a
-heading inside a document is in `BACKLOG.md`.
+2026-10-04; the Bible on both ends, Biblesprout's phases 3 to 8, 2026-10-05; a day on both
+ends, Calsprout's phases 8 and 9, 2026-10-06. A link to a heading inside a document is in
+`BACKLOG.md`.

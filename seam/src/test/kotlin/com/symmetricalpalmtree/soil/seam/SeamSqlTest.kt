@@ -93,6 +93,8 @@ class SeamSqlTest {
         SeamSql.checkExec(SeamLinks.DROP_PAGE)
         SeamSql.checkExec(SeamLinks.PUT_BIBLE)
         assertTrue(SeamSql.writesLinkMirror(SeamLinks.PUT_BIBLE))
+        SeamSql.checkExec(SeamLinks.PUT_CAL)
+        assertTrue(SeamSql.writesLinkMirror(SeamLinks.PUT_CAL))
         assertTrue(SeamSql.writesLinkMirror(SeamLinks.PUT))
         assertTrue(SeamSql.writesLinkMirror(SeamLinks.DROP_PAGE))
         assertFalse(SeamSql.writesLinkMirror("DELETE FROM notebook WHERE id = ?"))

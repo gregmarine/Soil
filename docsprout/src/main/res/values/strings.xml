@@ -15,6 +15,7 @@
     <string name="link_confirm">Link</string>
     <string name="link_remove">Remove link</string>
     <string name="link_choose_library">Choose from library…</string>
+    <string name="link_choose_day">Choose a day…</string>
     <string name="link_into_library">This link points into the library. Choose again to point it somewhere else, or type an address.</string>
     <string name="link_open">Open</string>
     <string name="link_edit">Edit link</string>

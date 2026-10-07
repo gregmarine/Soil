@@ -23,6 +23,21 @@ class LinkRowsTest {
     }
 
     @Test
+    fun `a link to a day of the calendar names a day and nothing else`() {
+        assertTrue(LinkRows.sound(LinkRow("l", "p", "", null, calDate = "2026-10-06")))
+        assertTrue(LinkRows.sound(LinkRow("l", "", "", null, calDate = "2024-02-29")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", "", null, calDate = "2023-02-29")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", "", null, calDate = "")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", "", null, calDate = "2026-10-06T00:00")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", item, null, calDate = "2026-10-06")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", "", "q", calDate = "2026-10-06")))
+        assertFalse(LinkRows.sound(LinkRow("l", "p", "", null, wire, john.first, john.second, calDate = "2026-10-06")))
+        assertFalse(LinkRows.sound(LinkRow("", "p", "", null, calDate = "2026-10-06")))
+        assertTrue(LinkRow("l", "p", "", null, calDate = "2026-10-06").isCal)
+        assertFalse(LinkRow("l", "p", item, null).isCal)
+    }
+
+    @Test
     fun `a link into the Bible names one of its wire's own ranges and no item`() {
         assertTrue(LinkRows.sound(LinkRow("l", "", "", null, wire, john.first, john.second)))
         assertTrue(LinkRows.sound(LinkRow("l#1", "", "", null, wire, proverbs.first, proverbs.second)))

@@ -25,4 +25,8 @@ template turns a pick into a reused or minted template row, one undo step; Save 
 rasters the page as it exports, capped, then opens Soil's screen. A folder's default template
 is what New notebook starts on (`items.md`).
 
+A calendar page copied to the clipboard carries its grid as a `template` row, a picture under
+the image token at the page's size, so the notebook that pastes it reuses the row by bytes and
+the same month twice mints one (`clipboard.md`, `calsprout.md`).
+
 Walked on the Nomad, phase 6, 2026-10-01.

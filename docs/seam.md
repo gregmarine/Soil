@@ -39,7 +39,7 @@ connection, the row codec, the row store).
 | `listItems(kind)`, `recentItems(kind, limit)`, `item(id)` | The index's rows, blob-free |
 | `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order |
 | `openItem(id, schema, owner)` | An `ISeamItem`: the app's hold on the file, bound to its uid and to `owner`'s death |
-| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout); made on first use at the schema's steps, bound to the caller's uid and to `owner`'s death, closed by `close()` (`biblesprout.md`) |
+| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout, Calsprout); made on first use at the schema's steps, brought to a newer schema's steps on a later open, bound to the caller's uid and to `owner`'s death, closed by `close()`; a batch of up to the seam's 10,000 statements (`biblesprout.md`, `calsprout.md`) |
 | `makeItemFromFile(besideItemId, name, fileExtension, bytes)` | A new item beside another, made from a file's bytes by the app that imports that extension: the maker an import of a picked file uses. A notebook's Convert makes its document this way (`docsprout.md`) |
 
 An open item answers `exec(batch)` (N statements, one transaction, each checked), `query(one)`,
@@ -51,10 +51,11 @@ file is closed for good.
 
 Every item file carries two tables of Soil's own: `soil_meta` (what the file is) and
 `soil_link` (the link mirror). An app writes `soil_link` in the same batch as its link row,
-through exactly four admitted statements (a row to an item, a row into the Bible, a drop, a
-page's drop); Soil re-reads the mirror after any batch naming it and keeps the index's link
-table in step. `backlinks(itemId)` answers what links into an item, `bibleBacklinks(start, end)`
-what links into a span of verses (`links.md`).
+through exactly five admitted statements (a row to an item, a row into the Bible, a row to a
+day of the calendar, a drop, a page's drop); Soil re-reads the mirror after any batch naming it
+and keeps the index's link table in step. `backlinks(itemId)` answers what links into an item,
+`bibleBacklinks(start, end)` what links into a span of verses, `calBacklinks(from, to)` what
+links into a range of days (`links.md`).
 
 ### The library's services
 
@@ -76,14 +77,17 @@ key. `ACTION_PICK_ITEM` with `EXTRA_PICK_PAGE` also asks for a page when a noteb
 and answers the item's name with its id. `ACTION_FOLLOW` opens an item, at a page or whole, in
 the app for its kind, whichever app asks: how a notebook opens a document and a document a
 notebook (`links.md`); with `EXTRA_BIBLE_WIRE` in place of an item it opens the Bible's reader
-on a passage. `SoilAddress` is a link to an item as text, `soil:<item>[/<page>]`;
-`BibleAddress` a link into the Bible, `bible:<wire>`, checked by its character set alone.
+on a passage, with `EXTRA_CAL_DATE` the calendar on a day. `ACTION_EXPORT` with
+`EXTRA_RENDER_KIND`, `EXTRA_RENDER_KEY` and `EXTRA_RENDER_NAME` in place of an item is the
+export screen's render-only mode (`export.md`). `SoilAddress` is a link to an item as text,
+`soil:<item>[/<page>]`; `BibleAddress` a link into the Bible, `bible:<wire>`, checked by its
+character set alone; `CalAddress` a link to a day, `cal:<yyyy-MM-dd>`, exactly a day.
 
 Soil starts the app's: the activity answering `ACTION_OPEN_ITEM` with `META_KIND` naming the
 kind, with `EXTRA_ITEM_ID` (or `EXTRA_NEW_NAME` for a notebook to make) and `EXTRA_PAGE_ID`;
-or, for the one app with no items, the activity answering `ACTION_OPEN_BIBLE`, with
-`EXTRA_BIBLE_WIRE` or nothing. An app that answers either is a Sprout app, listed in the side
-menu.
+or, for the apps with no items, the activity answering `ACTION_OPEN_BIBLE`, with
+`EXTRA_BIBLE_WIRE` or nothing, or `ACTION_OPEN_CALENDAR`, with `EXTRA_CAL_DATE` or nothing. An
+app that answers any of the three is a Sprout app, listed in the side menu.
 A document is made by Soil and opened by its id. For export and import, Soil binds the app's
 `ACTION_RENDER` service, answering `IItemRenderer` (`export.md`).
 
@@ -117,11 +121,12 @@ Depend on `:seam` and `:seam-kit`. `SeamConnection` binds and waits; `SeamRowSto
 in the app before it is sent; `SeamStoreRows` is the same over an app store. Install Soil
 first: it declares the permission. Notesprout is the worked example with paper
 (`notesprout.md`), Docsprout the one without: it attaches no client (`docsprout.md`),
-Biblesprout the one with no items (`biblesprout.md`).
+Biblesprout and Calsprout the ones with no items (`biblesprout.md`, `calsprout.md`).
 
 ## Walked on the Nomad
 
 The handshake and the stranger, 2026-09-28: signed with Soil's key, answered; signed with
 another key, refused at the bind (`:seam-stranger`). Every call above was walked through
 Notesprout's phases, 2026-09-30 to 2026-10-03, what Docsprout added through its own,
-2026-10-04, and what Biblesprout added through its own, 2026-10-05.
+2026-10-04, what Biblesprout added through its own, 2026-10-05, and what Calsprout added
+through its own, 2026-10-05 and 2026-10-06.

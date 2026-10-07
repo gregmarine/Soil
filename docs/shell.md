@@ -82,9 +82,9 @@ What a third-party app does with the pen under the filter is its own affair.
 ## The menu
 
 - Home, the Scratch Pad and Settings, then a row for each Sprout app installed (Notesprout,
-  Docsprout, Biblesprout), found by what it answers (`ACTION_OPEN_ITEM`, or `ACTION_OPEN_BIBLE`
-  for the one app with no items), not by name. A row opens the app at the item last open, or
-  the reader where it was left.
+  Docsprout, Biblesprout, Calsprout), found by what it answers (`ACTION_OPEN_ITEM`, or
+  `ACTION_OPEN_BIBLE` and `ACTION_OPEN_CALENDAR` for the apps with no items), not by name. A row
+  opens the app at the item last open, or the reader and the calendar where they were left.
 - The other installed apps are **not** listed. They are in the app drawer.
 - A tap outside the panel closes it. The panel has no title and no close button.
 

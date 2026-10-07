@@ -1,6 +1,4 @@
-package com.symmetricalpalmtree.soil.biblesprout
-
-import com.symmetricalpalmtree.soil.bibleref.*
+package com.symmetricalpalmtree.soil.paper.chrome
 
 import android.app.Activity
 import android.app.Dialog
@@ -19,38 +17,39 @@ import android.widget.TextView
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.appcompat.widget.TooltipCompat
 import androidx.core.content.ContextCompat
+import com.symmetricalpalmtree.soil.paper.R
 import com.symmetricalpalmtree.soil.paper.core.ListSwipe
 import com.symmetricalpalmtree.soil.paper.core.Slog
 
 /**
- * "What have I written about this?": the places that cite the verses on screen, as a **side
- * panel**: [RecentsPanel]'s shape in a third subject. A full-window `Dialog` over the reader;
- * one layout, two forms: `dialog_notes.xml` branches in code on [ContentsLayout.fullScreen],
- * below 480 dp the panel fills the screen behind a back arrow, at or above it is a **right**
- * sidebar ([NotesModel.SIDEBAR_WIDTH_FRACTION] = 60 %) over a transparent scrim whose tap
- * dismisses.
+ * "What links into this?": the places in the library that link to what is on screen, as a
+ * **side panel** — the Bible reader's Notes panel, shared with the calendar's Links (Calsprout,
+ * 2026-10-06). A full-window `Dialog` over the screen; one layout, two forms: below 480 dp the
+ * panel fills the screen behind a back arrow, at or above it is a **right** sidebar
+ * ([BacklinksModel.SIDEBAR_WIDTH_FRACTION]) over a transparent scrim whose tap dismisses.
  *
- * **Rows** are two lines, where it was written ("Study · Page 4", 20 sp) and what it cites
- * (13 sp), both inkBlack: secondary text is *smaller*, never grey. One row per notebook page
- * or document ([NotesModel.group]), in the order the references point, so the list reads down
- * the chapter. The list **paginates, it never scrolls**: one row is measured at the real panel
- * width after the first layout and `itemsPerPage` follows; the pager footer is `INVISIBLE` at
- * one page. A one-finger horizontal swipe over the body flips pages too, taken from the
- * dialog's own `dispatchTouchEvent`.
+ * **Rows** are two lines, where it was written ("Study · Page 4", 20 sp) and what it links to
+ * there (13 sp), both inkBlack: secondary text is *smaller*, never grey. The rows are the
+ * consumer's, already grouped and worded ([BacklinksModel.Row]). The list **paginates, it never
+ * scrolls**: one row is measured at the real panel width after the first layout and
+ * `itemsPerPage` follows; the pager footer is `INVISIBLE` at one page. A one-finger horizontal
+ * swipe over the body flips pages too.
  *
- * A modal snapshot of what [BibleActivity] gathered before opening it. A row tap dismisses and
- * hands its group up; "Nothing links into Genesis 1" is a real answer, shown in the body.
+ * A modal snapshot of what the screen gathered before opening it. A row tap dismisses and hands
+ * its key up; the empty line ("Nothing links into Genesis 1") is a real answer, shown in the body.
  *
- * **Never logged:** a name is the user's own word and a label names where they have read.
+ * **Never logged:** a name is the person's own word.
  */
-class NotesPanel(
+class BacklinksPanel<K>(
     private val activity: Activity,
-    /** What the reader is showing, for the empty line — the title as it stands ("Genesis 1"). */
-    private val scopeLabel: String,
-    private val groups: List<NotesModel.NoteGroup>,
+    /** The header's word: "Notes", "Links". */
+    private val title: String,
+    /** What the body says when nothing links: the consumer's sentence, scope and all. */
+    private val emptyText: String,
+    private val rows: List<BacklinksModel.Row<K>>,
     private val onDismissed: () -> Unit,
-    /** The chosen entry; the panel has dismissed itself by the time this runs. */
-    private val onPicked: (NotesModel.NoteGroup) -> Unit,
+    /** The chosen row's key; the panel has dismissed itself by the time this runs. */
+    private val onPicked: (K) -> Unit,
 ) {
     private val listSwipe = ListSwipe(
         region = { body },
@@ -78,7 +77,7 @@ class NotesPanel(
     fun show() {
         if (activity.isFinishing || activity.isDestroyed) { onDismissed(); return }
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_notes)
+        dialog.setContentView(R.layout.dialog_backlinks)
         dialog.setCanceledOnTouchOutside(false)
         dialog.setOnDismissListener { onDismissed() }
         dialog.window?.apply {
@@ -88,32 +87,31 @@ class NotesPanel(
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         }
 
-        val root = dialog.findViewById<FrameLayout>(R.id.notesRoot)
-        val panel = dialog.findViewById<LinearLayout>(R.id.notesPanel)
-        body = dialog.findViewById(R.id.notesBody)
-        val btnBack = dialog.findViewById<AppCompatImageButton>(R.id.btnNotesBack)
-        list = dialog.findViewById(R.id.notesRows)
-        empty = dialog.findViewById(R.id.notesEmpty)
-        pager = dialog.findViewById(R.id.notesPager)
-        pageLabel = dialog.findViewById(R.id.notesPageLabel)
-        val btnFirst = dialog.findViewById<AppCompatImageButton>(R.id.btnNotesFirst)
-        val btnPrev = dialog.findViewById<AppCompatImageButton>(R.id.btnNotesPrev)
-        val btnNext = dialog.findViewById<AppCompatImageButton>(R.id.btnNotesNext)
-        val btnLast = dialog.findViewById<AppCompatImageButton>(R.id.btnNotesLast)
+        val root = dialog.findViewById<FrameLayout>(R.id.backlinksRoot)
+        val panel = dialog.findViewById<LinearLayout>(R.id.backlinksPanel)
+        body = dialog.findViewById(R.id.backlinksBody)
+        val btnBack = dialog.findViewById<AppCompatImageButton>(R.id.btnBacklinksBack)
+        dialog.findViewById<TextView>(R.id.backlinksTitle).text = title
+        list = dialog.findViewById(R.id.backlinksRows)
+        empty = dialog.findViewById(R.id.backlinksEmpty)
+        pager = dialog.findViewById(R.id.backlinksPager)
+        pageLabel = dialog.findViewById(R.id.backlinksPageLabel)
+        val btnFirst = dialog.findViewById<AppCompatImageButton>(R.id.btnBacklinksFirst)
+        val btnPrev = dialog.findViewById<AppCompatImageButton>(R.id.btnBacklinksPrev)
+        val btnNext = dialog.findViewById<AppCompatImageButton>(R.id.btnBacklinksNext)
+        val btnLast = dialog.findViewById<AppCompatImageButton>(R.id.btnBacklinksLast)
         listOf(btnBack, btnFirst, btnPrev, btnNext, btnLast).forEach {
             TooltipCompat.setTooltipText(it, it.contentDescription)   // every icon button names itself
         }
 
-        empty.text = activity.getString(R.string.bible_notes_empty, scopeLabel)
+        empty.text = emptyText
 
         val metrics = activity.resources.displayMetrics
         val widthDp = activity.resources.configuration.screenWidthDp
-        val fullScreen = ContentsLayout.fullScreen(widthDp)
+        val fullScreen = BacklinksModel.fullScreen(widthDp)
         if (fullScreen) {
             root.setBackgroundColor(ContextCompat.getColor(activity, R.color.paperWhite))
-            panel.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
-            )
+            panel.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
             // Plain paper, not the sidebar shape — its left border would be a stray line down the
             // screen edge.
             panel.setBackgroundColor(ContextCompat.getColor(activity, R.color.paperWhite))
@@ -122,7 +120,7 @@ class NotesPanel(
         } else {
             root.setBackgroundColor(Color.TRANSPARENT)
             panel.layoutParams = FrameLayout.LayoutParams(
-                NotesModel.sidebarWidthPx(metrics.widthPixels), FrameLayout.LayoutParams.MATCH_PARENT,
+                BacklinksModel.sidebarWidthPx(metrics.widthPixels), FrameLayout.LayoutParams.MATCH_PARENT,
             ).also { it.gravity = Gravity.END }
             btnBack.visibility = View.GONE
             root.setOnClickListener { dialog.dismiss() }   // the scrim; the panel is clickable in XML and eats its own taps
@@ -131,7 +129,7 @@ class NotesPanel(
         btnFirst.setOnClickListener { goToListPage(0) }
         btnPrev.setOnClickListener { goToListPage(listPage - 1) }
         btnNext.setOnClickListener { goToListPage(listPage + 1) }
-        btnLast.setOnClickListener { goToListPage(ContentsModel.pageCount(groups.size, itemsPerPage) - 1) }
+        btnLast.setOnClickListener { goToListPage(BacklinksModel.pageCount(rows.size, itemsPerPage) - 1) }
 
         // itemsPerPage from the real body height and a really-measured row, once after the first
         // layout — a two-line row's height depends on the font scale, so nothing is estimated.
@@ -139,25 +137,22 @@ class NotesPanel(
             override fun onGlobalLayout() {
                 list.viewTreeObserver.removeOnGlobalLayoutListener(this)
                 val bodyPx = list.height - list.paddingTop - list.paddingBottom
-                itemsPerPage = RecentChapters.itemsPerPage(bodyPx, measureRowHeightPx())
+                itemsPerPage = BacklinksModel.itemsPerPage(bodyPx, measureRowHeightPx())
                 listPage = 0
                 render()
-                Slog.d(TAG) {
-                    "shown: fullScreen=$fullScreen widthDp=$widthDp panel=${panel.width}px " +
-                        "rows/page=$itemsPerPage entries=${groups.size}"
-                }
+                Slog.d(TAG) { "shown: fullScreen=$fullScreen widthDp=$widthDp panel=${panel.width}px rows/page=$itemsPerPage entries=${rows.size}" }
             }
         })
 
         dialog.show()
     }
 
-    /** Safe when nothing is showing — the screen's close hygiene calls it unconditionally. */
+    /** Safe when nothing is showing — a screen's close hygiene calls it unconditionally. */
     fun dismiss() { if (dialog.isShowing) dialog.dismiss() }
 
     /** Inflate one row, measure it at the list's real width, and return its full height in px. */
     private fun measureRowHeightPx(): Int {
-        val sample = LayoutInflater.from(activity).inflate(R.layout.item_note_entry, list, false)
+        val sample = LayoutInflater.from(activity).inflate(R.layout.item_backlink_entry, list, false)
         sample.measure(
             View.MeasureSpec.makeMeasureSpec(list.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
@@ -166,7 +161,7 @@ class NotesPanel(
     }
 
     private fun goToListPage(page: Int) {
-        val clamped = ContentsModel.clampPage(page, ContentsModel.pageCount(groups.size, itemsPerPage))
+        val clamped = BacklinksModel.clampPage(page, BacklinksModel.pageCount(rows.size, itemsPerPage))
         if (clamped == listPage) return   // a tap at a bound is a no-op (never a disabled look on e-ink)
         listPage = clamped
         render()
@@ -174,36 +169,33 @@ class NotesPanel(
 
     private fun render() {
         list.removeAllViews()
-        if (groups.isEmpty()) {
+        if (rows.isEmpty()) {
             empty.visibility = View.VISIBLE
             pager.visibility = View.INVISIBLE
             pageLabel.text = ""
             return
         }
         empty.visibility = View.GONE
-        val pageCount = ContentsModel.pageCount(groups.size, itemsPerPage)
-        listPage = ContentsModel.clampPage(listPage, pageCount)
+        val pageCount = BacklinksModel.pageCount(rows.size, itemsPerPage)
+        listPage = BacklinksModel.clampPage(listPage, pageCount)
         val start = listPage * itemsPerPage
-        val end = minOf(start + itemsPerPage, groups.size)
+        val end = minOf(start + itemsPerPage, rows.size)
         val inflater = LayoutInflater.from(activity)
-        val pageWord = activity.getString(R.string.bible_notes_page_word)
-        val documentWord = activity.getString(R.string.bible_notes_document_word)
-        for (group in groups.subList(start, end)) {
-            val row = inflater.inflate(R.layout.item_note_entry, list, false)
-            row.findViewById<TextView>(R.id.noteTitle).text =
-                NotesModel.title(group, pageWord, documentWord)
-            row.findViewById<TextView>(R.id.noteDetail).text = NotesModel.detail(group)
-            row.setOnClickListener {
+        for (row in rows.subList(start, end)) {
+            val view = inflater.inflate(R.layout.item_backlink_entry, list, false)
+            view.findViewById<TextView>(R.id.backlinkTitle).text = row.title
+            view.findViewById<TextView>(R.id.backlinkDetail).text = row.detail
+            view.setOnClickListener {
                 dialog.dismiss()
-                onPicked(group)
+                onPicked(row.key)
             }
-            list.addView(row)
+            list.addView(view)
         }
-        pageLabel.text = activity.getString(R.string.bible_page_indicator, listPage + 1, pageCount)
+        pageLabel.text = activity.getString(R.string.backlinks_page_indicator, listPage + 1, pageCount)
         pager.visibility = if (pageCount > 1) View.VISIBLE else View.INVISIBLE
     }
 
     private companion object {
-        const val TAG = "NotesPanel"
+        const val TAG = "BacklinksPanel"
     }
 }

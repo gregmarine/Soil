@@ -280,6 +280,7 @@ object NotebookSql : InkDocument.StrokeSql {
                 Statement(SeamLinks.PUT_BIBLE, SeamLinks.rangeId(linkId, n), pageId, wire, r.startKey.toLong(), r.endKey.toLong())
             }
         }
+        LinkPayload.dateOf(text)?.let { date -> return listOf(Statement(SeamLinks.PUT_CAL, linkId, pageId, date)) }
         val target = LinkTarget.of(text, ownItemId) ?: return listOf(mirrorDrop(linkId))
         return listOf(Statement(SeamLinks.PUT, linkId, pageId, target.itemId, target.pageId))
     }

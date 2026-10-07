@@ -27,7 +27,9 @@ import com.symmetricalpalmtree.soil.notesprout.links.LinkPickerModel.PickMode
 import com.symmetricalpalmtree.soil.notesprout.notebook.PagePaints
 import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
 import com.symmetricalpalmtree.soil.notesprout.objects.PageLabels
+import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.paper.core.CalendarDates
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -41,11 +43,13 @@ import kotlinx.coroutines.withContext
  * **Where a link points**: the one screen behind the selection bar's Link and its Edit link. It
  * answers one question and returns one string, the payload the notebook writes onto the row.
  *
- * Three shelves, in the mode row's order:
+ * Four shelves, in the mode row's order:
  *  1. **This notebook**: its pages, minus the one being written on (a link to here goes
  *     nowhere). The numbers count the whole notebook.
  *  2. **Notebook**: the library's notebooks, the open one hidden.
  *  3. **Notebook page**: the same list, but a notebook opens into its pages.
+ *  4. **A calendar day**: the shared day picker (Calsprout, 2026-10-06); the day chosen is
+ *     named in the body, and a tap on it asks again.
  *
  * Every page card shows the page in miniature, rendered behind a placeholder: the open
  * notebook's through the screen's own store ([LinkPickerRelay]), another's through a session
@@ -72,6 +76,9 @@ class LinkPickerActivity : AppCompatActivity() {
     private var chrome = LinkPayload.CHROME_UNDERLINE
     private var selectedNotebookId: String? = null
     private var selectedPageId: String? = null
+
+    /** The day the calendar shelf holds (`yyyy-MM-dd`), or nothing yet. */
+    private var selectedDate: String? = null
 
     /** The notebook whose pages are on screen in [PickMode.NOTEBOOK_PAGE], with its session. */
     private var drilled: SeamItem? = null
@@ -108,7 +115,7 @@ class LinkPickerActivity : AppCompatActivity() {
             when (mode) {
                 PickMode.NOTEBOOK -> { selectedNotebookId = item.id; refresh(jumpToSelection = true) }
                 PickMode.NOTEBOOK_PAGE -> { drill(item); pageIndex = 0; refresh() }
-                PickMode.THIS_NOTEBOOK -> Unit
+                PickMode.THIS_NOTEBOOK, PickMode.CAL_DAY -> Unit
             }
         }
     }
@@ -184,6 +191,7 @@ class LinkPickerActivity : AppCompatActivity() {
                 drill(target)
                 selectedPageId = decoded.pageId
             }
+            LinkPayload.KIND_CAL -> selectedDate = decoded.date
         }
     }
 
@@ -204,6 +212,9 @@ class LinkPickerActivity : AppCompatActivity() {
         btnModeThisNotebook.setOnClickListener { setMode(PickMode.THIS_NOTEBOOK) }
         btnModeNotebook.setOnClickListener { setMode(PickMode.NOTEBOOK) }
         btnModeNotebookPage.setOnClickListener { setMode(PickMode.NOTEBOOK_PAGE) }
+        btnModeCalDay.setOnClickListener { setMode(PickMode.CAL_DAY) }
+        // The calendar shelf's body names the day; a tap on it asks again.
+        emptyState.setOnClickListener { if (mode == PickMode.CAL_DAY) askDay() }
         btnStyleUnderline.setOnClickListener { chrome = LinkPayload.CHROME_UNDERLINE; renderStyle() }
         btnStyleNone.setOnClickListener { chrome = LinkPayload.CHROME_NONE; renderStyle() }
         btnNewPage.setOnClickListener { onNewPage() }
@@ -218,6 +229,7 @@ class LinkPickerActivity : AppCompatActivity() {
         btnModeThisNotebook.isSelected = mode == PickMode.THIS_NOTEBOOK
         btnModeNotebook.isSelected = mode == PickMode.NOTEBOOK
         btnModeNotebookPage.isSelected = mode == PickMode.NOTEBOOK_PAGE
+        btnModeCalDay.isSelected = mode == PickMode.CAL_DAY
         renderStyle()
         val creates = LinkPickerModel.createButtons(mode, drilled != null)
         btnNewPage.visibility = if (creates.newPage) View.VISIBLE else View.GONE
@@ -241,7 +253,33 @@ class LinkPickerActivity : AppCompatActivity() {
 
     private suspend fun refresh(jumpToSelection: Boolean = false) {
         renderChrome()
-        if (showingPages()) refreshPages(jumpToSelection) else refreshBrowse(jumpToSelection)
+        when {
+            mode == PickMode.CAL_DAY -> refreshDay()
+            showingPages() -> refreshPages(jumpToSelection)
+            else -> refreshBrowse(jumpToSelection)
+        }
+    }
+
+    /** The calendar shelf: no cards, the chosen day's words in the body, or the ask. */
+    private fun refreshDay() {
+        notebooks = emptyList()
+        pageItems = emptyList()
+        pageCount = 1
+        pageIndex = 0
+        grid.bind(0) { _, _ -> }
+        binding.pager.visibility = View.GONE
+        val day = selectedDate?.let { CalendarDates.parse(it) }
+        binding.emptyState.text = if (day == null) getString(R.string.link_picker_choose_day) else getString(R.string.link_picker_day_chosen, CalendarDates.dayLabel(day))
+        binding.emptyState.visibility = View.VISIBLE
+    }
+
+    /** The shared day picker, on the day held or today. A cancel keeps what was held. */
+    private fun askDay() {
+        val initial = selectedDate?.let { CalendarDates.parse(it) } ?: java.time.LocalDate.now()
+        DayPickerDialog.show(this, initial) { day ->
+            selectedDate = CalendarDates.format(day)
+            if (mode == PickMode.CAL_DAY) refreshDay()
+        }
     }
 
     private suspend fun refreshPages(jumpToSelection: Boolean) {
@@ -351,11 +389,17 @@ class LinkPickerActivity : AppCompatActivity() {
         // A target chosen for one kind of link means nothing for another.
         selectedNotebookId = null
         selectedPageId = null
+        selectedDate = null
         leaveDrill()
         pageIndex = 0
         lifecycleScope.launch { refresh() }
-        // The two Notebook shelves begin by asking Soil which notebook.
-        if (newMode != PickMode.THIS_NOTEBOOK) launchItemPicker()
+        // The two Notebook shelves begin by asking Soil which notebook; the calendar shelf by
+        // asking which day.
+        when (newMode) {
+            PickMode.NOTEBOOK, PickMode.NOTEBOOK_PAGE -> launchItemPicker()
+            PickMode.CAL_DAY -> askDay()
+            PickMode.THIS_NOTEBOOK -> Unit
+        }
     }
 
     private fun drill(item: SeamItem) {
@@ -427,7 +471,7 @@ class LinkPickerActivity : AppCompatActivity() {
     // ── OK ──────
 
     private fun onOk() {
-        val payload = LinkPickerModel.composeOk(mode, chrome, showing.notebookId, selectedNotebookId, selectedPageId)
+        val payload = LinkPickerModel.composeOk(mode, chrome, showing.notebookId, selectedNotebookId, selectedPageId, selectedDate)
         if (payload == null) {
             Dialogs.problem(
                 this, R.string.link_pick_none_title,
@@ -435,6 +479,7 @@ class LinkPickerActivity : AppCompatActivity() {
                     PickMode.THIS_NOTEBOOK -> R.string.link_pick_none_page
                     PickMode.NOTEBOOK -> R.string.link_pick_none_notebook
                     PickMode.NOTEBOOK_PAGE -> R.string.link_pick_none_notebook_page
+                    PickMode.CAL_DAY -> R.string.link_pick_none_day
                 },
             )
             return

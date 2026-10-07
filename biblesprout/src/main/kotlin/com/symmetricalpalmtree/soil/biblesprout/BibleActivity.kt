@@ -22,6 +22,8 @@ import com.symmetricalpalmtree.soil.biblesprout.databinding.ActivityBibleBinding
 import com.symmetricalpalmtree.soil.biblesprout.reader.ChapterPaginator
 import com.symmetricalpalmtree.soil.biblesprout.reader.PageMark
 import com.symmetricalpalmtree.soil.biblesprout.reader.ReaderView
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksPanel
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.ListSwipe
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -125,7 +127,7 @@ class BibleActivity : AppCompatActivity() {
     private var recentsPanel: RecentsPanel? = null
     private var gatheringRecents = false
     private var copying = false
-    private var notesPanel: NotesPanel? = null
+    private var notesPanel: BacklinksPanel<NotesModel.NoteGroup>? = null
     private var gatheringNotes = false
     private var searchPanel: SearchPanel? = null
     private var lastSearch: SearchResults? = null
@@ -558,10 +560,14 @@ class BibleActivity : AppCompatActivity() {
             if (notesPanel != null || isFinishing || isDestroyed) return@launch
             val groups = NotesModel.group(rows)
             Slog.d(TAG) { "notes: ${groups.size} entr(ies) of ${rows.size} row(s) over ${scope.size} range(s) in ${SystemClock.elapsedRealtime() - began} ms" }
-            notesPanel = NotesPanel(
+            // The shared backlinks panel (:paper, since Calsprout): the rows are worded here.
+            val pageWord = getString(com.symmetricalpalmtree.soil.paper.R.string.backlinks_page_word)
+            val documentWord = getString(com.symmetricalpalmtree.soil.paper.R.string.backlinks_document_word)
+            notesPanel = BacklinksPanel(
                 this@BibleActivity,
-                binding.title.text.toString(),
-                groups,
+                title = getString(R.string.bible_notes_title),
+                emptyText = getString(R.string.bible_notes_empty, binding.title.text.toString()),
+                rows = groups.map { BacklinksModel.Row(it, NotesModel.title(it, pageWord, documentWord), NotesModel.detail(it)) },
                 onDismissed = { notesPanel = null },
                 onPicked = ::followNote,
             ).also { it.show() }

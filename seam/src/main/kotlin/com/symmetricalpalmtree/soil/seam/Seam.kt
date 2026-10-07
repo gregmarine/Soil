@@ -39,6 +39,19 @@ object Seam {
      */
     const val EXTRA_BIBLE_WIRE = "com.symmetricalpalmtree.soil.extra.BIBLE_WIRE"
 
+    /**
+     * The action of the screen Calsprout opens a day in: the calendar, which has no items of its
+     * own and so answers no [ACTION_OPEN_ITEM] (Calsprout, 2026-10-05). Soil starts it, and only
+     * Soil may: the screen is guarded by [permissionFor]. What rides the Intent is
+     * [EXTRA_CAL_DATE], or nothing, for the calendar where it was left. An app that answers this
+     * is a Sprout app too, and the side menu lists it.
+     */
+    const val ACTION_OPEN_CALENDAR = "com.symmetricalpalmtree.soil.action.OPEN_CALENDAR"
+
+    /** A day, as ISO `yyyy-MM-dd`: on [ACTION_OPEN_CALENDAR] the day to open on, and on
+     *  [ACTION_FOLLOW] in place of [EXTRA_ITEM_ID] a link to a day to follow. */
+    const val EXTRA_CAL_DATE = "com.symmetricalpalmtree.soil.extra.CAL_DATE"
+
     /** The action of Biblesprout's `<service>` that serves a passage's words (`IBibleText`),
      *  guarded by [permissionFor]: Soil binds it, and relays it as `passageText`. */
     const val ACTION_BIBLE_TEXT = "com.symmetricalpalmtree.soil.action.BIBLE_TEXT"
@@ -67,6 +80,16 @@ object Seam {
      */
     const val ACTION_EXPORT = "com.symmetricalpalmtree.soil.action.EXPORT"
     const val EXTRA_RETURN_TO_APP = "com.symmetricalpalmtree.soil.extra.RETURN_TO_APP"
+
+    /**
+     * The export screen's **render-only mode**, for an app with no item to export (the calendar):
+     * [EXTRA_RENDER_KIND] names the kind whose renderer draws the pages, [EXTRA_RENDER_KEY] what
+     * to draw — the string the renderer gets as its `itemId`, which only it reads — and
+     * [EXTRA_RENDER_NAME] the file stem. No library item, no key of one, only the page formats.
+     */
+    const val EXTRA_RENDER_KIND = "com.symmetricalpalmtree.soil.extra.RENDER_KIND"
+    const val EXTRA_RENDER_KEY = "com.symmetricalpalmtree.soil.extra.RENDER_KEY"
+    const val EXTRA_RENDER_NAME = "com.symmetricalpalmtree.soil.extra.RENDER_NAME"
 
     /** What a renderer says when it cannot: the exact messages of its IllegalStateException. */
     const val RENDER_EMPTY = "render: no pages"

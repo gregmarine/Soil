@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The calendar screen — the Scratch Pad's shape: full-bleed paper with two thin chrome bars
+  overlaid. The PaperView is added into paperContainer programmatically; the grid is the page's
+  TEMPLATE, baked at the page's own size and set on the paper, so it scales and registers with the
+  ink as one thing.
+
+  Both bars go to paper.setExclusionRects (via PaperChrome) after layout, so ink never lands under
+  chrome. Chrome sits flush at the top edge.
+
+  Top bar (Greg, 2026-10-05): Back and the three fixed tools on the left; on the right the
+  Month / Week / Day latches (the armed one wears the ToolbarButton's selected border, set from
+  showPage, never assumed from the tap), Today, then the three doors — Events, Links, More — each
+  GONE until its phase lands. Bottom bar: the pager and nothing else — prev, the period's title,
+  next — centred on the SCREEN; the title is itself a tap target that opens the day picker.
+
+  openingOverlay starts VISIBLE: the screen covers its own first frame, so the launch reads as one
+  continuous "Opening…".
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/paperWhite">
+
+    <FrameLayout
+        android:id="@+id/paperContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="@color/paperWhite"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/topBarRow"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnBack"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_calendar_back"
+                    android:src="@drawable/ic_arrow_left" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPen"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_pen"
+                    android:src="@drawable/ic_pen" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnEraser"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_eraser"
+                    android:src="@drawable/ic_eraser" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnLasso"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_lasso"
+                    android:src="@drawable/ic_lasso" />
+            </LinearLayout>
+
+            <!-- The three view latches, Today, then the doors — right-aligned, in bar order. -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="end|center_vertical"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnMonth"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:src="@drawable/ic_calendar_month"
+                    android:contentDescription="@string/cd_calendar_view_month" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnWeek"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:src="@drawable/ic_calendar_week"
+                    android:contentDescription="@string/cd_calendar_view_week" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnDay"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:src="@drawable/ic_calendar_day"
+                    android:contentDescription="@string/cd_calendar_view_day" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnToday"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/ic_calendar_star"
+                    android:contentDescription="@string/cd_calendar_today" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnEvents"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:layout_marginStart="8dp"
+                    android:contentDescription="@string/cd_calendar_events"
+                    android:src="@drawable/ic_calendar_event"
+                    android:visibility="gone" />
+
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@color/paperWhite"
+        android:orientation="vertical">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <!-- The pager, centred on the SCREEN: [‹] [title] [›]; and at the far end the Links door —
+             the Bible reader's Notes in this subject: the notes and documents about the period
+             showing (Greg, 2026-10-06) — present only while something links into it. -->
+        <FrameLayout
+            android:id="@+id/bottomBarRow"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnLinks"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:layout_gravity="end|center_vertical"
+                android:contentDescription="@string/cd_calendar_links"
+                android:src="@drawable/ic_notebook"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPrev"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_prev_period"
+                    android:src="@drawable/ic_page_prev" />
+
+                <!-- Tap the title to open the day picker — a tap target is dimen-driven even
+                     though this one is text, not an icon. -->
+                <TextView
+                    android:id="@+id/title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/transparent"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:minWidth="160dp"
+                    android:minHeight="@dimen/toolbar_button_size"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:singleLine="true"
+                    android:textColor="@color/inkBlack"
+                    android:textSize="16sp"
+                    android:contentDescription="@string/cd_calendar_pick_day" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnNext"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_next_period"
+                    android:src="@drawable/ic_page_next" />
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- The selection's floating bar — Copy and Delete. Placed by :paper's FloatingSelectionBar;
+         the buttons are built in code. -->
+    <LinearLayout
+        android:id="@+id/selectionToolbar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- The collapsed chrome — what shows while both bars are hidden: the corner tool button at
+         top-right wearing the armed tool's glyph, and, hung under it on a tap, the mini toolbar
+         and its overflow row (buttons built in code — CollapsedChrome, :paper). The button is
+         GONE while the bars show; ChromeToggle flips it with them. All three sit after every bar
+         they may overlap and BEFORE openingOverlay, which stays topmost while the screen opens. -->
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/collapsedKnob"
+        style="@style/Widget.Soil.ToolbarButton"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:background="@drawable/shape_dialog_bordered"
+        android:src="@drawable/ic_pen"
+        android:visibility="gone"
+        android:contentDescription="@string/collapsed_tools" />
+
+    <LinearLayout
+        android:id="@+id/collapsedBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/collapsedOverflow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- "Opening…". Full-screen but transparent and clickable: it swallows the second tap a slow
+         e-ink refresh invites while the page is still being read. -->
+    <FrameLayout
+        android:id="@+id/openingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/shape_dialog_bordered"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/calendar_opening"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- The eraser button's sub-bar — Point / Lasso, hung under the armed eraser button by
+         SelectionAnchor.placeUnder. Buttons are built in code (EraserBar, :paper). A later sibling
+         than anything it could overlap — the floating-bar rule. GONE the whole time
+         openingOverlay is up. -->
+    <LinearLayout
+        android:id="@+id/eraserBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- The lasso's popup (Paste · Clear clipboard), hung under the armed lasso on a re-tap —
+         the notebook's (:paper LassoPopup). The same lifecycle as the eraser's sub-bar. -->
+    <LinearLayout
+        android:id="@+id/lassoPopup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+</FrameLayout>

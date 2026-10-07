@@ -34,7 +34,7 @@ class ScratchToolbar(
     btnBack: ImageButton,
     btnPen: ImageButton,
     btnEraser: ImageButton,
-    btnLasso: ImageButton,
+    private val btnLasso: ImageButton,
     private val btnPrevPage: ImageButton,
     private val btnNextPage: ImageButton,
     private val pageIndicator: TextView,
@@ -47,6 +47,8 @@ class ScratchToolbar(
     onNextPage: () -> Unit,
     /** A tap on the already-armed eraser: the screen toggles the eraser sub-bar. */
     onEraserReTap: () -> Unit,
+    /** A tap on the already-armed lasso: the screen toggles the lasso's clipboard popup. */
+    onLassoReTap: () -> Unit,
     /** Any actual tool change — the screen closes the sub-bar that belonged to the old tool. */
     onToolTapped: () -> Unit,
     /** After every sync — the collapsed chrome's corner button repaints from here. */
@@ -71,6 +73,7 @@ class ScratchToolbar(
             paper = paper,
             onBack = onBack,
             onEraserReTap = onEraserReTap,
+            onLassoReTap = onLassoReTap,
             onToolTapped = onToolTapped,
             onSynced = onSynced,
         )
@@ -91,6 +94,18 @@ class ScratchToolbar(
 
     /** Arm [tool] from our side and sync the buttons — what the eraser sub-bar's pick lands on. */
     fun arm(tool: Tool) = tools.arm(tool)
+
+    /** The lasso wears the clipboard mark while ink is on the clipboard — the notebook's hint
+     *  that a re-tap on it will offer Paste. Idempotent. */
+    fun showClipboardLoaded(loaded: Boolean) {
+        if (clipboardLoaded == loaded) return
+        clipboardLoaded = loaded
+        btnLasso.setImageResource(
+            if (loaded) com.symmetricalpalmtree.soil.paper.R.drawable.ic_lasso_clipboard else com.symmetricalpalmtree.soil.paper.R.drawable.ic_lasso,
+        )
+    }
+
+    private var clipboardLoaded = false
 
     /** `n / N`, presented only once the pen is idle (the frame-silence rule). */
     fun setPage(number: Int, total: Int) {

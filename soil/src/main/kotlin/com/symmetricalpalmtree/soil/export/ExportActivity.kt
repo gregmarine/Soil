@@ -64,6 +64,11 @@ import java.io.File
  * Reached from the library's item sheet, and from an app's page sheet with [Seam.ACTION_EXPORT]
  * for one page of the item; an app that closed its item to export it is reopened on the way out.
  *
+ * **Render-only** ([ExportRenderMode]): an app with no item — the calendar — names a kind, a key
+ * and a name instead of an item. The screen skips the library and the item's key, lists the page
+ * formats alone, and the kind's renderer draws under the key as it would under an item id. On
+ * the way out there is nothing to reopen.
+ *
  * With a cloud provider installed the screen has a Destination row ([ExportDestination]). On the
  * cloud leg the exporter writes into a file in Soil's cache, verified as on the local leg, and
  * that file is uploaded under `Exports/` through the browser's pick, replace-by-name after a
@@ -78,6 +83,9 @@ class ExportActivity : AppCompatActivity() {
 
     private lateinit var itemId: String
     private var item: Item? = null
+
+    /** Render-only: no item, the kind's renderer under a key. Null for an ordinary export. */
+    private var renderOnly: ExportRenderMode.Request? = null
     private var pageId: String? = null
     private var returnToApp = false
     private var relaunched = false
@@ -137,7 +145,9 @@ class ExportActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        itemId = intent.getStringExtra(Seam.EXTRA_ITEM_ID).orEmpty()
+        renderOnly = ExportRenderMode.requestOf(intent.getStringExtra(Seam.EXTRA_RENDER_KIND), intent.getStringExtra(Seam.EXTRA_RENDER_KEY), intent.getStringExtra(Seam.EXTRA_RENDER_NAME))
+        // In render-only mode the key is what the renderer gets as its item id.
+        itemId = renderOnly?.key ?: intent.getStringExtra(Seam.EXTRA_ITEM_ID).orEmpty()
         if (itemId.isEmpty() || !SoilIndex.isReady() || KeySession.get() == null) { finish(); return }
         pageId = intent.getStringExtra(Seam.EXTRA_PAGE_ID)?.takeIf { it.isNotEmpty() }
         returnToApp = intent.getBooleanExtra(Seam.EXTRA_RETURN_TO_APP, false)
@@ -238,15 +248,25 @@ class ExportActivity : AppCompatActivity() {
     }
 
     private suspend fun loadCandidates(): List<Candidate> {
-        val found = withContext(Dispatchers.IO) { IndexStore().aliveItem(itemId) }
-        if (found == null) { if (!isFinishing) problemAndClose(R.string.export_failed_title, R.string.export_missing_body); return emptyList() }
-        item = found
-        binding.itemName.text = found.name
+        val mode = renderOnly
+        val kind: String
+        if (mode != null) {
+            binding.itemName.text = mode.name
+            kind = mode.kind
+        } else {
+            val found = withContext(Dispatchers.IO) { IndexStore().aliveItem(itemId) }
+            if (found == null) { if (!isFinishing) problemAndClose(R.string.export_failed_title, R.string.export_missing_body); return emptyList() }
+            item = found
+            binding.itemName.text = found.name
+            kind = found.kind
+        }
         if (renderer == null) {
-            renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, found.kind) }
+            renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, kind) }
             renderInfo = renderer?.let { AppRenderers.describe(this@ExportActivity, it) } ?: SeamRenderInfo.PAGES_ONLY
             pageSize = ExportPageSize.orDefault(prefs.lastPageSize)
         }
+        // Render-only: nothing to draw with is nothing to export.
+        if (mode != null && renderer == null) { if (!isFinishing) problemAndClose(R.string.export_none_title, R.string.export_none_body); return emptyList() }
         val door = pageId
         if (door != null && pageFacts == null) {
             val r = renderer
@@ -262,12 +282,15 @@ class ExportActivity : AppCompatActivity() {
             val info = describe(ref) ?: continue
             if (!ExportOptions.isRenderable(info)) { Slog.d(TAG) { "dropping ${ref.packageName}: an option this build cannot draw" }; continue }
             // A pages exporter is only as good as an app to draw with.
-            if (info.sourceKind == ExportContract.SOURCE_PAGES && renderer == null) { Slog.d(TAG) { "dropping ${ref.packageName}: no renderer for ${found.kind}" }; continue }
+            if (info.sourceKind == ExportContract.SOURCE_PAGES && renderer == null) { Slog.d(TAG) { "dropping ${ref.packageName}: no renderer for $kind" }; continue }
+            // Render-only: no file to hand a file exporter.
+            if (mode != null && !ExportRenderMode.lists(info.sourceKind)) { Slog.d(TAG) { "dropping ${ref.packageName}: render-only" }; continue }
             kept += Candidate(ref, info)
         }
-        // The app's own formats, after the extensions'. A descriptor the constructor refuses
-        // drops the format with a log line, as it drops an extension.
-        for (format in renderInfo.formats) {
+        // The app's own formats, after the extensions' — not in render-only mode, where the
+        // pages are the whole of it. A descriptor the constructor refuses drops the format with a
+        // log line, as it drops an extension.
+        for (format in if (mode != null) emptyList() else renderInfo.formats) {
             val info = runCatching { ExporterInfo(format.label, format.fileExtension, format.mimeType, emptyList()) }.getOrNull()
             if (info == null) { Slog.d(TAG) { "dropping an app format: its descriptor was refused" }; continue }
             kept += Candidate(Extension(APP_FORMAT_PREFIX + format.id, "", format.label), info, format)
@@ -385,8 +408,11 @@ class ExportActivity : AppCompatActivity() {
 
     // ── The tap ──────
 
+    /** What the files are named after: the item, or the render-only request. */
+    private fun displayName(): String = renderOnly?.name ?: item?.name.orEmpty()
+
     private fun stem(): String {
-        val name = item?.name.orEmpty()
+        val name = displayName()
         return when (scope) {
             ExportScope.Whole -> ExportNaming.base(name, itemId)
             is ExportScope.Page -> ExportNaming.pageStem(name, itemId, pageFacts?.number ?: 0, pageFacts?.title)
@@ -397,7 +423,7 @@ class ExportActivity : AppCompatActivity() {
 
     private fun stemFor(index: Int, pageNames: List<ExportNaming.PageName>): String {
         val name = pageNames.getOrNull(index)
-        return ExportNaming.pageStem(item?.name.orEmpty(), itemId, name?.number ?: (index + 1), name?.title)
+        return ExportNaming.pageStem(displayName(), itemId, name?.number ?: (index + 1), name?.title)
     }
 
     private fun onExportTap() {
@@ -982,6 +1008,13 @@ class ExportActivity : AppCompatActivity() {
         private const val KEY_VALUES = "export.values"
         private const val KEY_SCOPE_WHOLE = "export.scopeWhole"
         private const val KEY_DESTINATION = "export.cloud"
+
+        /** Render-only: the pages of [kind] under [key], named [name]. */
+        fun renderIntent(context: Context, kind: String, key: String, name: String): Intent =
+            Intent(context, ExportActivity::class.java)
+                .putExtra(Seam.EXTRA_RENDER_KIND, kind)
+                .putExtra(Seam.EXTRA_RENDER_KEY, key)
+                .putExtra(Seam.EXTRA_RENDER_NAME, name)
 
         fun intent(context: Context, itemId: String, pageId: String? = null, returnToApp: Boolean = false): Intent =
             Intent(context, ExportActivity::class.java)

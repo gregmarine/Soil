@@ -96,6 +96,11 @@ from there. `adb pull` is safe.
 ## What cannot be tested over adb
 
 - **Ink.** It does not show in a screenshot, and adb cannot inject a pen.
+- **Force-stop.** `adb shell am force-stop` of Soil makes Android drop its accessibility
+  service, and the side menu with it; the setting reads back empty and `dumpsys accessibility`
+  lists the service as crashed. Never force-stop Soil. The way back is "Turn it on" above, but
+  the setting has to be **deleted** first (`settings delete secure enabled_accessibility_services`,
+  `accessibility_enabled 0`, then the two puts): a plain re-put does not rebind a crashed service.
 - **The side bars.** `adb shell input keyevent` never reaches the bar service. Only a real swipe
   on the bar tests the menu.
 - **Typing.** `adb shell input text` is swallowed by the Supernote's keyboard. Tap the keys, or
@@ -110,6 +115,7 @@ extensions, debug with debug (`.dev` talks to `.dev`):
 adb -s SN078D10012852 install -r soil/build/outputs/apk/debug/soil-debug.apk
 adb -s SN078D10012852 install -r notesprout/build/outputs/apk/debug/notesprout-debug.apk
 adb -s SN078D10012852 install -r docsprout/build/outputs/apk/debug/docsprout-debug.apk
+adb -s SN078D10012852 install -r calsprout/build/outputs/apk/debug/calsprout-debug.apk
 adb -s SN078D10012852 install -r biblesprout/build/outputs/apk/debug/biblesprout-debug.apk
 adb -s SN078D10012852 install -r ext-mlkit/build/outputs/apk/debug/ext-mlkit-debug.apk
 adb -s SN078D10012852 install -r ext-soilfile/build/outputs/apk/debug/ext-soilfile-debug.apk

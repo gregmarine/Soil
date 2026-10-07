@@ -5,6 +5,7 @@ import com.symmetricalpalmtree.soil.seam.ISeamItem;
 import com.symmetricalpalmtree.soil.seam.ISeamStore;
 import com.symmetricalpalmtree.soil.seam.SeamBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBibleBacklink;
+import com.symmetricalpalmtree.soil.seam.SeamCalBacklink;
 import com.symmetricalpalmtree.soil.seam.SeamBytes;
 import com.symmetricalpalmtree.soil.seam.SeamClip;
 import com.symmetricalpalmtree.soil.seam.SeamRecognizer;
@@ -78,6 +79,12 @@ interface ISoilSeam {
      * shows. At most a few hundred.
      */
     List<SeamBibleBacklink> bibleBacklinks(int startKey, int endKey);
+
+    /**
+     * Every link to a day from fromDate to toDate (yyyy-MM-dd, inclusive), from items that are
+     * alive, by day then source: what the calendar's Links panel shows. At most a few hundred.
+     */
+    List<SeamCalBacklink> calBacklinks(String fromDate, String toDate);
 
     /**
      * The verses of a passage as Markdown, from the Bible's own app: a bold label line, then the

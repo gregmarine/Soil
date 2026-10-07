@@ -22,7 +22,7 @@ the library's bottom bar; Restore is a row on the Backup screen.
 
 A folder holding `<id>.soil` for every alive item, `<name>.db` for every app store (the Scratch
 Pad's pages, the cloud extension's account, `app_<package>` for an app's own store over the
-seam such as Biblesprout's, anything else in the garden), and `soil.db`, the
+seam such as Biblesprout's and Calsprout's, anything else in the garden), and `soil.db`, the
 index, last. File names are ids, so a copy replaces in place; display names travel inside each
 file. Every copy is a ciphertext byte copy under the global key, never decrypted. A debug build
 writes into a `dev/` subfolder of the chosen folder, since debug and release coexist on the

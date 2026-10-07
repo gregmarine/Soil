@@ -15,13 +15,15 @@ import com.symmetricalpalmtree.soil.paper.R
  * The shape is the shared decision, and it is why this is not simply a [FloatingSelectionBar] call
  * at each consumer: Move is the drag itself and neither screen has headings, links, clipboard or
  * snap, so the notebook's seven buttons come down to the one that always applied plus the one that
- * pays for the hop — **Send first, Delete last**, the notebook's order, with the one destructive
- * verb on the far edge. Both release the render before their row runs: the tap has to show its
- * result, and the delete repaints the page underneath.
+ * puts the ink on the clipboard — **Copy first, Delete last**, the notebook's order, with the one
+ * destructive verb on the far edge. Both release the render before their row runs: the tap has to
+ * show its result, and the delete repaints the page underneath.
  *
- * Send is **absent, never disabled**, when there is no notebook behind us — a greyed control is
- * invisible on e-ink. That is what a null [sendHint] means; the hint itself is the consumer's own
- * wording, which is all that ever differed between the two copies.
+ * Copy is **absent, never disabled**, when the screen offers none — a greyed control is invisible
+ * on e-ink. That is what a null [copyHint] means; the hint itself is the consumer's own wording,
+ * which is all that ever differed between the two copies. Its glyph is the copy icon, the one the
+ * notebook's own Copy wears (Greg, 2026-10-06): the pad's and the calendar's Copy are copies, not
+ * a Send.
  */
 class InkSelectionBar(
     root: ViewGroup,
@@ -33,9 +35,9 @@ class InkSelectionBar(
     /** Delete's hint (tooltip + content description). */
     deleteHint: String,
     onDelete: () -> Unit,
-    /** Send's hint, or **null** when there is no notebook behind us — then Send is never built. */
-    sendHint: String? = null,
-    onSend: () -> Unit = {},
+    /** Copy's hint, or **null** when the screen offers no Copy — then the button is never built. */
+    copyHint: String? = null,
+    onCopy: () -> Unit = {},
 ) {
 
     private val floating = FloatingSelectionBar(
@@ -44,9 +46,9 @@ class InkSelectionBar(
         bar = bar,
         band = band,
         buttons = buildList {
-            if (sendHint != null) {
-                add(FloatingSelectionBar.Button(R.drawable.ic_pen_down, sendHint) {
-                    releaseRender(); onSend()
+            if (copyHint != null) {
+                add(FloatingSelectionBar.Button(R.drawable.ic_copy, copyHint) {
+                    releaseRender(); onCopy()
                 })
             }
             add(FloatingSelectionBar.Button(R.drawable.ic_trash, deleteHint) {

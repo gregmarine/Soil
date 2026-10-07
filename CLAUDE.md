@@ -25,6 +25,13 @@ references linked as they are typed in a document and converted from handwriting
 back references in Soil's link index and the reader's Notes panel, the verses as words, the
 `bible` clipboard, and these documents. `docs/design.md` §16 lists the phases.
 
+**The Calsprout effort is done and merged** (2026-10-05 to 2026-10-06): the calendar as a
+Sprout app with no items, SN's three pages and its events in Soil's app store over the seam,
+the clipboard in the notebook's shape on the pad and the calendar (strokes under the lasso,
+pages from a long-press sheet, a Day as two pages), the export screen's render-only mode, a
+day as a link target (`cal:`) from a notebook and a document with the calendar's Notes door on
+the shared backlinks panel, and these documents. `docs/design.md` §16 lists the phases.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.
@@ -34,7 +41,7 @@ when he is happy with it, not before.
 - `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
 - Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
   theme, chrome and ink), `:seam-kit`, `:markdown`, `:bible-ref` (the canon and the parser),
-  `:notesprout`, `:docsprout`, `:biblesprout`, `:ext-api` (the extension
+  `:notesprout`, `:docsprout`, `:biblesprout`, `:calsprout`, `:ext-api` (the extension
   contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`,
   `:ext-cloud` (needs `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET` in the shell), and
   `:seam-stranger` (joins the build only where its key exists).
@@ -61,6 +68,8 @@ when he is happy with it, not before.
   log. To move one, use the screen's own Copy and the field's Paste.
 - Ask before changing the device's home screen or accessibility settings. The commands, and the
   way back, are in `docs/building.md`.
+- Never `am force-stop` Soil on the device: Android drops its accessibility service, and the
+  side menu with it. The way back is in `docs/building.md`.
 
 ## Read first
 
@@ -68,7 +77,7 @@ when he is happy with it, not before.
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
-  `docs/notesprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
+  `docs/notesprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/calsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
   `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.

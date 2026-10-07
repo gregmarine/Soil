@@ -331,6 +331,8 @@
     <string name="follow_gone_body">What this link points to is no longer in the library.</string>
     <string name="follow_no_bible_body">Biblesprout is not installed.</string>
     <string name="follow_bible_failed_body">The Bible could not be opened.</string>
+    <string name="follow_no_calendar_body">Calsprout is not installed.</string>
+    <string name="follow_calendar_failed_body">The calendar could not be opened.</string>
     <string name="pick_page_title">Link to</string>
     <string name="pick_page_whole">The whole notebook</string>
     <string name="pick_page_numbered">Page %1$d</string>
@@ -386,8 +388,8 @@
     <string name="search_page_card_unnumbered">%1$s · a page</string>
 
     <!-- The Scratch Pad's Send -->
-    <string name="scratch_copy_page">Copy page to clipboard</string>
-    <string name="scratch_copy_selection">Copy selection to clipboard</string>
+    <string name="scratch_copy_page">Copy page</string>
+    <string name="scratch_copy_selection">Copy selection</string>
     <string name="scratch_copied_toast">Copied to the clipboard</string>
     <string name="scratch_nothing_to_copy_title">Nothing to copy</string>
     <string name="scratch_nothing_to_copy_body">There is no ink here to copy. Write something first, or lasso what you want to copy.</string>
@@ -395,6 +397,16 @@
     <string name="scratch_too_large_body">This holds more ink than the clipboard can carry. Copy a smaller part of it.</string>
     <string name="scratch_copy_failed_title">Clipboard</string>
     <string name="scratch_copy_failed_body">The ink could not be put on the clipboard. The clipboard was left as it was.</string>
+    <string name="scratch_page_sheet_title">This page</string>
+    <string name="scratch_paste_page">Paste page</string>
+    <string name="scratch_delete_page">Delete page</string>
+    <string name="scratch_paste_failed_title">Nothing to paste</string>
+    <string name="scratch_paste_failed_body">The clipboard holds no ink to paste here. Copy with the lasso in a notebook or in the calendar, then paste.</string>
+    <string name="scratch_paste_empty_body">The copied page holds no ink to paste.</string>
+    <string name="scratch_paste_page_failed_title">Nothing to paste</string>
+    <string name="scratch_paste_page_failed_body">The clipboard holds no page to paste here. Copy a page in a notebook or in the calendar, then paste.</string>
+    <string name="scratch_pasted_page_toast">Pasted as page %1$d</string>
+    <string name="scratch_clipboard_cleared_toast">Clipboard cleared</string>
     <string name="scratch_received_failed_title">Scratch Pad</string>
     <string name="scratch_received_failed_body">The ink sent to the pad could not be placed. Nothing was changed.</string>
 

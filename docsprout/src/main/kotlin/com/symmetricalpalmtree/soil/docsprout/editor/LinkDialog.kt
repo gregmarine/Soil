@@ -16,8 +16,9 @@ import com.symmetricalpalmtree.soil.seam.SoilAddress
 import com.symmetricalpalmtree.soil.paper.R as PaperR
 
 /**
- * Where a link in the rendered document points. Two ways to say: **Choose from library**, which
- * hands over to Soil's own picker (a notebook, a page of one, another document), or an address
+ * Where a link in the rendered document points. Three ways to say: **Choose from library**, which
+ * hands over to Soil's own picker (a notebook, a page of one, another document), **Choose a
+ * day**, the shared day picker for a day of the calendar (Calsprout, 2026-10-06), or an address
  * typed into the field. With a link already in place the dialog also offers to take it off.
  *
  * A link into the library is ids, which mean nothing to read: the field is left empty for one,
@@ -30,7 +31,7 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
  */
 internal object LinkDialog {
 
-    fun ask(activity: Activity, current: String?, onChooseFromLibrary: () -> Unit, apply: (String) -> Unit) {
+    fun ask(activity: Activity, current: String?, onChooseFromLibrary: () -> Unit, onChooseDay: () -> Unit, apply: (String) -> Unit) {
         if (activity.isFinishing || activity.isDestroyed) return
         val density = activity.resources.displayMetrics.density
         val pad = (12 * density).toInt()
@@ -60,11 +61,23 @@ internal object LinkDialog {
             setPadding(pad, pad, pad, pad)
             setOnClickListener { dialog?.dismiss(); onChooseFromLibrary() }
         }
+        val chooseDay = AppCompatButton(activity).apply {
+            setText(R.string.link_choose_day)
+            isAllCaps = false
+            textSize = 16f
+            setTextColor(ContextCompat.getColor(activity, PaperR.color.inkBlack))
+            background = ContextCompat.getDrawable(activity, PaperR.drawable.shape_bordered)
+            stateListAnimator = null
+            gravity = Gravity.CENTER
+            setPadding(pad, pad, pad, pad)
+            setOnClickListener { dialog?.dismiss(); onChooseDay() }
+        }
         val wrapper = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             val side = (24 * density).toInt()
             setPadding(side, (16 * density).toInt(), side, 0)
-            addView(choose, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = (16 * density).toInt() })
+            addView(choose, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = (8 * density).toInt() })
+            addView(chooseDay, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = (16 * density).toInt() })
             addView(input)
         }
         val builder = AlertDialog.Builder(activity)

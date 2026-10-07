@@ -57,6 +57,15 @@ class LinkPickerModelTest {
     }
 
     @Test
+    fun `the calendar shelf opens on a day prefill, offers no creates, and composes a day link`() {
+        assertEquals(LinkPickerModel.PickMode.CAL_DAY, LinkPickerModel.modeFor(LinkPayload.decode("L1|1|5|2026-10-06|")))
+        assertEquals(LinkPickerModel.CreateButtons(newPage = false, newNotebook = false), LinkPickerModel.createButtons(LinkPickerModel.PickMode.CAL_DAY, drilled = false))
+        assertEquals("L1|0|5|2026-10-06|", LinkPickerModel.composeOk(LinkPickerModel.PickMode.CAL_DAY, 0, "me", null, null, "2026-10-06"))
+        assertEquals(null, LinkPickerModel.composeOk(LinkPickerModel.PickMode.CAL_DAY, 0, "me", null, null, null))
+        assertEquals(null, LinkPickerModel.composeOk(LinkPickerModel.PickMode.CAL_DAY, 0, "me", null, null, "nonsense"))
+    }
+
+    @Test
     fun `a preview keeps the page's aspect, clamped, and never an absurd size`() {
         assertEquals(4f / 3f, PreviewMath.aspect(0, 10))
         assertEquals(PreviewMath.MAX_ASPECT, PreviewMath.aspect(1, 100))

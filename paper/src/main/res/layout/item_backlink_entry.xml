@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One Notes row: item_recent_entry.xml's two lines in this subject: the place that cites the
-     verses ("Study · Page 4", "Sermon · Document", 20sp), then its references (13sp). Both
-     inkBlack: secondary text is smaller, never grey. The detail line is one line, so a page
-     naming many references ellipsizes. 1dp separator below, inset like the Recents row's. -->
+<!-- One backlinks row: the place that links ("Study · Page 4", "Sermon · Document", 20sp), then
+     what it links to there (13sp). Both inkBlack: secondary text is smaller, never grey. The
+     detail line is one line, so a page naming many things ellipsizes. 1dp separator below. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/noteEntryRoot"
+    android:id="@+id/backlinkEntryRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
@@ -19,7 +18,7 @@
         android:paddingBottom="10dp">
 
         <TextView
-            android:id="@+id/noteTitle"
+            android:id="@+id/backlinkTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/inkBlack"
@@ -28,7 +27,7 @@
             android:ellipsize="end" />
 
         <TextView
-            android:id="@+id/noteDetail"
+            android:id="@+id/backlinkDetail"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"

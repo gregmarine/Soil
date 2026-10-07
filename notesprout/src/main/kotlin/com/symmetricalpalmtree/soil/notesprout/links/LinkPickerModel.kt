@@ -17,14 +17,16 @@ import com.symmetricalpalmtree.soil.notesprout.objects.LinkPayload
  */
 object LinkPickerModel {
 
-    /** The picker's three shelves, in the order of the mode row. */
-    enum class PickMode { THIS_NOTEBOOK, NOTEBOOK, NOTEBOOK_PAGE }
+    /** The picker's four shelves, in the order of the mode row. [CAL_DAY] is a day of the
+     *  calendar, chosen in the shared day picker (Calsprout, 2026-10-06). */
+    enum class PickMode { THIS_NOTEBOOK, NOTEBOOK, NOTEBOOK_PAGE, CAL_DAY }
 
     /** The shelf a prefill opens on; a fresh create, and any payload that cannot be read, opens
      *  on this notebook. An unreadable prefill is a silently fresh picker, never a dialog. */
     fun modeFor(decoded: LinkPayload.Decoded?): PickMode = when (decoded?.kind) {
         LinkPayload.KIND_ITEM -> PickMode.NOTEBOOK
         LinkPayload.KIND_ITEM_PAGE -> PickMode.NOTEBOOK_PAGE
+        LinkPayload.KIND_CAL -> PickMode.CAL_DAY
         else -> PickMode.THIS_NOTEBOOK
     }
 
@@ -54,6 +56,7 @@ object LinkPickerModel {
         PickMode.THIS_NOTEBOOK -> CreateButtons(newPage = true, newNotebook = false)
         PickMode.NOTEBOOK -> CreateButtons(newPage = false, newNotebook = true)
         PickMode.NOTEBOOK_PAGE -> if (drilled) CreateButtons(newPage = true, newNotebook = false) else CreateButtons(newPage = false, newNotebook = true)
+        PickMode.CAL_DAY -> CreateButtons(newPage = false, newNotebook = false)
     }
 
     /**
@@ -61,11 +64,12 @@ object LinkPickerModel {
      * mode whose second half is missing, or the self-target the exclusions already hide. Null is
      * the cue to explain, never a disabled OK and never a silent no-op.
      */
-    fun composeOk(mode: PickMode, chrome: Int, currentNotebookId: String, selectedNotebookId: String?, selectedPageId: String?): String? {
+    fun composeOk(mode: PickMode, chrome: Int, currentNotebookId: String, selectedNotebookId: String?, selectedPageId: String?, selectedDate: String? = null): String? {
         val (kind, itemId, pageId) = when (mode) {
             PickMode.THIS_NOTEBOOK -> Triple(LinkPayload.KIND_PAGE, null, selectedPageId ?: return null)
             PickMode.NOTEBOOK -> Triple(LinkPayload.KIND_ITEM, selectedNotebookId ?: return null, null)
             PickMode.NOTEBOOK_PAGE -> Triple(LinkPayload.KIND_ITEM_PAGE, selectedNotebookId ?: return null, selectedPageId ?: return null)
+            PickMode.CAL_DAY -> Triple(LinkPayload.KIND_CAL, selectedDate ?: return null, null)
         }
         if (itemId == currentNotebookId) return null
         // The ids come from the index and from rows: untrusted enough that a malformed one must

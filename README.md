@@ -14,14 +14,14 @@ their pages:
 | **Sketchsprout** | Raster pencil and ink sketching | Sketchbooks |
 | **Docsprout** | Written documents in Markdown | Documents |
 | **Biblesprout** | Bible reader; its position and recents in Soil's app store | None of its own |
-| **Calsprout** | Calendar and events | None yet; one calendar |
+| **Calsprout** | Calendar and events; its pages, events and notes in Soil's app store | None of its own |
 
 Soil replaces Notesprout SN and its extensions. It is the successor, not a companion.
 
 ## Status
 
-**The first build is done**, and runs on the Supernote Nomad as its home screen. None of the
-Sprout apps exist yet.
+**The first build is done**, and runs on the Supernote Nomad as its home screen. Notesprout,
+Docsprout, Biblesprout and Calsprout are built; Sketchsprout is not.
 
 | Part | State |
 |---|---|
@@ -35,7 +35,9 @@ Sprout apps exist yet.
 - [`docs/first-build.md`](docs/first-build.md) — the plan for the first build as it was granted, and what was decided. A record.
 - [`docs/building.md`](docs/building.md) — building, installing, turning the shell on and off.
 - [`docs/encryption.md`](docs/encryption.md), [`docs/shell.md`](docs/shell.md),
-  [`docs/scratchpad.md`](docs/scratchpad.md), [`docs/seam.md`](docs/seam.md) — each part as built.
+  [`docs/scratchpad.md`](docs/scratchpad.md), [`docs/seam.md`](docs/seam.md),
+  [`docs/notesprout.md`](docs/notesprout.md), [`docs/docsprout.md`](docs/docsprout.md),
+  [`docs/biblesprout.md`](docs/biblesprout.md), [`docs/calsprout.md`](docs/calsprout.md) — each part as built.
 - [`docs/design.md`](docs/design.md) — the design as decided so far, with the device probes behind it.
 - [`docs/references.md`](docs/references.md) — where the supporting probes and documents live.
 - [`BACKLOG.md`](BACKLOG.md) — ideas deliberately set aside for later.

@@ -61,6 +61,7 @@ import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBindi
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
+import com.symmetricalpalmtree.soil.paper.chrome.LassoPopup
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.notesprout.clip.BibleClipboard
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
@@ -248,6 +249,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             leaveFor = ::leaveFor,
             openElsewhere = ::openElsewhere,
             openBible = ::openBible,
+            openCalendar = ::openCalendar,
             editLink = ::beginEdit,
             removeLink = ::unlink,
         )
@@ -455,7 +457,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 // The library learns the page order at every open and every change: it names a
                 // tagged page by it without ever opening the file.
                 runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
-                SoilClipboard.ensureLoaded(seam)
+                // Read again, never once per process: the calendar or the pad may have copied
+                // since the last notebook this process opened read it (Greg, 2026-10-06).
+                SoilClipboard.refresh(seam)
                 BibleClipboard.refresh(seam)
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPages(item.id, pages.map { it.id }) } }
@@ -1063,6 +1067,20 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
     }
 
+    /** A link to a day: Soil opens the calendar on it, over this notebook. */
+    private fun openCalendar(date: String) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_CAL_DATE, date),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
+    }
+
     /**
      * The relay carries this notebook's pages to the picker through the live store, never a
      * second session on the file; the Intent carries only the prefill. What the answer applies
@@ -1518,8 +1536,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
             return
         }
-        // The anchor's number as it reads once the paste has landed: what the indicator shows.
-        val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before)
+        // The anchor's number as it reads once the paste has landed (every pasted page ahead of
+        // it, for a paste before): what the indicator shows.
+        val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before, env.rows.count { it.type == NotebookSchema.TYPE_PAGE })
         undo.record(doc.pastePage(env, before))
         preparePaper()
         showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
