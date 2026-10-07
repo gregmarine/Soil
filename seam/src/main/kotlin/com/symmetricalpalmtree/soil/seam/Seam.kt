@@ -81,6 +81,16 @@ object Seam {
     const val ACTION_EXPORT = "com.symmetricalpalmtree.soil.action.EXPORT"
     const val EXTRA_RETURN_TO_APP = "com.symmetricalpalmtree.soil.extra.RETURN_TO_APP"
 
+    /**
+     * The export screen's **render-only mode**, for an app with no item to export (the calendar):
+     * [EXTRA_RENDER_KIND] names the kind whose renderer draws the pages, [EXTRA_RENDER_KEY] what
+     * to draw — the string the renderer gets as its `itemId`, which only it reads — and
+     * [EXTRA_RENDER_NAME] the file stem. No library item, no key of one, only the page formats.
+     */
+    const val EXTRA_RENDER_KIND = "com.symmetricalpalmtree.soil.extra.RENDER_KIND"
+    const val EXTRA_RENDER_KEY = "com.symmetricalpalmtree.soil.extra.RENDER_KEY"
+    const val EXTRA_RENDER_NAME = "com.symmetricalpalmtree.soil.extra.RENDER_NAME"
+
     /** What a renderer says when it cannot: the exact messages of its IllegalStateException. */
     const val RENDER_EMPTY = "render: no pages"
     const val RENDER_TOO_LONG = "render: too many pages"

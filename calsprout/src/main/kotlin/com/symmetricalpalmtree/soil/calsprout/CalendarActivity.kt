@@ -89,7 +89,8 @@ import kotlin.coroutines.resume
  * [LassoPopup] under a re-tap holds Paste at the source coordinates and Clear. A finger long-press
  * raises the page sheet: Copy page writes the page — a Day both halves — as a notebook page clip
  * papered with the grid ([InkClip.pageEnvelopeOf]), which the notebook's page sheet pastes before
- * or after; Paste page lands a copied page's ink on the showing page at its own coordinates. The
+ * or after; Paste page lands a copied page's ink on the showing page at its own coordinates;
+ * Export… opens Soil's export screen on the period showing ([RenderKey], [RenderService]). The
  * slot's header is read again every time this screen comes to the front, so each Paste is offered
  * exactly when its kind of clip is there — absent, never disabled — and the lasso wears the
  * clipboard mark while ink is.
@@ -574,7 +575,27 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         if (clipKind == ClipEnvelope.KIND_PAGE) {
             sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.calendar_paste_page)) { runPageOp { pastePage() } }
         }
+        sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.calendar_export_action)) { runPageOp { exportPage() } }
         sheet.show()
+    }
+
+    /**
+     * Soil's export screen in its render-only mode, for the period showing — a Day whole, both
+     * halves. The page is flushed first, so what the render service reads is what is on it; the
+     * calendar stays open behind the screen (an app store is not a file to free), and Back
+     * comes back to it.
+     */
+    private suspend fun exportPage() {
+        val doc = document ?: return
+        doc.flushUntilClean()
+        val t = doc.target
+        Slog.d(TAG) { "export: ${RenderKey.of(t)}" }
+        startActivity(
+            Intent(Seam.ACTION_EXPORT).setPackage(BuildConfig.SOIL_PACKAGE)
+                .putExtra(Seam.EXTRA_RENDER_KIND, RenderKey.KIND)
+                .putExtra(Seam.EXTRA_RENDER_KEY, RenderKey.of(t))
+                .putExtra(Seam.EXTRA_RENDER_NAME, RenderKey.stemOf(t)),
+        )
     }
 
     /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with no ink to offer. */
