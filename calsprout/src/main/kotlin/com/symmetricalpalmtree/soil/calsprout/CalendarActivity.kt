@@ -20,8 +20,10 @@ import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
+import com.symmetricalpalmtree.soil.paper.chrome.LassoPopup
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
+import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.CalendarDates
 import com.symmetricalpalmtree.soil.paper.core.CalendarTarget
@@ -31,6 +33,7 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
+import com.symmetricalpalmtree.soil.paper.ink.InkPlacement
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
 import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
@@ -78,13 +81,17 @@ import kotlin.coroutines.resume
  * Every navigation writes the bookmark and nothing else — **rows are minted on the first stroke,
  * never on open**, so browsing an empty year leaves the store exactly as it was.
  *
- * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send). Copy on the
- * selection bar puts the lasso's strokes on the notebook slot as the pad does ([InkClip]); Paste
- * on the page sheet — a finger long-press, the notebook's gesture — lands what a notebook's or
- * the pad's lasso copied, centred and selected; Copy page writes the page — a Day both halves — as a notebook page clip papered with the grid
- * ([CalendarClip]), which the notebook's page sheet pastes before or after. The slot's header is
- * read again every time this screen comes to the front, so Paste is offered exactly when ink is
- * there — a row absent, never disabled.
+ * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send), and it is the
+ * notebook's shape exactly (Greg, 2026-10-06): **strokes are the lasso's, pages are the page
+ * sheet's.** Copy on the selection bar puts the lasso's strokes on the notebook slot as the pad
+ * does ([InkClip.envelopeOf]); a re-tap on the armed lasso opens the [LassoPopup], whose Paste
+ * lands what a notebook's or the pad's lasso copied, centred and selected. A finger long-press
+ * raises the page sheet: Copy page writes the page — a Day both halves — as a notebook page clip
+ * papered with the grid ([InkClip.pageEnvelopeOf]), which the notebook's page sheet pastes before
+ * or after; Paste page lands a copied page's ink on the showing page at its own coordinates. The
+ * slot's header is read again every time this screen comes to the front, so each Paste is offered
+ * exactly when its kind of clip is there — absent, never disabled — and the lasso wears the
+ * clipboard mark while ink is.
  *
  * Undo is **calendar-level, in memory, per showing**: an action names its page, and replaying one
  * recorded on another page navigates there first ([CalendarDocument.revert]).
@@ -123,9 +130,16 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     /** The day Soil asked for, or null for the bookmark. Read once, at create. */
     private var openOn: LocalDate? = null
 
-    /** The notebook slot holds a lasso's ink (an objects payload) — read at every resume; Paste is offered on it. */
+    private lateinit var lassoPopup: LassoPopup
+
+    /** What the notebook slot holds — [ClipEnvelope.KIND_OBJECTS], [ClipEnvelope.KIND_PAGE] or
+     *  null — read at every resume and set by every copy. Each Paste is offered on its own kind. */
     @Volatile
-    private var clipHasInk = false
+    private var clipKind: String? = null
+        set(value) {
+            field = value
+            markClipboard(value == ClipEnvelope.KIND_OBJECTS)
+        }
 
     /** What the template on the paper was baked from — the page, the day and the page size. A
      *  [showPage] whose key is unchanged (an undo or redo on the showing page) reloads the strokes
@@ -268,8 +282,15 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             onTitle = { showPicker() },
             // A second tap on the armed eraser toggles its sub-bar — Point · Lasso; arming a
             // different tool takes the bar with it.
-            onEraserReTap = { toggleEraserBar() },
-            onToolTapped = { hideEraserBar() },
+            onEraserReTap = { hideLassoPopup(); toggleEraserBar() },
+            onLassoReTap = { if (lassoPopup.isShowing) hideLassoPopup() else showLassoPopup() },
+            onToolTapped = { hideFloatingBars() },
+        )
+        lassoPopup = LassoPopup(
+            root = binding.root, bar = binding.lassoPopup, anchor = binding.btnLasso, bandBottom = { chromeBand()?.last },
+            releaseRender = { paper.releaseRender() },
+            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes() } },
+            onClear = { hideLassoPopup(); clearClipboard() },
         )
         // After the toolbar: a pick lands on `toolbar.arm` (a tool set from our side is never
         // echoed back as `onToolChanged`, so the buttons are synced by hand).
@@ -279,7 +300,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             anchor = binding.btnEraser,
             bandBottom = { chromeBand()?.last },
             paper = paper,
-            onPicked = { hideEraserBar(); toolbar.arm(it) },
+            onPicked = { hideFloatingBars(); toolbar.arm(it) },
         )
         selectionBar = InkSelectionBar(
             root = binding.root,
@@ -538,9 +559,9 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     // ── The clipboard ────────────────────────────────────────────────────────
 
     /**
-     * The page sheet, on a finger long-press as the notebook's is (Greg, 2026-10-06): Copy page,
-     * and Paste while the clipboard holds ink. Export… joins it with phase 7. A long press asks;
-     * it never acts.
+     * The page sheet, on a finger long-press as the notebook's is (Greg, 2026-10-06): the whole
+     * page's copy and paste — Copy page, and Paste page while the clipboard holds a page. Export…
+     * joins it with phase 7. A long press asks; it never acts.
      */
     private fun showPageSheet() {
         if (!opened || closing || isFinishing || isDestroyed) return
@@ -548,11 +569,53 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         val sheet = ActionSheetDialog(this)
             .title(getString(R.string.calendar_page_sheet_title))
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.calendar_copy_page)) { runPageOp { copyPage() } }
-        // Absent, never disabled, while the clipboard holds no ink to paste.
-        if (clipHasInk) {
-            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.calendar_paste)) { runPageOp { paste() } }
+        // Absent, never disabled, while the clipboard holds no page.
+        if (clipKind == ClipEnvelope.KIND_PAGE) {
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.calendar_paste_page)) { runPageOp { pastePage() } }
         }
         sheet.show()
+    }
+
+    /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with no ink to offer. */
+    private fun showLassoPopup() {
+        if (!opened || closing || clipKind != ClipEnvelope.KIND_OBJECTS) return
+        hideFloatingBars()
+        if (lassoPopup.show()) pushExclusions()
+    }
+
+    private fun hideLassoPopup() {
+        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
+        lassoPopup.hide()
+        pushExclusions()
+    }
+
+    override fun hideFloatingBars() {
+        super.hideFloatingBars()
+        hideLassoPopup()
+    }
+
+    /** A contact outside the popup takes it down; the lasso button is excluded, or its re-tap
+     *  would close the popup here and reopen it in the toolbar. */
+    override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
+        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
+        val x = ev.getX(index).toInt()
+        val y = ev.getY(index).toInt()
+        if (PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)) hideLassoPopup()
+    }
+
+    override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
+        ::lassoPopup.isInitialized && lassoPopup.isShowing && lassoPopup.contains(x, y)
+
+    override fun extraFloatingRects(): List<android.graphics.Rect> =
+        super.extraFloatingRects() + (if (::lassoPopup.isInitialized) lassoPopup.rects() else emptyList())
+
+    override fun extraFloatingContains(x: Int, y: Int): Boolean =
+        super.extraFloatingContains(x, y) || (::lassoPopup.isInitialized && lassoPopup.contains(x, y))
+
+    /** The lasso's clipboard mark, on the bar and on the collapsed chrome alike. */
+    private fun markClipboard(loaded: Boolean) {
+        if (::toolbar.isInitialized) toolbar.showClipboardLoaded(loaded)
+        collapsedClipboardLoaded(loaded)
     }
 
     /**
@@ -595,28 +658,26 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         val ink = doc.captureInk()
         val w = doc.pageWidth
         val h = doc.pageHeight
-        val captures = ArrayList<CalendarClip.PageCapture>(2)
+        val pages = ArrayList<InkClip.PageInk>(2)
         if (t.kind == CalendarTarget.KIND_DAY) {
             val other = CalendarTarget.of(CalendarTarget.KIND_DAY, t.localDate, if (t.half == CalendarTarget.HALF_AM) CalendarTarget.HALF_PM else CalendarTarget.HALF_AM)
             val store = (application as CalsproutApp).calendar()
             val stored = withContext(Dispatchers.IO) { store.readPage(other) }
             val halves = listOf(t to ink, other to stored.strokes).sortedBy { it.first.half }
-            for ((target, strokes) in halves) {
-                captures += CalendarClip.PageCapture(w, h, gridBytes(target), strokes)
-            }
+            for ((target, strokes) in halves) pages += InkClip.PageInk(w, h, gridBytes(target), strokes)
         } else {
-            captures += CalendarClip.PageCapture(w, h, gridBytes(t), ink)
+            pages += InkClip.PageInk(w, h, gridBytes(t), ink)
         }
         val now = System.currentTimeMillis()
-        val envelope = CalendarClip.pageEnvelope(captures, now) { CalendarStore.newId() }
-        val strokes = captures.flatMap { c -> c.strokes.map { it.second } }
+        val envelope = InkClip.pageEnvelopeOf(pages, now) { CalendarStore.newId() }
+        val strokes = pages.flatMap { p -> p.strokes.map { it.second } }
         val bytes = if (envelope != null && InkWire.withinLimits(strokes)) ClipEnvelope.encode(envelope) else null
         if (envelope == null || bytes == null) {
             Dialogs.problem(this, R.string.calendar_too_large_title, R.string.calendar_page_too_large_body)
             return
         }
         if (!putClip(envelope, bytes)) return
-        Slog.d(TAG) { "copied ${captures.size} page(s), ${strokes.size} strokes, ${bytes.size} bytes" }
+        Slog.d(TAG) { "copied ${pages.size} page(s), ${strokes.size} strokes, ${bytes.size} bytes" }
         Toast.makeText(this, R.string.calendar_copied_toast, Toast.LENGTH_SHORT).show()
     }
 
@@ -647,38 +708,64 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             Dialogs.problem(this, R.string.calendar_copy_failed_title, R.string.calendar_copy_failed_body)
             return false
         }
-        // A page clip is not ink to paste here; a copy of ink is. Either way the header is known.
-        clipHasInk = envelope.kind == ClipEnvelope.KIND_OBJECTS
+        clipKind = envelope.kind
         return true
     }
 
+    /** The clipboard's payload, or null for none or unreadable. IO. */
+    private suspend fun readClip(): ClipEnvelope? = withContext(Dispatchers.IO) {
+        runCatching {
+            val seam = (application as CalsproutApp).soil.seam()
+            ClipEnvelope.decode(seam.clip(InkClip.SLOT)?.let { SeamShared.readAndClose(it) })
+        }.onFailure { Log.w(TAG, "the clipboard was not read: ${it.javaClass.simpleName}") }.getOrNull()
+    }
+
     /**
-     * Paste the clipboard's ink onto the showing page, centred, under fresh ids, selected with
-     * the lasso armed so the pen can drag it into place at once. A page clip is not ink: the row
-     * was not offered for one, and one that arrived since is refused with a dialog.
+     * The lasso's Paste: the clipboard's ink onto the showing page, centred, under fresh ids,
+     * selected with the lasso armed so the pen can drag it into place at once. Anything but an
+     * objects payload — gone, or a page copied since — is refused with a dialog and the mark drops.
      */
-    private suspend fun paste() {
-        val doc = document ?: return
-        val pageId = doc.pageId
-        val env = withContext(Dispatchers.IO) {
-            runCatching {
-                val seam = (application as CalsproutApp).soil.seam()
-                ClipEnvelope.decode(seam.clip(InkClip.SLOT)?.let { SeamShared.readAndClose(it) })
-            }.onFailure { Log.w(TAG, "the clipboard was not read: ${it.javaClass.simpleName}") }.getOrNull()
-        }
-        val strokes = if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) emptyList() else InkClip.strokesOf(env)
-        if (strokes.isEmpty()) {
-            clipHasInk = false
+    private suspend fun pasteStrokes() {
+        val env = readClip()
+        if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) {
+            clipKind = env?.kind
             Dialogs.problem(this, R.string.calendar_paste_failed_title, R.string.calendar_paste_failed_body)
             return
         }
-        if (doc.pageId != pageId) return
-        val placed = CalendarClip.placeCentred(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
+        land(InkClip.strokesOf(env), centred = true)
+    }
+
+    /**
+     * The page sheet's Paste page: a copied page's ink onto the showing page **at its own
+     * coordinates** — the calendar has no page to insert, so the page's layout is what carries
+     * over (a notebook page's, a pad page's, another calendar page's; of a Day's two, the first).
+     */
+    private suspend fun pastePage() {
+        val env = readClip()
+        if (env == null || env.kind != ClipEnvelope.KIND_PAGE) {
+            clipKind = env?.kind
+            Dialogs.problem(this, R.string.calendar_paste_page_failed_title, R.string.calendar_paste_page_failed_body)
+            return
+        }
+        val firstPage = env.rows.firstOrNull { it.type == "page" }?.id
+        val onFirst = env.rows.filter { it.parentId == firstPage }.mapTo(HashSet()) { it.id }
+        val strokes = InkClip.strokesOf(env).filter { firstPage == null || it.id in onFirst }
+        land(strokes, centred = false)
+    }
+
+    private suspend fun land(strokes: List<Stroke>, centred: Boolean) {
+        val doc = document ?: return
+        val placed = if (centred) InkPlacement.centred(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
+        else InkPlacement.atSource(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
+        if (placed.isEmpty()) {
+            Dialogs.problem(this, R.string.calendar_paste_failed_title, R.string.calendar_paste_empty_body)
+            return
+        }
         val action = doc.paste(placed) ?: return
         record(action)
         showPage(firstLoad = false)
         landSelected(placed)
-        Slog.d(TAG) { "pasted ${placed.size} strokes" }
+        Slog.d(TAG) { "pasted ${placed.size} strokes (${if (centred) "centred" else "at source"})" }
     }
 
     /** What arrived, selected with the lasso armed. */
@@ -695,14 +782,24 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         pushExclusions()
     }
 
+    /** Throw the clipboard away, in Soil and in the mark. Never throws. */
+    private fun clearClipboard() {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { runCatching { (application as CalsproutApp).soil.seam().clearClip(InkClip.SLOT) } }
+            clipKind = null
+            Toast.makeText(this@CalendarActivity, R.string.calendar_clipboard_cleared_toast, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** The clipboard is the library's: a notebook or the pad may have copied to it while this
      *  screen was behind. A failed read leaves what was known. */
     private fun refreshClipHeader() {
         lifecycleScope.launch {
-            val kind = withContext(Dispatchers.IO) {
-                runCatching { (application as CalsproutApp).soil.seam().clipHeader(InkClip.SLOT)?.payloadKind }.getOrNull()
+            val read = withContext(Dispatchers.IO) {
+                runCatching { (application as CalsproutApp).soil.seam().clipHeader(InkClip.SLOT)?.payloadKind }
             }
-            if (kind != null || clipHasInk) clipHasInk = kind == ClipEnvelope.KIND_OBJECTS
+            if (read.isSuccess) clipKind = read.getOrNull()
         }
     }
 

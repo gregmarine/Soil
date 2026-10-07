@@ -289,4 +289,16 @@
         android:padding="4dp"
         android:visibility="gone" />
 
+    <!-- The lasso's popup (Paste · Clear clipboard), hung under the armed lasso on a re-tap —
+         the notebook's (:paper LassoPopup). The same lifecycle as the eraser's sub-bar. -->
+    <LinearLayout
+        android:id="@+id/lassoPopup"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
 </FrameLayout>

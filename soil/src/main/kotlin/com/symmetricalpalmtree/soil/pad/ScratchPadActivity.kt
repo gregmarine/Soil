@@ -32,14 +32,18 @@ import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.databinding.ActivityScratchPadBinding
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
+import com.symmetricalpalmtree.soil.paper.chrome.LassoPopup
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
+import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Immersive
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
+import com.symmetricalpalmtree.soil.paper.ink.InkPlacement
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
 import com.symmetricalpalmtree.soil.shell.MenuSignals
 import kotlinx.coroutines.CancellationException
@@ -64,11 +68,17 @@ import com.symmetricalpalmtree.soil.shell.SoilBarService
  * a key that has not been saved, and nothing can be while the library is locked. A shut gate
  * leads to the screen that opens it, and back here afterwards.
  *
- * **Copy** puts ink on the clipboard, whatever is behind the pad: the page from the top bar, the
- * lasso's strokes from the selection bar (decision 2026-10-04). It is the library's one ink
- * clipboard, written as a notebook's own Copy writes it ([InkClip]), so it is stored, it outlives
- * the pad and Soil, and what becomes of it is the paster's: a notebook pastes ink, a document
- * pastes the words it reads in it. The pad stays where it is. Ink a notebook sends to the pad
+ * **The clipboard is the notebook's shape exactly** (Greg, 2026-10-04 and 2026-10-06): **strokes
+ * are the lasso's, pages are the page sheet's.** Copy on the selection bar puts the lasso's
+ * strokes on the library's one ink clipboard as a notebook's own Copy writes it
+ * ([InkClip.envelopeOf]); a re-tap on the armed lasso opens the [LassoPopup], whose Paste lands
+ * what a notebook's, the calendar's or this pad's lasso copied, centred on the page and selected.
+ * A finger long-press raises the page sheet: Copy page (also the top bar's button) writes the
+ * page as a notebook page clip ([InkClip.pageEnvelopeOf]), which a notebook pastes before or
+ * after a page and the calendar lays on its own; Paste page lands a copied page — a notebook's,
+ * the calendar's — as a **new page after this one**, at the copied page's size; Delete page is
+ * the confirm it always was. The clipboard is stored, it outlives the pad and Soil, and what
+ * becomes of it is the paster's. The pad stays where it is. Ink a notebook sends to the pad
  * lands here as the pad shows, where the notebook said, selected.
  *
  * Frame silence: no app frame while `paper.isPenActive`. The page indicator waits for the gate
@@ -78,6 +88,17 @@ import com.symmetricalpalmtree.soil.shell.SoilBarService
  * the chrome flip at a finger double-tap.
  */
 class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
+
+    private lateinit var lassoPopup: LassoPopup
+
+    /** What the ink clipboard holds — [ClipEnvelope.KIND_OBJECTS], [ClipEnvelope.KIND_PAGE] or
+     *  null — read at every resume and set by every copy. Each Paste is offered on its own kind. */
+    @Volatile
+    private var clipKind: String? = null
+        set(value) {
+            field = value
+            markClipboard(value == ClipEnvelope.KIND_OBJECTS)
+        }
 
     private lateinit var binding: ActivityScratchPadBinding
     private lateinit var toolbar: ScratchToolbar
@@ -181,15 +202,22 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             pageIndicator = binding.pageIndicator,
             btnSend = binding.btnSend,
             showSend = true,
-            onSend = { copy(null) },
+            onSend = { runPageOp { copyPage() } },
             onBack = { exit() },
             // No-op at a bound, never disabled: a greyed control is invisible on e-ink.
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
             onNextPage = { runPageOp { flipTo(pageIndex() + 1) } },
             // A second tap on the armed eraser toggles its sub-bar — Point · Lasso; arming a
             // different tool takes the bar with it.
-            onEraserReTap = { toggleEraserBar() },
-            onToolTapped = { hideEraserBar() },
+            onEraserReTap = { hideLassoPopup(); toggleEraserBar() },
+            onLassoReTap = { if (lassoPopup.isShowing) hideLassoPopup() else showLassoPopup() },
+            onToolTapped = { hideFloatingBars() },
+        )
+        lassoPopup = LassoPopup(
+            root = binding.root, bar = binding.lassoPopup, anchor = binding.btnLasso, bandBottom = { chromeBand()?.last },
+            releaseRender = { paper.releaseRender() },
+            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes() } },
+            onClear = { hideLassoPopup(); clearClipboard() },
         )
         // After the toolbar: a pick lands on `toolbar.arm` (a tool set from our side is never
         // echoed back as `onToolChanged`, so the buttons are synced by hand).
@@ -199,7 +227,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             anchor = binding.btnEraser,
             bandBottom = { chromeBand()?.last },
             paper = paper,
-            onPicked = { hideEraserBar(); toolbar.arm(it) },
+            onPicked = { hideFloatingBars(); toolbar.arm(it) },
         )
         selectionBar = InkSelectionBar(
             root = binding.root,
@@ -210,7 +238,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
             copyHint = getString(R.string.scratch_copy_selection),
-            onCopy = { currentSelection?.strokeIds?.toHashSet()?.let { copy(it) } },
+            onCopy = { currentSelection?.strokeIds?.toHashSet()?.let { copySelection(it) } },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -327,18 +355,83 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         pushExclusions()
     }
 
+    // ── The clipboard ────────────────────────────────────────────────────────
+
     /**
-     * Copy the page ([ids] null) or the lasso's strokes to the clipboard, and stay. The pad keeps
-     * its ink and nothing goes on its undo stack. The page is flushed first, under the page-op
-     * lock. An empty pick, or one over the clipboard's cap, is a dialog, never silence; a copy
-     * that landed says so, since nothing else on the pad changes to show it.
+     * The page sheet, on a finger long-press as the notebook's is (Greg, 2026-10-06): the whole
+     * page's copy and paste, and the page's delete — Copy page; Paste page while the clipboard
+     * holds a page; Delete page, behind its confirm. A long press asks; it never acts. Ungated
+     * releaseRender() is safe here only because the long-press fired through PageGestures' own
+     * gate: it never arms while the pen is active and re-checks at fire.
      */
-    private fun copy(ids: Set<String>?) {
+    private fun showPageSheet() {
+        if (!opened || closing || isFinishing || isDestroyed) return
+        paper.releaseRender()
+        val sheet = ActionSheetDialog(this)
+            .title(getString(R.string.scratch_page_sheet_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.scratch_copy_page)) { runPageOp { copyPage() } }
+        // Absent, never disabled, while the clipboard holds no page.
+        if (clipKind == ClipEnvelope.KIND_PAGE) {
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.scratch_paste_page)) { runPageOp { pastePage() } }
+        }
+        sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.scratch_delete_page)) { confirmDeletePage() }
+        sheet.show()
+    }
+
+    /** Open the clipboard popup under the armed lasso, or keep the re-tap's silent no-op with no ink to offer. */
+    private fun showLassoPopup() {
+        if (!opened || closing || clipKind != ClipEnvelope.KIND_OBJECTS) return
+        hideFloatingBars()
+        if (lassoPopup.show()) pushExclusions()
+    }
+
+    private fun hideLassoPopup() {
+        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
+        lassoPopup.hide()
+        pushExclusions()
+    }
+
+    override fun hideFloatingBars() {
+        super.hideFloatingBars()
+        hideLassoPopup()
+    }
+
+    /** A contact outside the popup takes it down; the lasso button is excluded, or its re-tap
+     *  would close the popup here and reopen it in the toolbar. */
+    override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
+        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
+        val x = ev.getX(index).toInt()
+        val y = ev.getY(index).toInt()
+        if (PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)) hideLassoPopup()
+    }
+
+    override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
+        ::lassoPopup.isInitialized && lassoPopup.isShowing && lassoPopup.contains(x, y)
+
+    override fun extraFloatingRects(): List<android.graphics.Rect> =
+        super.extraFloatingRects() + (if (::lassoPopup.isInitialized) lassoPopup.rects() else emptyList())
+
+    override fun extraFloatingContains(x: Int, y: Int): Boolean =
+        super.extraFloatingContains(x, y) || (::lassoPopup.isInitialized && lassoPopup.contains(x, y))
+
+    /** The lasso's clipboard mark, on the bar and on the collapsed chrome alike. */
+    private fun markClipboard(loaded: Boolean) {
+        if (::toolbar.isInitialized) toolbar.showClipboardLoaded(loaded)
+        collapsedClipboardLoaded(loaded)
+    }
+
+    /**
+     * Copy the lasso's strokes to the clipboard, and stay. The pad keeps its ink and nothing goes
+     * on its undo stack. The page is flushed first, under the page-op lock. An empty pick, or
+     * one over the clipboard's cap, is a dialog, never silence; a copy that landed says so, since
+     * nothing else on the pad changes to show it.
+     */
+    private fun copySelection(ids: Set<String>) {
         if (!opened || closing) return
         runPageOp {
             val doc = document ?: return@runPageOp
             doc.flushUntilClean()
-            val picked = if (ids == null) doc.strokes else doc.strokes.filter { it.id in ids }
+            val picked = doc.strokes.filter { it.id in ids }
             val now = System.currentTimeMillis()
             val envelope = InkClip.envelopeOf(picked, now)
             if (envelope == null) {
@@ -350,16 +443,106 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
                 Dialogs.problem(this, R.string.scratch_too_large_title, R.string.scratch_too_large_body)
                 return@runPageOp
             }
-            val written = withContext(Dispatchers.IO) {
-                runCatching { ClipStore().put(InkClip.SLOT, SeamClip(envelope.kind, "", now), bytes) }
-                    .onFailure { Log.w(TAG, "the clipboard was not written: ${it.javaClass.simpleName}") }.isSuccess
-            }
-            if (!written) {
-                Dialogs.problem(this, R.string.scratch_copy_failed_title, R.string.scratch_copy_failed_body)
-                return@runPageOp
-            }
+            if (!putClip(envelope, bytes)) return@runPageOp
             Slog.d(TAG) { "copied ${envelope.rows.size} strokes to the clipboard" }
             Toast.makeText(this, R.string.scratch_copied_toast, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Copy page: the showing page, blank paper, as a notebook page clip. An empty page travels:
+     *  a blank page is a page. */
+    private suspend fun copyPage() {
+        val doc = document ?: return
+        doc.flushUntilClean()
+        val page = doc.currentInk()
+        val now = System.currentTimeMillis()
+        val envelope = InkClip.pageEnvelopeOf(listOf(InkClip.PageInk(page.width, page.height, null, page.strokes)), now) { ScratchStore.newId() }
+        val strokes = page.strokes.map { it.second }
+        val bytes = if (envelope != null && InkWire.withinLimits(strokes)) ClipEnvelope.encode(envelope) else null
+        if (envelope == null || bytes == null) {
+            Dialogs.problem(this, R.string.scratch_too_large_title, R.string.scratch_too_large_body)
+            return
+        }
+        if (!putClip(envelope, bytes)) return
+        Slog.d(TAG) { "copied the page: ${strokes.size} strokes, ${bytes.size} bytes" }
+        Toast.makeText(this, R.string.scratch_copied_toast, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Put [envelope] on the ink clipboard. False, after a dialog, when it would not take. */
+    private suspend fun putClip(envelope: ClipEnvelope, bytes: ByteArray): Boolean {
+        val written = withContext(Dispatchers.IO) {
+            runCatching { ClipStore().put(InkClip.SLOT, SeamClip(envelope.kind, "", envelope.copiedAt), bytes) }
+                .onFailure { Log.w(TAG, "the clipboard was not written: ${it.javaClass.simpleName}") }.isSuccess
+        }
+        if (!written) {
+            Dialogs.problem(this, R.string.scratch_copy_failed_title, R.string.scratch_copy_failed_body)
+            return false
+        }
+        clipKind = envelope.kind
+        return true
+    }
+
+    /** The clipboard's payload, or null for none or unreadable. IO. */
+    private suspend fun readClip(): ClipEnvelope? = withContext(Dispatchers.IO) {
+        runCatching { ClipEnvelope.decode(ClipStore().bytes(InkClip.SLOT)) }
+            .onFailure { Log.w(TAG, "the clipboard was not read: ${it.javaClass.simpleName}") }.getOrNull()
+    }
+
+    /**
+     * The lasso's Paste: the clipboard's ink onto the showing page, centred, under fresh ids,
+     * selected with the lasso armed so the pen can drag it into place at once. Anything but an
+     * objects payload — gone, or a page copied since — is refused with a dialog and the mark drops.
+     */
+    private suspend fun pasteStrokes() {
+        val doc = document ?: return
+        val env = readClip()
+        if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) {
+            clipKind = env?.kind
+            Dialogs.problem(this, R.string.scratch_paste_failed_title, R.string.scratch_paste_failed_body)
+            return
+        }
+        val placed = InkPlacement.centred(InkClip.strokesOf(env), doc.pageWidth, doc.pageHeight) { ScratchStore.newId() }
+        if (placed.isEmpty()) {
+            Dialogs.problem(this, R.string.scratch_paste_failed_title, R.string.scratch_paste_empty_body)
+            return
+        }
+        undo.record(doc.receive(InkWire.Bundle(doc.pageWidth, doc.pageHeight, placed), newPage = false))
+        showPage()
+        landSelected(placed)
+        Slog.d(TAG) { "pasted ${placed.size} strokes" }
+    }
+
+    /**
+     * The page sheet's Paste page: a copied page as a **new page after this one**, at the copied
+     * page's size (the pad's own when it names none), its ink at its own coordinates under fresh
+     * ids — of a Day's two pages, the first. One undo step: the page with its cargo.
+     */
+    private suspend fun pastePage() {
+        val doc = document ?: return
+        val env = readClip()
+        if (env == null || env.kind != ClipEnvelope.KIND_PAGE) {
+            clipKind = env?.kind
+            Dialogs.problem(this, R.string.scratch_paste_page_failed_title, R.string.scratch_paste_page_failed_body)
+            return
+        }
+        val firstPage = env.rows.firstOrNull { it.type == "page" }?.id
+        val onFirst = env.rows.filter { it.parentId == firstPage }.mapTo(HashSet()) { it.id }
+        val strokes = InkClip.strokesOf(env).filter { firstPage == null || it.id in onFirst }
+        val (w, h) = InkClip.pageSizeOf(env)?.takeIf { it.first > 0f && it.second > 0f } ?: (doc.pageWidth to doc.pageHeight)
+        val placed = InkPlacement.atSource(strokes, w, h) { ScratchStore.newId() }
+        undo.record(doc.receive(InkWire.Bundle(w, h, placed), newPage = true))
+        showPage()
+        Slog.d(TAG) { "pasted a page: ${placed.size} strokes at ${w.toInt()} × ${h.toInt()}" }
+        Toast.makeText(this, getString(R.string.scratch_pasted_page_toast, doc.pageIndex + 1), Toast.LENGTH_SHORT).show()
+    }
+
+    /** Throw the clipboard away, and the mark with it. Never throws. */
+    private fun clearClipboard() {
+        if (!opened || closing) return
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { runCatching { ClipStore().clear(InkClip.SLOT) } }
+            clipKind = null
+            Toast.makeText(this@ScratchPadActivity, R.string.scratch_clipboard_cleared_toast, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -377,7 +560,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         override fun onInsertBefore() = runPageOp { doInsert(after = false) }
         override fun onUndo() = runPageOp { doUndo() }
         override fun onRedo() = runPageOp { doRedo() }
-        override fun onPageSheetRequested() = confirmDeletePage()
+        override fun onPageSheetRequested() = showPageSheet()
         // A finger double-tap hides / shows the chrome. Nothing on the pad answers a single tap.
         override fun onFingerDoubleTap(x: Float, y: Float) = toggleChrome()
     }
@@ -446,6 +629,12 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
 
     override fun onResume() {
         super.onResume()
+        // The clipboard is the library's: a notebook or the calendar may have copied to it while
+        // the pad was behind. A failed read leaves what was known.
+        lifecycleScope.launch {
+            val read = withContext(Dispatchers.IO) { runCatching { ClipStore().header(InkClip.SLOT)?.payloadKind } }
+            if (read.isSuccess) clipKind = read.getOrNull()
+        }
         // The side menu is drawn over this screen, and shows only once the panel is let go.
         // `opened` says the paper exists and has its page.
         MenuSignals.beforeMenuShows = { if (opened && !closing && !paper.isPenActive) paper.releaseRender() }

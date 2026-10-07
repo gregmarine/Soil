@@ -24,7 +24,7 @@
     <!-- The band below the Month and Week grids, labelled in light ink on the paper itself. -->
     <string name="calendar_notes_label">Notes</string>
 
-    <!-- The page sheet, on a long-press: Copy page, Paste, and Export… (phase 7). -->
+    <!-- The page sheet, on a long-press: Copy page, Paste page, and Export… (phase 7). The lasso's popup holds the strokes' Paste. -->
     <string name="calendar_copy_page">Copy page</string>
     <string name="calendar_paste">Paste</string>
     <string name="calendar_export_action">Export…</string>
@@ -42,8 +42,13 @@
     <string name="calendar_page_too_large_body">This page holds more than the clipboard can carry. Copy a part of it with the lasso instead.</string>
     <string name="calendar_copy_failed_title">Clipboard</string>
     <string name="calendar_copy_failed_body">The ink could not be put on the clipboard. The clipboard was left as it was.</string>
+    <string name="calendar_paste_page">Paste page</string>
     <string name="calendar_paste_failed_title">Nothing to paste</string>
     <string name="calendar_paste_failed_body">The clipboard holds no ink to paste here. Copy with the lasso in a notebook or on the Scratch Pad, then paste.</string>
+    <string name="calendar_paste_empty_body">The copied page holds no ink to paste.</string>
+    <string name="calendar_paste_page_failed_title">Nothing to paste</string>
+    <string name="calendar_paste_page_failed_body">The clipboard holds no page to paste here. Copy a page in a notebook, on the Scratch Pad or in the calendar, then paste.</string>
+    <string name="calendar_clipboard_cleared_toast">Clipboard cleared</string>
 
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>

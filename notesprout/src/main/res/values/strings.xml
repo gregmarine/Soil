@@ -181,8 +181,6 @@
     <string name="clip_write_failed">The page couldn\'t be put on the clipboard. The clipboard was left unchanged.</string>
     <string name="copy_objects_action">Copy</string>
     <string name="cut_objects_action">Cut</string>
-    <string name="paste_objects_action">Paste</string>
-    <string name="clear_clipboard_action">Clear clipboard</string>
     <string name="objects_copied_toast">Copied</string>
     <string name="objects_cut_toast">Cut</string>
     <string name="objects_pasted_toast">Pasted</string>

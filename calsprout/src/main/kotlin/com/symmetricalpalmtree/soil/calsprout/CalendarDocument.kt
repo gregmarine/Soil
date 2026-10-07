@@ -159,7 +159,7 @@ class CalendarDocument(
 
     /**
      * Ink that arrived from the clipboard onto the showing page, appended after everything on it
-     * and written at once. The strokes were minted on arrival ([CalendarClip.placeCentred]); the
+     * and written at once. The strokes were minted on arrival (`InkPlacement`); the
      * one undo step takes exactly them away. Null for nothing to place.
      */
     suspend fun paste(strokes: List<Stroke>): InkAction.Pasted? {

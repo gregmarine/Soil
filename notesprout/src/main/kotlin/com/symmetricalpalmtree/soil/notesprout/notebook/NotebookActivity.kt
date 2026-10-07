@@ -61,6 +61,7 @@ import com.symmetricalpalmtree.soil.notesprout.databinding.ActivityNotebookBindi
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
+import com.symmetricalpalmtree.soil.paper.chrome.LassoPopup
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.notesprout.clip.BibleClipboard
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope

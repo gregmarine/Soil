@@ -45,4 +45,8 @@
     <string name="cd_picker_prev">Previous</string>
     <string name="cd_picker_next">Next</string>
     <string name="cd_picker_flip">Switch between days and months</string>
+
+    <!-- The lasso popup, shared by every surface that pastes strokes. -->
+    <string name="paste_objects_action">Paste</string>
+    <string name="clear_clipboard_action">Clear clipboard</string>
 </resources>
