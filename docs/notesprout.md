@@ -34,7 +34,8 @@ return, so a notebook in the background holds no file. Frame silence while the p
   below. The pen has one width and one of sixteen greys, remembered device-wide; a re-tap on
   the armed pen opens the shade panel, on the armed eraser the eraser bar. The chrome collapses.
 - **The page sheet** (a long press): Erase page, Delete page, Page template, Save as template,
-  Copy, Cut, Paste before or after, what links here, Export page, Export notebook.
+  Copy, Cut, Paste before or after (every page the clip carries, a calendar Day's two in order,
+  one undo step), what links here, Export page, Export notebook.
 - **The Recents** panel, from Soil's index, switches to a notebook opened lately.
 - **Objects**: typed headings (H1 to H6), Markdown text objects (the `:markdown` module, from
   SN whole), six shapes, sticky notes with an editor of their own over the notebook's store.

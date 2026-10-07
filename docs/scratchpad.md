@@ -17,13 +17,15 @@ SN's `scratchpad.md` and `sn-screen.md` (see `references.md`).
 | Undo, redo | Two-finger and three-finger double-tap. Kept in memory, for the screen's life |
 | Bars | A one-finger double-tap hides and shows them. The pad opens as it was left |
 | Delete a page | A long press asks first. Undo brings the page and its ink back |
-| Copy | The page, or the lasso's strokes, to the library's clipboard. The pad stays open. A notebook pastes it as ink, a document as words (`clipboard.md`) |
+| Copy | The page (the top bar, or the long-press sheet) as a notebook page clip, or the lasso's strokes from the selection bar, to the library's clipboard. The pad stays open. A notebook pastes a page as a page and ink as ink, a document ink as words (`clipboard.md`) |
+| Paste | Strokes: a stylus tap on bare paper under the armed lasso, centred on the tap, or the lasso's re-tap popup at the source. A page: the long-press sheet's Paste page, a new page after this one at the copied page's size (2026-10-06) |
+| Page sheet | A long press: Copy page, Paste page while the clipboard holds a page, Delete page behind its confirm |
 | Receive | Ink sent from a notebook's selection lands selected, on a new page or the current one |
 
 ## What it does not do yet
 
-- **Paste.** The pad copies but does not paste; ink reaches it from a notebook by Send
-  (`BACKLOG.md`).
+- **Retiring Send.** The pad pastes now, but a notebook's selection bar still sends ink to it
+  the old way (`BACKLOG.md`).
 - **A drawing to a sketchbook.** It waits for Sketchsprout.
 - **Shades.** There is no shade picker.
 

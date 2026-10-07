@@ -52,6 +52,16 @@ nothing to the item. With a bundle version that knows links it adds sticky notes
 pages after the item's pages, captioned "Note N — from page P", with jumps both ways, and a link
 to another page of the same item becomes a jump too.
 
+### Render-only: the calendar
+
+An app with no item to export (Calsprout) starts the export screen with `EXTRA_RENDER_KIND`,
+`EXTRA_RENDER_KEY` and `EXTRA_RENDER_NAME` in place of an item (`ExportRenderMode`): no library
+row and no key of one, only the page formats (PDF, images) with the paper toggle as the one
+option, the kind's renderer bound by `AppRenderers.find` and asked to `render` under the key as
+it would under an item id — the key is the renderer's to read (`RenderKey`: `M:`, `W:`, `D:` and
+the period's date; a Day is two pages, titled AM and PM). The name is the file stem; nothing is
+reopened on the way out, the app stayed open behind the screen (`calsprout.md`).
+
 ### What an app says of itself
 
 `describe()` answers a `SeamRenderInfo`: whether the kind **flows** (it has no pages of its own
@@ -137,8 +147,10 @@ into the index, and whatever Replace retires is deleted last.
 - A document's page size is chosen at export: Letter, A4 or this device's screen (2026-10-04).
 - Text, Markdown and the text PDF are written by Docsprout, not by an extension. So the text
   PDF takes no password in this cut: protection is `:ext-pdf`'s work (`BACKLOG.md`).
+- The calendar exports through the same screen in a render-only mode, under a key only its
+  renderer reads; its paper toggle takes the ring and the marks with the grid (2026-10-06).
 
 ## Walked on the Nomad
 
 Notesprout's phase 11, 2026-10-03. A document's export and the import of text files,
-Docsprout's phases 7 and 8, 2026-10-04.
+Docsprout's phases 7 and 8, 2026-10-04. The calendar's export, Calsprout's phase 7, 2026-10-06.

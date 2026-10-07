@@ -39,7 +39,7 @@ All under `~/git/Notesprout/apps/notesprout_sn/docs/` unless a path says otherwi
 | Documents | `document.md` |
 | Tags | `tags.md` |
 | Scratch Pad | `scratchpad.md` |
-| Calendar and events | `calendar.md` |
+| Calendar and events | `calendar.md` (the calendar as built in SN; Soil's is `docs/calsprout.md`) |
 | Objects: sticky notes, text, shapes | `objects.md` |
 | Page templates | `templates.md` |
 | Shared paper-screen code | `sn-screen.md` |

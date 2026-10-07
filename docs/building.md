@@ -96,6 +96,11 @@ from there. `adb pull` is safe.
 ## What cannot be tested over adb
 
 - **Ink.** It does not show in a screenshot, and adb cannot inject a pen.
+- **Force-stop.** `adb shell am force-stop` of Soil makes Android drop its accessibility
+  service, and the side menu with it; the setting reads back empty and `dumpsys accessibility`
+  lists the service as crashed. Never force-stop Soil. The way back is "Turn it on" above, but
+  the setting has to be **deleted** first (`settings delete secure enabled_accessibility_services`,
+  `accessibility_enabled 0`, then the two puts): a plain re-put does not rebind a crashed service.
 - **The side bars.** `adb shell input keyevent` never reaches the bar service. Only a real swipe
   on the bar tests the menu.
 - **Typing.** `adb shell input text` is swallowed by the Supernote's keyboard. Tap the keys, or

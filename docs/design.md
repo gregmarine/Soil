@@ -74,7 +74,7 @@ matters when other devices are supported.
 | **Sketchsprout** | Sketchbooks | A `.soil` per sketchbook |
 | **Docsprout** | Documents | A `.soil` per document |
 | **Biblesprout** | It has none | Soil's app store |
-| **Calsprout** | It has none yet | Soil's app store, one calendar |
+| **Calsprout** | It has none | Soil's app store, one calendar. **As built (2026-10-06):** `calsprout.md` |
 
 Notes:
 
@@ -105,7 +105,8 @@ Soil offers an app two kinds of storage.
 The app store is how Notesprout SN's extensions store data today: the app declares its tables
 once, sends SQL to the owner, and gets rows back. Every statement is checked before it runs.
 **As built (2026-10-05):** `openAppStore` on the seam, an `ISeamStore` over `garden/app_<package>.db`
-(`seam.md`); Biblesprout's position and recents are the first in it.
+(`seam.md`); Biblesprout's position and recents are the first in it, the calendar's pages,
+events and notes the second (2026-10-06).
 
 ### Rules
 
@@ -122,7 +123,8 @@ its own.
 
 Calsprout's tables must not assume there is only one calendar, and its screen asks Soil for
 "the calendar" through a single call. This keeps a later move to one file per calendar cheap.
-See `BACKLOG.md`.
+See `BACKLOG.md`. **As built (2026-10-06):** every per-calendar table carries a `calendarId`
+and every read names one; the app holds one store lease per process (`calsprout.md`).
 
 ---
 
@@ -149,7 +151,9 @@ Items are completely decoupled. A sketchbook or document belongs to no notebook.
 - Soil keeps one index of every link, since it writes every file. **As built (2026-10-05):**
   kept current at each write, and rebuilt from every file after a restore and from Settings
   (`LinkRebuild`); a link into the Bible is in it too, one row per verse range, so the reader
-  lists what cites the verses on its screen (`links.md`, `biblesprout.md`).
+  lists what cites the verses on its screen (`links.md`, `biblesprout.md`). **As built
+  (2026-10-06):** a day of the calendar is a link target too (`cal:<day>`), from a notebook and
+  a document, and the calendar lists what links into the period showing (`calsprout.md`).
 - *Proposed:* an item locked with its own passphrase is indexed but never prompted for until
   it is followed.
 
@@ -271,7 +275,8 @@ The pad can send to any item in the library, not only to the one that opened it.
 
 **As built (2026-10-04):** the pad copies its ink to the clipboard and stays open; a notebook
 pastes it as ink and a document as recognised words, in any item, any number of times
-(`clipboard.md`). A sketchbook waits for Sketchsprout.
+(`clipboard.md`). A sketchbook waits for Sketchsprout. **As built (2026-10-06):** the pad pastes
+too, in the notebook's shape: strokes under the lasso, a page from its long-press sheet.
 
 ---
 
@@ -330,6 +335,7 @@ kind renders it, and the export extension assembles the result.
 | Notebook | Notesprout |
 | Sketchbook | Sketchsprout |
 | Document | Docsprout |
+| Calendar | Calsprout, in the export screen's render-only mode (2026-10-06) |
 
 ---
 
@@ -517,6 +523,23 @@ The Biblesprout effort, on the branch `biblesprout`, twelve phases, each walked 
 | 10 | The `bible` clipboard: Copy in the reader, Paste in both apps, asked each time | `clipboard.md` |
 | 11 | The edges: Convert carries a reference, a backup carries the store, a restore rebuilds the index | `docsprout.md`, `backup.md` |
 | 12 | These documents | |
+
+The Calsprout effort, on the branch `calsprout`, eleven phases, each walked on the Nomad
+(2026-10-05 and 2026-10-06; phase 3 JVM only, phase 10's walk skipped):
+
+| Phase | What | Document |
+|---|---|---|
+| 1 | The app and the Month page; `ACTION_OPEN_CALENDAR`; the store over the app store; the dates into `:paper` | `calsprout.md`, `seam.md` |
+| 2 | Week and Day, navigation, the shared day picker | `calsprout.md` |
+| 3 | Events: the model and the store | `calsprout.md` |
+| 4 | The events screen and the editor | `calsprout.md` |
+| 5 | The note, the glyphs, the Day rows | `calsprout.md` |
+| 6 | Ink across: the clipboard in the notebook's shape on the pad and the calendar; a page clip of several pages | `clipboard.md`, `scratchpad.md` |
+| 7 | Export: the export screen's render-only mode | `export.md` |
+| 8 | A day as a link target, in Soil | `links.md`, `seam.md` |
+| 9 | Day links in the apps; the shared backlinks panel; the calendar's Notes door | `links.md`, `calsprout.md`, `biblesprout.md` |
+| 10 | The edges, checked | `backup.md` |
+| 11 | These documents | |
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
 

@@ -47,6 +47,7 @@ Not yet decided: how several calendars are viewed together.
 
 To keep this cheap, the first version's calendar tables must not assume there is only one
 calendar, and the calendar screen must ask Soil for its calendar through a single call.
+**2026-10-06:** built that way — a `calendarId` on every table, one lease per process.
 
 ---
 
@@ -201,6 +202,9 @@ wish is one way for both: the pad gets a Paste that places the clipboard's ink (
 and then the notebook's Send to Scratch Pad, its placement sheet, `sendInkToPad` and
 `PadTransfer` can go.
 
+**2026-10-06:** the pad has its Paste (strokes under the lasso, a page from the long-press
+sheet; `scratchpad.md`). What remains is retiring the notebook's Send to Scratch Pad.
+
 ## The Bible: what Biblesprout left out
 
 **Set aside 2026-10-05, as the Biblesprout effort was built.**
@@ -214,6 +218,25 @@ and then the notebook's Send to Scratch Pad, its placement sheet, `sendInkToPad`
   Insert bar's Bible reference, or by lassoing handwriting.
 - **A link the pass declined, offered later.** A reference the writer unlinked is linked again
   only by the Link tool on its words; there is no list of removed references to review.
+
+---
+
+## The calendar: what Calsprout left out
+
+**Set aside 2026-10-06, as the Calsprout effort was built.**
+
+- **Tasks, routines and the Today dashboard**: as above, not placed.
+- **Search over event titles.** None; the list is by day.
+- **Notifications.** Reminders are the look-ahead on the list, as in SN; nothing fires.
+- **A date-change receiver.** Today's ring is re-read when the screen resumes, as in SN; a day
+  that rolls over while the calendar is in front shows it on the next navigation.
+- **Multiple calendars**: as above.
+- **A typed date linking on its own.** A date in a document's prose is too common to link
+  unasked; the Link tool's Choose a day, a typed `cal:` address, and the notebook picker's
+  Calendar day shelf are the roads.
+- **The marks without the grid in an export.** The paper toggle takes today's ring and the
+  events' marks off with the grid; ink alone on white is the other setting.
+- **Retiring the notebook's Send to Scratch Pad**: as above.
 
 ---
 

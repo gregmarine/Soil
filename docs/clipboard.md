@@ -41,6 +41,23 @@ new page or the current one, as one `InkWire` document with fresh ids on arrival
 in memory (`sendInkToPad`, `PadTransfer`) and the pad lands it selected as it opens over the
 notebook. Replacing that with the same copy and paste is in `BACKLOG.md`.
 
+## The notebook's shape on every surface
+
+Reworked on 2026-10-06 (Greg), with Calsprout: on the Scratch Pad and the calendar the
+clipboard works exactly as in a notebook. **Strokes are the lasso's**: Copy on the selection
+bar (the copy icon, "Copy selection"); while the lasso is armed and ink is on the clipboard the
+lasso wears the mark, a stylus tap on bare paper pastes the ink centred on the tap, selected
+(`InkPlacement`), and the lasso's re-tap popup (`LassoPopup`, in `:paper` now) holds Paste at
+the source coordinates and Clear clipboard. **Pages are the long-press sheet's**: Copy page
+writes a notebook page clip (`InkClip.pageEnvelopeOf`: the page row at the page's size, the
+stroke rows, and for the calendar a `template` row carrying its grid as a picture, so a notebook
+dedupes it by bytes); Paste page is offered while the clipboard holds a page. A notebook pastes
+such a clip before or after the page showing, **every page row in order** (a calendar Day is
+two, AM then PM), each on its own paper, one undo step (`PageClip.plan` over N pages); the pad
+lands a page as a new page after the current one at the copied page's size; the calendar lays
+a copied page's ink on the showing page at its own coordinates. The pad's top-bar Copy page
+stays, and writes the same page clip.
+
 ## A passage from the Bible
 
 Reworked from SN's Send on 2026-10-05 (Greg): the reader copies, the apps paste, and the paste
@@ -57,4 +74,5 @@ asks each time.
   a linked text where the pen tapped, the verses in the verses column near it, under the page's
   cap. Clear clipboard empties this slot too.
 
-Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04.
+Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04;
+the notebook's shape on the pad and the calendar, Calsprout's phase 6, 2026-10-06.
