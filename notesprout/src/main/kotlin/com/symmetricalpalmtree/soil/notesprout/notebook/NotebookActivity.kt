@@ -77,6 +77,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.paper.core.CoverSnapshot
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.InkTones
 import com.symmetricalpalmtree.soil.paper.core.Immersive

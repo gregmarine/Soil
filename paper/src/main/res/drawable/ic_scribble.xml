@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tabler "scribble" (outline/scribble.svg) — the Scratch Pad's row in the side menu since the
+     Sketchsprout effort (Greg, 2026-10-06): the sketching glyph went to sketchbooks. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/inkBlack"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3 15c2 3 4 4 7 4s7 -3 7 -7s-3 -7 -6 -7s-6 2 -6 6s2 8 6 8s8 -4 8 -8"/>
+</vector>

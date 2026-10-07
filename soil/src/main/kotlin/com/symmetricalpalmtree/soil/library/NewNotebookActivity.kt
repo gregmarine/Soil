@@ -28,11 +28,15 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * **New notebook**: a name, prefilled from the folder's naming scheme (else the date and time),
- * over the whole template browser, ticked to the folder's default paper; Create makes the item
- * in Soil, folder and all, and opens it in its app with the pick, which the app lays onto the
- * first page as it lays any paper. The file is made here with the app's schema, empty: an app
- * finding no pages makes the first.
+ * **New notebook — and New sketchbook**: a name, prefilled from the folder's naming scheme (else
+ * the date and time), over the whole template browser, ticked to the folder's default paper;
+ * Create makes the item in Soil, folder and all, and opens it in its app with the pick, which the
+ * app lays onto the first page as it lays any paper. The file is made here with the app's schema,
+ * empty: an app finding no pages makes the first.
+ *
+ * The screen is one for both kinds (Greg, 2026-10-06: a sketchbook takes a paper from the
+ * library too), and [EXTRA_KIND] says which: the kind decides which app is asked for, what the
+ * index row says, and the failure's words. Nothing else differs.
  */
 class NewNotebookActivity : AppCompatActivity() {
 
@@ -41,6 +45,9 @@ class NewNotebookActivity : AppCompatActivity() {
     private var pick: TemplatePick = TemplatePick.Blank
     private var creating = false
     private val folderId: String get() = intent.getStringExtra(EXTRA_FOLDER_ID).orEmpty()
+
+    /** The kind being made: a notebook unless the intent says a sketchbook. */
+    private val kind: String get() = intent.getStringExtra(EXTRA_KIND).takeIf { it == IndexSchema.KIND_SKETCHBOOK } ?: IndexSchema.KIND_NOTEBOOK
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,12 +98,12 @@ class NewNotebookActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val id = withContext(Dispatchers.IO) {
-                    if (ItemApps.find(this@NewNotebookActivity, IndexSchema.KIND_NOTEBOOK) == null) return@withContext null
+                    if (ItemApps.find(this@NewNotebookActivity, kind) == null) return@withContext null
                     val id = UUID.randomUUID().toString()
                     val now = System.currentTimeMillis()
                     // The file first: a row with no file is an item that cannot be opened.
-                    ItemFiles.createEmpty(this@NewNotebookActivity, id, name, now, IndexSchema.KIND_NOTEBOOK)
-                    IndexStore().insert(id, IndexSchema.KIND_NOTEBOOK, name, now, folderId)
+                    ItemFiles.createEmpty(this@NewNotebookActivity, id, name, now, kind)
+                    IndexStore().insert(id, kind, name, now, folderId)
                     id
                 }
                 if (id == null) {
@@ -104,13 +111,14 @@ class NewNotebookActivity : AppCompatActivity() {
                     return@launch
                 }
                 ItemSessions.changed()
-                when (ItemApps.open(this@NewNotebookActivity, id, IndexSchema.KIND_NOTEBOOK, chosen.encode())) {
+                when (ItemApps.open(this@NewNotebookActivity, id, kind, chosen.encode())) {
                     ItemApps.Opened.YES -> finish()
                     else -> Dialogs.problem(this@NewNotebookActivity, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, name))
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "the notebook could not be made: ${e.javaClass.simpleName}")
-                Dialogs.problem(this@NewNotebookActivity, R.string.new_notebook_failed_title, R.string.new_notebook_failed_body)
+                Log.w(TAG, "the $kind could not be made: ${e.javaClass.simpleName}")
+                val titleRes = if (kind == IndexSchema.KIND_SKETCHBOOK) R.string.new_sketchbook_failed_title else R.string.new_notebook_failed_title
+                Dialogs.problem(this@NewNotebookActivity, titleRes, R.string.new_notebook_failed_body)
             } finally {
                 creating = false
             }
@@ -126,6 +134,10 @@ class NewNotebookActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "NewNotebook"
         private const val EXTRA_FOLDER_ID = "folderId"
-        fun intent(context: Context, folderId: String): Intent = Intent(context, NewNotebookActivity::class.java).putExtra(EXTRA_FOLDER_ID, folderId)
+        private const val EXTRA_KIND = "kind"
+
+        /** The screen for a new item of [kind] — [IndexSchema.KIND_NOTEBOOK] or [IndexSchema.KIND_SKETCHBOOK] — in [folderId]. */
+        fun intent(context: Context, folderId: String, kind: String = IndexSchema.KIND_NOTEBOOK): Intent =
+            Intent(context, NewNotebookActivity::class.java).putExtra(EXTRA_FOLDER_ID, folderId).putExtra(EXTRA_KIND, kind)
     }
 }

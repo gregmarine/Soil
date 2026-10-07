@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sketchsprout's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
+     not repeated here. -->
+<resources>
+    <string name="app_name">Sketchsprout</string>
+
+    <string name="sketch_opening">Opening…</string>
+
+    <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
+    <string name="cd_sketch_back">Back to the library</string>
+    <string name="cd_tool_pencil">Pencil</string>
+    <string name="cd_tool_eraser">Eraser</string>
+
+    <!-- The pager's indicator: this page of that many. -->
+    <string name="sketch_page_indicator">%1$d / %2$d</string>
+
+    <!-- Opening: never a path, never a name. -->
+    <string name="open_failed_title">Can\'t open sketchbook</string>
+    <string name="open_no_soil">Soil could not be reached. Sketchsprout keeps its sketchbooks in Soil.</string>
+    <string name="open_locked">The library is not open. Open it in Soil, then open the sketchbook again.</string>
+    <string name="open_missing">This sketchbook is no longer in the library.</string>
+    <string name="open_newer">This sketchbook was written by a later Sketchsprout. It has not been changed.</string>
+    <string name="open_failed">The sketchbook could not be opened. It has not been changed.</string>
+
+    <!-- Leaving with pixels that could not be written: a drawing with no other copy is a dialog,
+         never a log line. -->
+    <string name="sketch_not_saved_title">Not saved</string>
+    <string name="sketch_not_saved_body">The sketch could not be written to the sketchbook. Try again, or leave and lose what was drawn since the last save.</string>
+    <string name="sketch_try_again">Try again</string>
+    <string name="sketch_leave_anyway">Leave anyway</string>
+</resources>
