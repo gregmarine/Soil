@@ -49,4 +49,14 @@
     <!-- The lasso popup, shared by every surface that pastes strokes. -->
     <string name="paste_objects_action">Paste</string>
     <string name="clear_clipboard_action">Clear clipboard</string>
+
+    <!-- The backlinks panel, shared by the Bible reader's Notes and the calendar's Links. -->
+    <string name="cd_backlinks_back">Back</string>
+    <string name="cd_backlinks_first">First page</string>
+    <string name="cd_backlinks_prev">Previous page</string>
+    <string name="cd_backlinks_next">Next page</string>
+    <string name="cd_backlinks_last">Last page</string>
+    <string name="backlinks_page_word">Page</string>
+    <string name="backlinks_document_word">Document</string>
+    <string name="backlinks_page_indicator">%1$d / %2$d</string>
 </resources>

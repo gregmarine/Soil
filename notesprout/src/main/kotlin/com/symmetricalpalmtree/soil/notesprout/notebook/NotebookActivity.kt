@@ -249,6 +249,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             leaveFor = ::leaveFor,
             openElsewhere = ::openElsewhere,
             openBible = ::openBible,
+            openCalendar = ::openCalendar,
             editLink = ::beginEdit,
             removeLink = ::unlink,
         )
@@ -1061,6 +1062,20 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             startActivity(
                 android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
                     .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)
+    }
+
+    /** A link to a day: Soil opens the calendar on it, over this notebook. */
+    private fun openCalendar(date: String) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_CAL_DATE, date),
             )
         }.isSuccess
         if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)

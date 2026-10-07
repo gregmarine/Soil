@@ -16,6 +16,8 @@ import com.symmetricalpalmtree.gpaper.core.model.Selection
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.soil.calsprout.databinding.ActivityCalendarBinding
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksPanel
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
@@ -37,6 +39,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkPlacement
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
 import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
+import com.symmetricalpalmtree.soil.seam.SeamCalBacklink
 import com.symmetricalpalmtree.soil.seam.SeamClip
 import com.symmetricalpalmtree.soil.seam.SeamShared
 import com.symmetricalpalmtree.soil.seamkit.clip.ClipEnvelope
@@ -90,7 +93,9 @@ import kotlin.coroutines.resume
  * raises the page sheet: Copy page writes the page — a Day both halves — as a notebook page clip
  * papered with the grid ([InkClip.pageEnvelopeOf]), which the notebook's page sheet pastes before
  * or after; Paste page lands a copied page's ink on the showing page at its own coordinates;
- * Export… opens Soil's export screen on the period showing ([RenderKey], [RenderService]). The
+ * Export… opens Soil's export screen on the period showing ([RenderKey], [RenderService]).
+ * **Links** lists what in the library links into the period showing ([CalLinksModel]) in the
+ * shared backlinks panel, and is on the bar only while something does. The
  * slot's header is read again every time this screen comes to the front, so each Paste is offered
  * exactly when its kind of clip is there — absent, never disabled — and the lasso wears the
  * clipboard mark while ink is.
@@ -133,6 +138,13 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     private var openOn: LocalDate? = null
 
     private lateinit var lassoPopup: LassoPopup
+
+    /** The Links panel while it is up; one showing and one gather at a time. */
+    private var linksPanel: BacklinksPanel<CalLinksModel.Group>? = null
+    private var gatheringLinks = false
+
+    /** The page the Links door was last answered for: a stale answer is not applied. */
+    private var linksAskedFor: CalendarTarget? = null
 
     /** What the notebook slot holds — [ClipEnvelope.KIND_OBJECTS], [ClipEnvelope.KIND_PAGE] or
      *  null — read at every resume and set by every copy. Each Paste is offered on its own kind. */
@@ -278,7 +290,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             onView = { kind -> runPageOp { nav.toggled(kind)?.let { showMove(it) } } },
             onToday = { runPageOp { showMove(nav.todayMove(LocalDate.now(), nowHour())) } },
             onEvents = { openEvents() },
-            onLinks = null,    // phase 9
+            onLinks = { openLinks() },
             onPrev = { runPageOp { step(forward = false) } },
             onNext = { runPageOp { step(forward = true) } },
             onTitle = { showPicker() },
@@ -509,6 +521,74 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         toolbar.setTitle(titleOf(doc.target))
         // The latch says what is on the paper. It rides this frame; it is never one of its own.
         toolbar.setView(doc.target.kind)
+        refreshLinksDoor(doc.target)
+    }
+
+    // ── Links ────────────────────────────────────────────────────────────────
+
+    /** Whether anything links into [t]: asked of Soil's index on IO, the door shown on the
+     *  answer — for the page still showing, behind the pen-idle gate like the title. */
+    private fun refreshLinksDoor(t: CalendarTarget) {
+        linksAskedFor = t
+        lifecycleScope.launch {
+            val any = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (from, to) = CalLinksModel.scopeOf(t)
+                    (application as CalsproutApp).soil.seam().calBacklinks(CalendarDates.format(from), CalendarDates.format(to)).isNotEmpty()
+                }.getOrDefault(false)
+            }
+            if (linksAskedFor != t || closing || isFinishing || isDestroyed) return@launch
+            toolbar.showLinks(any)
+            syncCollapsed()
+        }
+    }
+
+    /** The Links panel: everything in the library that links into the period showing. */
+    private fun openLinks() {
+        if (!opened || closing || linksPanel != null || gatheringLinks) return
+        val t = document?.target ?: return
+        gatheringLinks = true
+        lifecycleScope.launch {
+            val rows: List<SeamCalBacklink> = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (from, to) = CalLinksModel.scopeOf(t)
+                    (application as CalsproutApp).soil.seam().calBacklinks(CalendarDates.format(from), CalendarDates.format(to))
+                }.getOrElse { e ->
+                    Log.w(TAG, "the links could not be read: ${e.javaClass.simpleName}")
+                    emptyList()
+                }
+            }
+            gatheringLinks = false
+            if (linksPanel != null || isFinishing || isDestroyed || closing) return@launch
+            val groups = CalLinksModel.group(rows)
+            Slog.d(TAG) { "links: ${groups.size} entr(ies) of ${rows.size} row(s)" }
+            val pageWord = getString(com.symmetricalpalmtree.soil.paper.R.string.backlinks_page_word)
+            val documentWord = getString(com.symmetricalpalmtree.soil.paper.R.string.backlinks_document_word)
+            paper.releaseRender()
+            linksPanel = BacklinksPanel(
+                this@CalendarActivity,
+                title = getString(R.string.calendar_links_title),
+                emptyText = getString(R.string.calendar_links_empty, titleOf(t)),
+                rows = groups.map { BacklinksModel.Row(it, BacklinksModel.title(it.name, it.pageId, it.pageNumber, pageWord, documentWord), CalLinksModel.detail(it)) },
+                onDismissed = { linksPanel = null },
+                onPicked = ::followLink,
+            ).also { it.show() }
+        }
+    }
+
+    /** A row followed: Soil opens the page, or the document, in its app over the calendar, and
+     *  Back comes back here. */
+    private fun followLink(group: CalLinksModel.Group) {
+        if (isFinishing || closing) return
+        Slog.d(TAG) { "open a link's source: ${group.kind}" }
+        val started = runCatching {
+            startActivity(
+                Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, group.itemId)
+                    .putExtra(Seam.EXTRA_PAGE_ID, group.pageId.takeIf { it.isNotEmpty() }),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.calendar_links_title, R.string.calendar_links_no_soil)
     }
 
     /**
@@ -873,6 +953,12 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     override fun onPause() {
         (application as CalsproutApp).left(this)
         super.onPause()
+    }
+
+    override fun onScreenDestroyed() {
+        super.onScreenDestroyed()
+        linksPanel?.dismiss()
+        linksPanel = null
     }
 
     private companion object {

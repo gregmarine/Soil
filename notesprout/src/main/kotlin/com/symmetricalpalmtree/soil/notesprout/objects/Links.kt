@@ -7,6 +7,7 @@ import com.symmetricalpalmtree.soil.markdown.HeadingTypography
 import com.symmetricalpalmtree.soil.paper.store.Row
 import com.symmetricalpalmtree.soil.bibleref.ReferenceCodec
 import com.symmetricalpalmtree.soil.seam.BibleAddress
+import com.symmetricalpalmtree.soil.seam.CalAddress
 import kotlin.math.max
 
 /**
@@ -22,6 +23,7 @@ import kotlin.math.max
  * | [KIND_ITEM_PAGE] | a page of another item |
  * | [KIND_BIBLE] | a passage of scripture: the wire in the item slot, no page id |
  * | [KIND_BIBLE_TEXT] | the verses of a passage, as text on the page: the same slots |
+ * | [KIND_CAL] | a day of the calendar: the day (`yyyy-MM-dd`) in the item slot, no page id |
  *
  * The item slot is SN's notebook slot: in Soil a link may point at any kind of item, and what
  * kind it is, the library says, never the payload. A Bible kind's slot holds a wire
@@ -44,6 +46,7 @@ object LinkPayload {
     const val KIND_ITEM_PAGE = 2
     const val KIND_BIBLE = 3
     const val KIND_BIBLE_TEXT = 4
+    const val KIND_CAL = 5
 
     /** The file is untrusted input: a payload is capped both ways. */
     const val MAX_PAYLOAD_CHARS = 2_000
@@ -56,6 +59,8 @@ object LinkPayload {
         val pageId: String?,
         /** The wire when [kind] is [KIND_BIBLE] or [KIND_BIBLE_TEXT], else null. Never logged. */
         val reference: String? = null,
+        /** The day (`yyyy-MM-dd`) when [kind] is [KIND_CAL], else null. */
+        val date: String? = null,
     )
 
     fun encode(chrome: Int, kind: Int, itemId: String?, pageId: String?): String {
@@ -77,6 +82,10 @@ object LinkPayload {
                 require(itemId != null && BibleAddress.isWire(itemId)) { "a Bible kind carries a wire" }
                 require(pageId == null) { "a Bible kind carries no page id" }
             }
+            KIND_CAL -> {
+                require(itemId != null && CalAddress.isDate(itemId)) { "a day link carries a day" }
+                require(pageId == null) { "a day link carries no page id" }
+            }
             else -> throw IllegalArgumentException("unknown kind $kind")
         }
         return "$VERSION$SEP$chrome$SEP$kind$SEP${itemId.orEmpty()}$SEP${pageId.orEmpty()}"
@@ -95,6 +104,10 @@ object LinkPayload {
             if (pageId != null || itemId == null || !BibleAddress.isWire(itemId)) return null
             return Decoded(chrome, kind, itemId = null, pageId = null, reference = itemId)
         }
+        if (kind == KIND_CAL) {
+            if (pageId != null || itemId == null || !CalAddress.isDate(itemId)) return null
+            return Decoded(chrome, kind, itemId = null, pageId = null, date = itemId)
+        }
         val ok = when (kind) {
             KIND_PAGE -> itemId == null && validId(pageId)
             KIND_ITEM -> pageId == null && validId(itemId)
@@ -107,6 +120,9 @@ object LinkPayload {
     /** The wire a Bible payload names, either kind, or null for every other payload: the one
      *  predicate the screen asks to tell a Bible link from any other. */
     fun referenceOf(payload: String): String? = decode(payload)?.reference
+
+    /** The day a calendar payload names, or null for every other payload. */
+    fun dateOf(payload: String): String? = decode(payload)?.date
 
     /** Whether [payload] is the verses on the page ([KIND_BIBLE_TEXT]), whose Edit is the text
      *  dialog rather than the reference dialog. */
@@ -277,6 +293,8 @@ object LinkNav {
         data class OtherItem(val itemId: String, val pageId: String?) : Follow
         /** A passage: Soil opens the Bible's reader on [wire]. */
         data class Bible(val wire: String) : Follow
+        /** A day: Soil opens the calendar on it. */
+        data class Cal(val date: String) : Follow
         object Dead : Follow
         object NoOp : Follow
     }
@@ -285,6 +303,7 @@ object LinkNav {
         val d = LinkPayload.decode(payload) ?: return Follow.Dead
         // A wire the codec cannot read points nowhere the reader could go.
         d.reference?.let { return if (ReferenceCodec.decode(it) != null) Follow.Bible(it) else Follow.Dead }
+        d.date?.let { return Follow.Cal(it) }
         return when (d.kind) {
             LinkPayload.KIND_PAGE -> Follow.SamePage(d.pageId!!)
             LinkPayload.KIND_ITEM -> if (d.itemId == currentItemId) Follow.NoOp else Follow.OtherItem(d.itemId!!, null)

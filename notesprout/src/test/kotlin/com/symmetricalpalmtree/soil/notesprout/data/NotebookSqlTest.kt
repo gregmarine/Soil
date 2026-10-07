@@ -129,6 +129,15 @@ class NotebookSqlTest {
     }
 
     @Test
+    fun `a link to a day mirrors as one row the seam admits, and drops as one`() {
+        val rows = NotebookSql.mirrorRows("c1", "L1|1|5|2026-10-06|", "p1", "nb")
+        assertEquals(listOf(SeamLinks.PUT_CAL), rows.map { it.sql })
+        assertEquals(listOf<Cell>(Cell.Text("c1"), Cell.Text("p1"), Cell.Text("2026-10-06")), rows.single().args)
+        assertTrue(SeamSql.writesLinkMirror(rows.single().sql))
+        assertEquals(listOf(Cell.Text("c1")), NotebookSql.mirrorDrops("c1", "L1|1|5|2026-10-06|").map { it.args[0] })
+    }
+
+    @Test
     fun `a link into the Bible mirrors one row per range, and drops them all`() {
         val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
         val rows = NotebookSql.mirrorRows("b1", "L1|1|3|$wire|", "p1", "nb")

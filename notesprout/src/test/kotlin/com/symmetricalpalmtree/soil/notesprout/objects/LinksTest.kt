@@ -41,6 +41,24 @@ class LinksTest {
     }
 
     @Test
+    fun `a day link carries the day in the item slot and decodes to a date, never an item`() {
+        assertEquals("L1|1|5|2026-10-06|", LinkPayload.encode(1, LinkPayload.KIND_CAL, "2026-10-06", null))
+        val d = LinkPayload.decode("L1|1|5|2026-10-06|")!!
+        assertEquals(LinkPayload.KIND_CAL, d.kind)
+        assertEquals("2026-10-06", d.date)
+        assertNull(d.itemId)
+        assertNull(d.reference)
+        assertEquals("2026-10-06", LinkPayload.dateOf("L1|1|5|2026-10-06|"))
+        assertNull(LinkPayload.dateOf("L1|1|0||p1"))
+        assertNull(LinkPayload.decode("L1|1|5|2026-13-06|"))
+        assertNull(LinkPayload.decode("L1|1|5|2026-10-06|p"))
+        assertNull(LinkPayload.decode("L1|1|5||"))
+        assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, LinkPayload.KIND_CAL, "tomorrow", null) }
+        assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, LinkPayload.KIND_CAL, "2026-10-06", "p") }
+        assertEquals(LinkNav.Follow.Cal("2026-10-06"), LinkNav.planFollow("L1|1|5|2026-10-06|", "me"))
+    }
+
+    @Test
     fun `encode refuses a caller's mistake`() {
         assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(2, 0, null, "p") }
         assertThrows(IllegalArgumentException::class.java) { LinkPayload.encode(1, 0, "nb", "p") }

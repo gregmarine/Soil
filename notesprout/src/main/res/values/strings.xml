@@ -99,6 +99,7 @@
     <string name="link_mode_this_notebook">This notebook</string>
     <string name="link_mode_notebook">Notebook or document</string>
     <string name="link_mode_notebook_page">Notebook page</string>
+    <string name="link_mode_cal_day">Calendar day</string>
     <string name="link_style_label">Style</string>
     <string name="link_style_underline">Underline</string>
     <string name="link_style_none">None</string>
@@ -118,6 +119,9 @@
     <string name="link_item_other">Item</string>
     <string name="link_follow_failed_body">Soil could not be asked to open it.</string>
     <string name="link_pick_none_notebook_page">Open a notebook, then tap the page this link should open.</string>
+    <string name="link_pick_none_day">Choose the day this link should open.</string>
+    <string name="link_picker_choose_day">Tap here to choose a day.</string>
+    <string name="link_picker_day_chosen">%1$s\n\nTap to choose another day.</string>
     <string name="link_new_page">New page</string>
     <string name="link_choose_notebook">Choose notebook</string>
     <string name="link_picker_choose_notebook">Choose from the library.</string>

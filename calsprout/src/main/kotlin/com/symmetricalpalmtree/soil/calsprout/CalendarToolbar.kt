@@ -32,8 +32,8 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
  * this just forwards the re-tap. Smart lasso and scribble erase are armed by the screen before
  * the listener attaches.
  *
- * **Events and Links are GONE until their phases land** — GONE, never disabled: a greyed
- * control is invisible on e-ink.
+ * **Links shows only while something links into the period showing** ([showLinks]) — GONE
+ * otherwise, never disabled: a greyed control is invisible on e-ink.
  *
  * **The title waits for the pen.** Never present an app frame while [PaperView.isPenActive].
  */
@@ -49,7 +49,7 @@ class CalendarToolbar(
     private val btnDay: View,
     btnToday: View,
     btnEvents: ImageButton,
-    btnLinks: ImageButton,
+    private val btnLinks: ImageButton,
     btnPrev: ImageButton,
     btnNext: ImageButton,
     private val title: TextView,
@@ -78,6 +78,9 @@ class CalendarToolbar(
 ) {
 
     private val tools: PaperToolbar
+
+    /** Whether the screen offers a Links door at all ([showLinks] shows it only then). */
+    private val hasLinksDoor: Boolean
 
     init {
         paper.tool = Tool.PEN
@@ -116,12 +119,10 @@ class CalendarToolbar(
         } else {
             btnEvents.visibility = View.GONE
         }
-        if (onLinks != null) {
-            btnLinks.visibility = View.VISIBLE
-            btnLinks.setOnClickListener { releaseRenderIfIdle(); onLinks() }
-        } else {
-            btnLinks.visibility = View.GONE
-        }
+        hasLinksDoor = onLinks != null
+        // GONE until a page shown has links into it: the screen says so through [showLinks].
+        btnLinks.visibility = View.GONE
+        if (onLinks != null) btnLinks.setOnClickListener { releaseRenderIfIdle(); onLinks() }
         title.setOnClickListener { releaseRenderIfIdle(); onTitle() }
         title.text = ""
     }
@@ -133,6 +134,12 @@ class CalendarToolbar(
         btnMonth.isSelected = kind == CalendarTarget.KIND_MONTH
         btnWeek.isSelected = kind == CalendarTarget.KIND_WEEK
         btnDay.isSelected = kind == CalendarTarget.KIND_DAY
+    }
+
+    /** The Links door, present exactly while the page showing has links into it. Idempotent. */
+    fun showLinks(visible: Boolean) {
+        val want = if (visible && hasLinksDoor) View.VISIBLE else View.GONE
+        if (btnLinks.visibility != want) btnLinks.visibility = want
     }
 
     /** Make the tool buttons honest — driven from `PaperListener.onToolChanged`, never from a tap:

@@ -50,6 +50,11 @@
     <string name="calendar_paste_page_failed_body">The clipboard holds no page to paste here. Copy a page in a notebook, on the Scratch Pad or in the calendar, then paste.</string>
     <string name="calendar_clipboard_cleared_toast">Clipboard cleared</string>
 
+    <!-- The Links panel: what in the library links into the period showing. -->
+    <string name="calendar_links_title">Links</string>
+    <string name="calendar_links_empty">Nothing links into %1$s</string>
+    <string name="calendar_links_no_soil">Soil could not be asked to open it.</string>
+
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>
     <string name="calendar_store_failed_body">Soil could not open the calendar\'s storage. Nothing was lost. Unlock the library in Soil and try again.</string>

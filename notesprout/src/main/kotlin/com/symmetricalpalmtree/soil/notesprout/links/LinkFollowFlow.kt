@@ -52,6 +52,8 @@ class LinkFollowFlow(
     private val openElsewhere: (itemId: String) -> Unit,
     /** A passage: Soil opens the Bible's reader on the wire, over this notebook. */
     private val openBible: (wire: String) -> Unit,
+    /** A day: Soil opens the calendar on it, over this notebook. */
+    private val openCalendar: (date: String) -> Unit,
     private val editLink: (PageLink) -> Unit,
     /** Unwrap the link, its content kept: the other way out of a dead end. Undoable. */
     private val removeLink: (PageLink) -> Unit,
@@ -97,6 +99,13 @@ class LinkFollowFlow(
                     if (alive()) {
                         Slog.d(TAG) { "follow: a passage, handed to Soil" }
                         openBible(plan.wire)
+                    }
+                }
+                is LinkNav.Follow.Cal -> {
+                    busy = false
+                    if (alive()) {
+                        Slog.d(TAG) { "follow: a day, handed to Soil" }
+                        openCalendar(plan.date)
                     }
                 }
             }

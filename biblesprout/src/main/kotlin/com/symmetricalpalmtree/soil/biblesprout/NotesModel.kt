@@ -1,13 +1,14 @@
 package com.symmetricalpalmtree.soil.biblesprout
 
 import com.symmetricalpalmtree.soil.bibleref.*
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
 import com.symmetricalpalmtree.soil.seam.SeamBibleBacklink
-import kotlin.math.roundToInt
 
 /**
  * What the Notes panel shows, as arithmetic (pure Kotlin, JVM-tested): the scope the reader is
  * in, and the rows of Soil's link index grouped into the things that cite it: a notebook page,
- * or a document.
+ * or a document. The panel itself is `:paper`'s [BacklinksPanel] (shared with the calendar's
+ * Links since Calsprout, 2026-10-06); this is the wording of its rows.
  *
  * **Scope is the chapter in view, or the passage's own ranges.** A chapter is one range across
  * its whole verse band, which is why a whole-chapter link (`c:0`–`c:999`) and a single-verse
@@ -23,11 +24,10 @@ import kotlin.math.roundToInt
  */
 object NotesModel {
 
-    /** The panel's share of the window width: the Contents' 60 %, wider than the Recents' 50 %,
-     *  because a row is a name, a page and a list of references. */
-    const val SIDEBAR_WIDTH_FRACTION = 0.60f
+    /** The panel's share of the window width — the shared panel's ([BacklinksModel]). */
+    const val SIDEBAR_WIDTH_FRACTION = BacklinksModel.SIDEBAR_WIDTH_FRACTION
 
-    fun sidebarWidthPx(windowWidthPx: Int): Int = (windowWidthPx * SIDEBAR_WIDTH_FRACTION).roundToInt()
+    fun sidebarWidthPx(windowWidthPx: Int): Int = BacklinksModel.sidebarWidthPx(windowWidthPx)
 
     /**
      * The verse ranges the reader is standing in. **Passage mode wins**: when [passages] is
@@ -96,7 +96,7 @@ object NotesModel {
     /** A row's first line: the item, then where in it: `"Study · Page 4"`, or `"Sermon · Document"`
      *  for an item with no pages. The words are the caller's, so this stays free of Android. */
     fun title(group: NoteGroup, pageWord: String, documentWord: String): String =
-        if (group.pageId.isEmpty()) "${group.name} · $documentWord" else "${group.name} · $pageWord ${group.pageNumber}"
+        BacklinksModel.title(group.name, group.pageId, group.pageNumber, pageWord, documentWord)
 
     /** A row's second line: the references it holds. */
     fun detail(group: NoteGroup): String = group.labels.joinToString("; ")

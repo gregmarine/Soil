@@ -19,6 +19,8 @@ import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBindin
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.LinkSpan
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.paper.chrome.DayPickerDialog
+import com.symmetricalpalmtree.soil.paper.core.CalendarDates
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.seam.CalAddress
 import com.symmetricalpalmtree.soil.seam.Seam
@@ -239,6 +241,19 @@ internal class DocumentLinksControl(
             pendingPick = null
             Log.w(TAG, "Soil's picker would not open: ${e.javaClass.simpleName}")
             Dialogs.problem(activity, R.string.link_failed_title, R.string.link_picker_failed_body)
+        }
+    }
+
+    /**
+     * A day of the calendar, from the shared day picker — on the day the link already names, or
+     * today. The address is `cal:<day>`; the words are the day's own, for a selection that has
+     * none. A cancel changes nothing.
+     */
+    fun chooseDay(current: String?, apply: (url: String, words: String) -> Unit) {
+        if (!usable()) return
+        val initial = current?.let { CalAddress.decode(it) }?.let { CalendarDates.parse(it.date) } ?: java.time.LocalDate.now()
+        DayPickerDialog.show(activity, initial) { day ->
+            apply(CalAddress(CalendarDates.format(day)).encode(), CalendarDates.dayLabel(day))
         }
     }
 
