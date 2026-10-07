@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
@@ -62,6 +63,7 @@ class NewNotebookActivity : AppCompatActivity() {
             selection = { TemplateBrowser.Selection(cardId = pick.cardId) },
         )
         browser.restoreState(savedInstanceState)
+        binding.kindTitle.setText(if (kind == IndexSchema.KIND_SKETCHBOOK) R.string.new_sketchbook_title else R.string.new_notebook_title)
         binding.btnBack.setOnClickListener { finish() }
         binding.btnCreate.setOnClickListener { create() }
         lifecycleScope.launch {
@@ -95,6 +97,9 @@ class NewNotebookActivity : AppCompatActivity() {
         }
         val chosen = pick
         creating = true
+        // The box goes up before the file is made: the wait is seconds of key work and an
+        // app launch, and a screen that does nothing for that long reads as a hang.
+        binding.creatingOverlay.visibility = View.VISIBLE
         lifecycleScope.launch {
             try {
                 val id = withContext(Dispatchers.IO) {
@@ -121,6 +126,8 @@ class NewNotebookActivity : AppCompatActivity() {
                 Dialogs.problem(this@NewNotebookActivity, titleRes, R.string.new_notebook_failed_body)
             } finally {
                 creating = false
+                // Down again only when this screen stays: on success it finishes under the app.
+                if (!isFinishing) binding.creatingOverlay.visibility = View.GONE
             }
         }
     }

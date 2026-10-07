@@ -74,6 +74,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -146,6 +148,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      *  load that sets it. The engine holds the sheet by reference, so a cached bitmap stays alive
      *  until it leaves the cache after the sheet has moved on. */
     private val paperCache = LinkedHashMap<String, Bitmap>()
+
+    /** The sheet the engine holds now, by reference; null for white. */
+    private var currentSheet: Bitmap? = null
 
     /** Soil's template picker, started for a result. Registered as a property: a launcher must
      *  be registered before the Activity is STARTED. */
@@ -516,32 +521,43 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         }
         dismissCollapsed()   // a floating row never survives a content swap
         hidePaletteBar()     // nor a panel hung under one
-        if (!firstLoad) paper.clearForContentSwap()
         val width = page.width.toInt(); val height = page.height.toInt()
-        paper.setPageSize(width, height)
-        paper.setTemplate(null)   // the paper is the SHEET: the direct raster path never flattens a template
-        if (isFinishing || isDestroyed) return
         val s = store ?: return
-        // The page's paper, decoded off Main, set BEFORE the rasters load so the engine rebuilds
-        // once for all three. A failure is a log line and white, never a dialog.
-        paper.setSheet(paperFor(page))
-        val decoded = ArrayList<Pair<RasterLayer, Bitmap?>>(RasterRows.LAYERS.size)
-        for (layer in RasterRows.LAYERS) {
-            val bitmap = withContext(Dispatchers.IO) {
-                val bytes = runCatching { s.readRaster(page.id, layer) }
-                    .onFailure { Log.w(TAG, "the page's ${RasterRows.name(layer)} raster could not be read: ${it.javaClass.simpleName}") }
-                    .getOrNull()
-                RasterImage.decode(bytes, width, height)
-            }
-            if (isFinishing || isDestroyed) { bitmap?.recycle(); decoded.forEach { it.second?.recycle() }; return }
-            decoded += layer to bitmap
+        // **Everything is read and decoded before the paper is touched**: the page's paper
+        // and both rasters, side by side on IO — two reads over the seam and two WebP decodes,
+        // each hundreds of milliseconds on a drawn page. The outgoing page stays on the glass
+        // the whole time, and what follows is one synchronous run of engine calls.
+        val t0 = SystemClock.elapsedRealtime()
+        val sheet = paperFor(page)
+        val decoded = withContext(Dispatchers.IO) {
+            RasterRows.LAYERS.map { layer ->
+                async {
+                    val bytes = runCatching { s.readRaster(page.id, layer) }
+                        .onFailure { Log.w(TAG, "the page's ${RasterRows.name(layer)} raster could not be read: ${it.javaClass.simpleName}") }
+                        .getOrNull()
+                    layer to RasterImage.decode(bytes, width, height)
+                }
+            }.awaitAll()
         }
+        val decodedMs = SystemClock.elapsedRealtime() - t0
+        if (isFinishing || isDestroyed) { decoded.forEach { it.second?.recycle() }; return }
+        // Now the swap, in one breath with no suspension inside it: the clear, the size, the
+        // sheet and both rasters announce the whole page, and the engine's coalescer folds every
+        // announcement made before the next loop into ONE rebuild and one present (a yield in
+        // here, such as a decode, let the sheet present alone and the drawing a frame later).
+        val t1 = SystemClock.elapsedRealtime()
+        if (!firstLoad) paper.clearForContentSwap()
+        paper.setPageSize(width, height)
+        // The paper is the SHEET: the direct raster path never flattens a template. Set only
+        // when it changes — the engine holds it by reference across loads.
+        if (sheet !== currentSheet) { paper.setSheet(sheet); currentSheet = sheet }
         for ((layer, bitmap) in decoded) {
             // Silent: a page we loaded ourselves is our own news, so no will-change/changed pair
             // arrives and nothing here has to swallow one.
             paper.loadPageRaster(layer, bitmap)
             bitmap?.recycle()
         }
+        Slog.d(TAG) { "page load: read+decode $decodedMs ms, swap ${SystemClock.elapsedRealtime() - t1} ms" }
         currentPage = page
         saver.pageKey = page.id
         saver.markClean()
@@ -661,8 +677,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (here.id != pageId) return
         val updated = here.copy(templateId = templateId)
         currentPage = updated
+        val sheet = paperFor(updated)
         paper.awaitPenIdle()
-        paper.setSheet(paperFor(updated))
+        if (sheet !== currentSheet) { paper.setSheet(sheet); currentSheet = sheet }
     }
 
     // ── Page turns, inserts and deletes ──────────────────────────────────────

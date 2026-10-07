@@ -47,11 +47,18 @@ object NewDocument {
                     return@show
                 }
                 creating = true
+                // "Creating…" the moment the name is accepted: the wait is seconds of key work
+                // and an app launch, and nothing on the glass for that long reads as a hang.
+                dismiss()
+                val wait = Dialogs.style(
+                    androidx.appcompat.app.AlertDialog.Builder(activity).setMessage(R.string.creating).setCancelable(false).create(),
+                ).also { it.show() }
                 activity.lifecycleScope.launch {
                     try {
-                        create(activity, folderId, name, dismiss)
+                        create(activity, folderId, name)
                     } finally {
                         creating = false
+                        runCatching { wait.dismiss() }
                     }
                 }
             }
@@ -59,7 +66,7 @@ object NewDocument {
     }
 
     /** The row and the file, then the app. */
-    private suspend fun create(activity: AppCompatActivity, folderId: String, name: String, dismiss: () -> Unit) {
+    private suspend fun create(activity: AppCompatActivity, folderId: String, name: String) {
         try {
             val id = withContext(Dispatchers.IO) {
                 if (ItemApps.find(activity, IndexSchema.KIND_DOCUMENT) == null) return@withContext null
@@ -75,7 +82,6 @@ object NewDocument {
                 return
             }
             ItemSessions.changed()
-            dismiss()
             if (ItemApps.open(activity, id, IndexSchema.KIND_DOCUMENT) != ItemApps.Opened.YES) {
                 Dialogs.problem(activity, activity.getString(R.string.item_open_failed_title), activity.getString(R.string.item_open_failed_body, name))
             }
