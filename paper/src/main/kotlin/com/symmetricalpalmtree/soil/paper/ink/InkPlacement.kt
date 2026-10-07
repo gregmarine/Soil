@@ -8,8 +8,9 @@ import com.symmetricalpalmtree.gpaper.core.model.Stroke
  * the calendar's paste (Greg, 2026-10-06: a paste of strokes is the lasso's on every surface).
  * Pure. The notebook's `ObjectPlacement` is the same arithmetic over its object rows.
  *
- * Two ways in, one rule out: [centred] on the page (a lasso's clip has no home here), or
- * [atSource] (a whole page's ink keeps its layout). Both clamp onto the page silently: pulled
+ * Three ways in, one rule out: [centredOn] a stylus tap (a tap is an aim, not a corner — the
+ * notebook's tap-to-place), [centred] on the page, or [atSource] (the popup's Paste and a whole
+ * page's ink keep the layout). All three clamp onto the page silently: pulled
  * back from the far edge first, then off the near one; ink larger than the page on an axis lands
  * from that edge; a non-positive page size means unknown and does not clamp on that axis. Every
  * stroke lands under a fresh id from [newId]: the clipboard's ids belong to the source.
@@ -22,6 +23,15 @@ object InkPlacement {
         val box = boxOf(ink)
         val dx = axis(box.left, box.width, (pageWidth - box.width) / 2f, pageWidth)
         val dy = axis(box.top, box.height, (pageHeight - box.height) / 2f, pageHeight)
+        return ink.map { it.translated(dx, dy, newId()) }
+    }
+
+    fun centredOn(strokes: List<Stroke>, tapX: Float, tapY: Float, pageWidth: Float, pageHeight: Float, newId: () -> String): List<Stroke> {
+        val ink = strokes.filter { it.points.isNotEmpty() }
+        if (ink.isEmpty()) return emptyList()
+        val box = boxOf(ink)
+        val dx = axis(box.left, box.width, tapX - box.width / 2f, pageWidth)
+        val dy = axis(box.top, box.height, tapY - box.height / 2f, pageHeight)
         return ink.map { it.translated(dx, dy, newId()) }
     }
 

@@ -71,8 +71,9 @@ import com.symmetricalpalmtree.soil.shell.SoilBarService
  * **The clipboard is the notebook's shape exactly** (Greg, 2026-10-04 and 2026-10-06): **strokes
  * are the lasso's, pages are the page sheet's.** Copy on the selection bar puts the lasso's
  * strokes on the library's one ink clipboard as a notebook's own Copy writes it
- * ([InkClip.envelopeOf]); a re-tap on the armed lasso opens the [LassoPopup], whose Paste lands
- * what a notebook's, the calendar's or this pad's lasso copied, centred on the page and selected.
+ * ([InkClip.envelopeOf]); while the lasso is armed and ink is on the clipboard, **a stylus tap on
+ * bare paper pastes it centred on the tap** (the notebook's tap-to-place), selected; the
+ * [LassoPopup] under a re-tap holds Paste at the source coordinates and Clear.
  * A finger long-press raises the page sheet: Copy page (also the top bar's button) writes the
  * page as a notebook page clip ([InkClip.pageEnvelopeOf]), which a notebook pastes before or
  * after a page and the calendar lays on its own; Paste page lands a copied page — a notebook's,
@@ -216,7 +217,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         lassoPopup = LassoPopup(
             root = binding.root, bar = binding.lassoPopup, anchor = binding.btnLasso, bandBottom = { chromeBand()?.last },
             releaseRender = { paper.releaseRender() },
-            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes() } },
+            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes(tapX = null, tapY = null) } },
             onClear = { hideLassoPopup(); clearClipboard() },
         )
         // After the toolbar: a pick lands on `toolbar.arm` (a tool set from our side is never
@@ -396,13 +397,25 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         hideLassoPopup()
     }
 
+    /** A contact spent taking the popup down is not a placement: rewritten at every pointer down. */
+    private var tapDismissedPopup = false
+
     /** A contact outside the popup takes it down; the lasso button is excluded, or its re-tap
      *  would close the popup here and reopen it in the toolbar. */
     override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
-        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
         val x = ev.getX(index).toInt()
         val y = ev.getY(index).toInt()
-        if (PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)) hideLassoPopup()
+        val dismissed = ::lassoPopup.isInitialized && lassoPopup.isShowing &&
+            PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)
+        tapDismissedPopup = dismissed
+        if (dismissed) hideLassoPopup()
+    }
+
+    /** A stylus tap on bare paper under the lasso with nothing selected: paste here, centred on
+     *  the tap. Silent when the clipboard holds no ink: nothing was offering a paste. */
+    override fun onLassoTap(x: Float, y: Float) {
+        if (tapDismissedPopup || clipKind != ClipEnvelope.KIND_OBJECTS) return
+        runPageOp { pasteStrokes(tapX = x, tapY = y) }
     }
 
     override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
@@ -489,11 +502,12 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     }
 
     /**
-     * The lasso's Paste: the clipboard's ink onto the showing page, centred, under fresh ids,
-     * selected with the lasso armed so the pen can drag it into place at once. Anything but an
-     * objects payload — gone, or a page copied since — is refused with a dialog and the mark drops.
+     * The lasso's Paste: the clipboard's ink onto the showing page under fresh ids — centred on
+     * the stylus tap, or at the source coordinates from the popup's row — selected with the lasso
+     * armed so the pen can drag it on at once. Anything but an objects payload — gone, or a page
+     * copied since — is refused with a dialog and the mark drops.
      */
-    private suspend fun pasteStrokes() {
+    private suspend fun pasteStrokes(tapX: Float?, tapY: Float?) {
         val doc = document ?: return
         val env = readClip()
         if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) {
@@ -501,7 +515,9 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             Dialogs.problem(this, R.string.scratch_paste_failed_title, R.string.scratch_paste_failed_body)
             return
         }
-        val placed = InkPlacement.centred(InkClip.strokesOf(env), doc.pageWidth, doc.pageHeight) { ScratchStore.newId() }
+        val strokes = InkClip.strokesOf(env)
+        val placed = if (tapX != null && tapY != null) InkPlacement.centredOn(strokes, tapX, tapY, doc.pageWidth, doc.pageHeight) { ScratchStore.newId() }
+        else InkPlacement.atSource(strokes, doc.pageWidth, doc.pageHeight) { ScratchStore.newId() }
         if (placed.isEmpty()) {
             Dialogs.problem(this, R.string.scratch_paste_failed_title, R.string.scratch_paste_empty_body)
             return

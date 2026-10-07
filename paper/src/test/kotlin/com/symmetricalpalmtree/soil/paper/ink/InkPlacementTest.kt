@@ -26,6 +26,17 @@ class InkPlacementTest {
     }
 
     @Test
+    fun `centred on a tap lands the box's middle on the tap, clamped onto the page`() {
+        val placed = InkPlacement.centredOn(listOf(stroke("a", 0f, 0f, 20f, 40f)), 50f, 60f, 100f, 200f, ids())
+        assertEquals("id-0", placed[0].id)
+        assertEquals(40f, placed[0].points[0].x)
+        assertEquals(40f, placed[0].points[0].y)
+        val edge = InkPlacement.centredOn(listOf(stroke("a", 0f, 0f, 20f, 40f)), 98f, 2f, 100f, 200f, ids())
+        assertEquals(80f, edge[0].points[0].x)
+        assertEquals(0f, edge[0].points[0].y)
+    }
+
+    @Test
     fun `at source keeps the layout, and pulls ink that hangs off the page back onto it`() {
         val kept = InkPlacement.atSource(listOf(stroke("a", 5f, 7f, 15f, 17f)), 100f, 200f, ids())
         assertEquals("id-0", kept[0].id)

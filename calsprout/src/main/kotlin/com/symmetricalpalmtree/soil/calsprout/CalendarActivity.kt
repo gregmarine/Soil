@@ -84,8 +84,9 @@ import kotlin.coroutines.resume
  * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send), and it is the
  * notebook's shape exactly (Greg, 2026-10-06): **strokes are the lasso's, pages are the page
  * sheet's.** Copy on the selection bar puts the lasso's strokes on the notebook slot as the pad
- * does ([InkClip.envelopeOf]); a re-tap on the armed lasso opens the [LassoPopup], whose Paste
- * lands what a notebook's or the pad's lasso copied, centred and selected. A finger long-press
+ * does ([InkClip.envelopeOf]); while the lasso is armed and ink is on the clipboard, **a stylus
+ * tap on bare paper pastes it centred on the tap** (the notebook's tap-to-place), selected; the
+ * [LassoPopup] under a re-tap holds Paste at the source coordinates and Clear. A finger long-press
  * raises the page sheet: Copy page writes the page — a Day both halves — as a notebook page clip
  * papered with the grid ([InkClip.pageEnvelopeOf]), which the notebook's page sheet pastes before
  * or after; Paste page lands a copied page's ink on the showing page at its own coordinates. The
@@ -289,7 +290,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         lassoPopup = LassoPopup(
             root = binding.root, bar = binding.lassoPopup, anchor = binding.btnLasso, bandBottom = { chromeBand()?.last },
             releaseRender = { paper.releaseRender() },
-            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes() } },
+            onPaste = { hideLassoPopup(); runPageOp { pasteStrokes(tapX = null, tapY = null) } },
             onClear = { hideLassoPopup(); clearClipboard() },
         )
         // After the toolbar: a pick lands on `toolbar.arm` (a tool set from our side is never
@@ -594,13 +595,25 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         hideLassoPopup()
     }
 
+    /** A contact spent taking the popup down is not a placement: rewritten at every pointer down. */
+    private var tapDismissedPopup = false
+
     /** A contact outside the popup takes it down; the lasso button is excluded, or its re-tap
      *  would close the popup here and reopen it in the toolbar. */
     override fun dismissFloatingOnContact(ev: android.view.MotionEvent, index: Int) {
-        if (!::lassoPopup.isInitialized || !lassoPopup.isShowing) return
         val x = ev.getX(index).toInt()
         val y = ev.getY(index).toInt()
-        if (PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)) hideLassoPopup()
+        val dismissed = ::lassoPopup.isInitialized && lassoPopup.isShowing &&
+            PaperToolbar.rectOf(binding.btnLasso)?.contains(x, y) != true && !lassoPopup.contains(x, y) && !collapsedContains(x, y)
+        tapDismissedPopup = dismissed
+        if (dismissed) hideLassoPopup()
+    }
+
+    /** A stylus tap on bare paper under the lasso with nothing selected: paste here, centred on
+     *  the tap. Silent when the clipboard holds no ink: nothing was offering a paste. */
+    override fun onLassoTap(x: Float, y: Float) {
+        if (tapDismissedPopup || clipKind != ClipEnvelope.KIND_OBJECTS) return
+        runPageOp { pasteStrokes(tapX = x, tapY = y) }
     }
 
     override fun keepCollapsedUnder(x: Int, y: Int): Boolean =
@@ -721,18 +734,19 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     }
 
     /**
-     * The lasso's Paste: the clipboard's ink onto the showing page, centred, under fresh ids,
-     * selected with the lasso armed so the pen can drag it into place at once. Anything but an
-     * objects payload — gone, or a page copied since — is refused with a dialog and the mark drops.
+     * The lasso's Paste: the clipboard's ink onto the showing page under fresh ids — centred on
+     * the stylus tap, or at the source coordinates from the popup's row — selected with the lasso
+     * armed so the pen can drag it on at once. Anything but an objects payload — gone, or a page
+     * copied since — is refused with a dialog and the mark drops.
      */
-    private suspend fun pasteStrokes() {
+    private suspend fun pasteStrokes(tapX: Float?, tapY: Float?) {
         val env = readClip()
         if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) {
             clipKind = env?.kind
             Dialogs.problem(this, R.string.calendar_paste_failed_title, R.string.calendar_paste_failed_body)
             return
         }
-        land(InkClip.strokesOf(env), centred = true)
+        land(InkClip.strokesOf(env), tapX, tapY)
     }
 
     /**
@@ -750,12 +764,12 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         val firstPage = env.rows.firstOrNull { it.type == "page" }?.id
         val onFirst = env.rows.filter { it.parentId == firstPage }.mapTo(HashSet()) { it.id }
         val strokes = InkClip.strokesOf(env).filter { firstPage == null || it.id in onFirst }
-        land(strokes, centred = false)
+        land(strokes, null, null)
     }
 
-    private suspend fun land(strokes: List<Stroke>, centred: Boolean) {
+    private suspend fun land(strokes: List<Stroke>, tapX: Float?, tapY: Float?) {
         val doc = document ?: return
-        val placed = if (centred) InkPlacement.centred(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
+        val placed = if (tapX != null && tapY != null) InkPlacement.centredOn(strokes, tapX, tapY, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
         else InkPlacement.atSource(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
         if (placed.isEmpty()) {
             Dialogs.problem(this, R.string.calendar_paste_failed_title, R.string.calendar_paste_empty_body)
@@ -765,7 +779,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         record(action)
         showPage(firstLoad = false)
         landSelected(placed)
-        Slog.d(TAG) { "pasted ${placed.size} strokes (${if (centred) "centred" else "at source"})" }
+        Slog.d(TAG) { "pasted ${placed.size} strokes (${if (tapX != null) "at the tap" else "at source"})" }
     }
 
     /** What arrived, selected with the lasso armed. */
