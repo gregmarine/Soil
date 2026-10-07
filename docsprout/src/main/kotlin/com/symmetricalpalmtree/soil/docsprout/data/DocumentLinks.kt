@@ -6,19 +6,20 @@ import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import com.symmetricalpalmtree.soil.paper.store.Statement
 import com.symmetricalpalmtree.soil.seam.BibleAddress
+import com.symmetricalpalmtree.soil.seam.CalAddress
 import com.symmetricalpalmtree.soil.seam.SeamLinks
 import com.symmetricalpalmtree.soil.seam.SoilAddress
 
 /**
- * **A document's links into the library and into the Bible**, read from its Markdown: every
- * link whose address is a [SoilAddress] or a [BibleAddress], once each, in the order they first
- * appear. A link to anywhere else (a web address) is the document's own business and is not
+ * **A document's links into the library, into the Bible and to a day of the calendar**, read
+ * from its Markdown: every link whose address is a [SoilAddress], a [BibleAddress] or a
+ * [CalAddress], once each, in the order they first appear. A link to anywhere else (a web address) is the document's own business and is not
  * listed.
  *
  * These are what the file's link mirror holds, so the library can answer "what links here" and
  * the Bible's reader "what links into these verses". A document has no pages, so every link sits
  * on the page `""`: the item itself. A link into the Bible is mirrored once per range of its
- * wire. Pure.
+ * wire; a link to a day once, with the day. Pure.
  */
 object DocumentLinks {
 
@@ -28,14 +29,15 @@ object DocumentLinks {
     /** The page a document's links sit on: it has none, so the item itself. */
     const val PAGE = ""
 
-    /** Where a mirrored link points: an item (or a page of one), or into the Bible. */
+    /** Where a mirrored link points: an item (or a page of one), into the Bible, or at a day. */
     sealed interface Target {
         data class Item(val address: SoilAddress) : Target
         data class Bible(val wire: String, val ranges: List<VerseRange>) : Target
+        data class Cal(val date: String) : Target
     }
 
     fun targets(markdown: String, documentId: String): List<Target> {
-        if (markdown.indexOf(SoilAddress.SCHEME) < 0 && markdown.indexOf(BibleAddress.SCHEME) < 0) return emptyList()
+        if (markdown.indexOf(SoilAddress.SCHEME) < 0 && markdown.indexOf(BibleAddress.SCHEME) < 0 && markdown.indexOf(CalAddress.SCHEME) < 0) return emptyList()
         val seen = LinkedHashSet<Target>()
         for (block in RichParse.parse(markdown).doc.blocks) {
             for (span in block.spans) {
@@ -53,6 +55,7 @@ object DocumentLinks {
             // A link never points at its own home.
             return if (address.itemId == documentId) null else Target.Item(address)
         }
+        CalAddress.decode(url)?.let { return Target.Cal(it.date) }
         val bible = BibleAddress.decode(url) ?: return null
         val passages = ReferenceCodec.decode(bible.wire) ?: return null
         return Target.Bible(bible.wire, passages.flatMap { it.ranges })
@@ -75,6 +78,7 @@ object DocumentLinks {
                 is Target.Bible -> t.ranges.forEachIndexed { n, r ->
                     out += Statement(SeamLinks.PUT_BIBLE, SeamLinks.rangeId(id, n), PAGE, t.wire, r.startKey.toLong(), r.endKey.toLong())
                 }
+                is Target.Cal -> out += Statement(SeamLinks.PUT_CAL, id, PAGE, t.date)
             }
         }
         return out

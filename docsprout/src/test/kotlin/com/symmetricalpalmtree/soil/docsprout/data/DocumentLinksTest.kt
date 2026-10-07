@@ -80,6 +80,17 @@ class DocumentLinksTest {
     }
 
     @Test
+    fun `a link to a day of the calendar is a target, once, and mirrors as one row the seam admits`() {
+        val markdown = "On [Tuesday](cal:2026-10-06) and [again](cal:2026-10-06), not [this](cal:2026-13-01) nor [this](cal:tomorrow)."
+        val targets = DocumentLinks.targets(markdown, me)
+        assertEquals(listOf(DocumentLinks.Target.Cal("2026-10-06")), targets)
+        val statements = DocumentLinks.mirror(me, listOf(item(a), targets[0]))
+        assertEquals(listOf(SeamLinks.DROP_PAGE, SeamLinks.PUT, SeamLinks.PUT_CAL), statements.map { it.sql })
+        statements.forEach { SeamSql.checkExec(it.sql); assertEquals(it.args.size, SeamSql.bindCount(it.sql)) }
+        assertEquals(listOf(Cell.Text("$me:1"), Cell.Text(""), Cell.Text("2026-10-06")), statements[2].args)
+    }
+
+    @Test
     fun `the mirror puts one row per range of a Bible link, in statements the seam admits`() {
         val wire = "JHN:3:14-3:18,PRO:3:5-3:6"
         val statements = DocumentLinks.mirror(me, listOf(item(a), DocumentLinks.targetOf("bible:$wire", me)!!))

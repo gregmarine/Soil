@@ -10,7 +10,8 @@ import com.symmetricalpalmtree.soil.data.Schema
  * named by the row's id. Ids are stable and never reused; a delete is soft.
  *
  * Links are here since step 4: one row per link in the library, mirrored from each file's
- * `soil_link` table whenever an app writes it, and since step 10 a link into the Bible too.
+ * `soil_link` table whenever an app writes it, since step 10 a link into the Bible too, and since
+ * step 11 a link to a day of the calendar.
  * Covers and the library's shape since step 6; the clipboard, tags and each item's page order
  * since step 7.
  */
@@ -182,5 +183,12 @@ object IndexSchema {
         """CREATE INDEX link_bible ON link(bibleStart, bibleEnd);""",
     )
 
-    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10))
+    /** A link to a day of the calendar: no target item, the day as `yyyy-MM-dd`; "what links into
+     *  these days" is a range on it. */
+    private val V11 = listOf(
+        """ALTER TABLE link ADD COLUMN calDate TEXT;""",
+        """CREATE INDEX link_cal ON link(calDate);""",
+    )
+
+    val SCHEMA = Schema("index", listOf(V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11))
 }

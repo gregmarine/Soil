@@ -99,7 +99,7 @@ object ItemFiles {
     }
 
     /** Soil's own tables beside the app's: the link mirror ([SeamLinks]), with its Bible columns
-     *  added to a file made before them. `soil_meta` is made at [create] alone, since a file
+     *  and its calendar column added to a file made before them. `soil_meta` is made at [create] alone, since a file
      *  without it is not an item. */
     private fun ownTables(db: ZeticDB) {
         db.execSQL(SeamLinks.CREATE)
@@ -110,6 +110,8 @@ object ItemFiles {
             db.execSQL(SeamLinks.ADD_BIBLE_END)
         }
         db.execSQL(SeamLinks.CREATE_BIBLE_INDEX)
+        if (!hasColumn(db, SeamLinks.TABLE, "calDate")) db.execSQL(SeamLinks.ADD_CAL_DATE)
+        db.execSQL(SeamLinks.CREATE_CAL_INDEX)
     }
 
     private fun hasColumn(db: ZeticDB, table: String, column: String): Boolean =

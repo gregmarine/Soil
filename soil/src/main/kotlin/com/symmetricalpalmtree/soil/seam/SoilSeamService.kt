@@ -160,6 +160,16 @@ class SoilSeamService : Service() {
             }
         }
 
+        override fun calBacklinks(fromDate: String, toDate: String): List<SeamCalBacklink> = answered {
+            require(CalAddress.isDate(fromDate) && CalAddress.isDate(toDate) && fromDate <= toDate) { "not a day range" }
+            IndexStore().calBacklinks(fromDate, toDate).map {
+                SeamCalBacklink(
+                    linkId = it.linkId, sourceItemId = it.sourceItemId, sourceKind = it.sourceKind, sourceName = it.sourceName,
+                    sourcePageId = it.sourcePageId, pageNumber = it.pageNumber, date = it.date,
+                )
+            }
+        }
+
         override fun passageText(wire: String): String = answered {
             require(BibleAddress.isWire(wire)) { "not a wire" }
             com.symmetricalpalmtree.soil.library.BibleTextClient.passageText(this@SoilSeamService, wire)

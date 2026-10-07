@@ -39,9 +39,22 @@ data class LinkRow(
     val bibleWire: String? = null,
     val bibleStart: Int? = null,
     val bibleEnd: Int? = null,
+    val calDate: String? = null,
 ) {
     val isBible: Boolean get() = bibleWire != null
+    val isCal: Boolean get() = calDate != null
 }
+
+/** One link to a day of the calendar, with the page's 1-based number (0 for an item with no pages). */
+data class CalBacklink(
+    val linkId: String,
+    val sourceItemId: String,
+    val sourceKind: String,
+    val sourceName: String,
+    val sourcePageId: String,
+    val pageNumber: Int,
+    val date: String,
+)
 
 /** One link into the Bible, with the source item's name and kind from the item table, and the
  *  page's number from the page order (0 for an item with no pages: a document). */
@@ -166,8 +179,8 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
         statements += Statement("DELETE FROM link WHERE sourceItemId = ?", itemId)
         for (l in links) {
             statements += Statement(
-                "INSERT OR REPLACE INTO link (id, sourceItemId, sourcePageId, targetItemId, targetPageId, bibleWire, bibleStart, bibleEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                l.id, itemId, l.pageId, l.targetItemId, l.targetPageId, l.bibleWire, l.bibleStart?.toLong(), l.bibleEnd?.toLong(),
+                "INSERT OR REPLACE INTO link (id, sourceItemId, sourcePageId, targetItemId, targetPageId, bibleWire, bibleStart, bibleEnd, calDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                l.id, itemId, l.pageId, l.targetItemId, l.targetPageId, l.bibleWire, l.bibleStart?.toLong(), l.bibleEnd?.toLong(), l.calDate,
             )
         }
         rows.exec(statements)
@@ -194,6 +207,30 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
                 sourceName = it.text("name"), sourcePageId = it.text("sourcePageId"),
                 pageNumber = it.longOrNull("position")?.toInt()?.plus(1) ?: 0,
                 wire = it.text("bibleWire"), startKey = it.long("bibleStart").toInt(), endKey = it.long("bibleEnd").toInt(),
+            )
+        }
+
+    /**
+     * Every link to a day from [fromDate] to [toDate] (inclusive, `yyyy-MM-dd` so the strings
+     * order as the days do) from an item that is alive, by day, source name and page, at most
+     * [limit]. What the calendar's Links panel shows.
+     */
+    fun calBacklinks(fromDate: String, toDate: String, limit: Int = 500): List<CalBacklink> =
+        rows.query(
+            Statement(
+                "SELECT l.id, l.sourceItemId, i.kind, i.name, l.sourcePageId, l.calDate, p.position FROM link l " +
+                    "JOIN item i ON i.id = l.sourceItemId " +
+                    "LEFT JOIN item_page p ON p.itemId = l.sourceItemId AND p.pageId = l.sourcePageId " +
+                    "WHERE l.calDate >= ? AND l.calDate <= ? AND i.deletedAt IS NULL " +
+                    "ORDER BY l.calDate, i.name, l.sourcePageId, l.id LIMIT ?",
+                fromDate, toDate, limit.toLong(),
+            ),
+        ).rows.map {
+            CalBacklink(
+                linkId = it.text("id"), sourceItemId = it.text("sourceItemId"), sourceKind = it.text("kind"),
+                sourceName = it.text("name"), sourcePageId = it.text("sourcePageId"),
+                pageNumber = it.longOrNull("position")?.toInt()?.plus(1) ?: 0,
+                date = it.text("calDate"),
             )
         }
 

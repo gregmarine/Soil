@@ -20,6 +20,7 @@ import com.symmetricalpalmtree.soil.docsprout.editor.rich.LinkSpan
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
+import com.symmetricalpalmtree.soil.seam.CalAddress
 import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamBacklink
 import com.symmetricalpalmtree.soil.seam.SeamItem
@@ -103,6 +104,7 @@ internal class DocumentLinksControl(
     private fun follow(url: String) {
         if (!usable() || busy) return
         BibleLinks.wireOfAddress(url)?.let { wire -> saveNow(); handToSoil(wire); return }
+        CalAddress.decode(url)?.let { day -> saveNow(); handDayToSoil(day.date); return }
         val address = SoilAddress.decode(url)
         if (address == null) { openOutside(url); return }
         val me = itemId() ?: return
@@ -148,6 +150,15 @@ internal class DocumentLinksControl(
     private fun handToSoil(wire: String): Boolean {
         val started = runCatching {
             activity.startActivity(Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE).putExtra(Seam.EXTRA_BIBLE_WIRE, wire))
+        }.isSuccess
+        if (!started) Dialogs.problem(activity, R.string.link_failed_title, R.string.link_no_soil_body)
+        return started
+    }
+
+    /** A link to a day: Soil opens the calendar on that day, over this document. */
+    private fun handDayToSoil(date: String): Boolean {
+        val started = runCatching {
+            activity.startActivity(Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE).putExtra(Seam.EXTRA_CAL_DATE, date))
         }.isSuccess
         if (!started) Dialogs.problem(activity, R.string.link_failed_title, R.string.link_no_soil_body)
         return started
