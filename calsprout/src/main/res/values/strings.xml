@@ -17,7 +17,6 @@
     <string name="cd_calendar_view_day">Day view</string>
     <string name="cd_calendar_events">Events</string>
     <string name="cd_calendar_links">What links here</string>
-    <string name="cd_calendar_more">More</string>
     <string name="cd_prev_period">Previous</string>
     <string name="cd_next_period">Next</string>
     <string name="cd_calendar_pick_day">Pick a day</string>
@@ -25,7 +24,7 @@
     <!-- The band below the Month and Week grids, labelled in light ink on the paper itself. -->
     <string name="calendar_notes_label">Notes</string>
 
-    <!-- The More sheet: the three doors (phases 6 and 7 wire them). -->
+    <!-- The page sheet, on a long-press: Copy page, Paste, and Export… (phase 7). -->
     <string name="calendar_copy_page">Copy page</string>
     <string name="calendar_paste">Paste</string>
     <string name="calendar_export_action">Export…</string>
@@ -34,7 +33,7 @@
     <string name="calendar_copy_selection">Copy selection</string>
 
     <!-- The clipboard: the wording is the Scratch Pad's. Never a path, never a name. -->
-    <string name="calendar_more_title">This page</string>
+    <string name="calendar_page_sheet_title">This page</string>
     <string name="calendar_copied_toast">Copied to the clipboard</string>
     <string name="calendar_nothing_to_copy_title">Nothing to copy</string>
     <string name="calendar_nothing_to_copy_body">There is no ink in the selection to copy.</string>

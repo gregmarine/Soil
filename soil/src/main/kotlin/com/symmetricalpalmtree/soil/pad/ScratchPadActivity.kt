@@ -209,8 +209,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             releaseRender = { paper.releaseRender() },
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
-            sendHint = getString(R.string.scratch_copy_selection),
-            onSend = { currentSelection?.strokeIds?.toHashSet()?.let { copy(it) } },
+            copyHint = getString(R.string.scratch_copy_selection),
+            onCopy = { currentSelection?.strokeIds?.toHashSet()?.let { copy(it) } },
         )
         chrome = PaperChrome(
             paper = paper,

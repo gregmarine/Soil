@@ -123,12 +123,6 @@
                     android:src="@drawable/ic_link"
                     android:visibility="gone" />
 
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/btnMore"
-                    style="@style/Widget.Soil.ToolbarButton"
-                    android:contentDescription="@string/cd_calendar_more"
-                    android:src="@drawable/ic_dots"
-                    android:visibility="gone" />
 
             </LinearLayout>
 

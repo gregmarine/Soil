@@ -14,7 +14,7 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
 
 /**
  * The calendar's chrome (Greg, 2026-10-05): Back and the three tools on the top bar, then the
- * three view latches, Today, Events, Links and More at its far end; the pager — prev, the
+ * three view latches, Today, Events and Links at its far end; the pager — prev, the
  * period's title, next — alone on the bottom bar. The tool half is `:paper`'s [PaperToolbar];
  * this adds what is the calendar's own: the fixed tool values, the navigation controls, the doors
  * and the title behind the frame-silence gate.
@@ -32,7 +32,7 @@ import com.symmetricalpalmtree.soil.paper.core.InkColorCodec
  * this just forwards the re-tap. Smart lasso and scribble erase are armed by the screen before
  * the listener attaches.
  *
- * **Events, Links and More are GONE until their phases land** — GONE, never disabled: a greyed
+ * **Events and Links are GONE until their phases land** — GONE, never disabled: a greyed
  * control is invisible on e-ink.
  *
  * **The title waits for the pen.** Never present an app frame while [PaperView.isPenActive].
@@ -50,7 +50,6 @@ class CalendarToolbar(
     btnToday: View,
     btnEvents: ImageButton,
     btnLinks: ImageButton,
-    btnMore: ImageButton,
     btnPrev: ImageButton,
     btnNext: ImageButton,
     private val title: TextView,
@@ -64,8 +63,6 @@ class CalendarToolbar(
     onEvents: (() -> Unit)?,
     /** The Links door. Null until the phase that builds it: the button is GONE. */
     onLinks: (() -> Unit)?,
-    /** The More sheet: Copy page · Paste · Export…. Null until the phase that builds it: GONE. */
-    onMore: (() -> Unit)?,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     /** The pager's title was tapped: open the day picker. */
@@ -101,7 +98,7 @@ class CalendarToolbar(
         )
 
         // Every button carries a hint naming it.
-        listOf(btnPrev, btnNext, btnMonth, btnWeek, btnDay, btnToday, btnEvents, btnLinks, btnMore, title).forEach {
+        listOf(btnPrev, btnNext, btnMonth, btnWeek, btnDay, btnToday, btnEvents, btnLinks, title).forEach {
             TooltipCompat.setTooltipText(it, it.contentDescription)
         }
         btnPrev.setOnClickListener { releaseRenderIfIdle(); onPrev() }
@@ -121,12 +118,6 @@ class CalendarToolbar(
             btnLinks.setOnClickListener { releaseRenderIfIdle(); onLinks() }
         } else {
             btnLinks.visibility = View.GONE
-        }
-        if (onMore != null) {
-            btnMore.visibility = View.VISIBLE
-            btnMore.setOnClickListener { releaseRenderIfIdle(); onMore() }
-        } else {
-            btnMore.visibility = View.GONE
         }
         title.setOnClickListener { releaseRenderIfIdle(); onTitle() }
         title.text = ""

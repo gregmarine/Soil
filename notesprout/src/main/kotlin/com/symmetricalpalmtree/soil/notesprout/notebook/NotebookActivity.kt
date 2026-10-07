@@ -455,7 +455,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 // The library learns the page order at every open and every change: it names a
                 // tagged page by it without ever opening the file.
                 runCatching { seam.setPages(item.id, loaded.pages.map { it.id }) }.onFailure { Log.w(TAG, "the pages were not told: ${it.javaClass.simpleName}") }
-                SoilClipboard.ensureLoaded(seam)
+                // Read again, never once per process: the calendar or the pad may have copied
+                // since the last notebook this process opened read it (Greg, 2026-10-06).
+                SoilClipboard.refresh(seam)
                 BibleClipboard.refresh(seam)
                 val document = NotebookDocument(store) { pages ->
                     withContext(Dispatchers.IO) { runCatching { soil.seam().setPages(item.id, pages.map { it.id }) } }

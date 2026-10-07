@@ -80,8 +80,8 @@ import kotlin.coroutines.resume
  *
  * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send). Copy on the
  * selection bar puts the lasso's strokes on the notebook slot as the pad does ([InkClip]); Paste
- * on the More sheet lands what a notebook's or the pad's lasso copied, centred and selected; Copy
- * page writes the page — a Day both halves — as a notebook page clip papered with the grid
+ * on the page sheet — a finger long-press, the notebook's gesture — lands what a notebook's or
+ * the pad's lasso copied, centred and selected; Copy page writes the page — a Day both halves — as a notebook page clip papered with the grid
  * ([CalendarClip]), which the notebook's page sheet pastes before or after. The slot's header is
  * read again every time this screen comes to the front, so Paste is offered exactly when ink is
  * there — a row absent, never disabled.
@@ -188,7 +188,6 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         CollapsedChrome.Entry.mirroring(R.drawable.ic_calendar_star, binding.btnToday),
         CollapsedChrome.Entry.mirroring(R.drawable.ic_calendar_event, binding.btnEvents),
         CollapsedChrome.Entry.mirroring(R.drawable.ic_link, binding.btnLinks),
-        CollapsedChrome.Entry.mirroring(R.drawable.ic_dots, binding.btnMore),
     )
 
     override fun showPage() = showPage(firstLoad = false)
@@ -256,7 +255,6 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             btnToday = binding.btnToday,
             btnEvents = binding.btnEvents,
             btnLinks = binding.btnLinks,
-            btnMore = binding.btnMore,
             btnPrev = binding.btnPrev,
             btnNext = binding.btnNext,
             title = binding.title,
@@ -265,7 +263,6 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             onToday = { runPageOp { showMove(nav.todayMove(LocalDate.now(), nowHour())) } },
             onEvents = { openEvents() },
             onLinks = null,    // phase 9
-            onMore = { showMore() },
             onPrev = { runPageOp { step(forward = false) } },
             onNext = { runPageOp { step(forward = true) } },
             onTitle = { showPicker() },
@@ -292,8 +289,8 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             releaseRender = { paper.releaseRender() },
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
-            sendHint = getString(R.string.calendar_copy_selection),
-            onSend = { currentSelection?.let { copySelection(it) } },
+            copyHint = getString(R.string.calendar_copy_selection),
+            onCopy = { currentSelection?.let { copySelection(it) } },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -401,8 +398,10 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         override fun onRedo() = runPageOp { doRedo() }
         // A double-tap routes by zone: a day cell opens that day, the Notes band and a Day page
         // toggle the chrome. `onFingerTap` is deliberately NOT overridden: a single tap selects
-        // nothing here. No long-press, no inserts, no swipe-down either.
+        // nothing here. No inserts, no swipe-down.
         override fun onFingerDoubleTap(x: Float, y: Float) = runPageOp { doubleTap(x, y) }
+        // A finger long-press asks what can be done with this page — the notebook's gesture.
+        override fun onPageSheetRequested() = showPageSheet()
     }
 
     /**
@@ -538,11 +537,16 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
 
     // ── The clipboard ────────────────────────────────────────────────────────
 
-    /** The More sheet: Copy page, and Paste while the clipboard holds ink. Export… comes with phase 7. */
-    private fun showMore() {
+    /**
+     * The page sheet, on a finger long-press as the notebook's is (Greg, 2026-10-06): Copy page,
+     * and Paste while the clipboard holds ink. Export… joins it with phase 7. A long press asks;
+     * it never acts.
+     */
+    private fun showPageSheet() {
         if (!opened || closing || isFinishing || isDestroyed) return
+        paper.releaseRender()
         val sheet = ActionSheetDialog(this)
-            .title(getString(R.string.calendar_more_title))
+            .title(getString(R.string.calendar_page_sheet_title))
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.calendar_copy_page)) { runPageOp { copyPage() } }
         // Absent, never disabled, while the clipboard holds no ink to paste.
         if (clipHasInk) {
