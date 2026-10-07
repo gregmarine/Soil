@@ -6,8 +6,8 @@
   Both bars go to paper.setExclusionRects (via PaperChrome) after layout, so ink never lands under
   chrome. Chrome sits flush at the top edge.
 
-  Top bar: Back and the tools on the left (Pencil · Eraser in phase 1; the gel pen, Smudge and
-  Guides join in their phases), the sketchbook's name centred in the band the buttons leave free.
+  Top bar: Back and the tools on the left (Pencil · Pen · Eraser · Smudge; Guides joins in phase
+  5), the sketchbook's name centred in the band the buttons leave free.
   Bottom bar: the page indicator, centred on the SCREEN (the arrows join in phase 3).
 
   openingOverlay starts VISIBLE: the screen covers its own first frame, so the launch reads as one
@@ -59,11 +59,25 @@
                     android:contentDescription="@string/cd_tool_pencil"
                     android:src="@drawable/ic_pencil" />
 
+                <!-- The gel pen: the pen's second KIND, both Tool.PEN to the engine. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPen"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_pen"
+                    android:src="@drawable/ic_pen" />
+
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btnEraser"
                     style="@style/Widget.Soil.ToolbarButton"
                     android:contentDescription="@string/cd_tool_eraser"
                     android:src="@drawable/ic_eraser" />
+
+                <!-- The stylus smudge: the finger rub on the nib, a stump. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnSmudge"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_smudge"
+                    android:src="@drawable/ic_smudge" />
             </LinearLayout>
 
             <!-- The sketchbook's name, centred in the band the two button groups leave free; the
@@ -204,5 +218,18 @@
         </LinearLayout>
 
     </FrameLayout>
+
+    <!-- The shade panel — Atelier's sixteen tones in four rows of four, hung under whichever pen
+         button was re-tapped (top bar or mini row) by :paper's PaletteBar. A later sibling than
+         anything it could overlap — the floating-bar rule. GONE the whole time openingOverlay is up. -->
+    <LinearLayout
+        android:id="@+id/paletteBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone" />
 
 </FrameLayout>

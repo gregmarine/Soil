@@ -9,7 +9,9 @@
     <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
     <string name="cd_sketch_back">Back to the library</string>
     <string name="cd_tool_pencil">Pencil</string>
+    <string name="cd_tool_pen">Pen</string>
     <string name="cd_tool_eraser">Eraser</string>
+    <string name="cd_tool_smudge">Smudge</string>
 
     <!-- The pager's indicator: this page of that many. -->
     <string name="sketch_page_indicator">%1$d / %2$d</string>

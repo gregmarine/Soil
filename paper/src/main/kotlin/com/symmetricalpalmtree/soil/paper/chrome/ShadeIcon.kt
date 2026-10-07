@@ -22,6 +22,11 @@ object ShadeIcon {
 
     private const val FILL = 0
 
+    /** The pencil glyph with its body in [ink] — the sketch face's graphite pencil. Fresh per
+     *  call, as [pen]. */
+    fun pencil(ctx: Context, ink: Int): LayerDrawable =
+        filled(ctx, outlineRes = R.drawable.ic_pencil, fillRes = R.drawable.ic_pencil_fill, ink = ink)
+
     /** The pen glyph with its barrel in [ink]. Fresh per call: a drawable in two views fights
      *  over its bounds. */
     fun pen(ctx: Context, ink: Int): LayerDrawable =
