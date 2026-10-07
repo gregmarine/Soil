@@ -277,7 +277,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             penLevel = prefs.penLevel,
             onBack = { exit() },
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
-            onNextPage = { runPageOp { flipTo(pageIndex() + 1) } },
+            // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
+            onNextPage = { gestureListener.onFlipNext() },
             onRecents = { showRecents() },
             // A second tap on the armed pen toggles its shade panel; on the armed eraser, its
             // sub-bar. Arming a different tool takes any bar with it.

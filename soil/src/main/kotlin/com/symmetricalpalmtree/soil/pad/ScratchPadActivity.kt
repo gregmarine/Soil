@@ -207,7 +207,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
             onBack = { exit() },
             // No-op at a bound, never disabled: a greyed control is invisible on e-ink.
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
-            onNextPage = { runPageOp { flipTo(pageIndex() + 1) } },
+            // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
+            onNextPage = { gestureListener.onFlipNext() },
             // A second tap on the armed eraser toggles its sub-bar — Point · Lasso; arming a
             // different tool takes the bar with it.
             onEraserReTap = { hideLassoPopup(); toggleEraserBar() },

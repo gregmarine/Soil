@@ -299,7 +299,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             btnNextPage = binding.btnNextPage,
             onBack = { exit() },
             onPrevPage = { runPageOp { turnPageNow(PageTurn.Direction.PREV) } },
-            onNextPage = { runPageOp { turnPageNow(PageTurn.Direction.NEXT) } },
+            // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
+            onNextPage = { gestureListener.onFlipNext() },
             // An actual tool change — including a pencil↔gel-pen switch, which never moves
             // `paper.tool`: the shade panel shows the kind that is leaving.
             onToolTapped = { dismissCollapsed(); hidePaletteBar() },
