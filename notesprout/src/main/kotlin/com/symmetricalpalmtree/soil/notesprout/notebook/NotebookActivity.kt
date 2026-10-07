@@ -1518,8 +1518,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
             return
         }
-        // The anchor's number as it reads once the paste has landed: what the indicator shows.
-        val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before)
+        // The anchor's number as it reads once the paste has landed (every pasted page ahead of
+        // it, for a paste before): what the indicator shows.
+        val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before, env.rows.count { it.type == NotebookSchema.TYPE_PAGE })
         undo.record(doc.pastePage(env, before))
         preparePaper()
         showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))

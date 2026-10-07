@@ -149,6 +149,27 @@ class CalendarDocument(
     /** Translate [ids] by ([dx], [dy]). Returns the undo action, or null when nothing moved. */
     override fun move(ids: Collection<String>, dx: Float, dy: Float): InkAction.Moved? = ink.move(ids, dx, dy)
 
+    // ── The clipboard ────────────────────────────────────────────────────────
+
+    /** The showing page's ink, `(order, stroke)` in writing order, flushed first — what Copy page carries. */
+    suspend fun captureInk(): List<Pair<Long, Stroke>> {
+        flushUntilClean()
+        return ink.entries()
+    }
+
+    /**
+     * Ink that arrived from the clipboard onto the showing page, appended after everything on it
+     * and written at once. The strokes were minted on arrival ([CalendarClip.placeCentred]); the
+     * one undo step takes exactly them away. Null for nothing to place.
+     */
+    suspend fun paste(strokes: List<Stroke>): InkAction.Pasted? {
+        if (strokes.isEmpty()) return null
+        ink.addStrokes(strokes)
+        val orders = strokes.map { orderOf(it.id) ?: 0L }
+        flushUntilClean()
+        return InkAction.Pasted(pageId, strokes, orders)
+    }
+
     // ── Saving ───────────────────────────────────────────────────────────────
 
     /**

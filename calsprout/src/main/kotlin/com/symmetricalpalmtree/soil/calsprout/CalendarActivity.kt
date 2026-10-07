@@ -12,6 +12,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.Tool
+import com.symmetricalpalmtree.gpaper.core.model.Selection
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.soil.calsprout.databinding.ActivityCalendarBinding
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
@@ -20,16 +22,27 @@ import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.CalendarDates
 import com.symmetricalpalmtree.soil.paper.core.CalendarTarget
+import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Immersive
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
 import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
+import com.symmetricalpalmtree.soil.paper.ink.InkWire
+import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
+import com.symmetricalpalmtree.soil.seam.SeamClip
+import com.symmetricalpalmtree.soil.seam.SeamShared
+import com.symmetricalpalmtree.soil.seamkit.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.seamkit.clip.InkClip
 import com.symmetricalpalmtree.soil.seam.Seam
+import android.widget.Toast
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.time.LocalDate
@@ -64,6 +77,14 @@ import kotlin.coroutines.resume
  *
  * Every navigation writes the bookmark and nothing else — **rows are minted on the first stroke,
  * never on open**, so browsing an empty year leaves the store exactly as it was.
+ *
+ * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send). Copy on the
+ * selection bar puts the lasso's strokes on the notebook slot as the pad does ([InkClip]); Paste
+ * on the More sheet lands what a notebook's or the pad's lasso copied, centred and selected; Copy
+ * page writes the page — a Day both halves — as a notebook page clip papered with the grid
+ * ([CalendarClip]), which the notebook's page sheet pastes before or after. The slot's header is
+ * read again every time this screen comes to the front, so Paste is offered exactly when ink is
+ * there — a row absent, never disabled.
  *
  * Undo is **calendar-level, in memory, per showing**: an action names its page, and replaying one
  * recorded on another page navigates there first ([CalendarDocument.revert]).
@@ -101,6 +122,10 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
 
     /** The day Soil asked for, or null for the bookmark. Read once, at create. */
     private var openOn: LocalDate? = null
+
+    /** The notebook slot holds a lasso's ink (an objects payload) — read at every resume; Paste is offered on it. */
+    @Volatile
+    private var clipHasInk = false
 
     /** What the template on the paper was baked from — the page, the day and the page size. A
      *  [showPage] whose key is unchanged (an undo or redo on the showing page) reloads the strokes
@@ -240,7 +265,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             onToday = { runPageOp { showMove(nav.todayMove(LocalDate.now(), nowHour())) } },
             onEvents = { openEvents() },
             onLinks = null,    // phase 9
-            onMore = null,     // phase 6
+            onMore = { showMore() },
             onPrev = { runPageOp { step(forward = false) } },
             onNext = { runPageOp { step(forward = true) } },
             onTitle = { showPicker() },
@@ -267,8 +292,8 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             releaseRender = { paper.releaseRender() },
             deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
-            // Copy of the lasso's strokes comes with phase 6.
-            sendHint = null,
+            sendHint = getString(R.string.calendar_copy_selection),
+            onSend = { currentSelection?.let { copySelection(it) } },
         )
         chrome = PaperChrome(
             paper = paper,
@@ -511,6 +536,172 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         else -> CalendarDates.dayTitle(t.localDate, t.half)
     }
 
+    // ── The clipboard ────────────────────────────────────────────────────────
+
+    /** The More sheet: Copy page, and Paste while the clipboard holds ink. Export… comes with phase 7. */
+    private fun showMore() {
+        if (!opened || closing || isFinishing || isDestroyed) return
+        val sheet = ActionSheetDialog(this)
+            .title(getString(R.string.calendar_more_title))
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.calendar_copy_page)) { runPageOp { copyPage() } }
+        // Absent, never disabled, while the clipboard holds no ink to paste.
+        if (clipHasInk) {
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.calendar_paste)) { runPageOp { paste() } }
+        }
+        sheet.show()
+    }
+
+    /**
+     * Copy the lasso's strokes to the clipboard as the pad does: plain ink, an objects payload on
+     * the notebook slot, so a notebook or the pad pastes it with the Paste it has. The page is
+     * flushed first, under the page-op lock; nothing here changes.
+     */
+    private fun copySelection(sel: Selection) {
+        if (!opened || closing) return
+        val ids = sel.strokeIds.toHashSet()
+        runPageOp {
+            val doc = document ?: return@runPageOp
+            doc.flushUntilClean()
+            val picked = doc.strokes.filter { it.id in ids }
+            val now = System.currentTimeMillis()
+            val envelope = InkClip.envelopeOf(picked, now)
+            if (envelope == null) {
+                Dialogs.problem(this, R.string.calendar_nothing_to_copy_title, R.string.calendar_nothing_to_copy_body)
+                return@runPageOp
+            }
+            val bytes = if (InkWire.withinLimits(picked)) ClipEnvelope.encode(envelope) else null
+            if (bytes == null) {
+                Dialogs.problem(this, R.string.calendar_too_large_title, R.string.calendar_too_large_body)
+                return@runPageOp
+            }
+            if (!putClip(envelope, bytes)) return@runPageOp
+            Slog.d(TAG) { "copied ${envelope.rows.size} strokes to the clipboard" }
+            Toast.makeText(this, R.string.calendar_copied_toast, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Copy page: the showing page — a Day, both halves, AM then PM — as a notebook page clip
+     * papered with its grid. The showing page is flushed first; the other half is read as stored.
+     * The grid is rendered alone (no ring, no marks): paper, not a snapshot of today.
+     */
+    private suspend fun copyPage() {
+        val doc = document ?: return
+        val t = doc.target
+        val ink = doc.captureInk()
+        val w = doc.pageWidth
+        val h = doc.pageHeight
+        val captures = ArrayList<CalendarClip.PageCapture>(2)
+        if (t.kind == CalendarTarget.KIND_DAY) {
+            val other = CalendarTarget.of(CalendarTarget.KIND_DAY, t.localDate, if (t.half == CalendarTarget.HALF_AM) CalendarTarget.HALF_PM else CalendarTarget.HALF_AM)
+            val store = (application as CalsproutApp).calendar()
+            val stored = withContext(Dispatchers.IO) { store.readPage(other) }
+            val halves = listOf(t to ink, other to stored.strokes).sortedBy { it.first.half }
+            for ((target, strokes) in halves) {
+                captures += CalendarClip.PageCapture(w, h, gridBytes(target), strokes)
+            }
+        } else {
+            captures += CalendarClip.PageCapture(w, h, gridBytes(t), ink)
+        }
+        val now = System.currentTimeMillis()
+        val envelope = CalendarClip.pageEnvelope(captures, now) { CalendarStore.newId() }
+        val strokes = captures.flatMap { c -> c.strokes.map { it.second } }
+        val bytes = if (envelope != null && InkWire.withinLimits(strokes)) ClipEnvelope.encode(envelope) else null
+        if (envelope == null || bytes == null) {
+            Dialogs.problem(this, R.string.calendar_too_large_title, R.string.calendar_page_too_large_body)
+            return
+        }
+        if (!putClip(envelope, bytes)) return
+        Slog.d(TAG) { "copied ${captures.size} page(s), ${strokes.size} strokes, ${bytes.size} bytes" }
+        Toast.makeText(this, R.string.calendar_copied_toast, Toast.LENGTH_SHORT).show()
+    }
+
+    /** The grid of [t] alone, at the page's size, as WEBP: the paper a pasted page gets. */
+    private fun gridBytes(t: CalendarTarget): ByteArray {
+        val density = resources.displayMetrics.density
+        val notes = getString(R.string.calendar_notes_label)
+        val bmp = when (t.kind) {
+            CalendarTarget.KIND_WEEK -> CalendarTemplate.week(weekGeometry(), t.localDate, null, density, palette, notes)
+            CalendarTarget.KIND_DAY -> CalendarTemplate.day(dayGeometry(), t.half, density, palette)
+            else -> CalendarTemplate.month(monthGeometry(), t.localDate, null, density, palette, notes)
+        }
+        return try {
+            BuiltInTemplates.toWebp(bmp)
+        } finally {
+            bmp.recycle()
+        }
+    }
+
+    /** Put [envelope] on the notebook slot. False, after a dialog, when Soil would not take it. */
+    private suspend fun putClip(envelope: ClipEnvelope, bytes: ByteArray): Boolean {
+        val written = withContext(Dispatchers.IO) {
+            runCatching {
+                (application as CalsproutApp).soil.seam().putClip(InkClip.SLOT, SeamClip(envelope.kind, envelope.sourceNotebookId, envelope.copiedAt), SeamShared.write(bytes))
+            }.onFailure { Log.w(TAG, "the clipboard was not written: ${it.javaClass.simpleName}") }.isSuccess
+        }
+        if (!written) {
+            Dialogs.problem(this, R.string.calendar_copy_failed_title, R.string.calendar_copy_failed_body)
+            return false
+        }
+        // A page clip is not ink to paste here; a copy of ink is. Either way the header is known.
+        clipHasInk = envelope.kind == ClipEnvelope.KIND_OBJECTS
+        return true
+    }
+
+    /**
+     * Paste the clipboard's ink onto the showing page, centred, under fresh ids, selected with
+     * the lasso armed so the pen can drag it into place at once. A page clip is not ink: the row
+     * was not offered for one, and one that arrived since is refused with a dialog.
+     */
+    private suspend fun paste() {
+        val doc = document ?: return
+        val pageId = doc.pageId
+        val env = withContext(Dispatchers.IO) {
+            runCatching {
+                val seam = (application as CalsproutApp).soil.seam()
+                ClipEnvelope.decode(seam.clip(InkClip.SLOT)?.let { SeamShared.readAndClose(it) })
+            }.onFailure { Log.w(TAG, "the clipboard was not read: ${it.javaClass.simpleName}") }.getOrNull()
+        }
+        val strokes = if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS) emptyList() else InkClip.strokesOf(env)
+        if (strokes.isEmpty()) {
+            clipHasInk = false
+            Dialogs.problem(this, R.string.calendar_paste_failed_title, R.string.calendar_paste_failed_body)
+            return
+        }
+        if (doc.pageId != pageId) return
+        val placed = CalendarClip.placeCentred(strokes, doc.pageWidth, doc.pageHeight) { CalendarStore.newId() }
+        val action = doc.paste(placed) ?: return
+        record(action)
+        showPage(firstLoad = false)
+        landSelected(placed)
+        Slog.d(TAG) { "pasted ${placed.size} strokes" }
+    }
+
+    /** What arrived, selected with the lasso armed. */
+    private fun landSelected(strokes: List<Stroke>) {
+        if (strokes.isEmpty()) return
+        var box = strokes.first().bounds
+        for (i in 1 until strokes.size) box = box.union(strokes[i].bounds)
+        toolbar.arm(Tool.LASSO)
+        val ids = strokes.mapTo(HashSet()) { it.id }
+        paper.setSelection(ids, emptySet(), box)
+        selectionActive = true
+        currentSelection = Selection(ids, emptySet(), box)
+        selectionBar.show(box)
+        pushExclusions()
+    }
+
+    /** The clipboard is the library's: a notebook or the pad may have copied to it while this
+     *  screen was behind. A failed read leaves what was known. */
+    private fun refreshClipHeader() {
+        lifecycleScope.launch {
+            val kind = withContext(Dispatchers.IO) {
+                runCatching { (application as CalsproutApp).soil.seam().clipHeader(InkClip.SLOT)?.payloadKind }.getOrNull()
+            }
+            if (kind != null || clipHasInk) clipHasInk = kind == ClipEnvelope.KIND_OBJECTS
+        }
+    }
+
     // ── The app in front ──────
 
     /** Whether the pen is down, hovering, or just lifted; the menu stays away while it is. */
@@ -534,6 +725,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     override fun onResume() {
         super.onResume()
         (application as CalsproutApp).front(this)
+        refreshClipHeader()
         // A date rolled over while the screen sat in the background: the ring moves with it. Only
         // when it did — a resume is otherwise not a frame. The day the showing template was baked
         // for is part of the bake key, so a changed `today` is a changed key, and a changed key

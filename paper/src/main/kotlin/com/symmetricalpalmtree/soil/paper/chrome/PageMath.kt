@@ -28,8 +28,8 @@ object PageMath {
      * paste *before* the anchor pushes it down one, a paste *after* leaves it where it was. Naming
      * the pre-paste number would have "Pasted before page 3" point at the pasted page itself.
      */
-    fun anchorNumberAfterPaste(currentIndex: Int, before: Boolean): Int =
-        currentIndex + 1 + if (before) 1 else 0
+    fun anchorNumberAfterPaste(currentIndex: Int, before: Boolean, count: Int = 1): Int =
+        currentIndex + 1 + if (before) count else 0
 
     /** Ids to un-soft-delete so the live set becomes exactly [target] (target order preserved). */
     fun toRestore(currentlyAlive: Set<String>, target: List<String>): List<String> =

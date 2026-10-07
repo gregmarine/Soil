@@ -55,7 +55,7 @@ class PageClipTest {
 
     @Test
     fun `every row gets a fresh id, content re-parents onto the copies, three levels deep`() {
-        val plan = PageClip.plan(envelope(), "nb-dest", 4, PageClip.Template.Reuse(templateId), ids())!!
+        val plan = PageClip.plan(envelope(), "nb-dest", 4, { PageClip.Template.Reuse(templateId) }, ids())!!
         val sourceIds = content().map { it.id }.toSet() + pageId
         for (r in plan.rows) assertTrue("${r.id} kept a source id", r.id !in sourceIds)
         assertNotEquals(pageId, plan.pageId)
@@ -75,7 +75,7 @@ class PageClipTest {
 
     @Test
     fun `order is preserved on content and rewritten only on the page, columns verbatim`() {
-        val plan = PageClip.plan(envelope(), "nb-dest", 7, PageClip.Template.Reuse(templateId), ids())!!
+        val plan = PageClip.plan(envelope(), "nb-dest", 7, { PageClip.Template.Reuse(templateId) }, ids())!!
         assertEquals(7, plan.rows.first { it.type == NotebookSchema.TYPE_PAGE }.order)
         assertEquals(listOf(0, 1, 0, 5, 3, 5, 0), plan.rows.filter { it.type != NotebookSchema.TYPE_PAGE && it.type != NotebookSchema.TYPE_TEMPLATE }.map { it.order })
         val heading = plan.rows.first { it.type == NotebookSchema.TYPE_HEADING }
@@ -89,11 +89,11 @@ class PageClipTest {
 
     @Test
     fun `Reuse points at the existing template, Insert brings the carried row in first, None and a missing row paste blank`() {
-        val reuse = PageClip.plan(envelope(), "nb-dest", 0, PageClip.Template.Reuse("tpl-existing"), ids())!!
+        val reuse = PageClip.plan(envelope(), "nb-dest", 0, { PageClip.Template.Reuse("tpl-existing") }, ids())!!
         assertTrue(reuse.rows.none { it.type == NotebookSchema.TYPE_TEMPLATE })
         assertEquals("tpl-existing", reuse.rows.first { it.type == NotebookSchema.TYPE_PAGE }.refId)
 
-        val insert = PageClip.plan(envelope(), "nb-dest", 0, PageClip.Template.Insert(templateId), ids())!!
+        val insert = PageClip.plan(envelope(), "nb-dest", 0, { PageClip.Template.Insert(templateId) }, ids())!!
         val tpl = insert.rows.first { it.type == NotebookSchema.TYPE_TEMPLATE }
         assertEquals(templateId, tpl.id)
         assertEquals("nb-dest", tpl.parentId)
@@ -102,9 +102,9 @@ class PageClipTest {
         assertEquals(NotebookSchema.TYPE_TEMPLATE, insert.rows.first().type)
         assertEquals(templateId, insert.rows.first { it.type == NotebookSchema.TYPE_PAGE }.refId)
 
-        val none = PageClip.plan(envelope(), "nb-dest", 0, PageClip.Template.None, ids())!!
+        val none = PageClip.plan(envelope(), "nb-dest", 0, { PageClip.Template.None }, ids())!!
         assertEquals("", none.rows.first { it.type == NotebookSchema.TYPE_PAGE }.refId)
-        val missing = PageClip.plan(PageClip.capture(pageRow, null, emptyList(), notebookId, now), "nb-dest", 0, PageClip.Template.Insert(templateId), ids())!!
+        val missing = PageClip.plan(PageClip.capture(pageRow, null, emptyList(), notebookId, now), "nb-dest", 0, { PageClip.Template.Insert(templateId) }, ids())!!
         assertTrue(missing.rows.none { it.type == NotebookSchema.TYPE_TEMPLATE })
         assertEquals("", missing.rows.first { it.type == NotebookSchema.TYPE_PAGE }.refId)
     }
@@ -112,9 +112,9 @@ class PageClipTest {
     @Test
     fun `a payload with no page row plans nothing, and an orphan is dropped`() {
         val noPage = ClipEnvelope(ClipEnvelope.VERSION, ClipEnvelope.KIND_PAGE, notebookId, now, envelope().rows.filter { it.type != NotebookSchema.TYPE_PAGE })
-        assertNull(PageClip.plan(noPage, "nb-dest", 0, PageClip.Template.None, ids()))
+        assertNull(PageClip.plan(noPage, "nb-dest", 0, { PageClip.Template.None }, ids()))
         val orphan = row("s-orphan", "lnk-gone", NotebookSchema.TYPE_STROKE, blob = byteArrayOf(1))
-        val plan = PageClip.plan(PageClip.capture(pageRow, null, content() + orphan, notebookId, now), "nb-dest", 0, PageClip.Template.None, ids())!!
+        val plan = PageClip.plan(PageClip.capture(pageRow, null, content() + orphan, notebookId, now), "nb-dest", 0, { PageClip.Template.None }, ids())!!
         assertEquals(7, plan.contentIds.size)
     }
 
@@ -122,7 +122,7 @@ class PageClipTest {
 
     private fun pastedLink(text: String?, dest: String): String? {
         val link = row("lnk-x", pageId, NotebookSchema.TYPE_LINK, text = text)
-        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), notebookId, now), dest, 0, PageClip.Template.None, ids())!!
+        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), notebookId, now), dest, 0, { PageClip.Template.None }, ids())!!
         return plan.rows.first { it.type == NotebookSchema.TYPE_LINK }.text
     }
 
@@ -142,7 +142,7 @@ class PageClipTest {
     @Test
     fun `a link to the page being pasted follows the copy`() {
         val link = row("lnk-self", pageId, NotebookSchema.TYPE_LINK, text = ownPage(pageId))
-        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), notebookId, now), "nb-dest", 0, PageClip.Template.None, ids())!!
+        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), notebookId, now), "nb-dest", 0, { PageClip.Template.None }, ids())!!
         val out = LinkPayload.decode(plan.rows.first { it.type == NotebookSchema.TYPE_LINK }.text!!)!!
         assertEquals(LinkPayload.KIND_PAGE, out.kind)
         assertNull(out.itemId)
@@ -159,13 +159,69 @@ class PageClipTest {
         assertEquals("", pastedLink("", "nb-dest"))
         assertNull(pastedLink(null, "nb-dest"))
         val link = row("lnk-x", pageId, NotebookSchema.TYPE_LINK, text = ownPage("page-9"))
-        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), "", now), "nb-dest", 0, PageClip.Template.None, ids())!!
+        val plan = PageClip.plan(PageClip.capture(pageRow, null, listOf(link), "", now), "nb-dest", 0, { PageClip.Template.None }, ids())!!
         assertEquals(ownPage("page-9"), plan.rows.first { it.type == NotebookSchema.TYPE_LINK }.text)
     }
 
     // ── Template dedupe by content ──────
 
     private val carried = PageClip.capture(pageRow, templateRow, emptyList(), notebookId, now).rows.first { it.type == NotebookSchema.TYPE_TEMPLATE }
+
+    /** The calendar's Copy page of a Day: two pages in one envelope, each with its own grid as paper. */
+    private fun twoPages(): ClipEnvelope {
+        val am = row("tpl-am", "", NotebookSchema.TYPE_TEMPLATE, text = "IMG#0000aaaa", width = 1404f, height = 1872f, blob = byteArrayOf(1))
+        val pm = row("tpl-pm", "", NotebookSchema.TYPE_TEMPLATE, text = "IMG#0000bbbb", width = 1404f, height = 1872f, blob = byteArrayOf(2))
+        val pageAm = row("page-am", "", NotebookSchema.TYPE_PAGE, order = 0, refId = "tpl-am", width = 1404f, height = 1872f)
+        val pagePm = row("page-pm", "", NotebookSchema.TYPE_PAGE, order = 1, refId = "tpl-pm", width = 1404f, height = 1872f)
+        val rows = listOf(am, pm, pageAm, pagePm,
+            row("s-am", "page-am", NotebookSchema.TYPE_STROKE, order = 3, blob = byteArrayOf(9)),
+            row("s-pm", "page-pm", NotebookSchema.TYPE_STROKE, order = 0, blob = byteArrayOf(8)),
+            row("lnk", "page-pm", NotebookSchema.TYPE_LINK, order = 1, text = LinkPayload.encode(LinkPayload.CHROME_UNDERLINE, LinkPayload.KIND_PAGE, null, "page-am")),
+        )
+        return ClipEnvelope(ClipEnvelope.VERSION, ClipEnvelope.KIND_PAGE, "", now, rows.map { clipRowOf(it) })
+    }
+
+    @Test
+    fun `two pages paste in order at consecutive slots, each on its own paper, their ink under them, one plan`() {
+        val env = twoPages()
+        val plan = PageClip.plan(env, "nb-dest", 3, { PageClip.Template.Insert(it.refId!!) }, ids())!!
+        assertEquals(2, plan.pageIds.size)
+        assertEquals(plan.pageIds.first(), plan.pageId)
+        val pages = plan.rows.filter { it.type == NotebookSchema.TYPE_PAGE }
+        assertEquals(plan.pageIds, pages.map { it.id })
+        assertEquals(listOf(3, 4), pages.map { it.order })
+        // Templates first, then the pages, then the content: the insert order.
+        assertEquals(listOf("template", "template", "page", "page", "stroke", "stroke", "link"), plan.rows.map { it.type })
+        val templates = plan.rows.filter { it.type == NotebookSchema.TYPE_TEMPLATE }
+        assertEquals(listOf("tpl-am", "tpl-pm"), templates.map { it.id })
+        assertEquals(listOf("tpl-am", "tpl-pm"), pages.map { it.refId })
+        val strokes = plan.rows.filter { it.type == NotebookSchema.TYPE_STROKE }
+        assertEquals(listOf(pages[0].id, pages[1].id), strokes.map { it.parentId })
+        assertEquals(listOf(3, 0), strokes.map { it.order })
+        assertEquals(3, plan.contentIds.size)
+        // No source notebook: a page link is left as it is, even one to the other page.
+        assertEquals(env.rows.first { it.type == "link" }.text, plan.rows.first { it.type == "link" }.text)
+    }
+
+    @Test
+    fun `two pages on one paper bring the template row in once, and each page chooses its own road`() {
+        val env = twoPages()
+        val shared = PageClip.plan(env, "nb-dest", 0, { PageClip.Template.Insert("tpl-am") }, ids())!!
+        assertEquals(1, shared.rows.count { it.type == NotebookSchema.TYPE_TEMPLATE })
+        assertEquals(listOf("tpl-am", "tpl-am"), shared.rows.filter { it.type == NotebookSchema.TYPE_PAGE }.map { it.refId })
+        val mixed = PageClip.plan(env, "nb-dest", 0, { if (it.id == "page-am") PageClip.Template.Reuse("tpl-here") else PageClip.Template.None }, ids())!!
+        assertEquals(0, mixed.rows.count { it.type == NotebookSchema.TYPE_TEMPLATE })
+        assertEquals(listOf("tpl-here", ""), mixed.rows.filter { it.type == NotebookSchema.TYPE_PAGE }.map { it.refId })
+    }
+
+    @Test
+    fun `across notebooks a link to any pasted page follows its copy`() {
+        val env = twoPages().copy(sourceNotebookId = "nb-src")
+        val plan = PageClip.plan(env, "nb-dest", 0, { PageClip.Template.None }, ids())!!
+        val link = LinkPayload.decode(plan.rows.first { it.type == NotebookSchema.TYPE_LINK }.text!!)!!
+        assertEquals(LinkPayload.KIND_PAGE, link.kind)
+        assertEquals(plan.pageIds[0], link.pageId)
+    }
 
     private fun candidate(id: String, text: String? = "LINED", width: Float? = 1404f, height: Float? = 1872f, blob: ByteArray? = byteArrayOf(1, 2, 3, 4)) =
         row(id, "nb-dest", NotebookSchema.TYPE_TEMPLATE, text = text, width = width, height = height, blob = blob)

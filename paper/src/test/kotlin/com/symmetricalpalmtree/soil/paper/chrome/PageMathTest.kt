@@ -60,6 +60,9 @@ class PageMathTest {
 
     @Test fun `pasting before the first page names it page 2`() {
         assertEquals(2, PageMath.anchorNumberAfterPaste(currentIndex = 0, before = true))
+        // Two pages pasted before (the calendar's Day): the anchor moves past both.
+        assertEquals(3, PageMath.anchorNumberAfterPaste(currentIndex = 0, before = true, count = 2))
+        assertEquals(1, PageMath.anchorNumberAfterPaste(currentIndex = 0, before = false, count = 2))
     }
 
     // ── toRestore / toDelete ─────────────────────────────────────────────────

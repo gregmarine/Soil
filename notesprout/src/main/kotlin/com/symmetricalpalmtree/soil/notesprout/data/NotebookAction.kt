@@ -87,9 +87,10 @@ sealed interface NotebookAction {
      * page the notebook was on either side.
      */
     /**
-     * A page pasted: the same shape as [Page], its own kind because [contentIds] runs the other
-     * way: a delete's are rows to put back on undo, a paste's are rows to take away. A template
-     * row the paste brought in is left in place by an undo.
+     * A page pasted — or several at once, the calendar's Day as AM and PM, one step: the same
+     * shape as [Page], its own kind because [contentIds] runs the other way: a delete's are rows
+     * to put back on undo, a paste's are rows to take away. A template row the paste brought in
+     * is left in place by an undo.
      */
     class PagePasted(
         val before: List<PageRef>,

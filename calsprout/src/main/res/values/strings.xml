@@ -33,6 +33,19 @@
     <string name="delete_selection_action">Delete selection</string>
     <string name="calendar_copy_selection">Copy selection</string>
 
+    <!-- The clipboard: the wording is the Scratch Pad's. Never a path, never a name. -->
+    <string name="calendar_more_title">This page</string>
+    <string name="calendar_copied_toast">Copied to the clipboard</string>
+    <string name="calendar_nothing_to_copy_title">Nothing to copy</string>
+    <string name="calendar_nothing_to_copy_body">There is no ink in the selection to copy.</string>
+    <string name="calendar_too_large_title">Too much to copy</string>
+    <string name="calendar_too_large_body">This holds more ink than the clipboard can carry. Copy a smaller part of it.</string>
+    <string name="calendar_page_too_large_body">This page holds more than the clipboard can carry. Copy a part of it with the lasso instead.</string>
+    <string name="calendar_copy_failed_title">Clipboard</string>
+    <string name="calendar_copy_failed_body">The ink could not be put on the clipboard. The clipboard was left as it was.</string>
+    <string name="calendar_paste_failed_title">Nothing to paste</string>
+    <string name="calendar_paste_failed_body">The clipboard holds no ink to paste here. Copy with the lasso in a notebook or on the Scratch Pad, then paste.</string>
+
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>
     <string name="calendar_store_failed_body">Soil could not open the calendar\'s storage. Nothing was lost. Unlock the library in Soil and try again.</string>

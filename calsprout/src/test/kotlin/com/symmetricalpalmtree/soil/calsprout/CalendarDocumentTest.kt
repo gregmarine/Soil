@@ -9,6 +9,7 @@ import com.symmetricalpalmtree.soil.paper.store.Cell
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -312,6 +313,47 @@ class CalendarDocumentTest {
 
         assertTrue(runCatching { d.show(month, refreshMarks = true) }.exceptionOrNull() is StoreUnavailable)
         assertEquals(marksBefore, d.marks)
+    }
+
+    @Test
+    fun aPasteMintsThePageAheadOfItsInk_andUndoTakesExactlyItAway() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = doc(fake)
+        d.show(month)
+        d.addStroke(stroke("own"))
+        d.flushUntilClean()
+        fake.execs.clear()
+        val action = d.paste(listOf(stroke("p1", 10), stroke("p2", 20)))!!
+        assertEquals(d.pageId, action.pageId)
+        assertEquals(listOf("p1", "p2"), action.strokes.map { it.id })
+        assertEquals(listOf(1L, 2L), action.orders)
+        assertFalse(d.hasUnsavedChanges)
+        val batch = fake.execs.single()
+        assertEquals(2, batch.count { it.sql.startsWith("INSERT OR REPLACE INTO stroke") })
+        assertEquals(3, d.strokes.size)
+        assertEquals(listOf("own", "p1", "p2"), d.captureInk().map { it.second.id })
+        assertNull(d.paste(emptyList()))
+
+        fake.execs.clear()
+        d.revert(action)
+        assertEquals(listOf("own"), d.strokes.map { it.id })
+        assertEquals(2, fake.execs.single().count { it.sql.startsWith("DELETE FROM stroke") })
+        d.reapply(action)
+        assertEquals(listOf("own", "p1", "p2"), d.captureInk().map { it.second.id })
+        assertEquals(listOf(0L, 1L, 2L), d.captureInk().map { it.first })
+    }
+
+    @Test
+    fun aPasteOnAPageWithNoRowMintsIt() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = doc(fake)
+        d.show(month)
+        fake.execs.clear()
+        d.paste(listOf(stroke("p1")))
+        val batch = fake.execs.single()
+        assertTrue(batch[0].sql.startsWith("INSERT OR IGNORE INTO period"))
+        assertTrue(batch[1].sql.startsWith("INSERT OR IGNORE INTO page"))
+        assertTrue(batch[2].sql.startsWith("INSERT OR REPLACE INTO stroke"))
     }
 
     /** A [MarkSource] whose answer can be swapped mid-test. */
