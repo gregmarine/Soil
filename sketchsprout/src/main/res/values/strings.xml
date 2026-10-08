@@ -62,6 +62,16 @@
     <string name="clip_paste_failed">The clipboard is empty or its contents couldn\'t be read. Copy a page again.</string>
     <string name="clip_paste_ink_failed">The clipboard holds no ink. Copy with the lasso in a notebook or on the Scratch Pad, then paste.</string>
     <string name="clip_paste_ink_empty">The copied ink holds nothing to paste.</string>
+    <plurals name="page_sheet_backlinks">
+        <item quantity="one">%1$d link to here</item>
+        <item quantity="other">%1$d links to here</item>
+    </plurals>
+    <string name="backlinks_title">Links</string>
+    <string name="backlinks_empty">Nothing links to this page.</string>
+    <string name="backlinks_notebook_page">Notebook page</string>
+    <string name="backlinks_whole_item">The whole sketchbook</string>
+    <string name="link_follow_failed_title">Can\'t open</string>
+    <string name="link_follow_failed_body">Soil could not open where the link was made.</string>
     <string name="export_page_action">Export page…</string>
     <string name="export_sketchbook_action">Export sketchbook…</string>
     <string name="template_gone_title">Couldn\'t use that template</string>

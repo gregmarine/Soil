@@ -45,7 +45,7 @@ class LibraryBrowser(
     private val onOpen: (Item) -> Unit,
     /** A page found by its tag: the item, opened at that page. Null leaves page cards out of the search. */
     private val onOpenPage: ((Item, String) -> Unit)? = null,
-    /** Null narrows nothing; a kind lists only its items. */
+    /** Null narrows nothing; a kind lists only its items; several kinds, comma-separated, list theirs. */
     private val kind: String? = null,
     /** An item left out of every listing: the one the asking app has open. */
     private val excludeId: String? = null,
@@ -242,7 +242,9 @@ class LibraryBrowser(
         )
     }
 
-    private fun wanted(item: Item): Boolean = (kind == null || item.kind == kind) && item.id != excludeId
+    private val kinds: Set<String>? = kind?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet()?.takeIf { it.isNotEmpty() }
+
+    private fun wanted(item: Item): Boolean = (kinds == null || item.kind in kinds) && item.id != excludeId
 
     /** Where an item is, for a flat shelf's second line. */
     private fun placeOf(item: Item): String = placeOfFolderId(item.parentId)

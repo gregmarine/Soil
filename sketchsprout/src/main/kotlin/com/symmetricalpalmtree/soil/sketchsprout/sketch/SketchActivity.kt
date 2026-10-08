@@ -39,7 +39,10 @@ import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
+import com.symmetricalpalmtree.soil.paper.chrome.BacklinksPanel
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
+import com.symmetricalpalmtree.soil.seam.SeamBacklink
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
@@ -818,11 +821,69 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         Slog.d(TAG) { "deleted a page; now page ${next.indexOf(landing) + 1}/${next.size}" }
     }
 
+    /** The links panel while it is up; one showing at a time. */
+    private var backlinksPanel: BacklinksPanel<SeamBacklink>? = null
+
     /** The page sheet, on a finger long-press: it asks; it never acts. A Paste row is present
-     *  while its kind of clip is there, absent otherwise — never disabled. */
+     *  while its kind of clip is there, absent otherwise — never disabled; and, when anything in
+     *  the library links to this page or to the whole sketchbook, what links here. */
     private fun showPageSheet() {
         if (!opened || closing) return
+        val page = currentPage ?: return
         paper.releaseRender()
+        lifecycleScope.launch {
+            val into = backlinksTo(page.id)
+            if (!opened || closing || currentPage?.id != page.id) return@launch
+            buildPageSheet(into).show()
+        }
+    }
+
+    /** What in the library links to [pageId], or to the whole sketchbook, by source name. */
+    private suspend fun backlinksTo(pageId: String): List<SeamBacklink> {
+        val me = itemId ?: return emptyList()
+        return withContext(Dispatchers.IO) { runCatching { (application as SketchsproutApp).soil.seam().backlinks(me) }.getOrDefault(emptyList()) }
+            .filter { it.targetPageId == null || it.targetPageId == pageId }
+            .sortedWith(compareBy({ it.targetPageId == null }, { it.sourceName.lowercase() }))
+    }
+
+    private fun showBacklinks(into: List<SeamBacklink>) {
+        if (!opened || closing || backlinksPanel != null) return
+        hideFloatingBars()
+        dismissCollapsed()
+        paper.releaseRender()
+        val pageWord = getString(R.string.backlinks_notebook_page)
+        val wholeWord = getString(R.string.backlinks_whole_item)
+        val documentWord = getString(com.symmetricalpalmtree.soil.paper.R.string.backlinks_document_word)
+        backlinksPanel = BacklinksPanel(
+            this,
+            title = getString(R.string.backlinks_title),
+            emptyText = getString(R.string.backlinks_empty),
+            rows = into.map { b ->
+                val where = if (b.sourceKind == "notebook") pageWord else documentWord
+                BacklinksModel.Row(b, "${b.sourceName} · $where", if (b.targetPageId == null) wholeWord else "")
+            },
+            onDismissed = { backlinksPanel = null; pushExclusions() },
+            onPicked = ::followBacklink,
+        ).also { it.show() }
+    }
+
+    /** Go to where the link was made: Soil opens the page, or the document, in its app over this
+     *  screen, and Back comes back here. */
+    private fun followBacklink(b: SeamBacklink) {
+        if (!opened || closing) return
+        hideFloatingBars()
+        dismissCollapsed()
+        val started = runCatching {
+            startActivity(
+                Intent(Seam.ACTION_FOLLOW).setPackage(BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, b.sourceItemId)
+                    .putExtra(Seam.EXTRA_PAGE_ID, b.sourcePageId.takeIf { it.isNotEmpty() }),
+            )
+        }.isSuccess
+        if (!started) Dialogs.problem(this, R.string.link_follow_failed_title, R.string.link_follow_failed_body)
+    }
+
+    private fun buildPageSheet(into: List<SeamBacklink>): ActionSheetDialog {
         val sheet = ActionSheetDialog(this)
             .title(getString(R.string.page_sheet_title))
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.copy_page_action)) { runPageOp { doCopyPage() } }
@@ -830,9 +891,12 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (SketchClipboard.hasInk) sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pen, getString(R.string.paste_ink_action)) { runPageOp { doPasteInk() } }
         sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
-            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(currentPage?.id) }
+        if (into.isNotEmpty()) {
+            sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_link, resources.getQuantityString(R.plurals.page_sheet_backlinks, into.size, into.size)) { showBacklinks(into) }
+        }
+        sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(currentPage?.id) }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_sketchbook_action)) { exportVia(null) }
-            .show()
+        return sheet
     }
 
     // ── The clipboard ────────────────────────────────────────────────────────

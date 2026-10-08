@@ -111,7 +111,7 @@
     <string name="link_cd_up">Back to the notebooks</string>
     <string name="link_mode_this_notebook">This notebook</string>
     <string name="link_mode_notebook">Notebook or document</string>
-    <string name="link_mode_notebook_page">Notebook page</string>
+    <string name="link_mode_notebook_page">Notebook or sketchbook page</string>
     <string name="link_mode_cal_day">Calendar day</string>
     <string name="link_style_label">Style</string>
     <string name="link_style_underline">Underline</string>
@@ -130,8 +130,12 @@
     <string name="link_pick_none_notebook">Choose the notebook or document this link should open.</string>
     <string name="link_item_document">Document</string>
     <string name="link_item_other">Item</string>
+    <plurals name="link_sketchbook_pages">
+        <item quantity="one">Sketchbook, %d page</item>
+        <item quantity="other">Sketchbook, %d pages</item>
+    </plurals>
     <string name="link_follow_failed_body">Soil could not be asked to open it.</string>
-    <string name="link_pick_none_notebook_page">Open a notebook, then tap the page this link should open.</string>
+    <string name="link_pick_none_notebook_page">Open a notebook or a sketchbook, then choose the page this link should open.</string>
     <string name="link_pick_none_day">Choose the day this link should open.</string>
     <string name="link_picker_choose_day">Tap here to choose a day.</string>
     <string name="link_picker_day_chosen">%1$s\n\nTap to choose another day.</string>
