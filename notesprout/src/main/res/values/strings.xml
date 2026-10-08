@@ -79,6 +79,19 @@
     <string name="convert_too_long_body">The words come to more than one document can hold. No document was made. Convert fewer pages.</string>
     <string name="convert_no_app_body">No app that makes documents is installed. No document was made.</string>
     <string name="convert_failed_body">The document could not be made. Nothing was changed.</string>
+
+    <!-- Convert to sketchbook: the strokes handed to the sketchbook's app, baked black as ink. -->
+    <string name="convert_sketch_page_action">Convert page to sketchbook…</string>
+    <string name="convert_sketch_notebook_action">Convert notebook to sketchbook…</string>
+    <string name="convert_sketch_title">Convert to sketchbook</string>
+    <string name="convert_sketch_making">Making the sketchbook…</string>
+    <string name="convert_sketch_done_title">Sketchbook made</string>
+    <string name="convert_sketch_done_body">“%1$s” is in the same folder as this notebook.</string>
+    <string name="convert_leave_link">Leave a link</string>
+    <string name="convert_sketch_too_large_body">The pages hold more ink than can be handed over at once. No sketchbook was made. Convert fewer pages.</string>
+    <string name="convert_sketch_no_app_body">No app that makes sketchbooks is installed. No sketchbook was made.</string>
+    <string name="convert_sketch_failed_body">The sketchbook could not be made. Nothing was changed.</string>
+    <string name="convert_link_placed_toast">Linked to %1$s</string>
     <string name="page_sheet_delete">Delete</string>
     <string name="erase_page_title">Erase this page?</string>
     <string name="erase_confirm">Erase</string>

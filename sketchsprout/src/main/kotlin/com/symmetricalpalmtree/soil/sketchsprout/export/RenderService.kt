@@ -16,6 +16,12 @@ import com.symmetricalpalmtree.soil.seam.Seam
 import com.symmetricalpalmtree.soil.seam.SeamCallerCheck
 import com.symmetricalpalmtree.soil.seam.SeamPageNames
 import com.symmetricalpalmtree.soil.seam.SeamRenderInfo
+import com.symmetricalpalmtree.soil.seam.SeamShared
+import com.symmetricalpalmtree.soil.seamkit.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.paper.core.CoverSnapshot
+import com.symmetricalpalmtree.soil.sketchsprout.ingest.InkIngest
+import com.symmetricalpalmtree.gpaper.core.render.StrokeRasterizer
+import android.graphics.Canvas
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
 import com.symmetricalpalmtree.soil.sketchsprout.SketchsproutApp
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
@@ -56,8 +62,9 @@ class RenderService : Service() {
 
         override fun relabelStatements(oldId: String, newId: String): List<String> = guarded { Relabel.statements(oldId, newId) }
 
-        // A sketchbook is its pages: it does not flow, and writes no format of its own.
-        override fun describe(): SeamRenderInfo = guarded { SeamRenderInfo.PAGES_ONLY }
+        // A sketchbook is its pages: it does not flow, and writes no format of its own. It takes
+        // one file in: a notebook's ink envelope, which is how Convert makes a sketchbook.
+        override fun describe(): SeamRenderInfo = guarded { INFO }
 
         override fun renderFlow(itemId: String, pageSize: String?, bundleVersion: Int, destination: ParcelFileDescriptor?): SeamPageNames = guarded {
             runCatching { destination?.close() }
@@ -69,9 +76,45 @@ class RenderService : Service() {
             throw IllegalArgumentException("no such format")
         }
 
+        /**
+         * **Convert's landing**: the notebook's ink envelope read into the sketchbook Soil just
+         * made — a page per page, the paper carried, every stroke baked black into an ink raster
+         * (one page in memory at a time), then the root row, the pages and the rasters written
+         * in one transaction. The library is told the pages and shown the first page as the cover.
+         */
         override fun ingest(itemId: String, fileExtension: String?, source: ParcelFileDescriptor?) = guarded {
-            runCatching { source?.close() }
-            throw IllegalArgumentException("a sketchbook takes no file in")
+            val input = source ?: throw IllegalArgumentException("no source")
+            if (!InkIngest.EXTENSION.equals(fileExtension, ignoreCase = true)) { runCatching { input.close() }; throw IllegalArgumentException("a sketchbook takes only notebook ink") }
+            val bytes = ParcelFileDescriptor.AutoCloseInputStream(input).use { it.readBytes() }
+            val env = ClipEnvelope.decode(bytes) ?: throw IllegalStateException(Seam.INGEST_NOT_TEXT)
+            val pages = InkIngest.pagesOf(env) ?: throw IllegalStateException(Seam.INGEST_NOT_TEXT)
+            if (pages.size > PageBundle.MAX_PAGES) throw IllegalStateException(Seam.INGEST_TOO_LARGE)
+            val seam = runBlocking { (application as SketchsproutApp).soil.seam() }
+            val name = seam.item(itemId)?.name ?: throw IllegalStateException(Seam.INGEST_FAILED)
+            val baked = pages.map { page ->
+                SketchbookStore.IngestedPage(page.width, page.height, page.paperToken, page.paper, bakeInk(page))
+            }
+            val session = seam.openItem(itemId, SketchbookSchema.SCHEMA, Binder())
+            val ids = try {
+                SketchbookStore(SeamRowStore(session), itemId).ingest(name, baked)
+            } catch (e: SketchbookStore.RasterTooLarge) {
+                throw IllegalStateException(Seam.INGEST_TOO_LARGE)
+            } catch (e: Exception) {
+                Log.w(TAG, "the converted ink was not written: ${e.javaClass.simpleName}")
+                throw IllegalStateException(Seam.INGEST_FAILED)
+            } finally {
+                runCatching { session.close(true) }
+            }
+            runCatching { seam.setPages(itemId, ids) }
+            // The first page as the card's cover; never worth failing the convert for.
+            runCatching {
+                val first = pages.first(); val w = first.width.toInt(); val h = first.height.toInt()
+                val paper = baked.first().paper?.let { Bitmaps.decodeBounded(it, MAX_TEMPLATE_EDGE) }
+                val ink = baked.first().ink?.let { RasterImage.decode(it, w, h) }
+                val flat = try { PageFlatten.flatten(w, h, paper, null, ink) } finally { paper?.recycle(); ink?.recycle() }
+                try { seam.setCover(itemId, SeamShared.write(CoverSnapshot.encode(flat))) } finally { flat.recycle() }
+            }
+            Slog.d(TAG) { "converted ${pages.size} page(s) into a sketchbook" }
         }
     }
 
@@ -167,8 +210,31 @@ class RenderService : Service() {
         }
     }
 
-    private companion object {
-        const val TAG = "RenderService"
-        const val MAX_TEMPLATE_EDGE = 4096
+    /** A page's strokes baked onto a transparent page-sized image, as the engine bakes a pen mark
+     *  into the ink raster: lossless WebP bytes, or null for a page with no strokes. */
+    private fun bakeInk(page: InkIngest.Page): ByteArray? {
+        if (page.strokes.isEmpty()) return null
+        val w = page.width.toInt(); val h = page.height.toInt()
+        val bitmap = try { Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888) } catch (e: OutOfMemoryError) { throw IOException("a ${w}x$h page would not allocate", e) }
+        return try {
+            StrokeRasterizer.draw(Canvas(bitmap), page.strokes)
+            RasterImage.encode(bitmap)
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    companion object {
+        private const val TAG = "RenderService"
+        private const val MAX_TEMPLATE_EDGE = 4096
+
+        /** No formats of its own, no flow; one file in: a notebook's ink. */
+        val INFO = SeamRenderInfo(
+            flowing = false,
+            formats = emptyList(),
+            importLabel = InkIngest.LABEL,
+            importExtensions = listOf(InkIngest.EXTENSION),
+            importMimeTypes = listOf("application/octet-stream"),
+        )
     }
 }

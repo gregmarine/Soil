@@ -190,6 +190,45 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
         execAll(statements)
     }
 
+    // ── Convert: a sketchbook made whole from a notebook's ink ──────
+
+    /** One page as the ingest writes it: its size, its paper (a token and a picture, or none),
+     *  its ink raster's bytes (or null for a blank page). */
+    class IngestedPage(val width: Float, val height: Float, val paperToken: String?, val paper: ByteArray?, val ink: ByteArray?)
+
+    /**
+     * A sketchbook file Soil just made, filled in one transaction: the root row, a template row
+     * per distinct paper (shared by every page on the same paper), a page row per page in order,
+     * and an ink row under each page that has one. Answers the page ids in order.
+     */
+    fun ingest(name: String, pages: List<IngestedPage>): List<String> {
+        require(pages.isNotEmpty()) { "no pages" }
+        val now = System.currentTimeMillis()
+        val statements = ArrayList<Statement>()
+        statements += SketchbookSql.insertRoot(sketchbookId, name, now)
+        val templates = HashMap<String, String>()
+        val ids = ArrayList<String>(pages.size)
+        for ((i, page) in pages.withIndex()) {
+            val w = page.width.toInt(); val h = page.height.toInt()
+            val templateId = if (page.paperToken.isNullOrEmpty() || page.paper == null || page.paper.isEmpty()) "" else {
+                templates.getOrPut("${page.paperToken}|$w|$h") {
+                    newId().also { statements += SketchbookSql.insertTemplate(it, sketchbookId, page.paperToken, w, h, page.paper, now) }
+                }
+            }
+            val pageId = newId()
+            ids += pageId
+            statements += SketchbookSql.insertPage(pageId, sketchbookId, i, page.width, page.height, templateId, now)
+            val ink = page.ink
+            if (ink != null && ink.isNotEmpty()) {
+                if (ink.size > RasterRows.MAX_BYTES) throw RasterTooLarge(ink.size)
+                statements += SketchbookSql.insertRaster(newId(), pageId, SketchbookSchema.TYPE_SKETCH_INK, ink, now)
+            }
+        }
+        statements += SketchbookSql.setLastOpened(sketchbookId, ids.first(), now)
+        execAll(statements)
+        return ids
+    }
+
     // ── The clipboard ──────
 
     /** Snapshot [page] and everything under it as the clipboard's bytes. The caller flushed the
