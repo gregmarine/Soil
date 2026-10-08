@@ -234,7 +234,9 @@ class RenderService : Service() {
             formats = emptyList(),
             importLabel = InkIngest.LABEL,
             importExtensions = listOf(InkIngest.EXTENSION),
-            importMimeTypes = listOf("application/octet-stream"),
+            // A type no file on the device carries: the ink file never exists on disk, and the
+            // picker's filter must not widen for it.
+            importMimeTypes = listOf("application/x-soil-ink"),
         )
     }
 }
