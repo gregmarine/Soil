@@ -2143,15 +2143,17 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         }
     }
 
-    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen. */
-    private fun openElsewhere(itemId: String) {
+    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen —
+     *  at [pageId] when a link names one (a sketchbook's page). */
+    private fun openElsewhere(itemId: String, pageId: String? = null) {
         if (!opened || closing) return
         hideFloatingBars()
         dismissCollapsed()
         val started = runCatching {
             startActivity(
                 android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
-                    .putExtra(Seam.EXTRA_ITEM_ID, itemId),
+                    .putExtra(Seam.EXTRA_ITEM_ID, itemId)
+                    .putExtra(Seam.EXTRA_PAGE_ID, pageId),
             )
         }.isSuccess
         if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)

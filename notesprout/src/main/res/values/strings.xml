@@ -152,7 +152,6 @@
     <string name="link_target_notebook_gone_body">The notebook this link points to is no longer in the library.</string>
     <string name="link_target_page_gone_body">The page this link points to no longer exists.</string>
     <string name="link_target_unreadable_body">This link was made by a newer or different app, so where it points can\'t be read here.</string>
-    <string name="link_target_other_kind_body">This link opens a %1$s, and no app for that is installed.</string>
 
     <!-- Paper -->
     <string name="page_template_action">Page template</string>

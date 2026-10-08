@@ -206,7 +206,8 @@ class LinkPickerActivity : AppCompatActivity() {
         if (decoded == null) return
         when (decoded.kind) {
             LinkPayload.KIND_PAGE -> selectedPageId = decoded.pageId
-            LinkPayload.KIND_ITEM -> selectedNotebookId = aliveNotebook(decoded.itemId)?.id
+            // A whole-item link may name any kind: a notebook, a document, a sketchbook.
+            LinkPayload.KIND_ITEM -> selectedNotebookId = aliveItem(decoded.itemId)?.id
             LinkPayload.KIND_ITEM_PAGE -> {
                 val target = alivePaged(decoded.itemId) ?: return
                 // A notebook's pages are previewed; a sketchbook's page stands as chosen.
@@ -216,8 +217,6 @@ class LinkPickerActivity : AppCompatActivity() {
             LinkPayload.KIND_CAL -> selectedDate = decoded.date
         }
     }
-
-    private suspend fun aliveNotebook(id: String?): SeamItem? = aliveItem(id)?.takeIf { it.kind == NotebookSchema.KIND }
 
     /** An item with pages a link may name: a notebook, or a sketchbook. */
     private suspend fun alivePaged(id: String?): SeamItem? = aliveItem(id)?.takeIf { it.kind == NotebookSchema.KIND || it.kind == KIND_SKETCHBOOK }
