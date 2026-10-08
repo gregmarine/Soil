@@ -247,3 +247,25 @@ sheet; `scratchpad.md`). What remains is retiring the notebook's Send to Scratch
 Notesprout and Docsprout leave with an "X" on the top bar; Biblesprout, the Scratch Pad and
 Calsprout leave with a back arrow. One or the other everywhere, probably the arrow. Decide once,
 then change the two apps that differ.
+
+---
+
+## One link picker, Soil's, with page previews for every kind
+
+**Raised by Greg 2026-10-08, at Sketchsprout's phase 9 walk. Set aside for after Sketchsprout.**
+
+A sketchbook's page is chosen in Soil's item picker as a list of names, while a notebook's
+pages are previewed as cards in Notesprout's own picker, which came over from SN before Soil's
+existed. The two are one job done twice, and Greg asked for the universal shape:
+
+- **Soil's picker grows a page-card grid** with previews for any item whose app can draw its
+  pages, through the app's renderer (the export service: Notesprout's for a notebook,
+  Sketchsprout's for a sketchbook), a grid page rendered at a time and scaled to the card.
+  Docsprout's Choose from library gets the previews with it.
+- **Notesprout's picker is retired.** Soil holds every file's one connection, so This
+  notebook's pages are drawn through the renderer too, the current page marked and the home
+  notebook not excluded; New page (before or after) and New notebook become *answers* the
+  picker gives and the app carries out, making the page and the link together; the calendar
+  day shelf moves into Soil's picker; Edit link reopens it on the item and page already chosen.
+  The link's style (underline or none) stays Notesprout's, asked after the pick.
+- One chooser for anything that links, in every Sprout app to come.
