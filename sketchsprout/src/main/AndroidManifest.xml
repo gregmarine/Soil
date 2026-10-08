@@ -47,6 +47,19 @@
                 android:value="sketchbook" />
         </activity>
 
+        <!-- The sketchbook's pages for Soil's export screen, bound by Soil and nothing else. -->
+        <service
+            android:name=".export.RenderService"
+            android:exported="true"
+            android:permission="${soilPackage}.permission.SEAM">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.RENDER" />
+            </intent-filter>
+            <meta-data
+                android:name="com.symmetricalpalmtree.soil.kind"
+                android:value="sketchbook" />
+        </service>
+
     </application>
 
 </manifest>

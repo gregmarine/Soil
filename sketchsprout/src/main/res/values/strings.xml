@@ -46,6 +46,8 @@
     <string name="page_sheet_title">This page</string>
     <string name="page_template_action">Page template</string>
     <string name="page_sheet_delete">Delete page</string>
+    <string name="export_page_action">Export page…</string>
+    <string name="export_sketchbook_action">Export sketchbook…</string>
     <string name="template_gone_title">Couldn\'t use that template</string>
     <string name="template_gone_body">That template is no longer in the library. Nothing has been changed.</string>
     <string name="template_render_failed_title">Couldn\'t draw that paper</string>

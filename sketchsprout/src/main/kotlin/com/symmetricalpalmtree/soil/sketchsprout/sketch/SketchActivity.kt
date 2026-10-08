@@ -158,6 +158,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         onTemplatePicked(it.resultCode, it.data?.getStringExtra(Seam.EXTRA_PICK))
     }
 
+    /** Run once the page is flushed and just before the screen finishes: a door the exit opens
+     *  (Soil's export screen, which needs the file free). */
+    private var afterExit: (() -> Unit)? = null
+
     /** Soil's screen is up over this one in another process: the pipeline is handed over as for
      *  any Soil screen, and the session is not parked. */
     private var soilScreenShowing = false
@@ -814,7 +818,25 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             .title(getString(R.string.page_sheet_title))
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(currentPage?.id) }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_sketchbook_action)) { exportVia(null) }
             .show()
+    }
+
+    /** Soil's export screen for this sketchbook, or one page of it. The sketchbook closes first,
+     *  so the file is free for the renderer, and Soil opens it again on the way back. */
+    private fun exportVia(pageId: String?) {
+        if (!opened || closing) return
+        val id = itemId ?: return
+        afterExit = {
+            startActivity(
+                Intent(Seam.ACTION_EXPORT).setPackage(BuildConfig.SOIL_PACKAGE)
+                    .putExtra(Seam.EXTRA_ITEM_ID, id)
+                    .putExtra(Seam.EXTRA_PAGE_ID, pageId)
+                    .putExtra(Seam.EXTRA_RETURN_TO_APP, true),
+            )
+        }
+        exit()
     }
 
     private fun confirmDeletePage() {
@@ -1408,8 +1430,15 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         appScope.launch {
             val ok = withContext(NonCancellable) { pageOps.withLock { saver.flushForExit() } }
             if (isFinishing || isDestroyed) return@launch
-            if (ok) finishWithHandoff() else askAboutUnsaved()
+            if (ok) leaveNow() else askAboutUnsaved()
         }
+    }
+
+    /** The exit's last step: the door the exit opened, then the handoff and the finish. */
+    private fun leaveNow() {
+        afterExit?.invoke()
+        afterExit = null
+        finishWithHandoff()
     }
 
     private fun askAboutUnsaved() {
@@ -1418,7 +1447,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 .setTitle(R.string.sketch_not_saved_title)
                 .setMessage(R.string.sketch_not_saved_body)
                 .setPositiveButton(R.string.sketch_try_again) { _, _ -> leaveWhenFlushed() }
-                .setNegativeButton(R.string.sketch_leave_anyway) { _, _ -> finishWithHandoff() }
+                .setNegativeButton(R.string.sketch_leave_anyway) { _, _ -> leaveNow() }
                 .setCancelable(false)
                 .create(),
         ).show()
