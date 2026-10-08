@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
@@ -30,8 +31,14 @@ import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.gpaper.core.engine.GPaper
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.gpaper.core.model.StrokePoint
+import com.symmetricalpalmtree.gpaper.core.model.StrokeStyle
+import com.symmetricalpalmtree.soil.paper.ink.InkPlacement
+import com.symmetricalpalmtree.soil.seamkit.clip.InkClip
+import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchClipboard
+import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
+import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
@@ -489,6 +496,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                         }.onFailure { Log.w(TAG, "the new sketchbook's paper could not be laid: ${it.javaClass.simpleName}") }
                     }
                 }
+                // Read again, never once per process: another screen may have copied since.
+                SketchClipboard.refresh(seam)
                 prefs.lastSketchbookId = item.id
                 SketchbookStore.Loaded(pages, loaded.currentId) to item.name
             }
@@ -809,18 +818,126 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         Slog.d(TAG) { "deleted a page; now page ${next.indexOf(landing) + 1}/${next.size}" }
     }
 
-    /** The page sheet, on a finger long-press: it asks; it never acts. Delete in this phase; the
-     *  copy, paste and export rows join in theirs. */
+    /** The page sheet, on a finger long-press: it asks; it never acts. A Paste row is present
+     *  while its kind of clip is there, absent otherwise — never disabled. */
     private fun showPageSheet() {
         if (!opened || closing) return
         paper.releaseRender()
-        ActionSheetDialog(this)
+        val sheet = ActionSheetDialog(this)
             .title(getString(R.string.page_sheet_title))
-            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, getString(R.string.copy_page_action)) { runPageOp { doCopyPage() } }
+        if (SketchClipboard.hasPage) sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_clipboard, getString(R.string.paste_page_action)) { showPasteSheet() }
+        if (SketchClipboard.hasInk) sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pen, getString(R.string.paste_ink_action)) { runPageOp { doPasteInk() } }
+        sheet.addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, getString(R.string.page_template_action)) { openTemplatePicker() }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, getString(R.string.page_sheet_delete)) { confirmDeletePage() }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_page_action)) { exportVia(currentPage?.id) }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_sketchbook_action)) { exportVia(null) }
             .show()
+    }
+
+    // ── The clipboard ────────────────────────────────────────────────────────
+
+    private suspend fun seam() = withContext(Dispatchers.IO) { (application as SketchsproutApp).soil.seam() }
+
+    /** Both headers read again, off Main: the clipboard is the library's, and anything may have
+     *  copied to it while this screen was behind. */
+    private fun refreshClipboard() {
+        if (!opened || closing) return
+        lifecycleScope.launch { withContext(Dispatchers.IO) { runCatching { SketchClipboard.refresh((application as SketchsproutApp).soil.seam()) } } }
+    }
+
+    /** Copy page: the page's rasters written first, then the page and everything under it onto
+     *  the sketchbook slot. Anything that did not work is a dialog: a copy that failed silently
+     *  would leave a stale clipboard standing ready to paste the wrong page. */
+    private suspend fun doCopyPage() {
+        val page = currentPage ?: return
+        val s = store ?: return
+        val id = itemId ?: return
+        if (!saver.flushAndAwait()) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_capture_failed); return }
+        val bytes = runCatching { withContext(Dispatchers.IO) { s.capturePage(page) } }
+            .onFailure { Log.w(TAG, "page capture failed: ${it.javaClass.simpleName}") }.getOrNull()
+        if (bytes == null) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_capture_failed); return }
+        if (bytes.size > SeamLimits.MAX_VALUE_BYTES) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_too_large); return }
+        val write = runCatching { withContext(Dispatchers.IO) { SketchClipboard.writePage((application as SketchsproutApp).soil.seam(), id, bytes, System.currentTimeMillis()) } }
+            .onFailure { Log.w(TAG, "clipboard write failed: ${it.javaClass.simpleName}") }
+        if (write.isFailure) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_write_failed); return }
+        toast(getString(R.string.page_copied_toast))
+        Slog.d(TAG) { "page copied: ${bytes.size} B" }
+    }
+
+    /** Before or after this page (Greg, 2026-10-07): the notebook's small sheet. */
+    private fun showPasteSheet() {
+        if (!opened || closing) return
+        ActionSheetDialog(this)
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_page_prev, getString(R.string.paste_before_action)) { runPageOp { doPastePage(before = true) } }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_page_next, getString(R.string.paste_after_action)) { runPageOp { doPastePage(before = false) } }
+            .show()
+    }
+
+    /** Paste the clipboard's page beside this one and land on it: one structural entry. */
+    private suspend fun doPastePage(before: Boolean) {
+        val here = currentPage ?: return
+        val s = store ?: return
+        val rows = runCatching { withContext(Dispatchers.IO) { SketchPageClip.decode(SketchClipboard.readPage((application as SketchsproutApp).soil.seam())) } }.getOrNull()
+        if (rows == null) {
+            // Gone, foreign, or claiming a page it does not carry: stop advertising a Paste that
+            // cannot work, in memory and in Soil.
+            withContext(Dispatchers.IO) { runCatching { SketchClipboard.clearPage((application as SketchsproutApp).soil.seam()) } }
+            Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
+            return
+        }
+        if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the paste; its pixels stay parked")
+        val before0 = pages
+        val (next, page) = try {
+            withContext(Dispatchers.IO) { s.pastePage(before0, here.id, before, rows) } ?: run {
+                Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed); return
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "the page could not be pasted: ${e.javaClass.simpleName}")
+            showProblem(R.string.page_failed_title, R.string.page_failed_body)
+            return
+        }
+        pages = next
+        val at = next.indexOf(page)
+        undo.remap { it.withIndex(PageTurn.reindexAfterInsert(it.pageIndex, at)) }
+        undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.INSERTED, page.id, at, before0, next, emptyList(), here.id, page.id))
+        loadPage(page, firstLoad = false)
+        tellPages()
+        val anchor = PageMath.anchorNumberAfterPaste(before0.indexOf(here), before, 1)
+        toast(getString(if (before) R.string.pasted_before_toast else R.string.pasted_after_toast, anchor))
+        Slog.d(TAG) { "pasted a page ${if (before) "before" else "after"}: now page ${at + 1}/${next.size}" }
+    }
+
+    /**
+     * Paste ink: the notebook slot's strokes — a lasso's, the pad's, a copied page's — laid
+     * **centred** on this page and baked **black into the ink layer** (Greg, 2026-10-07), one undo
+     * entry, as a bake: the builder opens on the layer the engine names and the door closes it.
+     */
+    private suspend fun doPasteInk() {
+        val page = currentPage ?: return
+        val env = runCatching { withContext(Dispatchers.IO) { SketchClipboard.readInk((application as SketchsproutApp).soil.seam()) } }.getOrNull()
+        if (env == null) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_ink_failed); return }
+        val black = InkClip.strokesOf(env).map { it.copy(color = 0xFF000000.toInt(), style = StrokeStyle.PEN) }
+        val placed = InkPlacement.centred(black, page.width, page.height) { java.util.UUID.randomUUID().toString() }
+        if (placed.isEmpty()) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_ink_empty); return }
+        paper.awaitPenIdle()
+        if (isFinishing || isDestroyed || closing) return
+        closeOpenEdit()
+        try {
+            paper.addStrokes(placed)
+        } finally {
+            closeOpenEdit()
+            toolbar.restorePen()
+        }
+        saver.markDirty(RasterLayer.INK)
+        saver.schedule()
+        toast(getString(R.string.ink_pasted_toast))
+        Slog.d(TAG) { "pasted ${placed.size} stroke(s) as ink" }
+    }
+
+    private fun toast(text: String) {
+        if (isFinishing || isDestroyed) return
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
     }
 
     /** Soil's export screen for this sketchbook, or one page of it. The sketchbook closes first,
@@ -1323,6 +1440,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     override fun onResume() {
         super.onResume()
         (application as SketchsproutApp).front(this)
+        // The clipboard is the library's: something else may have copied to it while this
+        // sketchbook was behind.
+        refreshClipboard()
         // Back from Soil's picker: the pipeline first of all (the result callback reclaimed it).
         debugDoors?.let {
             val filter = IntentFilter("$packageName.SKETCH_FILL").apply { addAction("$packageName.SKETCH_DUMP") }

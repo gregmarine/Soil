@@ -68,6 +68,34 @@ object SketchbookSql {
         pageId,
     )
 
+    // ── Whole rows: what the clipboard captures and what a paste writes ──────
+
+    private const val ROW_COLUMNS = "id, parentId, type, \"order\", text, refId, x, y, width, height, color, strokeWidth, style, flags, blob"
+
+    /** The live rows by id, every column. One `?` per id; the caller chunks under the bind cap. */
+    fun selectRows(ids: List<String>): Statement {
+        require(ids.isNotEmpty()) { "no ids" }
+        val marks = ids.joinToString(", ") { "?" }
+        return Statement("SELECT $ROW_COLUMNS FROM $TABLE WHERE id IN ($marks) AND deletedAt IS NULL", *ids.toTypedArray())
+    }
+
+    /** Everything alive under [pageId] at any depth, every column, in the order the rows were written. */
+    fun selectLiveDescendantRows(pageId: String): Statement = Statement(
+        "WITH RECURSIVE under(id) AS (" +
+            "SELECT id FROM $TABLE WHERE parentId = ? AND deletedAt IS NULL " +
+            "UNION SELECT n.id FROM $TABLE n JOIN under u ON n.parentId = u.id WHERE n.deletedAt IS NULL" +
+            ") SELECT $ROW_COLUMNS FROM $TABLE WHERE id IN (SELECT id FROM under) ORDER BY createdAt, rowid",
+        pageId,
+    )
+
+    /** A pasted row, whole and alive, stamped now. Never a replace: a row that exists is left. */
+    fun insertRow(r: SketchRow, now: Long): Statement = Statement(
+        "INSERT OR IGNORE INTO $TABLE ($ROW_COLUMNS, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        r.id, r.parentId, r.type, r.order.toLong(), r.text, r.refId,
+        r.x?.toDouble(), r.y?.toDouble(), r.width?.toDouble(), r.height?.toDouble(),
+        r.color, r.strokeWidth?.toDouble(), r.style, r.flags, r.blob, now, now,
+    )
+
     // ── Templates: a page's paper, shared rows under the sketchbook ──────
 
     /** Every template row, blob-free: what the reuse rule reads. */

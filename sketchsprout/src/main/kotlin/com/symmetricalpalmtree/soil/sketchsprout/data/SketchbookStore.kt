@@ -10,6 +10,7 @@ import com.symmetricalpalmtree.soil.paper.templates.PagePaper
 import com.symmetricalpalmtree.soil.paper.templates.PageTemplate
 import com.symmetricalpalmtree.soil.paper.templates.PaperSource
 import com.symmetricalpalmtree.soil.paper.templates.TemplateDigest
+import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
 import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideGrid
 import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideImage
 import com.symmetricalpalmtree.soil.sketchsprout.raster.GuideRows
@@ -187,6 +188,41 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
         statements += renumber(target, now)
         statements += SketchbookSql.setLastOpened(sketchbookId, currentId, now)
         execAll(statements)
+    }
+
+    // ── The clipboard ──────
+
+    /** Snapshot [page] and everything under it as the clipboard's bytes. The caller flushed the
+     *  rasters first. Null when the page row has gone. */
+    fun capturePage(page: SketchPage): ByteArray? = guard {
+        val pageRow = store.query(SketchbookSql.selectRows(listOf(page.id))).rows.mapNotNull { SketchRow.fromRow(it) }.firstOrNull() ?: return@guard null
+        val template = page.templateId.takeIf { it.isNotEmpty() }?.let { id -> store.query(SketchbookSql.selectRows(listOf(id))).rows.mapNotNull { SketchRow.fromRow(it) }.firstOrNull() }
+        val children = store.query(SketchbookSql.selectLiveDescendantRows(page.id)).rows.mapNotNull { SketchRow.fromRow(it) }
+        SketchPageClip.encode(pageRow, template, children)
+    }
+
+    /**
+     * Paste the clipboard's page beside [currentId] — before or after — and land on it. The paper
+     * is reused when this file already holds the same paper at the page's size, else the carried
+     * row is inserted. Answers the new list and the page, or null when [rows] carry no page.
+     */
+    fun pastePage(pages: List<SketchPage>, currentId: String, before: Boolean, rows: List<SketchRow>): Pair<List<SketchPage>, SketchPage>? {
+        val i = pages.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        val pos = PageMath.insertPosition(i, !before)
+        val digests = templateDigests()
+        val plan = SketchPageClip.plan(rows, sketchbookId, pos, template = { carried ->
+            if (carried == null) SketchPageClip.Template.None
+            else {
+                val w = carried.width?.toInt() ?: 0; val h = carried.height?.toInt() ?: 0
+                PageTemplate.reusableId(digests, carried.text.orEmpty(), w, h)?.let { SketchPageClip.Template.Reuse(it) }
+                    ?: SketchPageClip.Template.Insert(newId())
+            }
+        }, newId = ::newId) ?: return null
+        val page = SketchPage(plan.page.id, plan.page.width ?: 0f, plan.page.height ?: 0f, plan.page.refId.orEmpty())
+        val next = pages.toMutableList().also { it.add(pos, page) }
+        val now = System.currentTimeMillis()
+        execAll(plan.rows.map { SketchbookSql.insertRow(it, now) } + renumber(next, now) + SketchbookSql.setLastOpened(sketchbookId, page.id, now))
+        return next to page
     }
 
     // ── Guides ──────

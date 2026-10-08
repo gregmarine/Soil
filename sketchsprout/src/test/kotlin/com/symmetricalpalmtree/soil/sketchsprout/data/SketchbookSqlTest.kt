@@ -27,6 +27,7 @@ class SketchbookSqlTest {
         SketchbookSql.insertGuide("g2", "p1", SketchbookSchema.TYPE_GUIDE_IMAGE, "{}", picture, 10L),
         SketchbookSql.updateGuide("g2", "{}", picture, 11L),
         SketchbookSql.updateGuideText("g1", "{}", 11L),
+        SketchbookSql.insertRow(SketchRow("r1", "p1", "sketch_ink", -1, blob = picture), 10L),
     )
 
     private val reads = listOf(
@@ -38,6 +39,8 @@ class SketchbookSqlTest {
         SketchbookSql.selectTemplateDigests("sb"),
         SketchbookSql.selectTemplateBlob("t1"),
         SketchbookSql.selectGuide("p1", SketchbookSchema.TYPE_GUIDE_GRID),
+        SketchbookSql.selectRows(listOf("a", "b")),
+        SketchbookSql.selectLiveDescendantRows("p1"),
     )
 
     @Test
