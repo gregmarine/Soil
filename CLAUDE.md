@@ -32,7 +32,7 @@ pages from a long-press sheet, a Day as two pages), the export screen's render-o
 day as a link target (`cal:`) from a notebook and a document with the calendar's Notes door on
 the shared backlinks panel, and these documents. `docs/design.md` §16 lists the phases.
 
-**The Sketchsprout effort is done** (2026-10-06 to 2026-10-08, branch `sketchsprout`): the
+**The Sketchsprout effort is done and merged** (2026-10-06 to 2026-10-08): the
 sketchbook as a Sprout app with items of its own, SN's pencil, gel pen, shades, eraser, smudge
 and guides over two rasters a page in one `.soil`, paper from the library under the raster,
 undo by tiles, export through Soil's screen, the clipboard (pages between sketchbooks, ink
