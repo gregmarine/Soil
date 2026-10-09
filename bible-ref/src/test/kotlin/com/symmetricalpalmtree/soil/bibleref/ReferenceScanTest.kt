@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.bibleref
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -96,5 +97,18 @@ class ReferenceScanTest {
         val hits = ReferenceScan.scan(text)
         assertEquals(listOf("Genesis 1", "Genesis 2", "John 1:1, 14", "Jude 3"), hits.map { text.substring(it.start, it.end) })
         for (i in 1 until hits.size) assertTrue(hits[i].start >= hits[i - 1].end)
+    }
+
+    @Test
+    fun `a reference never runs across a line break`() {
+        assertTrue(ReferenceScan.scan("1. Genesis\n2. Exodus").isEmpty())
+        assertTrue(ReferenceScan.scan("1. Genesis\r\n2. Exodus").isEmpty())
+        assertTrue(ReferenceScan.scan("John\n3:16").isEmpty())
+        assertTrue(ReferenceScan.scan("Song of\nSolomon 2:1").isEmpty())
+        assertEquals(listOf("John 3:16"), words("John 3:16\n, 18"))
+        assertEquals(listOf("John 3:14"), words("John 3:14\n-16"))
+        assertEquals(listOf("Genesis 1", "Exodus 2"), words("1. Genesis 1\n2. Exodus 2"))
+        assertNull(ReferenceParser.parse("Genesis\n2"))
+        assertEquals("GEN:2:0-2:999", ReferenceCodec.encode(listOf(ReferenceParser.parse("Genesis 2")!!)))
     }
 }

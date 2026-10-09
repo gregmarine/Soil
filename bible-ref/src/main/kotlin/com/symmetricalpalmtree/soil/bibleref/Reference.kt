@@ -64,7 +64,8 @@ data class Passage(
 object ReferenceParser {
     // Book part must end in a letter/period; the spec starts at the first digit, so "1 Cor 13:4"
     // and spaceless "Ps23" both work.
-    private val split = Regex("^\\s*(.*?[A-Za-z.])\\s*([0-9].*)$")
+    // The space between them stays on one line: "Genesis\n2" is not a reference.
+    private val split = Regex("^\\s*(.*?[A-Za-z.])[^\\S\\r\\n]*([0-9].*)$")
     private val crossChapterSpan = Regex("^(\\d+):(\\d+)-(\\d+):(\\d+)$")
     private val hasLetter = Regex("[A-Za-z]")
 

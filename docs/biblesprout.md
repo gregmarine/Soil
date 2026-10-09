@@ -12,7 +12,7 @@ Berean Standard Bible (public domain), bundled as `bsb.bible`, 15 MB of SQLite b
 
 | Module | What |
 |---|---|
-| `:bible-ref` | Pure Kotlin, shared by every app and Soil: the canon (66 books, aliases, chapter counts), `VerseKey`, `ReferenceParser`, `ReferenceCodec` (the wire), `ReferenceResolver`, `ReferenceText` (typed words to a wire, a wire to its label), `ReferenceScan` (references in prose), `VerseCap` |
+| `:bible-ref` | Pure Kotlin, shared by every app and Soil: the canon (66 books, aliases, chapter counts), `VerseKey`, `ReferenceParser`, `ReferenceCodec` (the wire), `ReferenceResolver`, `ReferenceText` (typed words to a wire, a wire to its label), `ReferenceScan` (references in prose, each on one line: "1. Genesis" never reaches the next line's number), `VerseCap` |
 | `:biblesprout` | The app: `BibleActivity` and its panels, `ChapterLoader`, `BibleDatabase`, `ContentInstaller`, `BibleStore` over the seam's store lease, `PassageService` |
 | `:seam` | `BibleAddress` (`bible:<wire>`), `ISeamStore` and `openAppStore`, `bibleBacklinks`, `passageText` and `IBibleText`, `ACTION_OPEN_BIBLE`, `EXTRA_BIBLE_WIRE` |
 | `:soil` | `ItemApps.findBible`, `FollowLinkActivity`'s Bible branch, `AppStoreLease`, `BibleTextClient`, the index's Bible columns and `LinkRebuild` |
