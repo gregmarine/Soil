@@ -416,6 +416,20 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             paper = paper,
             armedLevel = { toolbar.state.armedShade },
             onPicked = { level -> pickTools(toolbar.state.withShade(level)) },
+            // The armed kind's ladder (Greg, 2026-10-08): the sample is the stroke at its real
+            // width, the marker's at the marker's translucency.
+            sizes = {
+                val kind = toolbar.state.kind
+                SketchPalette.ladder(kind).sizes.map { size ->
+                    PaletteBar.SizeOption(
+                        size.px,
+                        getString(com.symmetricalpalmtree.soil.paper.R.string.cd_size, size.label),
+                        alpha = if (kind == SketchToolState.Kind.MARKER) MARKER_SAMPLE_ALPHA else 255,
+                    )
+                }
+            },
+            armedSize = { toolbar.state.armedSize },
+            onSizePicked = { index -> pickTools(toolbar.state.withSize(index)) },
         )
         // Registers its picker here, in `onCreate`, before the screen is started — the
         // activity-result contract's one rule.
@@ -1753,6 +1767,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
         /** The debug fill door's lattice — enough to be unmistakable in a `screencap`, few enough
          *  to composite in one call. */
+        /** The marker's translucency as the palette's size samples draw it — g-paper's 45 %. */
+        const val MARKER_SAMPLE_ALPHA = 115
+
         const val TEST_PATTERN_LINES = 12
         const val TEST_PATTERN_POINTS = 24
 

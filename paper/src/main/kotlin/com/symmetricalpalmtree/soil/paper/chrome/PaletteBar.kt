@@ -25,6 +25,14 @@ import com.symmetricalpalmtree.soil.paper.core.InkTones
  * gap, and a **dotted** black outer ring; the armed swatch's ring is **solid**. Painted rather
  * than a drawable, because the selection has to read at every level, white included.
  *
+ * **A size row under the shades** (the sketch face, Greg, 2026-10-08), when the screen passes
+ * one: one cell per size on the armed kind's ladder, each a **sample of the stroke at its real
+ * width** — a short horizontal line of [SizeOption.px], round-capped, black at the option's
+ * alpha (the marker's row passes its translucency, so its samples read as the marker does) —
+ * inside the same dotted-or-solid ring the shades wear, one selection vocabulary for the whole
+ * panel. The words are the content description only. The ladder differs by kind and the bar is
+ * built once, so the row is rebuilt at every open where the list has changed.
+ *
  * **The bar stays open after a pick.** A visit is often "this grey, no, that one". It closes on
  * the pen's next re-tap, any tool change, a page swap, a finger gesture, a contact outside it, a
  * chrome flip and the exit: the screen's list.
@@ -39,16 +47,31 @@ class PaletteBar(
     private val armedLevel: () -> Int,
     /** A pick: the screen arms the engine with its tone and remembers it. */
     private val onPicked: (level: Int) -> Unit,
+    /** The armed kind's size ladder, read at every open (it differs by kind), or null for a
+     *  panel of shades alone — the writing faces'. */
+    private val sizes: (() -> List<SizeOption>)? = null,
+    /** The index the size row is editing, read at every open and after every pick. */
+    private val armedSize: () -> Int = { 0 },
+    /** A size pick: the screen arms the engine with its width and remembers it. */
+    private val onSizePicked: (index: Int) -> Unit = {},
 ) {
+
+    /** One size on the row: its width in page px, its words, and the alpha its sample is drawn
+     *  at (255 for an opaque tool, the marker's own for the marker). */
+    class SizeOption(val px: Float, val hint: String, val alpha: Int = 255)
 
     private val bar = AnchoredBar(root, bar, anchor, bandBottom)
     private val swatches = ArrayList<Pair<Int, View>>()
+    private val sizeRow: LinearLayout?
+    private val sizeSwatches = ArrayList<View>()
+    private var builtSizes: List<SizeOption> = emptyList()
+    private val cell: Int
 
     val isShowing: Boolean get() = this.bar.isShowing
 
     init {
         val ctx = root.context
-        val cell = ctx.resources.getDimensionPixelSize(R.dimen.toolbar_button_size)
+        cell = ctx.resources.getDimensionPixelSize(R.dimen.toolbar_button_size)
         InkTones.rows().forEach { levels ->
             val row = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -72,12 +95,52 @@ class PaletteBar(
             }
             this.bar.addRow(row)
         }
+        sizeRow = if (sizes == null) null else LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            // As wide as the shade rows, so a row of three sits centred under four.
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            this@PaletteBar.bar.addRow(this)
+        }
     }
 
-    /** Open under [anchor] with the armed level pressed. False before the root is laid out. */
+    /** Open under [anchor] with the armed level and size pressed. False before the root is laid
+     *  out. */
     fun show(anchor: View = this.anchor): Boolean {
+        rebuildSizes()
         paint(armedLevel())
+        paintSizes(armedSize())
         return bar.show(anchor)
+    }
+
+    /** The size row's cells, remade only when the ladder shown is not the one built. */
+    private fun rebuildSizes() {
+        val row = sizeRow ?: return
+        val wanted = sizes?.invoke() ?: return
+        if (wanted.size == builtSizes.size && wanted.indices.all { wanted[it].px == builtSizes[it].px && wanted[it].alpha == builtSizes[it].alpha && wanted[it].hint == builtSizes[it].hint }) return
+        row.removeAllViews()
+        sizeSwatches.clear()
+        wanted.forEachIndexed { index, option ->
+            val swatch = SizeSwatch(row.context, option.px, option.alpha).apply {
+                layoutParams = LinearLayout.LayoutParams(cell, cell)
+                contentDescription = option.hint
+                TooltipCompat.setTooltipText(this, option.hint)
+                setOnClickListener { pickSize(index) }
+            }
+            row.addView(swatch)
+            sizeSwatches += swatch
+        }
+        builtSizes = wanted
+    }
+
+    private fun pickSize(index: Int) {
+        PenIdle.releaseRenderIfIdle(paper)
+        onSizePicked(index)
+        paintSizes(armedSize())
+    }
+
+    private fun paintSizes(index: Int) {
+        sizeSwatches.forEachIndexed { i, view -> view.isSelected = i == index }
     }
 
     fun hide() = bar.hide()
@@ -128,8 +191,47 @@ class PaletteBar(
         }
     }
 
+    /** A stroke sample at its real width inside the shade swatch's ring: the width is page px,
+     *  which on the Nomad is the glass's own, so the sample is the mark; the line is capped at
+     *  the ring's inside for the broadest marker. */
+    private class SizeSwatch(ctx: Context, private val px: Float, private val alpha: Int) : View(ctx) {
+
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val density = ctx.resources.displayMetrics.density
+        private val black = ContextCompat.getColor(ctx, R.color.inkBlack)
+        private val dotted = DashPathEffect(floatArrayOf(DOT_DP * density, DOT_DP * density), 0f)
+
+        override fun onDraw(canvas: Canvas) {
+            val cx = width / 2f
+            val cy = height / 2f
+            val ring = RING_DP * density
+            val outer = minOf(width, height) / 2f - PAD_DP * density
+            if (outer <= ring) return
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = ring
+            paint.color = black
+            paint.alpha = 255
+            paint.strokeCap = Paint.Cap.BUTT
+            paint.pathEffect = if (isSelected) null else dotted
+            canvas.drawCircle(cx, cy, outer - ring / 2f, paint)
+            paint.pathEffect = null
+            val inner = maxOf(0f, outer - ring - GAP_DP * density)
+            // The broadest sample stops short of the ring, so the ring still reads around it.
+            val stroke = px.coerceIn(1f, inner * 2f * SAMPLE_MAX)
+            // The line's reach shrinks as it thickens, so a broad sample's round caps stay
+            // inside the ring.
+            val half = maxOf(0f, inner - stroke / 2f)
+            paint.strokeWidth = stroke
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.color = black
+            paint.alpha = alpha
+            canvas.drawLine(cx - half, cy, cx + half, cy, paint)
+        }
+    }
+
     private companion object {
         const val RING_DP = 2f
+        const val SAMPLE_MAX = 0.8f
         const val PAD_DP = 6f
         const val GAP_DP = 3f
         const val DOT_DP = 2f
