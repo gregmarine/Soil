@@ -399,18 +399,18 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         when (a) {
             is NotebookAction.Ink -> ink(a.action.pageId) { ink.revert(a.action) }
             is NotebookAction.Deleted -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
+                a.ink?.let { inkHalf { ink.revert(it) } }
                 io { store.restoreIds(a.objects.ids) }
                 if (a.objects.links.isNotEmpty()) io { store.remirrorPage(a.pageId) }
             }
             is NotebookAction.Moved -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
+                a.ink?.let { inkHalf { ink.revert(it) } }
                 io { store.moveBy(a.headingIds + a.textIds + a.stickyIds, -a.dx, -a.dy) }
                 io { store.moveLinks(a.linkIds, -a.dx, -a.dy) }
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { io { store.deleteObjects(listOf(a.heading.id), emptyList()) } }
             is NotebookAction.Converted -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
+                a.ink?.let { inkHalf { ink.revert(it) } }
                 io { store.deleteObjects(listOfNotNull(a.heading?.id, a.text?.id), emptyList()) }
             }
             is NotebookAction.HeadingEdited -> objects(a.pageId) { io { store.setHeadingContent(a.before) } }
@@ -422,7 +422,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { io { store.relink(a.pageId, a.link) } }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.before) }
             is NotebookAction.BibleRefCreated -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
+                a.ink?.let { inkHalf { ink.revert(it) } }
                 io { store.unlink(a.pageId, a.link) }
                 io { store.deleteObjects(listOf(a.text.id), emptyList()) }
             }
@@ -439,17 +439,17 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         when (a) {
             is NotebookAction.Ink -> ink(a.action.pageId) { ink.reapply(a.action) }
             is NotebookAction.Deleted -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
+                a.ink?.let { inkHalf { ink.reapply(it) } }
                 io { store.deleteObjects(a.objects.ids, emptyList(), a.objects.links.map { it.id }) }
             }
             is NotebookAction.Moved -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
+                a.ink?.let { inkHalf { ink.reapply(it) } }
                 io { store.moveBy(a.headingIds + a.textIds + a.stickyIds, a.dx, a.dy) }
                 io { store.moveLinks(a.linkIds, a.dx, a.dy) }
             }
             is NotebookAction.HeadingCreated -> objects(a.pageId) { io { store.restoreHeading(a.pageId, a.heading) } }
             is NotebookAction.Converted -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
+                a.ink?.let { inkHalf { ink.reapply(it) } }
                 a.heading?.let { io { store.restoreHeading(a.pageId, it) } }
                 a.text?.let { io { store.restoreText(a.pageId, it) } }
             }
@@ -462,7 +462,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
             is NotebookAction.LinkUnlinked -> objects(a.pageId) { io { store.unlink(a.pageId, a.link) } }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.after) }
             is NotebookAction.BibleRefCreated -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
+                a.ink?.let { inkHalf { ink.reapply(it) } }
                 io { store.restoreText(a.pageId, a.text) }
                 io { store.relink(a.pageId, a.link) }
             }
@@ -483,10 +483,13 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         io { store.setLinkPayload(page, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)), before = link.payload) }
     }
 
-    /** What an object replay writes: queued on Main while the ink half replays, run on IO after. */
+    /** What an object replay does, queued on Main: the `store` writes, run on IO first, and the
+     *  ink half, applied on Main only once they have all landed. */
     private class Replay {
         val writes = ArrayList<() -> Unit>()
+        val inkHalves = ArrayList<() -> Unit>()
         fun io(write: () -> Unit) { writes += write }
+        fun inkHalf(apply: () -> Unit) { inkHalves += apply }
     }
 
     /** An ink-only replay: in memory on the page, then flushed. */
@@ -496,14 +499,18 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         flushUntilClean()
     }
 
-    /** A replay that touches rows: the ink half first (in memory, on Main, as every other change
-     *  to the ink and the objects), then the rows on IO, then the page read again so what shows is
-     *  what a reopen would show. Only the queued `store` writes leave Main. */
+    /** A replay that touches rows: the rows first, on IO; then the ink half (in memory, on Main,
+     *  as every other change to the ink and the objects); then the page read again so what shows
+     *  is what a reopen would show. Only the queued `store` writes leave Main. The order is the
+     *  undo contract's: an ink replay moves [InkDocument.replays], which tells the screen the step
+     *  reached the page — so it must not move while the rows can still fail to land. None of the
+     *  writes reads the ink. */
     private suspend fun objects(pageId: String, replay: Replay.() -> Unit) {
         if (!goToLiving(pageId)) return
         flushUntilClean()
-        val writes = Replay().apply(replay).writes
-        withContext(Dispatchers.IO) { writes.forEach { it() } }
+        val queued = Replay().apply(replay)
+        withContext(Dispatchers.IO) { queued.writes.forEach { it() } }
+        queued.inkHalves.forEach { it() }
         reloadCurrent()
     }
 
