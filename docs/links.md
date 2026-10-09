@@ -2,7 +2,9 @@
 
 A lasso selection wraps into a link that points at a page of this notebook, at another item,
 or at a page of one. Page level on both ends; a link to a whole item is a link with no page.
-A document links too, and is linked to: always as a whole, since it has no pages. A notebook
+A document links too, and is linked to: always as a whole, since it has no pages. A sketchbook
+and its pages are linked to, from a notebook and a document, and link out nowhere for now
+(Sketchsprout, 2026-10-07; `BACKLOG.md`). A notebook
 and a document both link into the Bible, to a passage, and the Bible's reader lists what links
 into the verses on its screen.
 
@@ -16,9 +18,9 @@ may be back from a backup tomorrow. A walk back that meets a dead entry skips it
 
 The payload is Notesprout SN's grammar byte for byte, `L1|<chrome>|<kind>|<itemId>|<pageId>`,
 so a converted notebook's links read. The item slot may name any kind of item; what kind it is,
-the library says. A link to an item of another kind (a document), and a backlink from one, is
-followed by asking Soil, with `Seam.ACTION_FOLLOW`, to open it in the app for its kind, over
-the notebook.
+the library says. A link to an item of another kind (a document, a sketchbook), or to a page of
+one, and a backlink from one, is followed by asking Soil, with `Seam.ACTION_FOLLOW` and the page
+when there is one, to open it in the app for its kind, over the notebook.
 
 SN's kinds 3 and 4 read too: a **Bible reference** (`L1|1|3|<wire>|`, the wire in the item
 slot) and the **verses** placed under one (kind 4). A reference on the page is a text of the
@@ -34,11 +36,14 @@ chapter (`VerseCap`). A tap on either hands the wire to Soil, which opens the re
 ## The picker
 
 Four shelves: this notebook's pages (the one being written on left out, the numbers counting
-the whole notebook), the library's items through Soil's item picker (a notebook or a document),
-a notebook's pages, and a calendar day on the shared day picker (kind 5, `L1|1|5|<day>|`,
+the whole notebook), the library's items through Soil's item picker (a notebook, a sketchbook
+or a document), a notebook's or a sketchbook's page ("Notebook or sketchbook page": Soil's
+picker lists both kinds, and for a sketchbook asks its app to name the page and answers at once,
+the link complete), and a calendar day on the shared day picker (kind 5, `L1|1|5|<day>|`,
 the day in the item slot; Calsprout, 2026-10-06).
-Page cards show the page in miniature, named by its heading; another notebook is read through a
-session of its own, closed the moment it is left. New page and New notebook are offered where
+A notebook's page cards show the page in miniature, named by its heading; another notebook is
+read through a session of its own, closed the moment it is left. A sketchbook's page is chosen
+by name; previews for every kind, in one picker, are in `BACKLOG.md`. New page and New notebook are offered where
 the target does not exist yet. A link never targets its own home.
 
 ## In a document
@@ -73,7 +78,7 @@ page. A button lists what links to the document, only when something does, and g
 ## In Soil
 
 `FollowLinkActivity` answers `ACTION_FOLLOW`: it looks the item up and starts the app for its
-kind, or says what is gone; handed a wire instead (`EXTRA_BIBLE_WIRE`), it starts the Bible's
+kind, at the page named (a sketchbook opens on it), or says what is gone; handed a wire instead (`EXTRA_BIBLE_WIRE`), it starts the Bible's
 reader on the passage (`ItemApps.openBible`); handed a day (`EXTRA_CAL_DATE`), the calendar on
 that Day page (`ItemApps.openCalendar`), in the caller's task so Back comes back.
 
@@ -101,5 +106,6 @@ session or from its file, after a restore and from the Settings row **Links**.
 
 Walked on the Nomad, phase 5, 2026-10-01; documents on both ends, Docsprout's phase 9,
 2026-10-04; the Bible on both ends, Biblesprout's phases 3 to 8, 2026-10-05; a day on both
-ends, Calsprout's phases 8 and 9, 2026-10-06. A link to a heading inside a document is in
-`BACKLOG.md`.
+ends, Calsprout's phases 8 and 9, 2026-10-06; a sketch page as a target, Sketchsprout's phase 9,
+2026-10-07 and 2026-10-08. A link to a heading inside a document, and a link out of a sketch
+page, are in `BACKLOG.md`.

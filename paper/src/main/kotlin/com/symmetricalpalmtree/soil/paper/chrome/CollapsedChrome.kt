@@ -139,58 +139,47 @@ class CollapsedChrome(
 ) {
 
     /**
-     * What the mini toolbar needs to offer **two kinds of one tool** (arc 44 / T3): the second
-     * kind's glyph and hint, which kind is armed, how to arm one, and what a pick of the
-     * already-armed primary kind does.
+     * What the mini toolbar needs to offer **several kinds of one tool** (arc 44 / T3; N kinds
+     * since Sketchsprout's marker, 2026-10-08): each kind's glyph and hint, which kind is armed,
+     * how to arm one, and what a pick of the already-armed kind does. A kind is an **index** into
+     * [kinds]: 0 is the primary pen button, the rest follow it in bar order.
      *
-     * [altArmed] is read at every repaint and never cached here, for the reason nothing else here
+     * [armed] is read at every repaint and never cached here, for the reason nothing else here
      * is cached either — the screen owns the answer and a copy of it is a copy that can be stale.
      */
     class PenKinds(
-        /** What the **primary** kind's button is called. It is the screen's word, not this
-         *  module's: `R.string.tool_pen` says "Pen", and on the sketch face the primary kind is the
-         *  *pencil*. */
-        val primaryHint: String,
-        val altIconRes: Int,
-        val altHint: String,
-        /** Whether the ALT kind is the armed one. Read, never stored. */
-        val altArmed: () -> Boolean,
+        /** Every kind in bar order, the primary first. At least two. */
+        val kinds: List<Kind>,
+        /** Which kind is the armed one. Read, never stored. */
+        val armed: () -> Int,
         /** Arm a kind — the screen applies it and then arms [Tool.PEN] on its own toolbar
          *  (`toolbar.arm`), which does the one pen-gated render release and the syncs. */
-        val onPick: (alt: Boolean) -> Unit,
+        val onPick: (kind: Int) -> Unit,
         /**
-         * A pick of the **already-armed** kind (either one since arc 46), handed which kind and
-         * this row's own button as an anchor — [Entry.onTap]'s contract, and the notebook Insert
-         * bar's precedent: the caller hangs its sub-bar under the button the person actually tapped
-         * and **the rows stay up beneath it**, which also means the caller owns that bar's
-         * dismissal (`onClose` brings it down with the rows, and the screen's outside-contact rule
-         * keeps it alive under a contact of its own). Absent, a re-pick simply arms again and
-         * closes the rows like any other tool tap.
+         * A pick of the **already-armed** kind, handed which kind and this row's own button as an
+         * anchor — [Entry.onTap]'s contract, and the notebook Insert bar's precedent: the caller
+         * hangs its sub-bar under the button the person actually tapped and **the rows stay up
+         * beneath it**, which also means the caller owns that bar's dismissal (`onClose` brings it
+         * down with the rows, and the screen's outside-contact rule keeps it alive under a contact
+         * of its own). Absent, a re-pick simply arms again and closes the rows like any other tool
+         * tap.
          */
-        val onReTap: ((alt: Boolean, anchor: View) -> Unit)? = null,
+        val onReTap: ((kind: Int, anchor: View) -> Unit)? = null,
+    ) {
         /**
-         * The **primary** kind's glyph, painted by the screen (arc 44 / T3), or null to wear the
-         * plain resource one ([CollapsedTools.iconFor]) as every screen did before.
-         *
-         * It exists for one thing: the sketch face's Pencil reports the armed shade by **filling
-         * the pencil's body with it** under an outline that stays solid black. That is the colour
-         * rule's one standing opening said in its fill form — the root `CLAUDE.md`'s "the pen
-         * button's icon tinted with the armed ink": greys and colours are **ink**, and a control
-         * may carry the armed ink only where the ink itself is what is being chosen or reported.
-         * Nothing else on any bar may take a colour, and this row is not a precedent for one.
-         *
-         * Asked at every repaint and never cached, like [altArmed] and for the same reason — the
-         * screen owns the armed shade and a copy of it here is a copy that can be stale.
+         * One kind: its resource glyph and hint (the screen's words — `R.string.tool_pen` says
+         * "Pen", and on the sketch face the primary kind is the *pencil*), and, optionally, a
+         * glyph **painted by the screen** at every repaint (arc 44 / T3, arc 46 "Palette"): the
+         * sketch face's kinds report the armed shade by **filling the glyph's body with it** under
+         * an outline that stays solid black. That is the colour rule's one standing opening said
+         * in its fill form — the root `CLAUDE.md`'s "the pen button's icon tinted with the armed
+         * ink": greys and colours are **ink**, and a control may carry the armed ink only where
+         * the ink itself is what is being chosen or reported. Nothing else on any bar may take a
+         * colour, and this row is not a precedent for one. Asked at every repaint and never
+         * cached, like [armed] and for the same reason.
          */
-        val primaryIcon: (() -> PenIcon)? = null,
-        /**
-         * The **alt** kind's glyph, painted by the screen (arc 46 "Palette"), or null to wear
-         * [altIconRes] as every screen did before. [primaryIcon]'s rule and reason exactly: the
-         * sketch face's gel pen reports its own shade as a fill under a solid outline, on the row's
-         * own button always and on the corner button while the alt kind is the armed one.
-         */
-        val altIcon: (() -> PenIcon)? = null,
-    )
+        class Kind(val iconRes: Int, val hint: String, val icon: (() -> PenIcon)? = null)
+    }
 
     /**
      * One painted glyph and the number that says which one it is (arc 44 / T3).
@@ -232,9 +221,10 @@ class CollapsedChrome(
     private val more = AnchoredBar(root, overflowBar, knob, bandBottom)
 
     private val toolButtons = LinkedHashMap<Tool, AppCompatImageButton>()
-    /** The PEN slot's second kind, when the screen offers one — kept apart from [toolButtons]
-     *  because it is keyed by nothing: it is the same [Tool.PEN] the primary button arms. */
-    private var altPenButton: AppCompatImageButton? = null
+    /** The PEN slot's further kinds, when the screen offers them (kind 1 first) — kept apart from
+     *  [toolButtons] because they are keyed by nothing: each is the same [Tool.PEN] the primary
+     *  button arms. */
+    private val extraPenButtons = ArrayList<AppCompatImageButton>()
     /** Mirrored entries per row, so an open refreshes only the row it is showing. */
     private val miniMirrored = ArrayList<Pair<AppCompatImageButton, Entry>>()
     private val moreMirrored = ArrayList<Pair<AppCompatImageButton, Entry>>()
@@ -245,7 +235,7 @@ class CollapsedChrome(
      *  one, which is every screen but the sketch face and every tool but the primary pen. */
     private var knobToken: Int? = null
     private var primaryPenToken: Int? = null
-    private var altPenToken: Int? = null
+    private val extraPenTokens = ArrayList<Int?>()
     private var clipboardLoaded = false
 
     val isShowing: Boolean get() = mini.isShowing
@@ -272,20 +262,27 @@ class CollapsedChrome(
             lateinit var button: AppCompatImageButton
             button = mini.addButton(
                 CollapsedTools.iconFor(tool),
-                kinds?.primaryHint ?: hints.getValue(tool),
+                kinds?.kinds?.get(0)?.hint ?: hints.getValue(tool),
             ) {
                 when {
-                    kinds != null -> pickPen(alt = false, anchor = button)
+                    kinds != null -> pickPen(0, anchor = button)
                     tool == Tool.PEN -> pickOnePen(anchor = button)
                     else -> pick(tool)
                 }
             }
             toolButtons[tool] = button
-            // Immediately after the primary one — the sketch face's row reads Pencil · Pen · Eraser.
+            // Immediately after the primary one — the sketch face's row reads Pencil · Pen ·
+            // Marker · Eraser · Smudge.
             if (kinds != null) {
-                // Its own click's anchor too (arc 46): a re-pick of the armed alt kind hangs the
-                // screen's shade panel under this button.
-                altPenButton = mini.addButton(kinds.altIconRes, kinds.altHint) { pickPen(alt = true, anchor = altPenButton) }
+                for (i in 1 until kinds.kinds.size) {
+                    val kind = kinds.kinds[i]
+                    // Its own click's anchor too (arc 46): a re-pick of an armed kind hangs the
+                    // screen's shade panel under this button.
+                    lateinit var extra: AppCompatImageButton
+                    extra = mini.addButton(kind.iconRes, kind.hint) { pickPen(i, anchor = extra) }
+                    extraPenButtons += extra
+                    extraPenTokens += null
+                }
             }
         }
         commands.forEach { add(mini, miniMirrored, it) }
@@ -383,18 +380,18 @@ class CollapsedChrome(
      * the other kind, a first arming, a re-pick with no re-tap handler — arms and closes the rows,
      * because a tap on a tool is an answer.
      */
-    private fun pickPen(alt: Boolean, anchor: AppCompatImageButton?) {
+    private fun pickPen(kind: Int, anchor: AppCompatImageButton?) {
         val kinds = penKinds ?: return
-        if (paper.tool == Tool.PEN && kinds.altArmed() == alt) {
+        if (paper.tool == Tool.PEN && kinds.armed() == kind) {
             val reTap = kinds.onReTap
             if (reTap != null && anchor != null) {
-                reTap(alt, anchor)
+                reTap(kind, anchor)
                 return
             }
         }
-        kinds.onPick(alt)
+        kinds.onPick(kind)
         dismiss()
-        Slog.d(TAG) { "armed the ${if (alt) "alt" else "primary"} pen from the mini toolbar" }
+        Slog.d(TAG) { "armed pen kind $kind from the mini toolbar" }
     }
 
     /**
@@ -422,21 +419,21 @@ class CollapsedChrome(
         val armed = paper.tool
         syncKnob(armed)
         syncPrimaryPen()
-        syncAltPen()
+        syncExtraPens()
         // [CollapsedTools.selectedFor] answers against the full order, so on a shortened bar it can
         // name a tool that has no button here — the walk is over the buttons this bar actually
         // built, so that reads as "nothing bordered", which is exactly right.
         val selected = CollapsedTools.selectedFor(armed)
-        // Arc 44 / T3: the PEN slot's two buttons follow the KIND as well as the tool, on the one
-        // rule the top bar uses ([CollapsedTools.penButtonSelected]). With no second kind
-        // `altArmed` is false and the primary button reads `armed == PEN`, as it always did.
-        val alt = penKinds?.altArmed() == true
+        // Arc 44 / T3: the PEN slot's buttons follow the KIND as well as the tool, on the one rule
+        // the top bar uses ([CollapsedTools.penButtonSelected]). With no further kind the armed
+        // kind is 0 and the primary button reads `armed == PEN`, as it always did.
+        val armedKind = penKinds?.armed?.invoke() ?: 0
         toolButtons.forEach { (tool, button) ->
             button.isSelected =
-                if (tool == Tool.PEN && penKinds != null) CollapsedTools.penButtonSelected(armed, alt, isAltButton = false)
+                if (tool == Tool.PEN && penKinds != null) CollapsedTools.penButtonSelected(armed, armedKind, 0)
                 else tool == selected
         }
-        altPenButton?.isSelected = CollapsedTools.penButtonSelected(armed, alt, isAltButton = true)
+        extraPenButtons.forEachIndexed { i, button -> button.isSelected = CollapsedTools.penButtonSelected(armed, armedKind, i + 1) }
     }
 
     /**
@@ -455,20 +452,16 @@ class CollapsedChrome(
         // invalidate the button for nothing (frame silence). Arc 44 / T3: under two pen kinds the
         // glyph is what says which one is armed — the tool is [Tool.PEN] for both.
         val kinds = penKinds
-        val alt = kinds?.altArmed() == true
-        // The screen's own painted glyph (arc 44 / T3) wears the corner button exactly when the
-        // PRIMARY pen button reads as armed — [CollapsedTools.penButtonSelected]'s rule again
-        // rather than a second spelling of "is the pencil what is on the paper?" — and (arc 46)
-        // the alt kind's painted glyph when the ALT button reads as armed. Under any other tool
-        // the button wears that tool's glyph, untouched.
+        val armedKind = kinds?.armed?.invoke() ?: 0
+        // The screen's own painted glyph (arc 44 / T3) wears the corner button exactly when that
+        // kind's pen button reads as armed — [CollapsedTools.penButtonSelected]'s rule again
+        // rather than a second spelling of "is the pencil what is on the paper?". Under any other
+        // tool the button wears that tool's glyph, untouched.
         // (Arc 49 / P4) …and on a screen with ONE pen, that pen's own painted glyph while it is
         // armed — the same rule with no second kind, so `penButtonSelected` reads `armed == PEN`.
-        val reported = kinds?.primaryIcon
-            ?.takeIf { CollapsedTools.penButtonSelected(armed, alt, isAltButton = false) }
-            ?.invoke()
-            ?: kinds?.altIcon
-                ?.takeIf { CollapsedTools.penButtonSelected(armed, alt, isAltButton = true) }
-                ?.invoke()
+        val reported = kinds?.kinds?.indices
+            ?.firstOrNull { CollapsedTools.penButtonSelected(armed, armedKind, it) }
+            ?.let { kinds.kinds[it].icon?.invoke() }
             ?: penIcon
                 ?.takeIf { kinds == null && armed == Tool.PEN }
                 ?.invoke()
@@ -497,21 +490,24 @@ class CollapsedChrome(
      */
     private fun syncPrimaryPen() {
         // The kinds' primary glyph, or (arc 49 / P4) the one pen's on a screen with one pen.
-        val icon = (penKinds?.primaryIcon ?: penIcon.takeIf { penKinds == null })?.invoke() ?: return
+        val icon = (penKinds?.kinds?.get(0)?.icon ?: penIcon.takeIf { penKinds == null })?.invoke() ?: return
         val button = toolButtons[Tool.PEN] ?: return
         if (icon.token == primaryPenToken) return
         primaryPenToken = icon.token
         button.setImageDrawable(icon.newDrawable())
     }
 
-    /** The row's alt-pen button wears the screen's painted glyph always (arc 46 "Palette") —
-     *  [syncPrimaryPen]'s rule for the second kind. Null on every screen but the sketch face. */
-    private fun syncAltPen() {
-        val icon = penKinds?.altIcon?.invoke() ?: return
-        val button = altPenButton ?: return
-        if (icon.token == altPenToken) return
-        altPenToken = icon.token
-        button.setImageDrawable(icon.newDrawable())
+    /** The row's further pen buttons wear the screen's painted glyphs always (arc 46 "Palette") —
+     *  [syncPrimaryPen]'s rule for every kind past the first. None on any screen but the sketch
+     *  face. */
+    private fun syncExtraPens() {
+        val kinds = penKinds ?: return
+        extraPenButtons.forEachIndexed { i, button ->
+            val icon = kinds.kinds.getOrNull(i + 1)?.icon?.invoke() ?: return@forEachIndexed
+            if (icon.token == extraPenTokens[i]) return@forEachIndexed
+            extraPenTokens[i] = icon.token
+            button.setImageDrawable(icon.newDrawable())
+        }
     }
 
     /** The overflow row alone down — the notebook's Insert takes it down before hanging its own

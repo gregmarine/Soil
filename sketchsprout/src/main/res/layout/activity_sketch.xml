@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The sketch screen — the notebook's shape: full-bleed paper with two thin chrome bars overlaid.
+  The PaperView is added into paperContainer programmatically, in RASTER mode.
+
+  Both bars go to paper.setExclusionRects (via PaperChrome) after layout, so ink never lands under
+  chrome. Chrome sits flush at the top edge.
+
+  Top bar: Back and the tools on the left (Pencil · Pen · Eraser · Smudge · Guides), the
+  sketchbook's name centred in the band the buttons leave free.
+  Bottom bar: the pager, centred on the SCREEN — prev, the indicator, next.
+
+  openingOverlay starts VISIBLE: the screen covers its own first frame, so the launch reads as one
+  continuous "Opening…".
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/paperWhite">
+
+    <FrameLayout
+        android:id="@+id/paperContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="@color/paperWhite"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:id="@+id/topBarRow"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <LinearLayout
+                android:id="@+id/toolGroup"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnBack"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_sketch_back"
+                    android:src="@drawable/ic_arrow_left" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPencil"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_pencil"
+                    android:src="@drawable/ic_pencil" />
+
+                <!-- The gel pen: the pen's second KIND, both Tool.PEN to the engine. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPen"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_pen"
+                    android:src="@drawable/ic_pen" />
+
+                <!-- The marker: the third kind — translucent, on its own raster, off by undo alone. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnMarker"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_marker"
+                    android:src="@drawable/ic_marker" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnEraser"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_eraser"
+                    android:src="@drawable/ic_eraser" />
+
+                <!-- The stylus smudge: the finger rub on the nib, a stump. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnSmudge"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_smudge"
+                    android:src="@drawable/ic_smudge" />
+
+                <!-- The guides: a grid and a reference image under the page. Not a tool. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnGuides"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_sketch_guides"
+                    android:src="@drawable/ic_grid" />
+            </LinearLayout>
+
+            <!-- The sketchbook's name, centred in the band the two button groups leave free; the
+                 screen sets its margins from the groups' widths after layout. -->
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
+            <LinearLayout
+                android:id="@+id/doorGroup"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="end|center_vertical"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+
+        </FrameLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@color/paperWhite"
+        android:orientation="vertical">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/inkBlack" />
+
+        <FrameLayout
+            android:id="@+id/bottomBarRow"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/toolbar_bar_thickness"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnPrevPage"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_prev_page"
+                    android:src="@drawable/ic_page_prev" />
+
+                <TextView
+                    android:id="@+id/pageIndicator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:minWidth="56dp"
+                    android:singleLine="true"
+                    android:textColor="@color/inkBlack"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnNextPage"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_next_page"
+                    android:src="@drawable/ic_page_next" />
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- The collapsed chrome — what shows while both bars are hidden: the corner tool button at
+         top-right wearing the armed tool's glyph, and, hung under it on a tap, the mini toolbar
+         and its overflow row (buttons built in code — CollapsedChrome, :paper). The button is
+         GONE while the bars show; ChromeToggle flips it with them. All three sit after every bar
+         they may overlap and BEFORE openingOverlay, which stays topmost while the screen opens. -->
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/collapsedKnob"
+        style="@style/Widget.Soil.ToolbarButton"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:background="@drawable/shape_dialog_bordered"
+        android:src="@drawable/ic_pencil"
+        android:visibility="gone"
+        android:contentDescription="@string/collapsed_tools" />
+
+    <LinearLayout
+        android:id="@+id/collapsedBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/collapsedOverflow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- "Opening…". Full-screen but transparent and clickable: it swallows the second tap a slow
+         e-ink refresh invites while the page is still being read. -->
+    <FrameLayout
+        android:id="@+id/openingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/shape_dialog_bordered"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/sketch_opening"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- The shade panel — Atelier's sixteen tones in four rows of four, hung under whichever pen
+         button was re-tapped (top bar or mini row) by :paper's PaletteBar. A later sibling than
+         anything it could overlap — the floating-bar rule. GONE the whole time openingOverlay is up. -->
+    <LinearLayout
+        android:id="@+id/paletteBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+    <!-- The guides panel — Grid, the counts, Reference, the opacities — hung under the Guides
+         button (top bar or the overflow's own) by :paper's AnchoredBar. The same lifecycle as the
+         shade panel. -->
+    <LinearLayout
+        android:id="@+id/guidesBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/shape_dialog_bordered"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone" />
+
+</FrameLayout>

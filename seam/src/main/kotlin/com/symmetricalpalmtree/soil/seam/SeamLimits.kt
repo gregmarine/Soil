@@ -14,9 +14,12 @@ object SeamLimits {
 
     /**
      * One value, in bytes. **Refused on write**: a blob larger than the cursor window can be
-     * written and then never read back, so it is stopped on its way in.
+     * written and then never read back, so it is stopped on its way in. 16 MiB since Sketchsprout
+     * (Greg, 2026-10-08): a sketch page's raster is one value, and the Manta's page shaded edge to
+     * edge is over the 6 MiB this began at. Soil sizes SQLCipher's cursor window above this, so a
+     * value this large is read back as it was written.
      */
-    const val MAX_VALUE_BYTES = 6 * 1024 * 1024
+    const val MAX_VALUE_BYTES = 16 * 1024 * 1024
 
     /** One whole payload, in bytes: a batch of statements going in, or a result coming out. */
     const val MAX_PAYLOAD_BYTES = 64 * 1024 * 1024

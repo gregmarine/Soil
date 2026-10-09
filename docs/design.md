@@ -168,6 +168,9 @@ A notebook can be the starting point for other items.
 
 - Convert happens once. It creates a new item and is finished.
 - The person chooses whether a link to the new item is left on the notebook page.
+
+**As built (2026-10-07):** Convert page / notebook to sketchbook, the strokes black into the ink
+layer, then Open · Leave a link · Done (`sketchsprout.md`).
 - Nothing is kept in step afterwards. Changing the notebook does not change the result, and the
   result does not need to know.
 
@@ -275,8 +278,10 @@ The pad can send to any item in the library, not only to the one that opened it.
 
 **As built (2026-10-04):** the pad copies its ink to the clipboard and stays open; a notebook
 pastes it as ink and a document as recognised words, in any item, any number of times
-(`clipboard.md`). A sketchbook waits for Sketchsprout. **As built (2026-10-06):** the pad pastes
+(`clipboard.md`). **As built (2026-10-06):** the pad pastes
 too, in the notebook's shape: strokes under the lasso, a page from its long-press sheet.
+**As built (2026-10-07):** a sketchbook pastes the clipboard's ink into its ink layer from its
+page sheet (`sketchsprout.md`).
 
 ---
 
@@ -458,9 +463,9 @@ Small enough to settle during planning.
 
 | Topic | Question |
 |---|---|
-| Ink into a sketch | Whether converted strokes land as graphite or as ink |
+| Ink into a sketch | Whether converted strokes land as graphite or as ink. **Settled 2026-10-07:** ink (`sketchsprout.md`) |
 | The menu | Home, the Scratch Pad, Settings, then each Sprout app installed. Still open: any direct bar gestures |
-| Conversion | Whether split files are linked to each other |
+| Conversion | Whether split files are linked to each other. **As built 2026-10-07:** Convert to a sketchbook offers Leave a link; to a document, not yet |
 | Boot | Re-test taking the home screen back after a reboot |
 | Firmware updates | How Soil notices that the menu lock has stopped working |
 
@@ -470,7 +475,7 @@ order of the Notesprout effort is in §16.
 
 ---
 
-## 16. What was built (2026-10-03)
+## 16. What was built (2026-10-03 to 2026-10-08)
 
 The Notesprout effort, on the branch `notesprout`, fourteen phases, each walked on the Nomad:
 
@@ -540,6 +545,27 @@ The Calsprout effort, on the branch `calsprout`, eleven phases, each walked on t
 | 9 | Day links in the apps; the shared backlinks panel; the calendar's Notes door | `links.md`, `calsprout.md`, `biblesprout.md` |
 | 10 | The edges, checked | `backup.md` |
 | 11 | These documents | |
+
+The Sketchsprout effort, on the branch `sketchsprout`, eleven phases, each walked on the Nomad
+(2026-10-07 and 2026-10-08):
+
+| Phase | What | Document |
+|---|---|---|
+| 1 | The app and the file: `:sketchsprout`, the schema, the rasters, the saver, pencil and eraser; New sketchbook and the New screen's kind; the pad's menu icon | `sketchsprout.md`, `items.md`, `scratchpad.md` |
+| 2 | The tools: gel pen, sixteen shades, smudge and the finger rub, the remembered pen | `sketchsprout.md` |
+| 3 | Undo by tiles, pages, the long-press sheet; the next arrow inserting past the last page | `sketchsprout.md` |
+| 4 | Paper: template rows, the pick at New, Page template, the paper as the sheet | `templates.md`, `sketchsprout.md` |
+| 5 | Guides: grid and reference image in the sheet | `sketchsprout.md` |
+| 6 | Export: the sketchbook's renderer, Export page and sketchbook | `export.md` |
+| 7 | The clipboard: pages between sketchbooks, ink pasted in | `clipboard.md` |
+| 8 | Convert from a notebook, with Open · Leave a link · Done | `sketchsprout.md` |
+| 9 | Links: a sketch page as a target; the picker's shelf; "N links to here" | `links.md` |
+| 10 | The edges: the seam's cap at 16 MiB and SQLCipher's window, the effort by coverage, the over-cap message, backup pinned | `sketchsprout.md`, `seam.md`, `backup.md` |
+| 11 | These documents | |
+| M1 | g-paper 0.1.68 and 0.1.69: the marker's own raster, its live preview, its flat ends | `sketchsprout.md` |
+| M2 | The marker in the file, the flatten and on the bar; the three-kind tool model with shades and sizes | `sketchsprout.md` |
+| M3 | The sizes on the palette, four to a row, the wide markers badged | `sketchsprout.md` |
+| M4 | These documents | |
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
 

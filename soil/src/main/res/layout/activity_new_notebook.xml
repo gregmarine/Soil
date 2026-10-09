@@ -2,12 +2,16 @@
 <!-- Name it, choose its paper, make it: one row of header over the whole template browser. The
      name sits in the top row where the keyboard cannot reach it; the window is adjustNothing,
      since a screen with a page on it must not be squashed for the keyboard. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/paperWhite">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
     <LinearLayout
         android:id="@+id/topBar"
@@ -23,6 +27,17 @@
             style="@style/Widget.Soil.ToolbarButton"
             android:src="@drawable/ic_arrow_left"
             android:contentDescription="@string/cd_back" />
+
+        <!-- Which kind of book this screen makes (Greg, 2026-10-07: the two screens looked
+             identical). Set by the activity from the kind it was opened for. -->
+        <TextView
+            android:id="@+id/kindTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:singleLine="true"
+            android:textColor="@color/inkBlack"
+            android:textSize="18sp" />
 
         <androidx.appcompat.widget.AppCompatEditText
             android:id="@+id/nameField"
@@ -62,3 +77,33 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 </LinearLayout>
+
+    <!-- "Creating…" — up the moment Create is tapped, until the app's own screen is in front
+         (Greg, 2026-10-07: the gap between the tap and the first thing on the glass read as a
+         hang). Clickable, so a second tap during the wait is swallowed. -->
+    <FrameLayout
+        android:id="@+id/creatingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/shape_dialog_bordered"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/creating"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

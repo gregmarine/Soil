@@ -9,7 +9,7 @@ rules and the fuzzy ranking.
 ## The screen
 
 Templates, reached from Settings: folders, sort, rename, move, duplicate, Fit, pin, import of a
-PNG, JPEG or WebP through the system picker under the 6 MiB cap, PNG export at this device's
+PNG, JPEG or WebP through the system picker under the seam's 16 MiB cap, PNG export at this device's
 page size, and the Pinned, Recents and Search shelves. Cards are true miniatures, rendered off
 Main and cached. The Default folder is reserved: nothing of the person's lands in it.
 
@@ -29,4 +29,11 @@ A calendar page copied to the clipboard carries its grid as a `template` row, a 
 the image token at the page's size, so the notebook that pastes it reuses the row by bytes and
 the same month twice mints one (`clipboard.md`, `calsprout.md`).
 
-Walked on the Nomad, phase 6, 2026-10-01.
+## In the sketchbook
+
+A sketchbook's paper is the same library's, picked at New sketchbook and from its page sheet's
+Page template, kept as a `template` row and drawn under the rasters — on the screen as part of
+g-paper's sheet, never as its template (`sketchsprout.md`), and under the export and the cover.
+
+Walked on the Nomad, phase 6, 2026-10-01; under a sketchbook, Sketchsprout's phase 4,
+2026-10-07.

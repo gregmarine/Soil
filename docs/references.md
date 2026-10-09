@@ -44,7 +44,7 @@ All under `~/git/Notesprout/apps/notesprout_sn/docs/` unless a path says otherwi
 | Page templates | `templates.md` |
 | Shared paper-screen code | `sn-screen.md` |
 | Bible | `~/git/Notesprout/extensions/bible/docs/bible.md` (the reader as built in SN; Soil's is `docs/biblesprout.md`) |
-| Sketch | `~/git/Notesprout/extensions/sketch/docs/sketch.md` |
+| Sketch | `~/git/Notesprout/extensions/sketch/docs/sketch.md` (the sketch face as built in SN; Soil's is `docs/sketchsprout.md`) |
 | The `.soil` file format | `~/git/Notesprout/docs/soil-file-format.md` |
 | The library index format | `~/git/Notesprout/docs/global-index-format.md` |
 | The e-ink design system | `~/git/Notesprout/docs/design-system.md` |
@@ -73,3 +73,12 @@ backup. The conversion into Soil follows the same pattern.
 - **A grey border is invisible on e-ink.** Use black for anything that must be seen.
 - **A disabled button looks the same as an enabled one on e-ink.** Hide it, or let it be tapped
   and explain.
+- **SQLCipher's cursor window is 8 MiB by default.** A value larger than the window is written
+  and never read back. Soil sets the window above the seam's cap where the library loads.
+- **On a RASTER page the Supernote's direct path never reads the template.** Paper goes in the
+  sheet. And every whole-page engine call coalesces into one rebuild only when nothing suspends
+  between them: decode first, then call the engine back to back.
+- **A broadcast receiver that works on Main past its timeout gets the app killed.** Post the
+  work; the debug doors do.
+- **A butt-capped path with round joins ends however the hand wobbled at the lift.** Trim the
+  samples within half the width of the end before drawing (g-paper's `MarkerTrim`).

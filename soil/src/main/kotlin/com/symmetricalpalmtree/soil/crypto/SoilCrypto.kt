@@ -3,6 +3,7 @@ package com.symmetricalpalmtree.soil.crypto
 import android.util.Log
 import net.zetetic.database.DatabaseErrorHandler
 import net.zetetic.database.sqlcipher.SQLiteDatabase as ZeticDB
+import com.symmetricalpalmtree.soil.seam.SeamLimits
 import java.io.File
 
 /** What a probe of a database file found. Soil has no plaintext mode. */
@@ -36,7 +37,16 @@ object SoilCrypto {
      * no open helper in Soil. Lazy rather than in an `init`, so the pure parts of this object
      * ([keyBytes], [probe]) run on the JVM, where the library does not exist.
      */
-    private val native: Unit by lazy { System.loadLibrary("sqlcipher") }
+    private val native: Unit by lazy {
+        System.loadLibrary("sqlcipher")
+        // A row must fit one cursor window or it is never read back: the seam's largest value,
+        // with room for the row's other columns. SQLCipher's own default is 8 MiB. The window is
+        // shared memory, committed as it is touched, so a wide one costs a small query nothing.
+        net.zetetic.database.sqlcipher.SQLiteCursor.setCursorWindowSize(SeamLimits.MAX_VALUE_BYTES + CURSOR_WINDOW_HEADROOM)
+    }
+
+    /** What a row may carry beside its largest value. */
+    private const val CURSOR_WINDOW_HEADROOM = 2 * 1024 * 1024
 
     /** Canonical passphrase to key-bytes encoding. Must be UTF-8; do not change. */
     fun keyBytes(passphrase: String): ByteArray = passphrase.toByteArray(Charsets.UTF_8)

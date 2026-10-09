@@ -19,7 +19,7 @@ or an extension converts it.
 
 | Copied from | Pasted into | What would happen |
 |---|---|---|
-| Notebook ink | Sketchbook | Ink drawn into the raster |
+| Notebook ink | Sketchbook | Ink drawn into the raster. **Done 2026-10-07** (`docs/sketchsprout.md`: Paste ink) |
 | Notebook ink | Document | Recognised text. **Done 2026-10-04** (`docs/clipboard.md`) |
 | Document text | Notebook | A text object on the page |
 | Bible passage | Notebook or document | Verses as text, with the reference. **Done 2026-10-05** (`docs/clipboard.md`) |
@@ -247,3 +247,46 @@ sheet; `scratchpad.md`). What remains is retiring the notebook's Send to Scratch
 Notesprout and Docsprout leave with an "X" on the top bar; Biblesprout, the Scratch Pad and
 Calsprout leave with a back arrow. One or the other everywhere, probably the arrow. Decide once,
 then change the two apps that differ.
+
+---
+
+## The sketchbook: what Sketchsprout left out
+
+**Set aside 2026-10-06 to 2026-10-08, as the Sketchsprout effort was built.**
+
+- **A sketch out to a notebook.** The clipboard's last row above: a sketch page's picture onto a
+  notebook page, which notebooks cannot hold today.
+- **A link out of a sketch page** (Greg, 2026-10-07: none for now). A sketch has no objects and
+  no lasso, so the link has to be something else. Two shapes were considered: one link per page
+  from the page sheet, drawn as a mark in a corner; or a hotspot, a rectangle drawn with the
+  stylus and wrapped as a `link` row over the raster. Either writes `soil_link` as a notebook
+  does. Decide the shape before building.
+- **Paintsprout** (`design.md` §2): whether it works with sketchbooks, undecided.
+- **Reopening an item after Soil is lost.** If Soil's process dies while a sketchbook — or a
+  notebook — is open, the app's session is dead and the screen cannot make a new one: a save
+  retries and fails, and leaving asks Try again or Leave anyway. `SeamConnection.onLost` is the
+  hook; the screen would reopen the item and re-offer what it holds.
+- **A large bake on Main.** Pasting hundreds of strokes as ink composites them on the main
+  thread; a notebook page's worth is seconds. Chunk the bake, or bake off Main as Convert does.
+
+---
+
+## One link picker, Soil's, with page previews for every kind
+
+**Raised by Greg 2026-10-08, at Sketchsprout's phase 9 walk. Set aside for after Sketchsprout.**
+
+A sketchbook's page is chosen in Soil's item picker as a list of names, while a notebook's
+pages are previewed as cards in Notesprout's own picker, which came over from SN before Soil's
+existed. The two are one job done twice, and Greg asked for the universal shape:
+
+- **Soil's picker grows a page-card grid** with previews for any item whose app can draw its
+  pages, through the app's renderer (the export service: Notesprout's for a notebook,
+  Sketchsprout's for a sketchbook), a grid page rendered at a time and scaled to the card.
+  Docsprout's Choose from library gets the previews with it.
+- **Notesprout's picker is retired.** Soil holds every file's one connection, so This
+  notebook's pages are drawn through the renderer too, the current page marked and the home
+  notebook not excluded; New page (before or after) and New notebook become *answers* the
+  picker gives and the app carries out, making the page and the link together; the calendar
+  day shelf moves into Soil's picker; Edit link reopens it on the item and page already chosen.
+  The link's style (underline or none) stays Notesprout's, asked after the pick.
+- One chooser for anything that links, in every Sprout app to come.

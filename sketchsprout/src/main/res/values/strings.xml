@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sketchsprout's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
+     not repeated here. -->
+<resources>
+    <string name="app_name">Sketchsprout</string>
+
+    <string name="sketch_opening">Opening…</string>
+
+    <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
+    <string name="cd_sketch_back">Back to the library</string>
+    <string name="cd_tool_pencil">Pencil</string>
+    <string name="cd_tool_pen">Pen</string>
+    <string name="cd_tool_marker">Marker</string>
+    <string name="cd_tool_eraser">Eraser</string>
+    <string name="cd_tool_smudge">Smudge</string>
+
+    <!-- The guides: one Guides button on the top bar, one panel under it. Counts are numbers, not
+         words, so they are not strings; the opacity latch is a format. -->
+    <string name="cd_sketch_guides">Guides</string>
+    <string name="guides_grid">Grid</string>
+    <string name="guides_grid_off">Off</string>
+    <string name="guides_grid_lines">Lines</string>
+    <string name="guides_grid_dots">Dots</string>
+    <string name="guides_show_grid">Show grid</string>
+    <string name="guides_hide_grid">Hide grid</string>
+    <string name="guides_reference">Reference</string>
+    <string name="guides_pick_image">Pick image</string>
+    <string name="guides_remove_image">Remove image</string>
+    <string name="guides_show_image">Show image</string>
+    <string name="guides_hide_image">Hide image</string>
+    <string name="guides_opacity">%1$d%%</string>
+    <string name="guides_no_picker_title">No image picker</string>
+    <string name="guides_no_picker_body">This device has no app for choosing an image.</string>
+    <string name="guides_image_not_saved_title">Reference image not saved</string>
+    <string name="guides_image_not_saved_body">The reference image could not be kept on this page. Try again.</string>
+    <string name="guides_image_not_removed_body">The reference image could not be removed from this page. Try again.</string>
+    <string name="guides_image_unreadable_body">That image could not be read. Pick a PNG, JPEG or WebP picture.</string>
+    <string name="guides_image_too_large_body">That image is too detailed to keep on a page. Pick a smaller or simpler picture.</string>
+
+    <!-- The pager: this page of that many, and its two arrows. -->
+    <string name="sketch_page_indicator">%1$d / %2$d</string>
+    <string name="cd_prev_page">Previous page</string>
+    <string name="cd_next_page">Next page</string>
+
+    <!-- The page sheet, on a finger long-press. Delete asks once; the export, copy and paste rows
+         join in their phases. -->
+    <string name="page_sheet_title">This page</string>
+    <string name="page_template_action">Page template</string>
+    <string name="page_sheet_delete">Delete page</string>
+    <string name="copy_page_action">Copy page</string>
+    <string name="paste_page_action">Paste page</string>
+    <string name="paste_ink_action">Paste ink</string>
+    <string name="paste_before_action">Paste before this page</string>
+    <string name="paste_after_action">Paste after this page</string>
+    <string name="page_copied_toast">Page copied</string>
+    <string name="pasted_before_toast">Pasted before page %1$d</string>
+    <string name="pasted_after_toast">Pasted after page %1$d</string>
+    <string name="ink_pasted_toast">Ink pasted</string>
+    <string name="clip_failed_title">Clipboard</string>
+    <string name="clip_capture_failed">This page couldn\'t be read. Nothing was copied.</string>
+    <string name="clip_too_large">There is too much on this page to copy. The clipboard was left unchanged.</string>
+    <string name="clip_write_failed">The page couldn\'t be put on the clipboard. The clipboard was left unchanged.</string>
+    <string name="clip_paste_failed">The clipboard is empty or its contents couldn\'t be read. Copy a page again.</string>
+    <string name="clip_paste_ink_failed">The clipboard holds no ink. Copy with the lasso in a notebook or on the Scratch Pad, then paste.</string>
+    <string name="clip_paste_ink_empty">The copied ink holds nothing to paste.</string>
+    <plurals name="page_sheet_backlinks">
+        <item quantity="one">%1$d link to here</item>
+        <item quantity="other">%1$d links to here</item>
+    </plurals>
+    <string name="backlinks_title">Links</string>
+    <string name="backlinks_empty">Nothing links to this page.</string>
+    <string name="backlinks_notebook_page">Notebook page</string>
+    <string name="backlinks_whole_item">The whole sketchbook</string>
+    <string name="link_follow_failed_title">Can\'t open</string>
+    <string name="link_follow_failed_body">Soil could not open where the link was made.</string>
+    <string name="export_page_action">Export page…</string>
+    <string name="export_sketchbook_action">Export sketchbook…</string>
+    <string name="template_gone_title">Couldn\'t use that template</string>
+    <string name="template_gone_body">That template is no longer in the library. Nothing has been changed.</string>
+    <string name="template_render_failed_title">Couldn\'t draw that paper</string>
+    <string name="template_render_failed_body">The template could not be rendered at this page\'s size. The page has been left as it was.</string>
+    <string name="delete_page_title">Delete this page?</string>
+    <string name="delete_confirm">Delete</string>
+    <string name="page_failed_title">Page</string>
+    <string name="page_failed_body">The page could not be changed. The sketchbook is as it was.</string>
+
+    <!-- Opening: never a path, never a name. -->
+    <string name="open_failed_title">Can\'t open sketchbook</string>
+    <string name="open_no_soil">Soil could not be reached. Sketchsprout keeps its sketchbooks in Soil.</string>
+    <string name="open_locked">The library is not open. Open it in Soil, then open the sketchbook again.</string>
+    <string name="open_missing">This sketchbook is no longer in the library.</string>
+    <string name="open_newer">This sketchbook was written by a later Sketchsprout. It has not been changed.</string>
+    <string name="open_failed">The sketchbook could not be opened. It has not been changed.</string>
+
+    <!-- Leaving with pixels that could not be written: a drawing with no other copy is a dialog,
+         never a log line. -->
+    <string name="sketch_too_large_title">Too much to save</string>
+    <string name="sketch_too_large_graphite_body">This page\'s pencil is more than the sketchbook can hold on one page (16 MB). Lighten it with the eraser, or the page keeps what it last saved.</string>
+    <string name="sketch_too_large_marker_body">This page\'s marker is more than the sketchbook can hold on one page (16 MB). Undo some of it, or the page keeps what it last saved.</string>
+    <string name="sketch_too_large_ink_body">This page\'s ink is more than the sketchbook can hold on one page (16 MB). Erase some of it, or the page keeps what it last saved.</string>
+    <string name="sketch_not_saved_title">Not saved</string>
+    <string name="sketch_not_saved_body">The sketch could not be written to the sketchbook. Try again, or leave and lose what was drawn since the last save.</string>
+    <string name="sketch_try_again">Try again</string>
+    <string name="sketch_leave_anyway">Leave anyway</string>
+</resources>

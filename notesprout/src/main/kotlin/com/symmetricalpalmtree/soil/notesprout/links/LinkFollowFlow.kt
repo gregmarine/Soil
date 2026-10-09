@@ -47,9 +47,10 @@ class LinkFollowFlow(
     private val navigateToPage: (String) -> Unit,
     /** Leave this notebook for another, at a page or at its own remembered one. */
     private val leaveFor: (itemId: String, pageId: String?) -> Unit,
-    /** Open an item that is not a notebook, in its own app, over this screen: Soil's to do.
-     *  This notebook stays where it is, and closing what opened comes back to it. */
-    private val openElsewhere: (itemId: String) -> Unit,
+    /** Open an item that is not a notebook, in its own app, over this screen, at a page of it
+     *  when the link names one: Soil's to do. This notebook stays where it is, and closing what
+     *  opened comes back to it. */
+    private val openElsewhere: (itemId: String, pageId: String?) -> Unit,
     /** A passage: Soil opens the Bible's reader on the wire, over this notebook. */
     private val openBible: (wire: String) -> Unit,
     /** A day: Soil opens the calendar on it, over this notebook. */
@@ -122,13 +123,12 @@ class LinkFollowFlow(
         }
         if (item.kind != NotebookSchema.KIND) {
             busy = false
-            // A whole item of another kind (a document) opens in its own app. A page of one is
-            // nothing this app can name: only a notebook has pages.
-            if (plan.pageId == null && alive()) {
+            // An item of another kind (a document, a sketchbook) opens in its own app, at the
+            // page the link names when it names one: that app, not this one, knows its pages,
+            // and says so itself when the page is gone.
+            if (alive()) {
                 Slog.d(TAG) { "follow: an item of another kind, handed to Soil" }
-                openElsewhere(item.id)
-            } else {
-                deadTarget(link, activity.getString(R.string.link_target_other_kind_body, item.kind))
+                openElsewhere(item.id, plan.pageId)
             }
             return
         }

@@ -41,6 +41,9 @@
     <string name="new_notebook_hint">Name</string>
     <string name="new_notebook_default">Notebook</string>
     <string name="new_notebook_create">Create</string>
+    <string name="cd_new_sketchbook">New sketchbook</string>
+    <string name="new_sketchbook_title">New sketchbook</string>
+    <string name="creating">Creating…</string>
     <string name="cd_new_document">New document</string>
     <string name="new_document_title">New document</string>
     <string name="new_document_failed_title">Couldn\'t make the document</string>
@@ -325,6 +328,7 @@
     <string name="new_notebook_in">New notebook in %1$s</string>
     <string name="new_notebook_paper">Paper</string>
     <string name="new_notebook_failed_title">Couldn\'t make the notebook</string>
+    <string name="new_sketchbook_failed_title">Couldn\'t make the sketchbook</string>
     <string name="new_notebook_failed_body">Nothing has been changed.</string>
     <string name="follow_failed_title">Can\'t follow this link</string>
     <string name="follow_locked_body">The library is not open. Open it in Soil, then follow the link again.</string>

@@ -27,6 +27,7 @@ import com.symmetricalpalmtree.soil.notesprout.data.NotebookAction
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookDocument
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookPrefs
 import com.symmetricalpalmtree.soil.notesprout.convert.ConvertFlow
+import com.symmetricalpalmtree.soil.notesprout.convert.ConvertToSketchbook
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookSchema
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
 import com.symmetricalpalmtree.soil.notesprout.data.PageContent
@@ -77,6 +78,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.paper.core.CoverSnapshot
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.InkTones
 import com.symmetricalpalmtree.soil.paper.core.Immersive
@@ -276,7 +278,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             penLevel = prefs.penLevel,
             onBack = { exit() },
             onPrevPage = { runPageOp { flipTo(pageIndex() - 1) } },
-            onNextPage = { runPageOp { flipTo(pageIndex() + 1) } },
+            // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
+            onNextPage = { gestureListener.onFlipNext() },
             onRecents = { showRecents() },
             // A second tap on the armed pen toggles its shade panel; on the armed eraser, its
             // sub-bar. Arming a different tool takes any bar with it.
@@ -1424,6 +1427,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_notebook_action)) { exportVia(null) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_page_action)) { convertToDocument(wholeNotebook = false) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_notebook_action)) { convertToDocument(wholeNotebook = true) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching, getString(R.string.convert_sketch_page_action)) { convertToSketchbook(wholeNotebook = false) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching, getString(R.string.convert_sketch_notebook_action)) { convertToSketchbook(wholeNotebook = true) }
             sheet.show()
         }
     }
@@ -1453,6 +1458,48 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             pushExclusions()
             ConvertFlow.run(this@NotebookActivity, recognizerPort, store, id, pages, name, onOpen = ::openElsewhere)
         }
+    }
+
+    /**
+     * Convert to sketchbook: this page, or every page, handed to the sketchbook's app as ink
+     * beside this notebook. The page is flushed first, so what is read is what is on it; the
+     * notebook itself is not changed, unless Leave a link is chosen — then the sketchbook's name,
+     * wrapped in an item link, lands at the nearest clear spot on the page showing.
+     */
+    private fun convertToSketchbook(wholeNotebook: Boolean) {
+        if (!opened || closing) return
+        val doc = document ?: return
+        val store = storeRef ?: return
+        val id = itemId ?: return
+        runPageOp {
+            doc.flushUntilClean()
+            val numbered = doc.pages.mapIndexed { i, page -> page to i + 1 }
+            val pages = if (wholeNotebook) numbered else numbered.filter { it.first.id == doc.pageId }
+            val notebookName = withContext(Dispatchers.IO) { runCatching { (application as NotesproutApp).soil.seam().item(id)?.name }.getOrNull() }.orEmpty().ifBlank { getString(R.string.convert_default_name) }
+            val name = if (wholeNotebook) notebookName else getString(R.string.convert_page_name, notebookName, pages.firstOrNull()?.second ?: 1)
+            val pageId = doc.pageId
+            hideFloatingBars()
+            dismissCollapsed()
+            paper.releaseRender()
+            pushExclusions()
+            ConvertToSketchbook.run(
+                this@NotebookActivity, { (application as NotesproutApp).soil.seam() }, store, id, pages, name,
+                onOpen = ::openElsewhere,
+                onLeaveLink = { itemId, itemName -> leaveItemLink(pageId, itemId, itemName) },
+            )
+        }
+    }
+
+    /** The name of [targetId], as a text object wrapped in an item link, at the nearest clear
+     *  spot on [pageId] — the Bible reference's landing, with an item payload. */
+    private fun leaveItemLink(pageId: String, targetId: String, targetName: String) {
+        val doc = document ?: return
+        if (!opened || closing || doc.pageId != pageId) return
+        val (w0, h0) = TextRenderer.measure(targetName, doc.pageWidth.toInt(), density, scaledDensity)
+        val (x, y) = com.symmetricalpalmtree.soil.notesprout.objects.FreePlacement.nearCentre(doc.pageWidth, doc.pageHeight, w0, h0, occupied(), density)
+        val (w, h) = if (doc.pageWidth - x < w0) TextRenderer.measure(targetName, (doc.pageWidth - x).toInt().coerceAtLeast(1), density, scaledDensity) else w0 to h0
+        val text = PageText(UUID.randomUUID().toString(), targetName, x, y, w, h, 0)
+        landReference(pageId, emptyList(), text, LinkPayload.encode(LinkPayload.CHROME_UNDERLINE, LinkPayload.KIND_ITEM, targetId, null), targetName)
     }
 
     private fun exportVia(pageId: String?) {
@@ -2096,15 +2143,17 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         }
     }
 
-    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen. */
-    private fun openElsewhere(itemId: String) {
+    /** An item that is not a notebook, opened by Soil in the app for its kind, over this screen —
+     *  at [pageId] when a link names one (a sketchbook's page). */
+    private fun openElsewhere(itemId: String, pageId: String? = null) {
         if (!opened || closing) return
         hideFloatingBars()
         dismissCollapsed()
         val started = runCatching {
             startActivity(
                 android.content.Intent(Seam.ACTION_FOLLOW).setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
-                    .putExtra(Seam.EXTRA_ITEM_ID, itemId),
+                    .putExtra(Seam.EXTRA_ITEM_ID, itemId)
+                    .putExtra(Seam.EXTRA_PAGE_ID, pageId),
             )
         }.isSuccess
         if (!started) Dialogs.problem(this, R.string.link_target_gone_title, R.string.link_follow_failed_body)

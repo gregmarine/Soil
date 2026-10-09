@@ -65,7 +65,8 @@ under the new key. An import onto an existing id forgets that id's stamp.
 
 ## Restore
 
-Replace-all, no undo (decision 2026-10-03): the index, every item file and every store, swapped
+Replace-all, no undo (decision 2026-10-03): the index, every item file (a notebook's, a
+sketchbook's or a document's, by id, never by kind) and every store, swapped
 whole. A backup folder is an accretion, not a curated set, so a restore installs what the
 backup's index names and the proven key opens, never "the folder".
 

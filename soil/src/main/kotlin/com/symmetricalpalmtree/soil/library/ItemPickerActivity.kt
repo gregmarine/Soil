@@ -51,6 +51,15 @@ class ItemPickerActivity : AppCompatActivity() {
         binding.btnCancel.setOnClickListener { finish() }
         binding.btnNewFolder.setOnClickListener { browser.showNewFolderDialog() }
         binding.btnSearch.setOnClickListener { browser.openSearchDialog() }
+        // The asker has the item already and wants one of its pages: straight to them.
+        intent.getStringExtra(Seam.EXTRA_PAGE_OF_ITEM)?.takeIf { it.isNotEmpty() }?.let { id ->
+            if (savedInstanceState != null) return@let
+            lifecycleScope.launch {
+                val item = withContext(Dispatchers.IO) { runCatching { com.symmetricalpalmtree.soil.data.index.IndexStore().aliveItem(id) }.getOrNull() }
+                if (item == null) { finish(); return@launch }
+                pickPageOf(item, finishOnCancel = true)
+            }
+        }
     }
 
     private fun answer(item: Item, pageId: String?) {
@@ -63,7 +72,7 @@ class ItemPickerActivity : AppCompatActivity() {
      * that can name them. An item with no pages to name (a document, or a kind with no app
      * installed) is its own answer.
      */
-    private fun pickPageOf(item: Item) {
+    private fun pickPageOf(item: Item, finishOnCancel: Boolean = false) {
         if (pickingPage) return
         pickingPage = true
         lifecycleScope.launch {
@@ -77,7 +86,8 @@ class ItemPickerActivity : AppCompatActivity() {
                     val title = pages.titles[i]
                     labels += if (title.isEmpty()) getString(R.string.pick_page_numbered, pages.numbers[i]) else getString(R.string.pick_page_titled, pages.numbers[i], title)
                 }
-                val picked = ImportDialogs.pickFromList(this@ItemPickerActivity, R.string.pick_page_title, labels) ?: return@launch
+                val picked = ImportDialogs.pickFromList(this@ItemPickerActivity, R.string.pick_page_title, labels)
+                if (picked == null) { if (finishOnCancel) finish(); return@launch }
                 answer(item, if (picked == 0) null else pages.ids[picked - 1])
             } finally {
                 pickingPage = false

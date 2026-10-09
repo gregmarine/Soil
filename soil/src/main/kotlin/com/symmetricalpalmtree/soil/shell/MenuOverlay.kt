@@ -86,7 +86,7 @@ class MenuOverlay(private val service: Context) {
         b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_home), themed.getString(R.string.menu_home)) {
             Screens.open(service, Screen.HOME)
         })
-        b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching), themed.getString(R.string.scratch_title)) {
+        b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_scribble), themed.getString(R.string.scratch_title)) {
             // The pad is a paper screen of Soil's: the app in front releases the pipeline first.
             afterHandoff { Screens.open(service, Screen.PAD) }
         })

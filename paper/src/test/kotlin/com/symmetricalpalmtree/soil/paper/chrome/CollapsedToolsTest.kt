@@ -43,14 +43,18 @@ class CollapsedToolsTest {
         assertEquals(R.drawable.ic_pen, CollapsedTools.iconFor(Tool.NONE))
     }
 
-    @Test fun `exactly one of the two pen buttons reads as armed, and only under PEN`() {
-        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = false, isAltButton = false))
-        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = false, isAltButton = true))
-        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = true, isAltButton = true))
-        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = true, isAltButton = false))
+    @Test fun `exactly one of the pen kind buttons reads as armed, and only under PEN`() {
+        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 0, buttonKind = 0))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 0, buttonKind = 1))
+        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 1, buttonKind = 1))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 1, buttonKind = 0))
+        // A third kind (the sketch face's marker): its own button and no other.
+        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 2, buttonKind = 2))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 2, buttonKind = 1))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 2, buttonKind = 0))
         listOf(Tool.ERASER, Tool.LASSO_ERASER, Tool.LASSO, Tool.NONE).forEach { tool ->
-            assertFalse(CollapsedTools.penButtonSelected(tool, altPenArmed = false, isAltButton = false))
-            assertFalse(CollapsedTools.penButtonSelected(tool, altPenArmed = true, isAltButton = true))
+            assertFalse(CollapsedTools.penButtonSelected(tool, armedKind = 0, buttonKind = 0))
+            assertFalse(CollapsedTools.penButtonSelected(tool, armedKind = 1, buttonKind = 1))
         }
     }
 
@@ -58,13 +62,13 @@ class CollapsedToolsTest {
         // Arc 44 / T3: a screen may paint the primary kind's glyph itself (the sketch face's pencil
         // filled with the armed shade), and the corner button wears it exactly when the PRIMARY pen
         // button reads as armed — this rule, not a second spelling of "is the pencil on the paper?".
-        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = false, isAltButton = false))
-        // The alt kind and every other tool wear their own glyphs, untouched by the report.
-        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, altPenArmed = true, isAltButton = false))
-        assertFalse(CollapsedTools.penButtonSelected(Tool.ERASER, altPenArmed = false, isAltButton = false))
+        assertTrue(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 0, buttonKind = 0))
+        // The other kinds and every other tool wear their own glyphs, untouched by the report.
+        assertFalse(CollapsedTools.penButtonSelected(Tool.PEN, armedKind = 1, buttonKind = 0))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.ERASER, armedKind = 0, buttonKind = 0))
         // The trap: NONE wears `ic_pen` as "what a tap will bring back", but nothing is on the
         // paper, so it keeps the plain glyph rather than reporting a shade.
-        assertFalse(CollapsedTools.penButtonSelected(Tool.NONE, altPenArmed = false, isAltButton = false))
+        assertFalse(CollapsedTools.penButtonSelected(Tool.NONE, armedKind = 0, buttonKind = 0))
         assertEquals(R.drawable.ic_pen, CollapsedTools.iconFor(Tool.NONE))
     }
 
@@ -73,7 +77,7 @@ class CollapsedToolsTest {
         CollapsedTools.ORDER.forEach { tool ->
             assertEquals(
                 tool == Tool.PEN,
-                CollapsedTools.penButtonSelected(tool, altPenArmed = false, isAltButton = false),
+                CollapsedTools.penButtonSelected(tool),
             )
         }
     }

@@ -14,6 +14,7 @@ Soil keys and prepares; an extension only ever streams bytes between two file de
 | `IItemRenderer` | `:seam` | What a Sprout app offers Soil: its pages as names, as a rendered bundle, the statements that relabel its file, and, for an app that has them, formats of its own to write and files of its own to take in |
 | `RenderService` | `:notesprout` | Notesprout's renderer |
 | `export.RenderService` | `:docsprout` | Docsprout's: a document laid out in pages, written as Markdown, text or a text PDF, and made from a picked text file |
+| `export.RenderService` | `:sketchsprout` | Sketchsprout's: each page flattened as its cover is (white, the paper under the toggle, graphite, ink, never the guides), and a notebook's ink file taken in as a sketchbook (Convert) |
 | `AppRenderers`, `AppImports` | `:soil` | The renderers of the installed apps, described once per install; and which app takes in which file |
 | `:ext-soilfile` | extension | Exports and imports the item file itself (`.soil`) |
 | `:ext-pdf` | extension | A PDF of the pages on pdfbox: grayscale lossless pages, page links, an optional password |
@@ -149,8 +150,11 @@ into the index, and whatever Replace retires is deleted last.
   PDF takes no password in this cut: protection is `:ext-pdf`'s work (`BACKLOG.md`).
 - The calendar exports through the same screen in a render-only mode, under a key only its
   renderer reads; its paper toggle takes the ring and the marks with the grid (2026-10-06).
+- A sketchbook exports its pages in true greys, the guides never, from Export page… and Export
+  sketchbook… on its page sheet, and Soil opens it again on the way back (2026-10-07).
 
 ## Walked on the Nomad
 
 Notesprout's phase 11, 2026-10-03. A document's export and the import of text files,
 Docsprout's phases 7 and 8, 2026-10-04. The calendar's export, Calsprout's phase 7, 2026-10-06.
+A sketchbook's export, Sketchsprout's phase 6, 2026-10-07.

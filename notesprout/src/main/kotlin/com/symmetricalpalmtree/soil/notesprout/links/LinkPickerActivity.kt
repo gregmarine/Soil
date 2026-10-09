@@ -110,22 +110,43 @@ class LinkPickerActivity : AppCompatActivity() {
             if (selectedNotebookId == null && drilled == null) setMode(PickMode.THIS_NOTEBOOK)
             return@registerForActivityResult
         }
+        val pageId = result.data?.getStringExtra(Seam.EXTRA_PAGE_ID)?.takeIf { it.isNotEmpty() }
         lifecycleScope.launch {
             val item = aliveTarget(id) ?: return@launch
             when (mode) {
                 PickMode.NOTEBOOK -> { selectedNotebookId = item.id; refresh(jumpToSelection = true) }
-                PickMode.NOTEBOOK_PAGE -> { drill(item); pageIndex = 0; refresh() }
+                PickMode.NOTEBOOK_PAGE -> when {
+                    // Soil named the page (a sketchbook's, from its own app): the link is complete.
+                    pageId != null -> { selectedNotebookId = item.id; selectedPageId = pageId; onOk() }
+                    // A notebook's pages are previewed here, from its own file.
+                    item.kind == NotebookSchema.KIND -> { drill(item); pageIndex = 0; refresh() }
+                    // Any other kind with pages: Soil asks its app for them, straight away.
+                    else -> launchPageOf(item)
+                }
                 PickMode.THIS_NOTEBOOK, PickMode.CAL_DAY -> Unit
             }
         }
     }
 
-    private fun launchItemPicker() {
-        // A link to a whole item may point at any kind of item; a link to a page needs a
-        // notebook to have pages.
+    /** Soil's picker again, straight at [item]'s pages — a sketchbook's, named by its own app. */
+    private fun launchPageOf(item: SeamItem) {
         val intent = Intent(Seam.ACTION_PICK_ITEM)
             .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
-            .putExtra(Seam.EXTRA_KIND, if (mode == PickMode.NOTEBOOK_PAGE) NotebookSchema.KIND else null)
+            .putExtra(Seam.EXTRA_PAGE_OF_ITEM, item.id)
+            .putExtra(Seam.EXTRA_PICK_PAGE, true)
+        try {
+            itemPickerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Soil's picker would not open: ${e.javaClass.simpleName}")
+        }
+    }
+
+    private fun launchItemPicker() {
+        // A link to a whole item may point at any kind of item; a link to a page needs an item
+        // with pages: a notebook, or a sketchbook (its pages named by its own app).
+        val intent = Intent(Seam.ACTION_PICK_ITEM)
+            .setPackage(com.symmetricalpalmtree.soil.notesprout.BuildConfig.SOIL_PACKAGE)
+            .putExtra(Seam.EXTRA_KIND, if (mode == PickMode.NOTEBOOK_PAGE) PAGED_KINDS else null)
             .putExtra(Seam.EXTRA_EXCLUDE_ITEM_ID, showing.notebookId)
         try {
             itemPickerLauncher.launch(intent)
@@ -185,20 +206,23 @@ class LinkPickerActivity : AppCompatActivity() {
         if (decoded == null) return
         when (decoded.kind) {
             LinkPayload.KIND_PAGE -> selectedPageId = decoded.pageId
-            LinkPayload.KIND_ITEM -> selectedNotebookId = aliveNotebook(decoded.itemId)?.id
+            // A whole-item link may name any kind: a notebook, a document, a sketchbook.
+            LinkPayload.KIND_ITEM -> selectedNotebookId = aliveItem(decoded.itemId)?.id
             LinkPayload.KIND_ITEM_PAGE -> {
-                val target = aliveNotebook(decoded.itemId) ?: return
-                drill(target)
+                val target = alivePaged(decoded.itemId) ?: return
+                // A notebook's pages are previewed; a sketchbook's page stands as chosen.
+                if (target.kind == NotebookSchema.KIND) drill(target) else selectedNotebookId = target.id
                 selectedPageId = decoded.pageId
             }
             LinkPayload.KIND_CAL -> selectedDate = decoded.date
         }
     }
 
-    private suspend fun aliveNotebook(id: String?): SeamItem? = aliveItem(id)?.takeIf { it.kind == NotebookSchema.KIND }
+    /** An item with pages a link may name: a notebook, or a sketchbook. */
+    private suspend fun alivePaged(id: String?): SeamItem? = aliveItem(id)?.takeIf { it.kind == NotebookSchema.KIND || it.kind == KIND_SKETCHBOOK }
 
-    /** What the shelf in use may point at: any item for a whole-item link, a notebook otherwise. */
-    private suspend fun aliveTarget(id: String?): SeamItem? = if (mode == PickMode.NOTEBOOK) aliveItem(id) else aliveNotebook(id)
+    /** What the shelf in use may point at: any item for a whole-item link, a paged one otherwise. */
+    private suspend fun aliveTarget(id: String?): SeamItem? = if (mode == PickMode.NOTEBOOK) aliveItem(id) else alivePaged(id)
 
     private suspend fun aliveItem(id: String?): SeamItem? {
         if (id == null || id == showing.notebookId) return null
@@ -332,8 +356,12 @@ class LinkPickerActivity : AppCompatActivity() {
         card.name.visibility = View.VISIBLE
         card.name.text = item.name
         // A notebook is told by its pages; anything else by what it is.
-        card.label.text = if (item.kind == NotebookSchema.KIND) resources.getQuantityString(R.plurals.link_notebook_pages, item.pageCount, item.pageCount)
-        else getString(if (item.kind == KIND_DOCUMENT) R.string.link_item_document else R.string.link_item_other)
+        card.label.text = when (item.kind) {
+            NotebookSchema.KIND -> resources.getQuantityString(R.plurals.link_notebook_pages, item.pageCount, item.pageCount)
+            KIND_SKETCHBOOK -> resources.getQuantityString(R.plurals.link_sketchbook_pages, item.pageCount, item.pageCount)
+            KIND_DOCUMENT -> getString(R.string.link_item_document)
+            else -> getString(R.string.link_item_other)
+        }
         card.root.isSelected = item.id == selectedNotebookId
         card.root.setOnClickListener { onNotebookTap(item) }
     }
@@ -567,8 +595,12 @@ class LinkPickerActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "LinkPickerActivity"
 
-        /** The library's name for a document: the one other kind this picker names. */
+        /** The library's names for a document and a sketchbook: the other kinds this picker names. */
         private const val KIND_DOCUMENT = "document"
+        private const val KIND_SKETCHBOOK = "sketchbook"
+
+        /** The kinds with pages a page link may name, as Soil's picker takes them. */
+        private const val PAGED_KINDS = "notebook,sketchbook"
         const val EXTRA_INITIAL_PAYLOAD = "initialPayload"
         const val EXTRA_RESULT_PAYLOAD = "resultPayload"
         private const val MAX_CACHED_PREVIEWS = 36

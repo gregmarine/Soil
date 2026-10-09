@@ -63,22 +63,23 @@ class PaperToolbar(
      *  bar tap, [arm], every by-hand sync, `onToolChanged`), so anything else that shows the armed
      *  tool (the collapsed chrome's corner button) repaints from here and can never be left out. */
     private val onSynced: () -> Unit = {},
-    /** The **second kind** of [Tool.PEN] (arc 44 / T3 — the sketch face's gel pen beside its
-     *  pencil), or null on every screen with one pen. Both buttons arm the same tool; what differs
-     *  is what the screen arms the engine *with*. */
-    private val btnAltPen: ImageButton? = null,
+    /** The **further kinds** of [Tool.PEN] (arc 44 / T3 — the sketch face's gel pen beside its
+     *  pencil; its marker too since 2026-10-08), in bar order, kind 1 first; empty on every screen
+     *  with one pen. Every button arms the same tool; what differs is what the screen arms the
+     *  engine *with*. [btnPen] is kind 0. */
+    private val extraPens: List<ImageButton> = emptyList(),
     /** Which kind the screen currently has armed — **the screen's truth, read at every [sync] and
-     *  never cached here**: the engine cannot be asked (both kinds are [Tool.PEN]) and a copy of
-     *  the answer would be a second place for it to be wrong. False on a screen with one pen. */
-    private val altPenArmed: () -> Boolean = { false },
+     *  never cached here**: the engine cannot be asked (every kind is [Tool.PEN]) and a copy of
+     *  the answer would be a second place for it to be wrong. 0 on a screen with one pen. */
+    private val armedPenKind: () -> Int = { 0 },
     /** Apply the pen kind a tap chose, **before the tool is armed** — the order matters on an EPD
      *  panel, where the firmware pen is re-armed from the colour and width the screen sets, and a
      *  tool armed first would take the first stroke with the kind that is on its way out. */
-    private val onPenKindPicked: (alt: Boolean) -> Unit = {},
-    /** A tap on the **already-armed** pen of either kind (arc 44 / T3; the alt kind since arc 46)
-     *  — the sketch face opens its shade panel under the button, for that kind. [onEraserReTap]'s
+    private val onPenKindPicked: (kind: Int) -> Unit = {},
+    /** A tap on the **already-armed** pen of any kind (arc 44 / T3; every kind since arc 46) —
+     *  the sketch face opens its shade panel under the button, for that kind. [onEraserReTap]'s
      *  rule exactly, including that [onToolTapped] does **not** fire with it (see [select]). */
-    private val onPenReTap: (alt: Boolean) -> Unit = {},
+    private val onPenReTap: (kind: Int) -> Unit = {},
     /** The stylus smudge (arc 50 — the sketch face's Smudge, [Tool.SMUDGE]), or null on every
      *  screen without one. A plain tool with no kinds and no sub-bar: a tap arms it, a re-tap is
      *  nothing. Defaulted and last, so every existing caller compiles unchanged. */
@@ -88,12 +89,12 @@ class PaperToolbar(
     private val onLassoReTap: () -> Unit = {},
 ) {
     init {
-        listOfNotNull(btnBack, btnPen, btnEraser, btnLasso, btnAltPen, btnSmudge).forEach {
+        (listOfNotNull(btnBack, btnPen, btnEraser, btnLasso, btnSmudge) + extraPens).forEach {
             TooltipCompat.setTooltipText(it, it.contentDescription)
         }
         btnBack.setOnClickListener { releaseRenderIfIdle(); onBack() }
-        btnPen.setOnClickListener { selectPen(alt = false) }
-        btnAltPen?.setOnClickListener { selectPen(alt = true) }
+        btnPen.setOnClickListener { selectPen(0) }
+        extraPens.forEachIndexed { i, button -> button.setOnClickListener { selectPen(i + 1) } }
         btnEraser.setOnClickListener { select(Tool.ERASER) }
         btnLasso?.setOnClickListener { select(Tool.LASSO) }
         btnSmudge?.setOnClickListener { select(Tool.SMUDGE) }
@@ -145,19 +146,19 @@ class PaperToolbar(
      * O2 finding, restated in [select]): [onPenReTap] fires and [onToolTapped] does **not**, because
      * [onToolTapped] is what takes the sub-bar down — firing it here would hide the bar a moment
      * before the re-tap asked whether it was showing, and the toggle would reopen what it meant to
-     * close, every time. A re-tap on the armed **alt** pen is honestly nothing: it has no bar.
+     * close, every time.
      *
      * The kind is applied **before** the tool ([onPenKindPicked]) and [sync] runs last, as always.
      */
-    private fun selectPen(alt: Boolean) {
+    private fun selectPen(kind: Int) {
         releaseRenderIfIdle()
         val armed = paper.tool == Tool.PEN
-        if (armed && altPenArmed() == alt) {
-            onPenReTap(alt)
+        if (armed && armedPenKind() == kind) {
+            onPenReTap(kind)
             return
         }
         onToolTapped()
-        onPenKindPicked(alt)
+        onPenKindPicked(kind)
         if (!armed) paper.tool = Tool.PEN
         sync(Tool.PEN)
     }
@@ -183,13 +184,13 @@ class PaperToolbar(
      * screen never initiated.
      */
     fun sync(tool: Tool) {
-        // Arc 44 / T3: under two kinds the pen buttons follow the KIND as well as the tool, and the
-        // rule is [CollapsedTools.penButtonSelected]'s — one rule for this bar and the mini toolbar,
-        // never two spellings of it. With one pen ([altPenArmed] false, no [btnAltPen]) it answers
-        // `tool == PEN`, which is what this line has always said.
-        val alt = altPenArmed()
-        btnPen.isSelected = CollapsedTools.penButtonSelected(tool, alt, isAltButton = false)
-        btnAltPen?.isSelected = CollapsedTools.penButtonSelected(tool, alt, isAltButton = true)
+        // Arc 44 / T3: under several kinds the pen buttons follow the KIND as well as the tool, and
+        // the rule is [CollapsedTools.penButtonSelected]'s — one rule for this bar and the mini
+        // toolbar, never two spellings of it. With one pen ([armedPenKind] 0, no [extraPens]) it
+        // answers `tool == PEN`, which is what this line has always said.
+        val armedKind = armedPenKind()
+        btnPen.isSelected = CollapsedTools.penButtonSelected(tool, armedKind, 0)
+        extraPens.forEachIndexed { i, button -> button.isSelected = CollapsedTools.penButtonSelected(tool, armedKind, i + 1) }
         // The eraser button is armed under both erasers, and its icon says which (arc 29 / LE2 —
         // the notebook's `showClipboardLoaded` precedent: a standing state of the surface belongs
         // on the button, not in a toast that is gone before the next stroke).

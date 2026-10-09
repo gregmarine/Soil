@@ -168,6 +168,14 @@ object Seam {
     const val EXTRA_ITEM_NAME = "com.symmetricalpalmtree.soil.extra.ITEM_NAME"
 
     /**
+     * With [ACTION_PICK_ITEM]: an item's id — the picker skips the library and goes straight to
+     * that item's pages, as [EXTRA_PICK_PAGE] would after a tap on it. For an app that has
+     * already chosen the item (a sketchbook on the notebook's link picker) and wants one of its
+     * pages named by the app that knows them. [EXTRA_KIND] may name several kinds, comma-separated.
+     */
+    const val EXTRA_PAGE_OF_ITEM = "com.symmetricalpalmtree.soil.extra.PAGE_OF_ITEM"
+
+    /**
      * The action that follows a link to an item of any kind: Soil opens [EXTRA_ITEM_ID] in the
      * app for its kind, at [EXTRA_PAGE_ID] when one rides along. An app follows a link into its
      * own kind itself; this is for a link that leaves it (a notebook's to a document, a
