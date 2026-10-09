@@ -207,7 +207,15 @@ class ExportActivity : AppCompatActivity() {
         val it = item
         if (returnToApp && !relaunched && it != null) {
             relaunched = true
-            ItemApps.open(this, it.id, it.kind, pageId = pageId)
+            // The app is looked up on IO and started on Main; the finish waits for it, so the scope is not cancelled under the lookup.
+            lifecycleScope.launch {
+                try {
+                    ItemApps.openItem(this@ExportActivity, it.id, it.kind, pageId = pageId)
+                } finally {
+                    super@ExportActivity.finish()
+                }
+            }
+            return
         }
         super.finish()
     }
