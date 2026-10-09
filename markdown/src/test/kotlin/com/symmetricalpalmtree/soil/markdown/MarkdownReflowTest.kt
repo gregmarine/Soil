@@ -218,4 +218,30 @@ class MarkdownReflowTest {
         assertEquals("", MarkdownReflow.reflow(""))
         assertEquals("", MarkdownReflow.reflow("\n\n   \n"))
     }
+
+    // ── Code, as MarkdownCode reads it ───────────────────────────────────────
+
+    @Test
+    fun aBacktickLineDoesNotCloseATildeFence() {
+        val src = "~~~\none\n```\nwrapped\nlines\n~~~\nafter\nthis"
+        assertEquals("~~~\none\n```\nwrapped\nlines\n~~~\nafter this", MarkdownReflow.reflow(src))
+    }
+
+    @Test
+    fun aLongFenceClosesOnlyOnAsLongARun() {
+        val src = "````\na\n```\nb\n````\nc\nd"
+        assertEquals("````\na\n```\nb\n````\nc d", MarkdownReflow.reflow(src))
+    }
+
+    @Test
+    fun anIndentedFenceUnderAListIsStillAFence() {
+        val src = "- item\n  ```\n  one\n\n  two\n  ```"
+        assertEquals(src, MarkdownReflow.reflow(src))
+    }
+
+    @Test
+    fun anIndentedCodeBlockKeepsItsInnerBlankLines() {
+        val src = "text\n\n    one\n\n\n    two\n\nafter"
+        assertEquals(src, MarkdownReflow.reflow(src))
+    }
 }

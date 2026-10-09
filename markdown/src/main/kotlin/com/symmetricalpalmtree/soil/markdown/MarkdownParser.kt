@@ -7,6 +7,9 @@ package com.symmetricalpalmtree.soil.markdown
  * blockquotes, horizontal rules. Code fences, tables, raw HTML, and Pandoc's lettered / roman
  * ordered lists are out — a document that rendered them here would come out as run-together
  * paragraphs in every other markdown reader, and portability of the source text is the point.
+ * A code line ([MarkdownCode]: a fence and what it holds, an indented code block) is not read as
+ * Markdown either: it is a paragraph of its own characters, as written, so `# x` inside a fence is
+ * never a heading and the reader agrees with the document editor about which lines are code.
  */
 sealed class Block {
     data class Heading(val level: Int, val inlines: List<Inline>) : Block()
@@ -65,6 +68,7 @@ object MarkdownParser {
 
     fun parse(markdown: String): List<Block> {
         val lines = markdown.lines()
+        val code = MarkdownCode.codeLines(lines)
         val blocks = mutableListOf<Block>()
         // One running number per nesting depth. Any block that is not an ordered item at that depth
         // ends the run, so the next ordered item is free to set a new start number.
@@ -79,6 +83,14 @@ object MarkdownParser {
             val line = leftTrimmed.trimEnd()
 
             if (line.isEmpty()) {
+                counters.clear()
+                i++
+                continue
+            }
+
+            // Code: its characters, one line a paragraph, never parsed.
+            if (code[i]) {
+                blocks += Block.Paragraph(listOf(Inline.Text(raw.trimEnd())))
                 counters.clear()
                 i++
                 continue
@@ -170,7 +182,7 @@ object MarkdownParser {
             val paragraph = mutableListOf(line)
             while (i + 1 < lines.size) {
                 val next = lines[i + 1].trimStart().trimEnd()
-                if (next.isEmpty() || startsBlock(next)) break
+                if (next.isEmpty() || code[i + 1] || startsBlock(next)) break
                 paragraph += next
                 i++
             }

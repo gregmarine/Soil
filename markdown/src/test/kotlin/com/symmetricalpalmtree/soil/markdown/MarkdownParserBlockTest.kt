@@ -158,4 +158,58 @@ class MarkdownParserBlockTest {
     fun blankLines_produceNoBlocks() {
         assertEquals(emptyList<Block>(), MarkdownParser.parse("\n\n   \n"))
     }
+
+    // ── Code (MarkdownCode's lines, as the document editor reads them) ───────
+
+    @Test
+    fun fencedLines_areTheirOwnCharacters() {
+        val blocks = MarkdownParser.parse("```\n# not a heading\n- not a bullet\n```")
+        assertEquals(4, blocks.size)
+        assertTrue(blocks.all { it is Block.Paragraph })
+        assertEquals("# not a heading", flatten((blocks[1] as Block.Paragraph).inlines))
+        assertEquals("- not a bullet", flatten((blocks[2] as Block.Paragraph).inlines))
+    }
+
+    @Test
+    fun tildeAndLongFences_closeOnlyOnTheirOwnKind() {
+        // A backtick line does not close a tilde fence; a shorter run does not close a longer one.
+        val tilde = MarkdownParser.parse("~~~\n```\n# inside\n~~~\n# Heading")
+        assertTrue(tilde[2] is Block.Paragraph)
+        assertEquals(1, (tilde.last() as Block.Heading).level)
+        val long = MarkdownParser.parse("````\n```\n# inside\n````\n# Heading")
+        assertTrue(long[2] is Block.Paragraph)
+        assertEquals(1, (long.last() as Block.Heading).level)
+    }
+
+    @Test
+    fun anUnclosedFence_runsToTheEnd() {
+        val blocks = MarkdownParser.parse("```\n# inside\n\n# still inside")
+        assertTrue(blocks.none { it is Block.Heading })
+    }
+
+    @Test
+    fun aFence_endsTheParagraphAboveIt() {
+        val blocks = MarkdownParser.parse("prose\n```\ncode\n```")
+        assertEquals("prose", flatten((blocks[0] as Block.Paragraph).inlines))
+        assertEquals("```", flatten((blocks[1] as Block.Paragraph).inlines))
+    }
+
+    @Test
+    fun indentedCodeAfterABlankLine_isNotParsed() {
+        val blocks = MarkdownParser.parse("prose\n\n    # code **here**")
+        assertEquals("    # code **here**", flatten((blocks[1] as Block.Paragraph).inlines))
+        assertEquals(1, (blocks[1] as Block.Paragraph).inlines.size)
+    }
+
+    @Test
+    fun anIndentedLineUnderAListOrAParagraph_isNotCode() {
+        // Under a list item the indent is the list's; without a blank line it continues the paragraph.
+        val list = MarkdownParser.parse("- item\n\n    **bold**")
+        assertTrue((list[1] as Block.Paragraph).inlines.single() is Inline.Bold)
+        val joined = MarkdownParser.parse("prose\n    more").single() as Block.Paragraph
+        assertEquals("prose more", flatten(joined.inlines))
+        // A nested item is an item, never code.
+        val nested = MarkdownParser.parse("text\n\n    - nested")
+        assertTrue(nested[1] is Block.ListItem)
+    }
 }

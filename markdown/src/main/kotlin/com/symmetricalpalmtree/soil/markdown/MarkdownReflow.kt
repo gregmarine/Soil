@@ -19,9 +19,11 @@ package com.symmetricalpalmtree.soil.markdown
  *   joining one to the next would scramble the table.
  * - **List items** and **blockquotes** each start their own line but *do* absorb a following plain
  *   line, which is exactly the wrapped-item case.
- * - **Fenced code** passes through byte for byte, blank lines included — inside a fence a break is
- *   content, not layout.
- * - **Indented lines** (four spaces or a tab) stand alone, so an indented code block survives.
+ * - **Code** ([MarkdownCode]: a fence and what it holds, an indented block after a blank line)
+ *   passes through byte for byte, blank lines included — inside code a break is content, not
+ *   layout.
+ * - **Indented lines** (four spaces or a tab) stand alone anywhere, so an indented line is never
+ *   joined even where it is not code.
  * - A **hard break** — two or more trailing spaces, Markdown's explicit line break — is honoured,
  *   and the two spaces are written back out. Trimming them would silently delete the very thing
  *   this rule exists to protect.
@@ -42,32 +44,25 @@ object MarkdownReflow {
     private val BULLET = Regex("""^ {0,3}[-*+](\s|$)""")
     private val ORDERED = Regex("""^ {0,3}\d{1,9}[.)](\s|$)""")
     private val QUOTE = Regex("""^ {0,3}>""")
-    private val FENCE = Regex("""^ {0,3}(```|~~~)""")
 
     /** [text] with its wrapped lines joined back into paragraphs. */
     fun reflow(text: String): String {
         val out = StringBuilder()
         // Whether the line last written is still able to take a plain line onto its end.
         var open = false
-        var inFence = false
         var pendingBlank = false
+        val lines = text.split('\n')
+        // Code is [MarkdownCode]'s — a fence of either character and any length, closed only by
+        // its own kind, and an indented block after a blank line — the document editor's rule.
+        val code = MarkdownCode.codeLines(lines)
 
-        for (rawLine in text.split('\n')) {
+        for ((index, rawLine) in lines.withIndex()) {
             val line = rawLine.trimEnd()
 
-            if (inFence) {
-                // Nothing inside a fence is reformatted — not the indentation, not the blank lines.
-                if (pendingBlank) { out.append('\n'); pendingBlank = false }
-                if (out.isNotEmpty()) out.append('\n')
-                out.append(rawLine)
-                if (FENCE.containsMatchIn(line)) inFence = false
-                open = false
-                continue
-            }
-
-            if (FENCE.containsMatchIn(line)) {
-                inFence = true
-                startLine(out, pendingBlank); pendingBlank = false
+            if (code[index]) {
+                // Nothing in code is reformatted — not the indentation, not the blank lines.
+                if (index > 0 && code[index - 1]) out.append('\n')
+                else { startLine(out, pendingBlank); pendingBlank = false }
                 out.append(rawLine)
                 open = false
                 continue

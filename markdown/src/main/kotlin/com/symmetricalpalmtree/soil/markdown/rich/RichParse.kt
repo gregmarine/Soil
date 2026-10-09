@@ -1,13 +1,16 @@
 package com.symmetricalpalmtree.soil.markdown.rich
 
+import com.symmetricalpalmtree.soil.markdown.MarkdownCode
+
 /**
  * Markdown → [RichDoc]. The block grammar is [com.symmetricalpalmtree.soil.markdown.MarkdownParser]'s,
- * line for line, with three things that parser does not need and a rendered editor does:
+ * line for line, and its code lines are [MarkdownCode]'s as that parser's are, with three things
+ * that parser does not need and a rendered editor does:
  *
  *  - **Backslash escapes.** `\` before a punctuation character makes it a plain character, so
  *    what [RichWrite] escaped reads back as it was typed.
  *  - **Raw lines.** A fenced block, an indented code block and a table row are kept exactly as
- *    written, a line a block. A fence is three or more backticks or tildes, closed by a line of
+ *    written, a line a block (the notebook's parser shows code as plain lines, and has no tables). A fence is three or more backticks or tildes, closed by a line of
  *    the same character at least as long and nothing else; a fence never closed runs to the end
  *    of the document. An indented code block is lines indented four spaces (or a tab) after a
  *    blank line, when the block before it is not a list item; a line that reads as a list item
@@ -178,35 +181,10 @@ object RichParse {
 
     private fun isRawStart(line: String): Boolean = fenceRun(line) != null || line.startsWith("|")
 
-    /** The run of three or more backticks or tildes that opens a fence on [line], or null. */
-    internal fun fenceRun(line: String): String? {
-        val t = line.trimStart()
-        if (t.isEmpty() || (t[0] != '`' && t[0] != '~')) return null
-        var n = 0
-        while (n < t.length && t[n] == t[0]) n++
-        return if (n >= 3) t.substring(0, n) else null
-    }
-
-    /** Whether [line] closes the fence opened by [run]: the same character, at least as many, and nothing else. */
-    internal fun closesFence(line: String, run: String): Boolean {
-        val t = line.trim()
-        return t.length >= run.length && t.all { it == run[0] }
-    }
-
-    /** A line indented four columns or more (a tab is four), with something on it that is not a list item. */
-    internal fun isIndentedCode(line: String): Boolean {
-        var col = 0
-        for (c in line) {
-            when (c) {
-                ' ' -> col++
-                '\t' -> col += 4 - col % 4
-                else -> break
-            }
-        }
-        if (col < 4) return false
-        val t = line.trim()
-        return t.isNotEmpty() && TASK_ITEM.matchAt0(t) == null && UNORDERED_ITEM.matchAt0(t) == null && ORDERED_ITEM.matchAt0(t) == null
-    }
+    // The code rules are [MarkdownCode]'s, shared with every other reader of the source.
+    internal fun fenceRun(line: String): String? = MarkdownCode.fenceRun(line)
+    internal fun closesFence(line: String, run: String): Boolean = MarkdownCode.closesFence(line, run)
+    internal fun isIndentedCode(line: String): Boolean = MarkdownCode.isIndentedCode(line)
 
     private fun startsBlock(line: String): Boolean =
         isRawStart(line) ||
@@ -217,12 +195,7 @@ object RichParse {
             UNORDERED_ITEM.matchAt0(line) != null ||
             ORDERED_ITEM.matchAt0(line) != null
 
-    /** Three or more of `-`, `*`, or `_`; mixed together they are not a rule. */
-    internal fun isHorizontalRule(line: String): Boolean {
-        val bare = line.replace(" ", "").replace("\t", "")
-        if (bare.length < 3) return false
-        return bare.all { it == '-' } || bare.all { it == '*' } || bare.all { it == '_' }
-    }
+    internal fun isHorizontalRule(line: String): Boolean = MarkdownCode.isHorizontalRule(line)
 
     // ── Inlines ──────
 
