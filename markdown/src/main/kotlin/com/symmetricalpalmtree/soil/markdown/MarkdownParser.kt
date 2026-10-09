@@ -214,7 +214,7 @@ object MarkdownParser {
      * unclosed falls through to a literal character, so half-typed markup shows as typed.
      */
     internal fun parseInlines(text: String): List<Inline> {
-        val out = mutableListOf<Inline>()
+        val out = InlineOut()
         var i = 0
         while (i < text.length) {
             val c = text[i]
@@ -298,17 +298,42 @@ object MarkdownParser {
                 else -> i = literal(out, text, i)
             }
         }
-        return out
+        return out.done()
     }
 
     /**
      * Emits `text[i]` as literal content and returns the next index. Consecutive literals coalesce
      * into one [Inline.Text] so a plain paragraph is a single node rather than one per character.
      */
-    private fun literal(out: MutableList<Inline>, text: String, i: Int): Int {
-        val last = out.lastOrNull()
-        if (last is Inline.Text) out[out.lastIndex] = Inline.Text(last.text + text[i])
-        else out += Inline.Text(text[i].toString())
+    private fun literal(out: InlineOut, text: String, i: Int): Int {
+        out.char(text[i])
         return i + 1
+    }
+
+    /** The inlines of one run: literal characters gather in a builder and land as one
+     *  [Inline.Text] before the next node, so a long paragraph is not copied once a character. */
+    private class InlineOut {
+        private val list = ArrayList<Inline>()
+        private val pending = StringBuilder()
+
+        operator fun plusAssign(inline: Inline) {
+            flush()
+            list += inline
+        }
+
+        fun char(c: Char) {
+            pending.append(c)
+        }
+
+        fun done(): List<Inline> {
+            flush()
+            return list
+        }
+
+        private fun flush() {
+            if (pending.isEmpty()) return
+            list += Inline.Text(pending.toString())
+            pending.setLength(0)
+        }
     }
 }
