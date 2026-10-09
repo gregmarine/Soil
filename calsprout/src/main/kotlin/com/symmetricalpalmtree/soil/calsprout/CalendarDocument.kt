@@ -166,7 +166,7 @@ class CalendarDocument(
         val t = target
         val stored = io { s -> s.readPage(t) }
         if (t != target || hasUnsavedChanges) return false
-        val unchanged = stored.pageId != null && stored.pageId == pageId && stored.strokes == ink.entries() &&
+        val unchanged = stored.pageId != null && stored.pageId == pageId && sameInk(stored.strokes, ink.entries()) &&
             stored.width == pageWidth && stored.height == pageHeight
         if (unchanged || stored.pageId == null) {
             // A page with no row is a page nobody wrote: nothing to take.
@@ -174,6 +174,29 @@ class CalendarDocument(
             return false
         }
         land(stored)
+        return true
+    }
+
+    /**
+     * Whether a page read back from the store holds the same ink as [inMemory] — by stroke id and
+     * order, and by what a row keeps of each stroke (style, colour, width, the points' x, y,
+     * pressure and tilt). Not [Stroke] equality: a stroke written in this showing carries the pen's
+     * timestamps and azimuth, which a row does not keep, so it would never compare equal to its
+     * own read-back and every return to the front would repaint the page.
+     */
+    private fun sameInk(stored: List<Pair<Long, Stroke>>, inMemory: List<Pair<Long, Stroke>>): Boolean {
+        if (stored.size != inMemory.size) return false
+        for (i in stored.indices) {
+            val (so, s) = stored[i]
+            val (mo, m) = inMemory[i]
+            if (so != mo || s.id != m.id || s.style != m.style || s.color != m.color || s.width != m.width) return false
+            if (s.points.size != m.points.size) return false
+            for (j in s.points.indices) {
+                val a = s.points[j]
+                val b = m.points[j]
+                if (a.x != b.x || a.y != b.y || a.pressure != b.pressure || a.tilt != b.tilt) return false
+            }
+        }
         return true
     }
 

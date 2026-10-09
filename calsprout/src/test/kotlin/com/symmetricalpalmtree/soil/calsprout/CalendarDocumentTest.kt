@@ -30,7 +30,9 @@ class CalendarDocumentTest {
 
     private fun stroke(id: String, seed: Int = 0) = Stroke(
         id = id,
-        points = List(4) { StrokePoint((it + seed).toFloat(), it * 1.5f + seed, 0.5f, 0.25f, 0L) },
+        // A pen's timestamps and azimuth, which a stroke row does not keep: a read-back never
+        // carries them, so a stroke written here must still compare as unchanged.
+        points = List(4) { StrokePoint((it + seed).toFloat(), it * 1.5f + seed, 0.5f, 0.25f, 1_000L + it, 0.75f) },
         color = Stroke.BLACK,
         width = 3f,
     )
@@ -136,6 +138,26 @@ class CalendarDocumentTest {
         fake.pages.clear()
         fake.page("theirs", "theirs-per", 0, 1404f, 1872f, d.captureInk())
         assertFalse(d.reload())
+    }
+
+    @Test
+    fun aPageWrittenHereIsNotRepaintedOnResume() = runBlocking {
+        val fake = FakeCalendarStore()
+        fake.period("per", CalendarTarget.KIND_MONTH, "2026-09-01")
+        fake.page("pg", "per", 0, 1404f, 1872f, listOf(0L to stroke("a")))
+        val d = doc(fake)
+        d.show(month)
+        d.addStroke(stroke("b", seed = 3))
+        d.flushUntilClean()
+        // The store now holds what was written; read back, it has lost the pen's timestamps.
+        fake.pages.clear()
+        fake.page("pg", "per", 0, 1404f, 1872f, d.captureInk())
+        assertFalse(d.reload())
+        assertEquals(listOf("a", "b"), d.strokes.map { it.id })
+        // Ink another screen moved is still taken.
+        fake.pages.clear()
+        fake.page("pg", "per", 0, 1404f, 1872f, d.captureInk().map { (o, s) -> o to s.translated(5f, 0f) })
+        assertTrue(d.reload())
     }
 
     @Test
