@@ -27,7 +27,8 @@ app by the screen that answers `ACTION_OPEN_CALENDAR`, as it finds the Bible's b
 `ACTION_OPEN_BIBLE`; the screen is guarded by the seam permission. A link to a day from a
 notebook or a document is followed through Soil (`ACTION_FOLLOW` with `EXTRA_CAL_DATE`), and the
 calendar opens on that day's Day page over the app that followed it, the bookmark untouched.
-Standard launch mode on purpose: Back comes back.
+A screen a link opened never writes the bookmark, wherever it is walked to after: the calendar
+behind it still opens where it was left. Standard launch mode on purpose: Back comes back.
 
 ## The store
 

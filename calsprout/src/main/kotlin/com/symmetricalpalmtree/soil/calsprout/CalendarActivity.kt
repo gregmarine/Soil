@@ -221,12 +221,13 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
 
     override fun showPage() = showPage(firstLoad = false)
 
+    // A replay lands on its action's page: the paper is cleared for the swap before it moves.
     override suspend fun revert(action: InkAction) {
-        document?.revert(action)
+        leavingPage { document?.revert(action) }
     }
 
     override suspend fun reapply(action: InkAction) {
-        document?.reapply(action)
+        leavingPage { document?.reapply(action) }
     }
 
     /** A replay may have navigated the document to the action's page; the organizer follows, or
@@ -456,11 +457,32 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
      */
     private suspend fun showMove(m: CalendarNavigation.Move, firstLoad: Boolean = false, forceBake: Boolean = false) {
         val doc = document ?: return
-        // [forceBake] is only ever set by the events screen's return, and that is exactly the case
-        // where the page may not have moved while its marks did: ask for them again.
-        doc.show(m.target, refreshMarks = forceBake)
-        nav.shown(m)
-        showPage(firstLoad, forceBake)
+        val land: suspend () -> Unit = {
+            // [forceBake] is only ever set by the events screen's return, and that is exactly the case
+            // where the page may not have moved while its marks did: ask for them again.
+            doc.show(m.target, refreshMarks = forceBake)
+            nav.shown(m)
+            showPage(firstLoad, forceBake)
+        }
+        if (firstLoad) land() else leavingPage(land)
+    }
+
+    /**
+     * Run [move], which may take the document to another page, with the paper already cleared for
+     * the swap. Since g-paper 0.1.70 a contact whose lift was lost is committed inside
+     * `clearForContentSwap`, through the listener, onto the document's page at that moment: here
+     * that is still the page it was drawn on, which the document flushes before it moves. The
+     * pixels hold until [showPage] loads the page that follows (its own clear is then a no-op); a
+     * move that fails puts the document's page back on the paper rather than leave it empty.
+     */
+    private suspend fun <T> leavingPage(move: suspend () -> T): T {
+        paper.clearForContentSwap()
+        try {
+            return move()
+        } catch (t: Throwable) {
+            if (t !is CancellationException && opened && !closing && !isDestroyed) showPage(firstLoad = false)
+            throw t
+        }
     }
 
     /** One period forward or back in the showing view — the pager's buttons and the finger swipe. */
@@ -830,7 +852,12 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     private suspend fun putClip(envelope: ClipEnvelope, bytes: ByteArray): Boolean {
         val written = withContext(Dispatchers.IO) {
             runCatching {
-                (application as CalsproutApp).soil.seam().putClip(InkClip.SLOT, SeamClip(envelope.kind, envelope.sourceNotebookId, envelope.copiedAt), SeamShared.write(bytes))
+                val region = SeamShared.write(bytes)
+                try {
+                    (application as CalsproutApp).soil.seam().putClip(InkClip.SLOT, SeamClip(envelope.kind, envelope.sourceNotebookId, envelope.copiedAt), region)
+                } finally {
+                    region.memory.close()
+                }
             }.onFailure { Log.w(TAG, "the clipboard was not written: ${it.javaClass.simpleName}") }.isSuccess
         }
         if (!written) {
