@@ -88,6 +88,9 @@ class CloudArgsTest {
         assertEquals(0, CloudArgs.checkList(emptyArray()).size)
         refuses { CloudArgs.checkList(null) }
         refuses { CloudArgs.checkList(Array(CloudContract.MAX_LIST_ENTRIES + 1) { file("f$it") }) }
+        // A listing at the cap may have been truncated by the provider.
+        assertEquals(true, CloudArgs.mayBeTruncated(List(CloudContract.MAX_LIST_ENTRIES) { file("f$it") }))
+        assertEquals(false, CloudArgs.mayBeTruncated(List(CloudContract.MAX_LIST_ENTRIES - 1) { file("f$it") }))
     }
 
     @Test

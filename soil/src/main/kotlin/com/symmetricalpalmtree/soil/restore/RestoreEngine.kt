@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.restore
 
 import android.content.Context
 import android.util.Log
+import com.symmetricalpalmtree.soil.backup.BackupPredicates
 import com.symmetricalpalmtree.soil.backup.BackupStore
 import com.symmetricalpalmtree.soil.crypto.AttemptLimiter
 import com.symmetricalpalmtree.soil.crypto.GlobalKey
@@ -65,7 +66,8 @@ object RestoreEngine {
     }
 
     sealed class Outcome {
-        data class Committed(val items: Int, val stores: Int, val leftOut: List<String> = emptyList()) : Outcome()
+        /** [missing]: item files the backup's index names that the backup did not carry; their rows are installed with no file. */
+        data class Committed(val items: Int, val stores: Int, val leftOut: List<String> = emptyList(), val missing: List<String> = emptyList()) : Outcome()
         /** Refused before the point of no return; the live library was never touched. */
         data class Refused(val problem: Problem) : Outcome()
         /** The swap failed and was renamed back; the live library is whole; the index is closed. */
@@ -192,7 +194,7 @@ object RestoreEngine {
     // ── 5. Orphans ──────
 
     sealed class PruneResult {
-        data class Pruned(val manifest: RestoreManifest, val leftOut: List<String>) : PruneResult()
+        data class Pruned(val manifest: RestoreManifest, val leftOut: List<String>, val missing: List<String> = emptyList()) : PruneResult()
         data class Failed(val problem: Problem) : PruneResult()
     }
 
@@ -200,7 +202,10 @@ object RestoreEngine {
     suspend fun pruneOrphans(context: Context, manifest: RestoreManifest, proven: String, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): PruneResult = withContext(Dispatchers.IO) {
         try {
             val staging = RestoreStaging.dir(context)
-            val alive = aliveItemIds(stagedIndex(context), proven)
+            val (alive, expected) = aliveItemIds(stagedIndex(context), proven)
+            // An alive row the backup should carry but does not (held open or missing at backup time) installs with nothing behind it: named, never silent.
+            val missing = missingItems(manifest, expected)
+            if (missing.isNotEmpty()) Log.w(TAG, "the staged index names ${missing.size} item(s) the backup does not carry: $missing")
             val stores = manifest.items.filter { it.kind == ItemKind.STORE }
             val deadStores = HashSet<String>()
             stores.forEachIndexed { i, item ->
@@ -219,11 +224,17 @@ object RestoreEngine {
                 if (f.exists() && !f.delete()) Log.w(TAG, "orphan ${item.name} could not be deleted from staging")
             }
             if (leftOut.isNotEmpty()) Log.w(TAG, "left out ${leftOut.size} orphan(s): $leftOut")
-            PruneResult.Pruned(kept, leftOut)
+            PruneResult.Pruned(kept, leftOut, missing)
         } catch (e: Exception) {
             Log.w(TAG, "orphan prune failed", e)
             PruneResult.Failed(Problem.Unexpected(e.javaClass.simpleName))
         }
+    }
+
+    /** The item files [expectedIds] name that the manifest does not carry, sorted. */
+    fun missingItems(manifest: RestoreManifest, expectedIds: Set<String>): List<String> {
+        val staged = manifest.items.filter { it.kind == ItemKind.SOIL }.mapTo(HashSet()) { soilStem(it.name) }
+        return (expectedIds - staged).map { it + SoilFiles.ITEM_SUFFIX }.sorted()
     }
 
     fun orphanRule(manifest: RestoreManifest, aliveIds: Set<String>, deadStores: Set<String> = emptySet()): Pair<RestoreManifest, List<String>> {
@@ -245,12 +256,20 @@ object RestoreEngine {
 
     private fun soilStem(name: String): String = name.removeSuffix(SoilFiles.ITEM_SUFFIX)
 
-    private fun aliveItemIds(index: File, proven: String): Set<String> {
+    /** Every alive item id, and those of them a backup copies (not excluded). */
+    private fun aliveItemIds(index: File, proven: String): Pair<Set<String>, Set<String>> {
         val db = SoilCrypto.openRawReadOnly(index, proven)
         try {
             val ids = HashSet<String>()
-            db.rawQuery("SELECT id FROM item WHERE deletedAt IS NULL", null).use { c -> while (c.moveToNext()) ids.add(c.getString(0)) }
-            return ids
+            val expected = HashSet<String>()
+            db.rawQuery("SELECT id, flags FROM item WHERE deletedAt IS NULL", null).use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0)
+                    ids.add(id)
+                    if (!BackupPredicates.isExcluded(c.getInt(1))) expected.add(id)
+                }
+            }
+            return ids to expected
         } finally {
             runCatching { db.close() }
             File(index.path + SHM).delete()
@@ -260,11 +279,11 @@ object RestoreEngine {
     // ── 6. Commit ──────
 
     /** Whole under [NonCancellable] on IO. After any outcome but [Outcome.Refused] the index is closed and the caller reopens it and relaunches. */
-    suspend fun commit(context: Context, manifest: RestoreManifest, proven: String, leftOut: List<String> = emptyList()): Outcome =
+    suspend fun commit(context: Context, manifest: RestoreManifest, proven: String, leftOut: List<String> = emptyList(), missing: List<String> = emptyList()): Outcome =
         withContext(Dispatchers.IO + NonCancellable) {
             val app = context.applicationContext
             try {
-                commitInner(app, manifest, proven, leftOut)
+                commitInner(app, manifest, proven, leftOut, missing)
             } catch (e: Exception) {
                 Log.e(TAG, "commit threw before the index closed", e)
                 runCatching { RestoreDestination.clearPark(app) }
@@ -273,7 +292,7 @@ object RestoreEngine {
             }
         }
 
-    private suspend fun commitInner(app: Context, manifest: RestoreManifest, proven: String, leftOut: List<String>): Outcome {
+    private suspend fun commitInner(app: Context, manifest: RestoreManifest, proven: String, leftOut: List<String>, missing: List<String>): Outcome {
         val root = SoilFiles.root(app)
         val staging = RestoreStaging.dir(app)
 
@@ -312,7 +331,7 @@ object RestoreEngine {
         return try {
             AppStores.closeAll(app)
             SoilIndex.closeForRotation(app)
-            afterClose(app, root, live, aside, staging, manifest, proven, oldPassphrase, marks, leftOut)
+            afterClose(app, root, live, aside, staging, manifest, proven, oldPassphrase, marks, leftOut, missing)
         } catch (e: Exception) {
             Log.e(TAG, "commit threw after the session was cleared (swap begun: ${marks.swapBegun})", e)
             val landed = marks.swapBegun && live.index.isFile
@@ -330,12 +349,12 @@ object RestoreEngine {
 
     private class Marks(var swapBegun: Boolean = false)
 
-    private fun afterClose(app: Context, root: File, live: Live, aside: File, staging: File, manifest: RestoreManifest, proven: String, oldPassphrase: String?, marks: Marks, leftOut: List<String>): Outcome {
+    private fun afterClose(app: Context, root: File, live: Live, aside: File, staging: File, manifest: RestoreManifest, proven: String, oldPassphrase: String?, marks: Marks, leftOut: List<String>, missing: List<String>): Outcome {
         marks.swapBegun = true
         val failedStep = swap(live, aside, staging)
         if (failedStep != null) {
             Log.e(TAG, "swap failed at step $failedStep; renaming the aside back")
-            executeRecovery(root, live, aside, staging)
+            if (!executeRecovery(root, live, aside, staging)) Log.e(TAG, "the rename back did not finish; the next launch tries again")
             RestoreDestination.clearPark(app)
             oldPassphrase?.let { KeySession.set(it) }
             return Outcome.RolledBack(Problem.SwapFailed(failedStep))
@@ -354,7 +373,7 @@ object RestoreEngine {
         RealRekeyFs.fsyncDir(root)
 
         Slog.d(TAG) { "restore committed: ${manifest.itemCount} items, ${manifest.storeCount} stores" }
-        return Outcome.Committed(manifest.itemCount, manifest.storeCount, leftOut)
+        return Outcome.Committed(manifest.itemCount, manifest.storeCount, leftOut, missing)
     }
 
     internal class Live(val index: File, val garden: File)
@@ -410,7 +429,8 @@ object RestoreEngine {
         }
     }
 
-    internal fun executeRecovery(root: File, live: Live, aside: File, staging: File) {
+    /** True when every planned action succeeded; it stops at the first that fails. */
+    internal fun executeRecovery(root: File, live: Live, aside: File, staging: File): Boolean {
         val asideIndex = File(aside, live.index.name)
         val asideGarden = File(aside, RestoreRecovery.GARDEN_NAME)
         val state = RestoreRecovery.State(
@@ -428,7 +448,7 @@ object RestoreEngine {
                 if (sidecar.exists() && !sidecar.delete()) Log.e(TAG, "stray ${sidecar.name} could not be cleared")
             }
         }
-        for (action in actions) {
+        val whole = RestoreRecovery.run(actions) { action ->
             val ok = when (action) {
                 RestoreRecovery.Action.DeleteAside -> !aside.exists() || aside.deleteRecursively()
                 RestoreRecovery.Action.DeleteStaging -> !staging.exists() || staging.deleteRecursively()
@@ -443,11 +463,21 @@ object RestoreEngine {
                     !from.exists() || RealRekeyFs.rename(from, to)
                 }
             }
-            if (!ok) Log.e(TAG, "restore recovery action failed: $action")
+            // Stop here: renaming the index back over a half-repaired garden would let the next launch read it as a finished commit and discard the old library.
+            if (!ok) Log.e(TAG, "restore recovery action failed: $action; stopping, the next launch tries again")
+            ok
         }
         RealRekeyFs.fsyncDir(root)
         if (aside.isDirectory && aside.list().isNullOrEmpty()) aside.delete()
+        return whole
     }
+
+    /**
+     * The old library's index still stands aside: a recovery has not finished. The index must not
+     * be created fresh while this holds, or the next launch reads the new file as a finished commit.
+     */
+    fun asideIndexStands(context: Context): Boolean =
+        File(File(SoilFiles.root(context.applicationContext), ASIDE_DIR), SoilFiles.indexFile(context.applicationContext).name).isFile
 
     private const val TAG = "RestoreEngine"
 }

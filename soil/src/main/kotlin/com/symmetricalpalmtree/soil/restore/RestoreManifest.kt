@@ -8,8 +8,10 @@ import com.symmetricalpalmtree.soil.data.SoilFiles
  * What a restore takes out of a backup folder, decided from the listing alone: pure, and the only
  * thing that says what gets staged. A backup folder is an accretion, not a curated set, so the
  * rules are filename shapes: `soil.db` (its presence makes a folder a backup), `<id>.soil`, and
- * `<name>.db` where the stem is a store name. Left where they lie: a writer's `.part` or `.old`,
- * a rekey's `.rekey.tmp` or `.old.bak`, any `-shm` or `-journal`, every directory, anything else.
+ * `<name>.db` where the stem is a store name. A writer's `<name>.old` standing where `<name>` is
+ * absent is the last good copy a killed swap stranded, and is read as `<name>`. Left where they
+ * lie: a writer's `.part`, an `.old` beside its own file, a rekey's `.rekey.tmp` or `.old.bak`,
+ * any `-shm` or `-journal`, every directory, anything else.
  */
 class RestoreManifest(val items: List<Item>) {
 
@@ -32,16 +34,19 @@ class RestoreManifest(val items: List<Item>) {
         /** Where the items and the stores live, under the staging root and live. */
         const val GARDEN = "garden"
 
-        /** A non-directory `soil.db` is in [entries]. */
-        fun isBackup(entries: List<Listed>): Boolean = entries.any { !it.isDir && it.name == INDEX_NAME }
+        /** A non-directory `soil.db` is in [entries], or a `soil.db.old` read in its place. */
+        fun isBackup(entries: List<Listed>): Boolean = indexEntry(entries) != null
+
+        /** The index's entry as a restore reads it, named `soil.db`; null when not a backup. */
+        fun indexEntry(entries: List<Listed>): Listed? = resolved(entries).firstOrNull { !it.first.isDir && it.first.name == INDEX_NAME }?.first
 
         /** What a restore would take from [entries] on [leg], in staging order; null when not a backup. */
         fun plan(entries: List<Listed>, leg: RestoreLeg): RestoreManifest? {
             if (!isBackup(entries)) return null
             val taken = ArrayList<Item>(entries.size)
-            for (entry in entries) {
+            for ((entry, sourceName) in resolved(entries)) {
                 val kind = kindOf(entry) ?: continue
-                taken.add(Item(entry.name, entry.size, kind, relativePathFor(entry.name, kind)))
+                taken.add(Item(entry.name, entry.size, kind, relativePathFor(entry.name, kind), sourceName))
             }
             val mainNames = taken.filter { !it.kind.isWal() }.mapTo(HashSet()) { it.name }
             val kept = taken.filter { item ->
@@ -52,6 +57,16 @@ class RestoreManifest(val items: List<Item>) {
                 }
             }
             return RestoreManifest(ordered(kept))
+        }
+
+        /** Each entry as read, with the name to fetch: a `<name>.old` whose `<name>` is absent reads as `<name>`. */
+        private fun resolved(entries: List<Listed>): List<Pair<Listed, String>> {
+            val present = entries.filter { !it.isDir }.mapTo(HashSet()) { it.name }
+            return entries.map { entry ->
+                val main = entry.name.removeSuffix(BackupPredicates.OLD_SUFFIX)
+                if (!entry.isDir && main != entry.name && main.isNotEmpty() && main !in present) entry.copy(name = main) to entry.name
+                else entry to entry.name
+            }
         }
 
         private fun kindOf(entry: Listed): ItemKind? {

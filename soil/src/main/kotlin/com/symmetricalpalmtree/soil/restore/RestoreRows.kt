@@ -8,7 +8,7 @@ object RestoreRows {
     /** Null when the folder is not a backup: skipped, never an error. [handle] is what the source re-lists by at fetch time. */
     fun rowFor(name: String, entries: List<Listed>, leg: RestoreLeg, handle: String): RestoreBackup? {
         val manifest = RestoreManifest.plan(entries, leg) ?: return null
-        val index = entries.first { !it.isDir && it.name == RestoreManifest.INDEX_NAME }
+        val index = RestoreManifest.indexEntry(entries) ?: return null
         return RestoreBackup(name = name, itemCount = manifest.itemCount, indexModifiedAt = index.modifiedAt, totalBytes = manifest.totalBytes, handle = handle)
     }
 }

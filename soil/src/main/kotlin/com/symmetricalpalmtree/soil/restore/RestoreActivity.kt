@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.cloud.CloudProviders
+import com.symmetricalpalmtree.soil.crypto.PassphraseRules
 import com.symmetricalpalmtree.soil.crypto.AttemptLimiter
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
@@ -222,14 +223,15 @@ class RestoreActivity : AppCompatActivity() {
         }
 
         setProgress(getString(R.string.restore_progress_checking))
-        val (pruned, leftOut) = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
+        val prunedResult = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
             is RestoreEngine.PruneResult.Failed -> { discardStaging(); hideProgress(); problemDialog(r.problem); return }
-            is RestoreEngine.PruneResult.Pruned -> r.manifest to r.leftOut
+            is RestoreEngine.PruneResult.Pruned -> r
         }
+        val pruned = prunedResult.manifest
         RestoreEngine.validate(this, pruned, RestoreEngine.ITEMS)?.let { discardStaging(); hideProgress(); problemDialog(it); return }
 
         setProgress(getString(R.string.restore_progress_installing))
-        val outcome = RestoreEngine.commit(this, pruned, proven, leftOut)
+        val outcome = RestoreEngine.commit(this, pruned, proven, prunedResult.leftOut, prunedResult.missing)
         Slog.d(TAG) { "restore outcome: ${outcome::class.simpleName}" }
         if (outcome !is RestoreEngine.Outcome.Refused) {
             // The index is closed: open it again under whichever key is now this device's, so Home finds the library open.
@@ -248,7 +250,7 @@ class RestoreActivity : AppCompatActivity() {
 
     private fun onOutcome(outcome: RestoreEngine.Outcome, backupName: String) {
         when (outcome) {
-            is RestoreEngine.Outcome.Committed -> endDialog(getString(R.string.restore_done_title), getString(R.string.restore_done_body, itemsText(outcome.items), storesText(outcome.stores), backupName) + leftOutText(outcome.leftOut))
+            is RestoreEngine.Outcome.Committed -> endDialog(getString(R.string.restore_done_title), getString(R.string.restore_done_body, itemsText(outcome.items), storesText(outcome.stores), backupName) + leftOutText(outcome.leftOut) + missingText(outcome.missing))
             is RestoreEngine.Outcome.RolledBack -> endDialog(getString(R.string.restore_failed_title), getString(R.string.restore_failed_body))
             is RestoreEngine.Outcome.Interrupted -> endDialog(getString(R.string.restore_interrupted_title), getString(R.string.restore_interrupted_body, (outcome.problem as? RestoreEngine.Problem.Unexpected)?.what ?: ""))
             is RestoreEngine.Outcome.Refused -> problemDialog(outcome.problem)
@@ -260,6 +262,10 @@ class RestoreActivity : AppCompatActivity() {
         val head = if (leftOut.size == 1) getString(R.string.restore_done_left_out_one) else getString(R.string.restore_done_left_out_many, leftOut.size)
         return "\n\n" + head + "\n" + leftOut.joinToString("\n")
     }
+
+    /** Items the backup's index names but the backup did not carry: listed under "Backup isn't complete". */
+    private fun missingText(missing: List<String>): String =
+        if (missing.isEmpty()) "" else "\n\n" + getString(R.string.restore_problem_invalid_title) + "\n" + missing.joinToString("\n")
 
     /** The one ending with one action: back to Home, which is open on the library as it now is. */
     private fun endDialog(title: CharSequence, body: CharSequence) {
@@ -283,7 +289,7 @@ class RestoreActivity : AppCompatActivity() {
             if (remaining > 0) { Dialogs.problem(this, R.string.restore_key_title, getString(R.string.unlock_locked_out, formatSeconds(remaining))); return null }
             val typed = ImportDialogs.passphrase(this, R.string.restore_key_title, R.string.restore_key_body, errorRes, R.string.restore_key_hint) ?: return null
             showProgress(getString(R.string.restore_progress_unlocking), getString(R.string.restore_progress_title))
-            val proven = RestoreEngine.proveTyped(this, typed.trim())
+            val proven = RestoreEngine.proveTyped(this, PassphraseRules.normalize(typed))
             hideProgress()
             if (proven != null) return proven
             errorRes = R.string.restore_key_wrong

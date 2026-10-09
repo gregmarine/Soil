@@ -38,13 +38,18 @@ releases the previous folder's grant.
 
 ## The run
 
+A run is refused while a rotation marker stands: the library is in two keys then, and a copy
+taken under either could not be told apart.
+
 1. The work list over every alive item and the stamp map: copy when not excluded and either
    never stamped or `updatedAt` is newer than the stamp. Equal means backed up. Excluded and
    up-to-date items are counted, not visited. The exclude bit is set from the library sheet and
    never bumps `updatedAt`.
 2. Per item: a file an app holds open is skipped and counted. A live WAL is folded into the file
    through one open under the cached key, so the main file alone is a complete copy; a file that
-   will not open is still copied as the bytes it is, its WAL alongside. The copy is atomic, and
+   will not open is still copied as the bytes it is, its WAL alongside. A stale `<name>-wal` in
+   the folder is deleted before the main file is written, and a delete that fails skips the
+   write: a stale WAL beside a new main file would be replayed into it. The copy is atomic, and
    the stamp is written per success, immediately, with the `updatedAt` the work list read.
 3. Every app store, every pass, no stamps: checkpointed if this process holds it open, then
    snapshotted, probed and copied like the index.
@@ -68,7 +73,10 @@ under the new key. An import onto an existing id forgets that id's stamp.
 Replace-all, no undo (decision 2026-10-03): the index, every item file (a notebook's, a
 sketchbook's or a document's, by id, never by kind) and every store, swapped
 whole. A backup folder is an accretion, not a curated set, so a restore installs what the
-backup's index names and the proven key opens, never "the folder".
+backup's index names and the proven key opens, never "the folder". A writer's `<name>.old`
+standing where `<name>` is absent is the last good copy a killed swap stranded, and is taken as
+`<name>`. A cloud folder whose listing reaches the contract's cap of 1 000 entries may have been
+truncated and is refused.
 
 ```
 preflight → stage → validate(index) → prove the key → prune orphans → validate(items) → commit
@@ -85,7 +93,10 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
 - **Orphans**: a staged item file the staged index has no alive row for, and a store that is not
   encrypted SQLite or does not open under the proven key, are left out and named in the ending,
   never installed. The stores are verified read-only, so a staged WAL stays what the manifest
-  measured.
+  measured. An alive, not-excluded item the staged index names but the backup does not carry
+  (held open or missing when it was taken) is named in the ending under "Backup isn't
+  complete"; its row is installed with no file. Item files are not verified against the key: each
+  has its own salt, so a check is a full key derivation per item.
 - **Commit**, whole under NonCancellable: the staged set is re-checked for a tear; this device's
   destination (its folder, its tick, its cloud folder) is parked outside the index; the session
   key is cleared so an extension calling into its store meets the locked library; every store and
@@ -98,7 +109,10 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   both stamp maps and every last-run figure cleared: this device has never backed up this library.
 - **A kill mid-commit** is settled on the next launch, before the index is looked at: the live
   index present means the commit finished and the aside is discarded; absent with the aside
-  present means the swap did not complete and the aside goes back, index last.
+  present means the swap did not complete and the aside goes back, index last. The repair stops
+  at the first step that fails and tries again on the next launch, so the old index never comes
+  back over a half-repaired garden; a live index whose garden is still aside is never read as a
+  finished commit, and the aside is kept.
 
 The restored cloud account comes back as content like any other store. Known consequence: two
 devices then hold one refresh token, and a Disconnect on one revokes it for both.

@@ -15,12 +15,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AlertDialog
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.backup.BackupStore
 import com.symmetricalpalmtree.soil.cloud.CloudBrowserDialog
 import com.symmetricalpalmtree.soil.cloud.CloudClient
 import com.symmetricalpalmtree.soil.cloud.CloudConnectEntry
 import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
 import com.symmetricalpalmtree.soil.cloud.CloudNotConnected
+import com.symmetricalpalmtree.soil.cloud.CloudTimeouts
 import com.symmetricalpalmtree.soil.crypto.AttemptLimiter
+import com.symmetricalpalmtree.soil.crypto.GlobalKey
+import com.symmetricalpalmtree.soil.crypto.PassphraseRules
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.crypto.SoilCrypto
 import com.symmetricalpalmtree.soil.crypto.SoilFileKind
@@ -281,7 +285,7 @@ class ImportFlow(
             runCatching { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE) }.getOrNull()
         } ?: throw ItemImport.ImportProblem(ItemImport.Problem.WRITE)
         val reported = try {
-            CloudClient.download(activity, origin.ref, origin.entry.id, destination)
+            CloudClient.download(activity, origin.ref, origin.entry.id, destination, CloudTimeouts.downloadBudgetMs(origin.entry.sizeBytes))
         } catch (e: CancellationException) {
             throw e
         } catch (e: CloudNotConnected) {
@@ -426,6 +430,8 @@ class ImportFlow(
             if (index.aliveItem(identity.itemId) != null) {
                 // Replace: the row stays, under the imported name, moved to where it was.
                 index.rename(identity.itemId, naming.name, now)
+                // The installed content's `updatedAt` can be older than the stamp: forget it, so the next backup copies it.
+                runCatching { BackupStore().clearStamp(identity.itemId) }.onFailure { Log.w(TAG, "stamp clear failed: ${it.javaClass.simpleName}") }
             } else {
                 index.insert(identity.itemId, manifest.kind, naming.name, now, parentId)
             }
@@ -543,7 +549,15 @@ class ImportFlow(
             val remaining = until - System.currentTimeMillis()
             if (remaining > 0) { problem(R.string.import_locked_out_title, activity.getString(R.string.import_locked_out_body, formatSeconds(remaining))); return null }
             val typed = ImportDialogs.passphrase(activity, R.string.import_passphrase_title, R.string.import_passphrase_body, errorRes) ?: return null
-            if (withContext(Dispatchers.IO) { SoilCrypto.verifyPassphrase(incoming, typed) }) { AttemptLimiter.recordSuccess(activity, ATTEMPT_BUCKET); return ImportKeying.Opening.Encrypted(typed) }
+            // The Encryption screen's rule: surrounding whitespace is never part of a key, and a hand-copied recovery key is folded.
+            val trimmed = PassphraseRules.normalize(typed)
+            val proven = withContext(Dispatchers.IO) {
+                when {
+                    SoilCrypto.verifyPassphrase(incoming, trimmed) -> trimmed
+                    else -> GlobalKey.normalize(trimmed).takeIf { it != trimmed && SoilCrypto.verifyPassphrase(incoming, it) }
+                }
+            }
+            if (proven != null) { AttemptLimiter.recordSuccess(activity, ATTEMPT_BUCKET); return ImportKeying.Opening.Encrypted(proven) }
             AttemptLimiter.recordFailure(activity, ATTEMPT_BUCKET)
             errorRes = R.string.import_passphrase_wrong
         }

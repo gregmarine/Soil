@@ -95,7 +95,7 @@ class RestoreRecoveryTest {
         for (state in allStates()) {
             val plan = RestoreRecovery.plan(state)
             val renames = plan.filterIsInstance<Action.RenameBack>()
-            if (renames.isNotEmpty()) assertEquals(state.toString(), index, renames.last().name)
+            if (renames.any { it.name == index }) assertEquals(state.toString(), index, renames.last().name)
         }
     }
 
@@ -109,9 +109,51 @@ class RestoreRecoveryTest {
     }
 
     @Test
-    fun `DeleteAside is emitted only when the live index is present`() {
+    fun `DeleteAside is emitted only when the live index is present and its garden is not still aside`() {
         for (state in allStates()) {
-            assertEquals(state.toString(), state.liveIndex, Action.DeleteAside in RestoreRecovery.plan(state))
+            val expected = state.liveIndex && !(!state.liveGarden && state.asideGarden)
+            assertEquals(state.toString(), expected, Action.DeleteAside in RestoreRecovery.plan(state))
+        }
+    }
+
+    // ── A failed action ──────────────────────────────────────────────────────
+
+    @Test
+    fun `live index with the old garden still aside - never DeleteAside`() {
+        val plan = RestoreRecovery.plan(State(liveIndex = true, asideIndex = false, liveGarden = false, asideGarden = true))
+        assertEquals(listOf(Action.RenameBack(garden), Action.DeleteStaging), plan)
+        val both = RestoreRecovery.plan(State(liveIndex = true, asideIndex = true, liveGarden = false, asideGarden = true))
+        assertEquals(listOf(Action.DeleteStaging), both)
+    }
+
+    @Test
+    fun `run stops at the first failed action`() {
+        val plan = listOf(Action.DeleteLiveGarden, Action.RenameBack(garden), Action.RenameBack(index), Action.DeleteStaging)
+        val done = ArrayList<Action>()
+        val whole = RestoreRecovery.run(plan) { a -> done += a; a != Action.RenameBack(garden) }
+        assertFalse(whole)
+        assertEquals(listOf(Action.DeleteLiveGarden, Action.RenameBack(garden)), done)
+        assertTrue(RestoreRecovery.run(plan) { true })
+    }
+
+    @Test
+    fun `partial failure - any action failing never leaves a state whose next plan deletes the old library`() {
+        // Killed after 8c: the staged garden is live, the old one and the old index are aside.
+        val start = State(liveIndex = false, asideIndex = true, liveGarden = true, asideGarden = true, asideSidecars = listOf(wal))
+        val plan = RestoreRecovery.plan(start)
+        for (failing in plan.indices) {
+            var s = start
+            RestoreRecovery.run(plan) { a ->
+                if (plan.indexOf(a) == failing) false else { s = apply(s, listOf(a)); true }
+            }
+            val next = RestoreRecovery.plan(s)
+            // The old library is aside until its index is back: nothing may delete the aside before that.
+            assertFalse("fail at ${plan[failing]}: $s → $next", s.asideIndex && Action.DeleteAside in next)
+            // The index never came back over a half-repaired garden.
+            if (failing < plan.indexOf(Action.RenameBack(index))) assertFalse("fail at ${plan[failing]}: $s", s.liveIndex)
+            // A retry with everything succeeding finishes the repair.
+            val after = apply(s, next)
+            assertTrue("$s → $after", after.liveIndex && !after.asideIndex && after.liveGarden && !after.asideGarden)
         }
     }
 

@@ -42,6 +42,9 @@ object CloudArgs {
         return entries.asList()
     }
 
+    /** A listing that reached the contract's cap may have been truncated by the provider: what it leaves out is unknown. */
+    fun mayBeTruncated(entries: List<CloudEntry>): Boolean = entries.size >= CloudContract.MAX_LIST_ENTRIES
+
     fun checkFolder(entry: CloudEntry?): CloudEntry {
         if (entry == null) throw ExtensionCallFailed("ensureFolder returned nothing")
         if (!entry.isFolder) throw ExtensionCallFailed("ensureFolder returned a file")

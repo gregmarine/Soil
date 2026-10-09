@@ -14,8 +14,8 @@ data class Listed(val name: String, val size: Long, val isDir: Boolean, val modi
 /** What a taken file is, which is also what the commit does with it. */
 enum class ItemKind { INDEX, INDEX_WAL, SOIL, SOIL_WAL, STORE, STORE_WAL }
 
-/** One file the restore will stage; [relativePath] mirrors the live layout under the staging root. */
-data class Item(val name: String, val size: Long, val kind: ItemKind, val relativePath: String)
+/** One file the restore will stage; [relativePath] mirrors the live layout under the staging root. [sourceName] is what the source fetches: [name], or a `<name>.old` read in its place. */
+data class Item(val name: String, val size: Long, val kind: ItemKind, val relativePath: String, val sourceName: String = name)
 
 /** One backup a source can offer: enough to tell two apart without opening either. [handle] is source-private, never shown or logged. */
 data class RestoreBackup(val name: String, val itemCount: Int, val indexModifiedAt: Long, val totalBytes: Long, val handle: String)

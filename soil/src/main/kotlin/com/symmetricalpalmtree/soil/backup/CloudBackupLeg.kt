@@ -3,6 +3,7 @@ package com.symmetricalpalmtree.soil.backup
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import com.symmetricalpalmtree.soil.cloud.CloudArgs
 import com.symmetricalpalmtree.soil.cloud.CloudClient
 import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
 import com.symmetricalpalmtree.soil.cloud.CloudNotConnected
@@ -66,6 +67,8 @@ internal object CloudBackupLeg {
         } catch (e: Exception) {
             return BackupEngine.Result(problem = problemFor(app, e))
         }
+        // Past the cap a stale `-wal` may be missing from the listing and survive beside its new main file.
+        if (CloudArgs.mayBeTruncated(listing)) Log.w(TAG, "the backup folder's listing reached the cap; a stale sidecar beyond it is not seen")
 
         var stop: BackupEngine.Problem? = null
         var copied = 0
