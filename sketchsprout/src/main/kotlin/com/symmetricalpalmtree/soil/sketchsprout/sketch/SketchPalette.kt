@@ -16,7 +16,8 @@ import com.symmetricalpalmtree.soil.paper.core.InkTones
  * shading, the width of the broad marker; the gel pen the tips as sold, 0.38, 0.5, 0.7 and
  * 1.0 mm — the default 0.5 mm is 5.9 px, a hair over the 5 px that stood until 2026-10-08 — and
  * under them 0.1 mm, the finest line the page can hold (1.2 px); the marker 1, 3 and 5 mm, the
- * fine, medium and broad tips, and 10 mm for a wide wash (Greg's additions on M3's walk).
+ * fine, medium and broad tips, then 10 and 20 mm for a wash, badged "2x" and "4x" since their
+ * samples fill the swatch alike (Greg's additions on M3's walk).
  *
  * **A millimetre is a millimetre on the page**, [PPI]: a sketch page is laid out at 300 ppi on
  * the Nomad and the Manta alike (1404 × 1872 and 1920 × 2560), and a width is baked into the page's
@@ -43,8 +44,9 @@ object SketchPalette {
     /** [mm] on the page as px, to a tenth: `mm × PPI / 25.4`. */
     fun mmToPx(mm: Float): Float = Math.round(mm * PPI / 25.4f * 10f) / 10f
 
-    /** One size on a ladder: its width on the page and the words the swatch is called by. */
-    class Size(val px: Float, val label: String)
+    /** One size on a ladder: its width on the page, the words the swatch is called by, and a
+     *  [badge] the swatch wears when its sample could not be told from the one before it. */
+    class Size(val px: Float, val label: String, val badge: String? = null)
 
     /** A kind's sizes in order, and which of them the kind starts on. */
     class Ladder(val sizes: List<Size>, val default: Int) {
@@ -66,7 +68,10 @@ object SketchPalette {
     )
 
     /** The marker's tips: fine, medium, broad, and a wide wash. Default 3 mm. */
-    val MARKER_SIZES: Ladder = Ladder(listOf(Size(mmToPx(1f), "1 mm"), Size(mmToPx(3f), "3 mm"), Size(mmToPx(5f), "5 mm"), Size(mmToPx(10f), "10 mm")), default = 1)
+    val MARKER_SIZES: Ladder = Ladder(
+        listOf(Size(mmToPx(1f), "1 mm"), Size(mmToPx(3f), "3 mm"), Size(mmToPx(5f), "5 mm"), Size(mmToPx(10f), "10 mm", "2x"), Size(mmToPx(20f), "20 mm", "4x")),
+        default = 1,
+    )
 
     /** The ladder [kind] chooses its width from. */
     fun ladder(kind: SketchToolState.Kind): Ladder = when (kind) {

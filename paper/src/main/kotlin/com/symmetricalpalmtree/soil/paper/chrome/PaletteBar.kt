@@ -56,13 +56,16 @@ class PaletteBar(
     private val onSizePicked: (index: Int) -> Unit = {},
 ) {
 
-    /** One size on the row: its width in page px, its words, and the alpha its sample is drawn
-     *  at (255 for an opaque tool, the marker's own for the marker). */
-    class SizeOption(val px: Float, val hint: String, val alpha: Int = 255)
+    /** One size on the row: its width in page px, its words, the alpha its sample is drawn at
+     *  (255 for an opaque tool, the marker's own for the marker), and a [badge] — a word or two
+     *  drawn over the sample ("2x") to tell apart sizes too wide to differ inside the ring. */
+    class SizeOption(val px: Float, val hint: String, val alpha: Int = 255, val badge: String? = null)
 
     private val bar = AnchoredBar(root, bar, anchor, bandBottom)
     private val swatches = ArrayList<Pair<Int, View>>()
-    private val sizeRow: LinearLayout?
+    /** The size rows' holder, vertical: the sizes wrap at [InkTones.ROW_BREAK] to a row, as the
+     *  shades do (Greg, 2026-10-08: five across is too many). */
+    private val sizeRows: LinearLayout?
     private val sizeSwatches = ArrayList<View>()
     private var builtSizes: List<SizeOption> = emptyList()
     private val cell: Int
@@ -95,9 +98,8 @@ class PaletteBar(
             }
             this.bar.addRow(row)
         }
-        sizeRow = if (sizes == null) null else LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_HORIZONTAL
+        sizeRows = if (sizes == null) null else LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
             // As wide as the shade rows, so a row of three sits centred under four.
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             this@PaletteBar.bar.addRow(this)
@@ -115,20 +117,29 @@ class PaletteBar(
 
     /** The size row's cells, remade only when the ladder shown is not the one built. */
     private fun rebuildSizes() {
-        val row = sizeRow ?: return
+        val rows = sizeRows ?: return
         val wanted = sizes?.invoke() ?: return
-        if (wanted.size == builtSizes.size && wanted.indices.all { wanted[it].px == builtSizes[it].px && wanted[it].alpha == builtSizes[it].alpha && wanted[it].hint == builtSizes[it].hint }) return
-        row.removeAllViews()
+        if (wanted.size == builtSizes.size && wanted.indices.all { wanted[it].px == builtSizes[it].px && wanted[it].alpha == builtSizes[it].alpha && wanted[it].hint == builtSizes[it].hint && wanted[it].badge == builtSizes[it].badge }) return
+        rows.removeAllViews()
         sizeSwatches.clear()
-        wanted.forEachIndexed { index, option ->
-            val swatch = SizeSwatch(row.context, option.px, option.alpha).apply {
-                layoutParams = LinearLayout.LayoutParams(cell, cell)
-                contentDescription = option.hint
-                TooltipCompat.setTooltipText(this, option.hint)
-                setOnClickListener { pickSize(index) }
+        wanted.chunked(InkTones.ROW_BREAK).forEachIndexed { r, chunk ->
+            val row = LinearLayout(rows.context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             }
-            row.addView(swatch)
-            sizeSwatches += swatch
+            chunk.forEachIndexed { c, option ->
+                val index = r * InkTones.ROW_BREAK + c
+                val swatch = SizeSwatch(row.context, option.px, option.alpha, option.badge).apply {
+                    layoutParams = LinearLayout.LayoutParams(cell, cell)
+                    contentDescription = option.hint
+                    TooltipCompat.setTooltipText(this, option.hint)
+                    setOnClickListener { pickSize(index) }
+                }
+                row.addView(swatch)
+                sizeSwatches += swatch
+            }
+            rows.addView(row)
         }
         builtSizes = wanted
     }
@@ -194,9 +205,14 @@ class PaletteBar(
     /** A stroke sample at its real width inside the shade swatch's ring: the width is page px,
      *  which on the Nomad is the glass's own, so the sample is the mark; the line is capped at
      *  the ring's inside for the broadest marker. */
-    private class SizeSwatch(ctx: Context, private val px: Float, private val alpha: Int) : View(ctx) {
+    private class SizeSwatch(ctx: Context, private val px: Float, private val alpha: Int, private val badge: String?) : View(ctx) {
 
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+            textSize = BADGE_SP * ctx.resources.displayMetrics.scaledDensity
+        }
         private val density = ctx.resources.displayMetrics.density
         private val black = ContextCompat.getColor(ctx, R.color.inkBlack)
         private val dotted = DashPathEffect(floatArrayOf(DOT_DP * density, DOT_DP * density), 0f)
@@ -226,12 +242,18 @@ class PaletteBar(
             paint.color = black
             paint.alpha = alpha
             canvas.drawLine(cx - half, cy, cx + half, cy, paint)
+            // The badge over the sample, black on it: a word tells apart what the ring cannot.
+            badge?.let {
+                text.color = black
+                canvas.drawText(it, cx, cy - (text.descent() + text.ascent()) / 2f, text)
+            }
         }
     }
 
     private companion object {
         const val RING_DP = 2f
         const val SAMPLE_MAX = 0.8f
+        const val BADGE_SP = 13f
         const val PAD_DP = 6f
         const val GAP_DP = 3f
         const val DOT_DP = 2f

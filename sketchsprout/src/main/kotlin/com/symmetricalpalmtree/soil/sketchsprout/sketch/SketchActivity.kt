@@ -425,6 +425,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                         size.px,
                         getString(com.symmetricalpalmtree.soil.paper.R.string.cd_size, size.label),
                         alpha = if (kind == SketchToolState.Kind.MARKER) MARKER_SAMPLE_ALPHA else 255,
+                        badge = size.badge,
                     )
                 }
             },
