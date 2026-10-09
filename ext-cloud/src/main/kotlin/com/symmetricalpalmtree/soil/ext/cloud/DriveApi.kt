@@ -63,14 +63,24 @@ class DriveApi(
         return DriveJson.parseFileList(reply.body).entries.firstOrNull()
     }
 
-    /** Create a folder named [name] under [parentId]. Callers go through [ensureFolder]. */
+    /**
+     * Create a folder named [name] under [parentId]. Callers go through [ensureFolder]. A folder
+     * that comes back `trashed` was made under a parent in the trash (a cached id trashed on the
+     * web: the finds under it see nothing, since its children are trashed too) and answers as
+     * Drive's 404, so [underPath] evicts the path and re-resolves it from the root.
+     */
     fun createFolder(parentId: String, name: String): CloudEntry {
         val body = DriveJson.folderBody(name, parentId)
         val reply = call {
             HttpRequest("POST", DriveRest.createUrl(), bearer(it), HttpBody.Text(DriveHttp.JSON, body))
         }
         if (!reply.ok) throw DriveFailures.forHttp(reply.code)
-        return DriveJson.parseFile(reply.body) ?: throw IllegalStateException(DriveJson.UNREADABLE)
+        val entry = DriveJson.parseFile(reply.body) ?: throw IllegalStateException(DriveJson.UNREADABLE)
+        if (DriveJson.isTrashed(reply.body)) {
+            Slog.d(TAG) { "a folder was made under a trashed parent — treated as gone" }
+            throw DriveFailures.forHttp(404)
+        }
+        return entry
     }
 
     /** Find-or-create — and **find first**, always: nothing is created beside an existing name. */
@@ -97,20 +107,29 @@ class DriveApi(
 
     // ── The provider's root, and paths under it ──────────────────────────────
 
+    /** Drop every cached folder id — the account they were resolved under is gone. */
+    fun forgetFolders() = folders.clear()
+
     /**
      * The id of this build's root folder, find-or-create: the process cache, then the store, then
-     * Drive. **Never probed** (arc 34 / M9b — the old `exists` read per call was one metadata
-     * round-trip per upload): a cached id Drive no longer knows — the folder deleted or trashed
-     * from another device — answers a 404 to the first call under it, and [underPath] drops it
-     * (memory and store) and re-resolves once, which is the difference between the feature healing
-     * itself and every call failing forever after a tidy-up in the web UI.
+     * Drive. An id from the store is **checked once per process** (one metadata read, then it lives
+     * in the process cache): a root trashed on the web still answers 200 to every call under it, so
+     * no 404 would ever tell; a trashed or deleted one is dropped and found or made again. After
+     * that, never probed (arc 34 / M9b — the old `exists` read per call was one metadata round-trip
+     * per upload): an id Drive no longer knows answers a 404 to the first call under it, and
+     * [underPath] drops it (memory and store) and re-resolves once; one trashed meanwhile is told
+     * by the `trashed` on a folder made or a file written under it ([createFolder], [upload]).
      */
     fun rootId(): String {
         folders.get(emptyList())?.let { return it }
         val cached = store.value(DriveSql.Keys.ROOT_FOLDER_ID)?.takeIf { CloudContract.isEntryId(it) }
         if (cached != null) {
-            folders.put(emptyList(), cached)
-            return cached
+            if (isLiveFolder(cached)) {
+                folders.put(emptyList(), cached)
+                return cached
+            }
+            Slog.d(TAG) { "the stored root is trashed or gone — re-resolving" }
+            store.remove(DriveSql.Keys.ROOT_FOLDER_ID)
         }
         val entry = ensureFolder(DriveRest.MY_DRIVE, rootFolderName)
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, entry.id)
@@ -198,13 +217,22 @@ class DriveApi(
             // would happily create a file beside it — the one thing this seam promises not to do.
             throw IllegalStateException("name is a folder")
         }
-        val entry = if (DriveMultipart.useMultipart(expectedBytes)) {
+        val written = if (DriveMultipart.useMultipart(expectedBytes)) {
             multipartUpload(parentId, existing?.id, name, mime, source, expectedBytes)
         } else {
             resumableUpload(parentId, existing?.id, name, mime, source, expectedBytes)
         }
+        if (written.trashed) {
+            // A cached folder on the path was trashed on the web: the file landed in the trash with
+            // it. The fd cannot be replayed, so this call fails; the eviction makes the next one
+            // re-resolve the path from the root and write to a folder that is really there.
+            Slog.d(TAG) { "upload landed under a trashed folder (${path.size} segment(s) deep) — evicting" }
+            folders.evict(path.toList())
+            store.remove(DriveSql.Keys.ROOT_FOLDER_ID)
+            throw IllegalStateException(TRASHED)
+        }
         Slog.d(TAG) { "upload ok, $expectedBytes B, replaced=${existing != null}" }
-        return entry
+        return written.entry
     }
 
     /** Stream the file [fileId] into [out] and answer the byte count. */
@@ -226,11 +254,29 @@ class DriveApi(
     }
 
     /** The entry [fileId] names. An id Drive no longer knows is [GONE]. */
-    fun metadata(fileId: String): CloudEntry {
+    fun metadata(fileId: String): CloudEntry = described(fileId).entry
+
+    /** An entry with Drive's `trashed`, which a [CloudEntry] does not carry. */
+    private class Described(val entry: CloudEntry, val trashed: Boolean)
+
+    private fun described(fileId: String): Described {
         val reply = call { HttpRequest("GET", DriveRest.metadataUrl(fileId), bearer(it)) }
         if (reply.code == 404) throw IllegalStateException(GONE)
         if (!reply.ok) throw DriveFailures.forHttp(reply.code)
-        return DriveJson.parseFile(reply.body) ?: throw IllegalStateException(DriveJson.UNREADABLE)
+        val entry = DriveJson.parseFile(reply.body) ?: throw IllegalStateException(DriveJson.UNREADABLE)
+        return Described(entry, DriveJson.isTrashed(reply.body))
+    }
+
+    /** Whether [id] is still a folder outside the trash. Deleted (404) is false; any other failure
+     *  is thrown, since the network failing says nothing about the folder. */
+    private fun isLiveFolder(id: String): Boolean {
+        val d = try {
+            described(id)
+        } catch (e: IllegalStateException) {
+            if (e.message == GONE) return false
+            throw e
+        }
+        return d.entry.isFolder && !d.trashed
     }
 
     /** Delete a file or folder. Already gone counts as done — the seam says idempotent. */
@@ -252,7 +298,7 @@ class DriveApi(
         mime: String,
         source: InputStream,
         expectedBytes: Long,
-    ): CloudEntry {
+    ): Described {
         val meta = DriveJson.uploadMetaBody(name, if (existingId == null) parentId else null)
         val prefix = DriveMultipart.prefix(meta, mime)
         val suffix = DriveMultipart.suffix()
@@ -276,7 +322,7 @@ class DriveApi(
         mime: String,
         source: InputStream,
         expectedBytes: Long,
-    ): CloudEntry {
+    ): Described {
         val meta = DriveJson.uploadMetaBody(name, if (existingId == null) parentId else null)
         val initUrl = if (existingId == null) DriveRest.resumableCreateUrl() else DriveRest.resumableUpdateUrl(existingId)
         val initMethod = if (existingId == null) "POST" else "PATCH"
@@ -311,10 +357,10 @@ class DriveApi(
     /** The entry a write answered — or, if the reply named only an id this seam could not read as
      *  an entry, one more metadata read. The write already happened; refusing to describe it would
      *  be worse than a round trip. */
-    private fun entryFrom(body: String): CloudEntry {
-        DriveJson.parseFile(body)?.let { return it }
+    private fun entryFrom(body: String): Described {
+        DriveJson.parseFile(body)?.let { return Described(it, DriveJson.isTrashed(body)) }
         val id = DriveJson.parseId(body) ?: throw IllegalStateException(DriveJson.UNREADABLE)
-        return metadata(id)
+        return described(id)
     }
 
     // ── Plumbing ─────────────────────────────────────────────────────────────
@@ -351,6 +397,9 @@ class DriveApi(
 
         /** The provider no longer knows this id. */
         const val GONE: String = "gone"
+
+        /** An upload landed under a folder in the trash; the next call re-resolves the path. */
+        const val TRASHED: String = "folder in trash"
 
         /**
          * The account's email read with a bare access token — the one call the connect screen makes

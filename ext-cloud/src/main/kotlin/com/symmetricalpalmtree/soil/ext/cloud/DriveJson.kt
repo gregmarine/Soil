@@ -37,6 +37,7 @@ object DriveJson {
         val mimeType: String? = null,
         val size: String? = null,
         val modifiedTime: String? = null,
+        val trashed: Boolean = false,
     )
 
     @Serializable
@@ -68,6 +69,10 @@ object DriveJson {
 
     /** Read a single-file reply, or null when it is not one this seam can describe. */
     fun parseFile(body: String): CloudEntry? = toEntry(decode(FileDto.serializer(), body))
+
+    /** Whether a single-file reply says the file is in the trash — explicitly, or under a trashed
+     *  folder (Drive reports both as `trashed`). Absent is false. */
+    fun isTrashed(body: String): Boolean = decode(FileDto.serializer(), body).trashed
 
     /** The id out of a single-file reply, or null. The fallback when a write's reply carried a
      *  shape [parseFile] could not use but did name the file it made. */

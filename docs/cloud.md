@@ -54,6 +54,12 @@ opens there and Up stops there. Backups go under `Backups/<this device's folder>
 opens at the root, so both are one tap away, and filters nothing by extension: which importer
 reads a file is decided afterwards, by its name, exactly as for a picked document.
 
+The extension remembers folder ids, the root's across runs and the rest for the life of its
+process, and forgets them all when the account goes. A folder deleted on the web is found or
+made again on the next call. One trashed on the web still answers, so the stored root is checked
+once a process, and a write that lands in the trash fails and makes the next try start again
+from the root.
+
 ## Export to the cloud
 
 With a provider installed the export screen grows a Destination row: this device, or the

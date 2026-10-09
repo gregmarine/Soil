@@ -54,6 +54,7 @@ class DriveOps(
         tokens.revoke()
         store.clear()
         tokens.invalidate()
+        api.forgetFolders()
         Slog.d(TAG) { "disconnect: account forgotten" }
     }
 

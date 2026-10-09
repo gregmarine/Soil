@@ -10,7 +10,11 @@ package com.symmetricalpalmtree.soil.ext.cloud
  * trusted until Drive answers a 404 under it, and then [evict] drops the whole path — every prefix
  * (the root included: which segment went stale is not knowable from the 404) and every descendant
  * — and the caller re-resolves once. A stale sibling subtree keeps its ids and earns its own 404.
- * Never probed up front: a metadata read per call was the old root's cost, and the finding.
+ * A folder **trashed** on the web is not a 404 (Drive still answers for it), so it is told by the
+ * `trashed` on a folder made or a file written under it, and evicts the same way. Never probed up
+ * front, except the root's stored id, once per process: a metadata read per call was the old
+ * root's cost, and the finding. [clear] runs when the account goes (disconnect, a revoked token, a
+ * new connect), so no id outlives the account that resolved it.
  *
  * Keys are segment lists, not joined strings: a name may carry any character.
  */

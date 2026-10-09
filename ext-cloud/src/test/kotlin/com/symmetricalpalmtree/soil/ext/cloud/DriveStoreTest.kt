@@ -1,5 +1,7 @@
 package com.symmetricalpalmtree.soil.ext.cloud
 
+import com.symmetricalpalmtree.soil.paper.store.RowStore
+import com.symmetricalpalmtree.soil.paper.store.Statement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail
@@ -28,6 +30,23 @@ class DriveStoreTest {
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, "first")
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, "second")
         assertEquals("second", store.value(DriveSql.Keys.ROOT_FOLDER_ID))
+    }
+
+    @Test
+    fun putAll_writesEveryValueInOneBatch() {
+        var batches = 0
+        val rows = FakeDriveStore()
+        val counting = object : RowStore by rows {
+            override fun exec(statements: List<Statement>): LongArray {
+                batches++
+                return rows.exec(statements)
+            }
+        }
+        val store = DriveStore(counting)
+        store.putAll(listOf(DriveSql.Keys.REFRESH_TOKEN to "REFRESH", DriveSql.Keys.ACCOUNT_LABEL to "person@example.com"))
+        assertEquals(1, batches)
+        assertEquals("REFRESH", store.value(DriveSql.Keys.REFRESH_TOKEN))
+        assertEquals("person@example.com", store.value(DriveSql.Keys.ACCOUNT_LABEL))
     }
 
     @Test

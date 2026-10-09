@@ -83,19 +83,66 @@ class DriveApiTest {
     }
 
     @Test
-    fun aCachedRoot_costsNothing() {
-        // Arc 34 / M9b: no metadata probe per call — a stale root is found out by the 404 it
-        // causes and re-resolved then, the same rule every cached folder id follows.
+    fun aStoredRoot_isCheckedOncePerProcess_thenCostsNothing() {
+        // Arc 34 / M9b: no metadata probe per call. A root trashed on the web answers 200 to every
+        // call under it, so the stored id is read once per process; after that it is memory.
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, "ROOT")
-        handle { _, _ -> null }
+        handle { method, url ->
+            if (method == "GET" && url.contains("/files/ROOT?fields=")) {
+                FakeTransport.ok(FakeTransport.file("ROOT", ROOT_NAME, folder = true))
+            } else null
+        }
         assertEquals("ROOT", api.rootId())
         assertEquals("ROOT", api.rootId())
-        assertEquals(0, transport.calls.size)
+        assertEquals(1, transport.calls.size)
     }
 
     @Test
-    fun aCachedRootThatIsGone_isDroppedOnThe404AndReResolvedOnce() {
+    fun aStoredRootInTheTrash_isDroppedAndFoundAgain() {
+        store.put(DriveSql.Keys.ROOT_FOLDER_ID, "OLD")
+        handle { method, url ->
+            when {
+                method == "GET" && url.contains("/files/OLD?fields=") ->
+                    FakeTransport.ok(FakeTransport.file("OLD", ROOT_NAME, folder = true, trashed = true))
+                // The search excludes the trash, so it finds the other one, or nothing.
+                method == "GET" && url.contains("name = '$ROOT_NAME' and 'root' in parents and trashed = false") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("FRESH", ROOT_NAME, folder = true)))
+                else -> null
+            }
+        }
+        assertEquals("FRESH", api.rootId())
+        assertEquals("FRESH", store.value(DriveSql.Keys.ROOT_FOLDER_ID))
+        assertEquals("FRESH", folders.get(emptyList()))
+    }
+
+    @Test
+    fun aStoredRootThatIsGone_isDroppedAndFoundAgain() {
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, "STALE")
+        handle { method, url ->
+            when {
+                method == "GET" && url.contains("/files/STALE?fields=") -> HttpReply(404, "{}", emptyMap())
+                method == "GET" && url.contains("name = '$ROOT_NAME' and 'root' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("FRESH", ROOT_NAME, folder = true)))
+                method == "GET" && url.contains("name = 'Exports' and 'FRESH' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("EXPORTS", "Exports", folder = true)))
+                method == "GET" && url.contains("'EXPORTS' in parents") && !url.contains("name = ") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("F1", "a.soil", size = "3")))
+                else -> null
+            }
+        }
+        assertEquals(listOf("a.soil"), api.list(arrayOf("Exports")).map { it.name })
+        assertEquals("FRESH", store.value(DriveSql.Keys.ROOT_FOLDER_ID))
+        // One check, one root search, one find, one listing.
+        assertEquals(1, urls().count { it.contains("STALE") })
+        assertEquals(4, transport.calls.size)
+    }
+
+    @Test
+    fun aRootDeletedMidProcess_isDroppedOnThe404AndReResolvedOnce() {
+        // Checked earlier in this process, then deleted on the web and the trash emptied: Drive
+        // answers 404 for the id from then on.
+        store.put(DriveSql.Keys.ROOT_FOLDER_ID, "STALE")
+        folders.put(emptyList(), "STALE")
         handle { method, url ->
             when {
                 method == "GET" && url.contains("'STALE' in parents") -> HttpReply(404, "{}", emptyMap())
@@ -119,6 +166,7 @@ class DriveApiTest {
     @Test
     fun aCachedRootThatStaysGone_failsAsA404_neverLoops() {
         store.put(DriveSql.Keys.ROOT_FOLDER_ID, "STALE")
+        folders.put(emptyList(), "STALE")
         handle { method, url ->
             when {
                 method == "GET" && url.contains("name = '$ROOT_NAME' and 'root' in parents") ->
@@ -285,7 +333,7 @@ class DriveApiTest {
     }
 
     @Test
-    fun aStaleFolderId_isEvictedWithItsDescendantsOnA404AndReResolvedOnce() {
+    fun aDeletedFolderId_isEvictedWithItsDescendantsOnA404AndReResolvedOnce() {
         var backupsId = "B1"
         var devId = "D1"
         var stale = false
@@ -309,7 +357,9 @@ class DriveApiTest {
         // Not yet stale: the first run caches B1 / D1 …
         upload(arrayOf("Backups", "Dev"), "a.soil")
         assertEquals("D1", folders.get(listOf("Backups", "Dev")))
-        // … then the tree is moved on the web; the next upload's name-find under D1 answers 404.
+        // … then the tree is deleted on the web and the trash emptied, and made again elsewhere: the
+        // next upload's name-find under D1 answers 404. (A move keeps the ids, and a trashed
+        // folder still answers 200 — see the trashed cases below.)
         backupsId = "B2"; devId = "D2"; stale = true
         transport.calls.clear()
         upload(arrayOf("Backups", "Dev"), "b.soil")
@@ -319,6 +369,73 @@ class DriveApiTest {
         assertEquals(1, urls().count { it.contains("name = 'Backups'") })
         assertEquals(1, urls().count { it.contains("uploadType=multipart") })
         // A stale sibling path keeps its own cached id — it gets its own 404 when it is used.
+    }
+
+    @Test
+    fun anUploadUnderAFolderTrashedOnTheWeb_failsAndEvicts_andTheNextOneHeals() {
+        var trashed = false
+        withRoot { method, url ->
+            val body = transport.calls.last().bodyText
+            when {
+                method == "GET" && url.contains("name = '$ROOT_NAME' and 'root' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("ROOT", ROOT_NAME, folder = true)))
+                method == "GET" && url.contains("name = 'Backups' and 'ROOT' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("B1", "Backups", folder = true)))
+                // Drive's trash: the finds exclude it, and D1's children are in it with D1.
+                method == "GET" && url.contains("name = 'Dev' and 'B1' in parents") ->
+                    FakeTransport.ok(if (trashed) FakeTransport.fileList() else FakeTransport.fileList(FakeTransport.file("D1", "Dev", folder = true)))
+                method == "GET" && url.contains(".soil'") -> FakeTransport.ok(FakeTransport.fileList())
+                method == "POST" && url.startsWith(DriveRest.FILES) && body.contains("\"Dev\"") ->
+                    FakeTransport.ok(FakeTransport.file("D2", "Dev", folder = true))
+                // A write under a trashed folder succeeds — into the trash, and says so.
+                method == "POST" && url.contains("uploadType=multipart") ->
+                    FakeTransport.ok(FakeTransport.file("NEW", "x", size = "5", trashed = trashed && body.contains("\"D1\"")))
+                else -> null
+            }
+        }
+        upload(arrayOf("Backups", "Dev"), "a.soil")
+        assertEquals("D1", folders.get(listOf("Backups", "Dev")))
+        trashed = true
+        val thrown = runCatching { upload(arrayOf("Backups", "Dev"), "b.soil") }.exceptionOrNull()
+        assertEquals(DriveApi.TRASHED, thrown?.message)
+        assertNull(folders.get(listOf("Backups", "Dev")))
+        assertNull(folders.get(emptyList()))
+        assertNull(store.value(DriveSql.Keys.ROOT_FOLDER_ID))
+        // The next try finds the root again (no stored id, so no check) and makes Dev afresh.
+        transport.calls.clear()
+        assertEquals("NEW", upload(arrayOf("Backups", "Dev"), "c.soil").id)
+        assertEquals("D2", folders.get(listOf("Backups", "Dev")))
+        assertEquals("ROOT", store.value(DriveSql.Keys.ROOT_FOLDER_ID))
+    }
+
+    @Test
+    fun aFolderMadeUnderATrashedParent_isTreatedAsGone_andTheWalkReResolvesOnce() {
+        // Backups (B1) is cached, then trashed on the web; Dev is not cached yet.
+        folders.put(listOf("Backups"), "B1")
+        withRoot { method, url ->
+            val body = transport.calls.last().bodyText
+            when {
+                method == "GET" && url.contains("name = '$ROOT_NAME' and 'root' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList(FakeTransport.file("ROOT", ROOT_NAME, folder = true)))
+                method == "GET" && url.contains("name = 'Backups' and 'ROOT' in parents") ->
+                    FakeTransport.ok(FakeTransport.fileList())
+                method == "GET" && url.contains("name = 'Dev'") -> FakeTransport.ok(FakeTransport.fileList())
+                method == "GET" && url.contains(".soil'") -> FakeTransport.ok(FakeTransport.fileList())
+                method == "POST" && url.startsWith(DriveRest.FILES) && body.contains("\"Backups\"") ->
+                    FakeTransport.ok(FakeTransport.file("B2", "Backups", folder = true))
+                method == "POST" && url.startsWith(DriveRest.FILES) && body.contains("\"Dev\"") ->
+                    FakeTransport.ok(
+                        FakeTransport.file(if (body.contains("\"B1\"")) "DX" else "D2", "Dev", folder = true, trashed = body.contains("\"B1\""))
+                    )
+                method == "POST" && url.contains("uploadType=multipart") ->
+                    FakeTransport.ok(FakeTransport.file("NEW", "x", size = "5"))
+                else -> null
+            }
+        }
+        assertEquals("NEW", upload(arrayOf("Backups", "Dev"), "a.soil").id)
+        assertEquals("B2", folders.get(listOf("Backups")))
+        assertEquals("D2", folders.get(listOf("Backups", "Dev")))
+        assertEquals(1, transport.calls.count { it.bodyText.contains("\"B1\"") })
     }
 
     @Test

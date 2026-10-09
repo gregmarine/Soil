@@ -234,8 +234,10 @@ class ConnectActivity : AppCompatActivity() {
         val label = DriveJson.label(DriveApi.aboutEmail(DriveHttp, granted.accessToken))
 
         return try {
-            store.put(DriveSql.Keys.REFRESH_TOKEN, refreshToken)
-            store.put(DriveSql.Keys.ACCOUNT_LABEL, label)
+            // One batch: never a token without its label, or a label without its token.
+            store.putAll(listOf(DriveSql.Keys.REFRESH_TOKEN to refreshToken, DriveSql.Keys.ACCOUNT_LABEL to label))
+            // A new account starts from its own root; no folder id from an earlier one is kept.
+            DriveFolders.cache.clear()
             // The host's very next call costs no refresh.
             DriveTokens.cache.put(granted.accessToken, granted.expiresAtMs)
             Outcome.Connected

@@ -12,6 +12,10 @@ class DriveStore(private val rows: RowStore) {
 
     fun put(key: String, value: String) = guard { rows.exec(listOf(DriveSql.upsertValue(key, value))); Unit }
 
+    /** Several values in one batch — one transaction in the store Soil lends. */
+    fun putAll(values: List<Pair<String, String>>) =
+        guard { rows.exec(values.map { (k, v) -> DriveSql.upsertValue(k, v) }); Unit }
+
     fun remove(key: String) = guard { rows.exec(listOf(DriveSql.deleteValue(key))); Unit }
 
     fun clear() = guard { rows.exec(listOf(DriveSql.deleteAll())); Unit }
