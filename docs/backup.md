@@ -94,16 +94,17 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   encrypted SQLite or does not open under the proven key, are left out and named in the ending,
   never installed. The stores are verified read-only, so a staged WAL stays what the manifest
   measured. An alive, not-excluded item the staged index names but the backup does not carry
-  (held open or missing when it was taken) is named in the ending under "Backup isn't
-  complete"; its row is installed with no file. Item files are not verified against the key: each
-  has its own salt, so a check is a full key derivation per item.
+  (held open or missing when it was taken) is named in the ending, after a line saying it was not
+  in this backup; its row is installed with no file. Item files are not verified against the key:
+  each has its own salt, so a check is a full key derivation per item.
 - **Commit**, whole under NonCancellable: the staged set is re-checked for a tear; this device's
   destination (its folder, its tick, its cloud folder) is parked outside the index; the session
   key is cleared so an extension calling into its store meets the locked library; every store and
   the index are closed; the live index and garden are renamed aside; the staged garden and index
   are renamed in, the index last as the commit marker; the proven passphrase becomes this
   device's global, acknowledged; the aside is discarded. A rename that fails renames the aside
-  back and the old library is whole.
+  back and the old library is whole; when that rename back itself stops part-way, the ending says
+  so and the next launch finishes it.
 - **After**: the screen reopens the index itself, under whichever key is now the device's, and
   returns to Home. The parked destination is merged back over the restored row on that open, with
   both stamp maps and every last-run figure cleared: this device has never backed up this library.
@@ -112,7 +113,9 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   present means the swap did not complete and the aside goes back, index last. The repair stops
   at the first step that fails and tries again on the next launch, so the old index never comes
   back over a half-repaired garden; a live index whose garden is still aside is never read as a
-  finished commit, and the aside is kept.
+  finished commit, and the aside is kept. While the old index still stands aside, a missing
+  live index is never created fresh: the library reads as unavailable until a launch's repair
+  finishes.
 
 The restored cloud account comes back as content like any other store. Known consequence: two
 devices then hold one refresh token, and a Disconnect on one revokes it for both.

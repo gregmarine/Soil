@@ -207,6 +207,47 @@ class ScratchDocumentTest {
         assertEquals(listOf("b"), doc.strokes.map { it.id })
     }
 
+    /** A stroke g-paper commits inside `clearForContentSwap` (a lost lift, 0.1.70) is the departing
+     *  page's: the swap hook runs before the last flush, while the page id is still the old one. */
+    @Test
+    fun aStrokeCommittedAtTheSwapIsFiledUnderTheDepartingPage() = runBlocking {
+        val fake = FakeScratchStore()
+        fake.page("p1", PageInk(1404f, 1872f, emptyList()))
+        fake.page("p2", PageInk(1404f, 1872f, emptyList()))
+        lateinit var doc: ScratchDocument
+        var swaps = 0
+        doc = ScratchDocument(ScratchStore(fake), beforeSwap = { swaps++; doc.addStroke(stroke("lost$swaps")) }) { surface }
+        doc.load()
+        fake.execs.clear()
+
+        doc.goTo("p2")
+        assertEquals(1, swaps)
+        val put = puts(fake).single()
+        assertEquals("lost1", text(put.args[0]))
+        assertEquals("p1", text(put.args[1]))
+        assertTrue(doc.strokes.isEmpty())
+        assertFalse(doc.hasUnsavedChanges)
+
+        // The same for an insert: the stroke goes down on the page being left.
+        fake.execs.clear()
+        doc.insert(after = true)
+        assertEquals(2, swaps)
+        assertEquals("lost2", text(puts(fake).single().args[0]))
+        assertEquals("p2", text(puts(fake).single().args[1]))
+        assertTrue(doc.strokes.isEmpty())
+    }
+
+    @Test
+    fun goingToTheShowingPageIsNoSwap() = runBlocking {
+        val fake = FakeScratchStore()
+        fake.page("p1", PageInk(1404f, 1872f, emptyList()))
+        var swaps = 0
+        val doc = ScratchDocument(ScratchStore(fake), beforeSwap = { swaps++ }) { surface }
+        doc.load()
+        doc.goTo("p1")
+        assertEquals(0, swaps)
+    }
+
     @Test
     fun insertAndDeleteMoveThePageList() = runBlocking {
         val fake = FakeScratchStore()

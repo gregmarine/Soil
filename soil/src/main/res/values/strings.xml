@@ -668,6 +668,8 @@
     <string name="backup_counts_failed">%1$d copied, %2$d skipped, %3$d failed.</string>
     <string name="backup_locked_title">Library locked</string>
     <string name="backup_locked_body">The library is locked. Unlock it, then back up again.</string>
+    <string name="backup_rotation_title">Finish the key change first</string>
+    <string name="backup_rotation_body">A passphrase change is part-way through. Open Settings, Encryption, and finish it with Resume, then back up. Nothing was backed up.</string>
     <string name="backup_problem_title">Backup didn\'t finish</string>
     <string name="backup_problem_tail">Your items are untouched, and anything that failed will be tried again next time.</string>
     <string name="backup_stores_copied">%1$d app store copied.</string>
@@ -733,9 +735,12 @@
     <string name="restore_stores_many">%1$d app stores</string>
     <string name="restore_done_left_out_one">One file in the backup folder was not part of this backup and was left out:</string>
     <string name="restore_done_left_out_many">%1$d files in the backup folder were not part of this backup and were left out:</string>
+    <string name="restore_done_missing_one">One item was not in this backup. It is restored without its file:</string>
+    <string name="restore_done_missing_many">%1$d items were not in this backup. They are restored without their files:</string>
     <string name="restore_restart">Continue</string>
     <string name="restore_failed_title">Restore failed</string>
     <string name="restore_failed_body">Nothing was changed. Your library is as it was.</string>
+    <string name="restore_failed_unrepaired_body">The backup was not installed, and putting your library back did not finish. Soil finishes it the next time it starts. Restart Soil before you go on.</string>
     <string name="restore_interrupted_title">Restore didn\'t finish</string>
     <string name="restore_interrupted_body">The backup is installed, but a last step failed (%1$s). If Soil asks, unlock it with the passphrase or recovery key of the library this backup came from.</string>
     <string name="restore_problem_rotation_title">Finish the key change first</string>

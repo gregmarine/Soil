@@ -70,8 +70,9 @@ object RestoreEngine {
         data class Committed(val items: Int, val stores: Int, val leftOut: List<String> = emptyList(), val missing: List<String> = emptyList()) : Outcome()
         /** Refused before the point of no return; the live library was never touched. */
         data class Refused(val problem: Problem) : Outcome()
-        /** The swap failed and was renamed back; the live library is whole; the index is closed. */
-        data class RolledBack(val problem: Problem) : Outcome()
+        /** The swap failed and was renamed back; the live library is whole; the index is closed.
+         *  [repaired] false: the rename back stopped part-way, and the next launch finishes it. */
+        data class RolledBack(val problem: Problem, val repaired: Boolean = true) : Outcome()
         /** The restored index landed but the key step threw; the relaunch may stop at Unlock. */
         data class Interrupted(val problem: Problem) : Outcome()
     }
@@ -335,14 +336,16 @@ object RestoreEngine {
         } catch (e: Exception) {
             Log.e(TAG, "commit threw after the session was cleared (swap begun: ${marks.swapBegun})", e)
             val landed = marks.swapBegun && live.index.isFile
-            runCatching { executeRecovery(root, live, aside, staging) }.onFailure { Log.e(TAG, "in-process recovery threw; the next launch finishes it", it) }
+            val repaired = runCatching { executeRecovery(root, live, aside, staging) }
+                .onFailure { Log.e(TAG, "in-process recovery threw; the next launch finishes it", it) }
+                .getOrDefault(false)
             val problem = Problem.Unexpected(e.javaClass.simpleName)
             if (landed) {
                 Outcome.Interrupted(problem)
             } else {
                 runCatching { RestoreDestination.clearPark(app) }
                 oldPassphrase?.let { KeySession.set(it) }
-                Outcome.RolledBack(problem)
+                Outcome.RolledBack(problem, repaired)
             }
         }
     }
@@ -354,10 +357,11 @@ object RestoreEngine {
         val failedStep = swap(live, aside, staging)
         if (failedStep != null) {
             Log.e(TAG, "swap failed at step $failedStep; renaming the aside back")
-            if (!executeRecovery(root, live, aside, staging)) Log.e(TAG, "the rename back did not finish; the next launch tries again")
+            val repaired = executeRecovery(root, live, aside, staging)
+            if (!repaired) Log.e(TAG, "the rename back did not finish; the next launch tries again")
             RestoreDestination.clearPark(app)
             oldPassphrase?.let { KeySession.set(it) }
-            return Outcome.RolledBack(Problem.SwapFailed(failedStep))
+            return Outcome.RolledBack(Problem.SwapFailed(failedStep), repaired)
         }
 
         // Key state: the installed index's key becomes this device's global, acknowledged (the person demonstrably has it).

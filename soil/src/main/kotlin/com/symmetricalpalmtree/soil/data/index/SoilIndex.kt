@@ -119,6 +119,17 @@ object SoilIndex {
     private fun prepare(app: Context): State {
         val file = SoilFiles.indexFile(app)
 
+        // A missing index while the old library's index still stands aside is a restore recovery
+        // that stopped partway, not a fresh install. Creating one here would let the next launch
+        // read it as a finished commit and delete the old library. Nothing is touched: the next
+        // launch's recovery tries again.
+        if ((!file.exists() || file.length() == 0L) &&
+            com.symmetricalpalmtree.soil.restore.RestoreEngine.asideIndexStands(app)
+        ) {
+            Log.w(TAG, "the old index stands aside: a restore recovery has not finished")
+            return State.UNAVAILABLE
+        }
+
         // An index missing because a rekey commit died between its two renames is NOT a fresh
         // install — its bytes are `soil.db.rekey.tmp` / `.old.bak` beside it. Recover with a
         // trusted key before the probe can ever answer "create". With no cached passphrase nothing

@@ -251,7 +251,10 @@ class RestoreActivity : AppCompatActivity() {
     private fun onOutcome(outcome: RestoreEngine.Outcome, backupName: String) {
         when (outcome) {
             is RestoreEngine.Outcome.Committed -> endDialog(getString(R.string.restore_done_title), getString(R.string.restore_done_body, itemsText(outcome.items), storesText(outcome.stores), backupName) + leftOutText(outcome.leftOut) + missingText(outcome.missing))
-            is RestoreEngine.Outcome.RolledBack -> endDialog(getString(R.string.restore_failed_title), getString(R.string.restore_failed_body))
+            is RestoreEngine.Outcome.RolledBack -> endDialog(
+                getString(R.string.restore_failed_title),
+                getString(if (outcome.repaired) R.string.restore_failed_body else R.string.restore_failed_unrepaired_body),
+            )
             is RestoreEngine.Outcome.Interrupted -> endDialog(getString(R.string.restore_interrupted_title), getString(R.string.restore_interrupted_body, (outcome.problem as? RestoreEngine.Problem.Unexpected)?.what ?: ""))
             is RestoreEngine.Outcome.Refused -> problemDialog(outcome.problem)
         }
@@ -263,9 +266,12 @@ class RestoreActivity : AppCompatActivity() {
         return "\n\n" + head + "\n" + leftOut.joinToString("\n")
     }
 
-    /** Items the backup's index names but the backup did not carry: listed under "Backup isn't complete". */
-    private fun missingText(missing: List<String>): String =
-        if (missing.isEmpty()) "" else "\n\n" + getString(R.string.restore_problem_invalid_title) + "\n" + missing.joinToString("\n")
+    /** Items the backup's index names but the backup did not carry, listed after a line that says so. */
+    private fun missingText(missing: List<String>): String {
+        if (missing.isEmpty()) return ""
+        val head = if (missing.size == 1) getString(R.string.restore_done_missing_one) else getString(R.string.restore_done_missing_many, missing.size)
+        return "\n\n" + head + "\n" + missing.joinToString("\n")
+    }
 
     /** The one ending with one action: back to Home, which is open on the library as it now is. */
     private fun endDialog(title: CharSequence, body: CharSequence) {
