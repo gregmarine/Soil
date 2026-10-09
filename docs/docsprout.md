@@ -65,7 +65,8 @@ shown monospace, edited as plain text and written back untouched; image syntax s
 text it is. A fence never closed runs to the end of the document. A raw line edited out of its
 shape (a table row that lost its `|`, a fence whose closing line is gone with words after it) is
 written as a paragraph of its words, escaped, so it can never read back as another block or
-swallow what follows.
+swallow what follows. Which lines are code is one rule (`MarkdownCode`), shared by the rendered
+editor, the list renumbering, reflow and the proofread.
 
 The canonical form is a rewrite, not a copy: when a document is edited in the rendered mode,
 soft and hard line breaks inside a paragraph, setext headings, lazy continuation lines and a

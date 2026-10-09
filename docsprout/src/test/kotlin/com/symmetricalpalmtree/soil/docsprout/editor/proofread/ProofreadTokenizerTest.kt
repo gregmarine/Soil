@@ -65,6 +65,19 @@ class ProofreadTokenizerTest {
     }
 
     @Test
+    fun a_fence_closes_only_on_its_own_kind_and_length() {
+        // The rendered editor's rule: a backtick line inside a tilde fence is code, as is a short
+        // run inside a long fence; the prose after the true close is checked.
+        assertEquals(listOf("before", "after"), words("before\n~~~\n```\ncode wrods\n~~~\nafter"))
+        assertEquals(listOf("before", "after"), words("before\n````\n```\ncode wrods\n````\nafter"))
+    }
+
+    @Test
+    fun a_fence_indented_under_a_list_is_a_fence() {
+        assertEquals(listOf("item", "after"), words("- item\n  ```\n  code wrods\n  ```\nafter"))
+    }
+
+    @Test
     fun indented_code_line_is_skipped() {
         assertEquals(listOf("text", "more"), words("text\n    indentedcode()\nmore"))
         assertEquals(listOf("text"), words("text\n\ttabbed code"))
