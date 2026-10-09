@@ -40,6 +40,7 @@ class SeamConnection(context: Context, private val soilPackage: String) {
 
     @Volatile
     private var bound: ISoilSeam? = null
+    @Volatile
     private var waiting: CompletableDeferred<ISoilSeam>? = null
 
     /** Told, on the main thread, each time Soil goes away. Whatever the app held of Soil's is
@@ -62,37 +63,56 @@ class SeamConnection(context: Context, private val soilPackage: String) {
         override fun onBindingDied(name: ComponentName) {
             bound = null
             runCatching { app.unbindService(this) }
+            // A call waiting on this bind will never hear from it: let it bind again at once.
+            waiting?.completeExceptionally(BindingDied())
             onLost?.invoke()
         }
     }
 
-    /** Soil, bound if it was not. Throws [SeamUnavailable]. */
+    /** Soil, bound if it was not. Throws [SeamUnavailable]. A bind that dies while it is waited
+     *  on is made again, once, at once. */
     suspend fun seam(): ISoilSeam {
         bound?.let { return it }
         return mutex.withLock {
             bound?.let { return@withLock it }
-            val pending = CompletableDeferred<ISoilSeam>()
-            waiting = pending
-            val accepted = withContext(Dispatchers.Main) {
+            try {
+                bind()
+            } catch (_: BindingDied) {
                 try {
-                    app.bindService(
-                        Intent().setClassName(soilPackage, Seam.SERVICE_CLASS),
-                        connection,
-                        Context.BIND_AUTO_CREATE,
-                    )
-                } catch (_: SecurityException) {
-                    false
+                    bind()
+                } catch (_: BindingDied) {
+                    throw SeamUnavailable(SeamUnavailable.Reason.TIMED_OUT)
                 }
             }
-            if (!accepted) {
-                // A refused bind still has to be given back, or the system keeps it.
-                withContext(Dispatchers.Main) { runCatching { app.unbindService(connection) } }
-                throw SeamUnavailable(SeamUnavailable.Reason.NOT_BOUND)
-            }
-            withTimeoutOrNull(BIND_TIMEOUT_MS) { pending.await() }
-                ?: throw SeamUnavailable(SeamUnavailable.Reason.TIMED_OUT)
         }
     }
+
+    /** One bind and its wait. Under [mutex]. */
+    private suspend fun bind(): ISoilSeam {
+        val pending = CompletableDeferred<ISoilSeam>()
+        waiting = pending
+        val accepted = withContext(Dispatchers.Main) {
+            try {
+                app.bindService(
+                    Intent().setClassName(soilPackage, Seam.SERVICE_CLASS),
+                    connection,
+                    Context.BIND_AUTO_CREATE,
+                )
+            } catch (_: SecurityException) {
+                false
+            }
+        }
+        if (!accepted) {
+            // A refused bind still has to be given back, or the system keeps it.
+            withContext(Dispatchers.Main) { runCatching { app.unbindService(connection) } }
+            throw SeamUnavailable(SeamUnavailable.Reason.NOT_BOUND)
+        }
+        return withTimeoutOrNull(BIND_TIMEOUT_MS) { pending.await() }
+            ?: throw SeamUnavailable(SeamUnavailable.Reason.TIMED_OUT)
+    }
+
+    /** The bind being waited on died before it connected. */
+    private class BindingDied : Exception()
 
     private companion object {
         /** Soil may have to be started, and opens nothing while it binds. */

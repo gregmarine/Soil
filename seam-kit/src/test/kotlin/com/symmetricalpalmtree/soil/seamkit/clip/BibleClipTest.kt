@@ -22,6 +22,17 @@ class BibleClipTest {
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(version = 2))))
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(wire = "not a wire"))))
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(label = " "))))
+        assertNull(BibleClip.decode("{\"version\":1,\"wire\":\"JHN:3:16-3:16\",\"label\":\"${"x".repeat(BibleClip.MAX_LABEL_CHARS + 1)}\",\"text\":\"\",\"copiedAt\":1}".toByteArray()))
         assertNull(BibleClip.encode(clip.copy(text = "x".repeat(SeamLimits.MAX_VALUE_BYTES + 1))))
+    }
+
+    @Test
+    fun `a clip that could not be pasted is never written`() {
+        assertNull(BibleClip.encode(clip.copy(wire = "not a wire")))
+        assertNull(BibleClip.encode(clip.copy(label = "")))
+        assertNull(BibleClip.encode(clip.copy(label = " ")))
+        assertNull(BibleClip.encode(clip.copy(label = "x".repeat(BibleClip.MAX_LABEL_CHARS + 1))))
+        val longest = clip.copy(label = "x".repeat(BibleClip.MAX_LABEL_CHARS))
+        assertEquals(longest, BibleClip.decode(BibleClip.encode(longest)))
     }
 }

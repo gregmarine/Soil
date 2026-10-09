@@ -119,11 +119,17 @@ object InkClip {
     /**
      * The handwriting in a payload, in writing order: every stroke row but a sticky note's own
      * (those are in the note's space, not the page's). A row that does not read is dropped. A
-     * page payload, an objects payload and a pad copy all answer here.
+     * page payload, an objects payload and a pad copy all answer here. A page payload's ink comes
+     * page by page, in the pages' order, each page's in its own writing order: `order` counts
+     * within a page, so two pages' strokes are never interleaved.
      */
     fun strokesOf(env: ClipEnvelope): List<Stroke> {
         val stickies = env.rows.filter { it.type == TYPE_STICKY }.mapTo(HashSet()) { it.id }
-        return env.rows.filter { it.type == TYPE_STROKE && it.parentId !in stickies }.sortedBy { it.order }.mapNotNull(::strokeOf)
+        val pageIndex = HashMap<String, Int>()
+        env.rows.filter { it.type == TYPE_PAGE }.sortedBy { it.order }.forEachIndexed { i, row -> pageIndex.putIfAbsent(row.id, i) }
+        return env.rows.filter { it.type == TYPE_STROKE && it.parentId !in stickies }
+            .sortedWith(compareBy<ClipRow>({ pageIndex[it.parentId] ?: -1 }, { it.order }))
+            .mapNotNull(::strokeOf)
     }
 
     private fun strokeOf(row: ClipRow): Stroke? = try {

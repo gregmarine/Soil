@@ -56,7 +56,8 @@ such a clip before or after the page showing, **every page row in order** (a cal
 two, AM then PM), each on its own paper, one undo step (`PageClip.plan` over N pages); the pad
 lands a page as a new page after the current one at the copied page's size; the calendar lays
 a copied page's ink on the showing page at its own coordinates. The pad's top-bar Copy page
-stays, and writes the same page clip.
+stays, and writes the same page clip. Read as ink (a document's paste, a sketch's), a page
+clip's strokes come page by page in the pages' order, each page's in its own writing order.
 
 ## A sketchbook's pages, and ink into a sketch
 
