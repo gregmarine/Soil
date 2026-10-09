@@ -2,9 +2,10 @@
 
 The sketchbook: the fifth Sprout app, and the third with items of its own. Notesprout SN's
 `NSE · Sketch` extension brought across and given a file of its own: a sketchbook is one `.soil`
-of pages, each page two page-sized rasters, graphite under ink, drawn with SN's pencil, gel pen,
-rubbing eraser and smudge, over paper from the library and under guides that are never saved
-into the picture. SN's sketch was a flag on a notebook page; Soil's is an item, made from the
+of pages, each page three page-sized rasters, graphite under ink under a translucent marker,
+drawn with SN's pencil, gel pen, rubbing eraser and smudge and a marker SN never had, each pen
+at a fixed size from its own ladder, over paper from the library and under guides that are
+never saved into the picture. SN's sketch was a flag on a notebook page; Soil's is an item, made from the
 library's toolbar, carried by backup and the cloud like any item, exported through Soil's screen,
 copied page by page through the clipboard, made from a notebook by Convert, and linked to.
 
@@ -13,8 +14,9 @@ copied page by page through the clipboard, made from a notebook by Convert, and 
 | Module | What |
 |---|---|
 | `:sketchsprout` | The app: `SketchActivity` on `:paper`'s `PaperScreenActivity` in g-paper's RASTER page mode; `SketchbookSchema`, `SketchbookSql`, `SketchbookStore`, `SketchRow`; the rasters (`RasterRows`, `RasterImage`, `ImageHeader`, `RasterTiles`, `RasterEffort`, `PageFlatten`, `GuideRows`); the saves (`SketchSaver`, `SketchSaveGovernor`, `SketchSaveCadence`, `PushTracker`); the screen's pieces (`SketchToolbar`, `SketchToolState`, `SketchPalette`, `SmudgeRub`, `SketchEdit`, `PageTurn`, `GuideState`, `GridLayout`, `GuideSheet`, `GuidesBar`, `SketchGuides`); `export.RenderService`, `Relabel`, `RenderPlan`; `ingest.InkIngest`; `clip.SketchPageClip`, `SketchClipboard`; `MainActivity`, `SketchsproutApp`, `SketchPrefs` |
-| `:paper` | Shared since this effort: `CoverSnapshot` (from Notesprout), `ShadeIcon.pencil` and the pencil-fill glyph, the icons `pencil-plus` and `scribble` |
+| `:paper` | Shared since this effort: `CoverSnapshot` (from Notesprout), `ShadeIcon.pencil` / `marker` and their fill glyphs, the icons `pencil-plus`, `scribble` and `marker` (Tabler `highlight`); `PaperToolbar`, `CollapsedTools` and `CollapsedChrome.PenKinds` taking N pen kinds (a kind an index), `PaletteBar`'s size rows |
 | `:seam` | `EXTRA_PAGE_OF_ITEM` (the item picker straight at one item's pages); the value cap raised to 16 MiB (`SeamLimits`) |
+| g-paper | 0.1.68: `RasterLayer.MARKER`, a third raster drawn over the other two, translucent, previewed live on the Supernote; 0.1.69: `MarkerTrim`, the marker's ends kept flat |
 | `:soil` | New sketchbook on the library's top bar; `NewNotebookActivity` with a kind and its "Creating…" cover; the item picker taking several kinds and one item's pages; the index's cover from any kind; SQLCipher's cursor window sized above the seam's cap; the Scratch Pad's menu icon |
 | Notesprout | Convert page / notebook to sketchbook on the page sheet; the picker's "Notebook or sketchbook page" shelf; a page of another kind handed to Soil with its page; the next-page arrow inserting past the last page (the pad's too) |
 
@@ -38,7 +40,7 @@ page, template and order SQL port by table name and the renderer's relabel is tw
 | `sketchbook` root | — | `text` the title, `refId` the page last open |
 | `template` | root | token, width and height, `blob` the picture (`templates.md`'s reuse-by-bytes rule) |
 | `page` | root | `"order"`, `refId` its template, width and height |
-| `sketch_graphite`, `sketch_ink` | page | `"order"` −1, `blob` a page-sized lossless RGBA WebP; one live row each, minted on the first save and rewritten in place; an empty layer is a soft-deleted row |
+| `sketch_graphite`, `sketch_ink`, `sketch_marker` | page | `"order"` −1, `blob` a page-sized lossless RGBA WebP; one live row each, minted on the first save and rewritten in place; an empty layer is a soft-deleted row. The marker's row came with the marker (2026-10-08), no schema step: a build before it never asks for the row, copies it in a page clip, purges it by parent, and drops it only from its own export and cover |
 | `guide_grid` | page | `text` JSON: lines or dots, the count, shown or hidden |
 | `guide_image` | page | `blob` a lossy WebP fit to the page, `text` JSON: the opacity, shown or hidden |
 
@@ -50,8 +52,8 @@ close takes every soft-deleted row but a template.
 ## The screen
 
 `PaperScreenActivity`'s skeleton — the chrome band, the collapsed corner chrome, the exclusion
-rects, the EPD hand-off — over g-paper in **RASTER** mode: the engine holds the two rasters and
-composites the pen into them; the screen owns no stroke document. The paper is a g-paper
+rects, the EPD hand-off — over g-paper in **RASTER** mode: the engine holds the three rasters
+and composites the pen into them; the screen owns no stroke document. The paper is a g-paper
 **sheet**, never a template: on the Supernote's direct path the template is not read on a raster
 page, so the paper, the reference image and the grid are composed into one sheet bitmap
 (`GuideSheet`) and set together. A page turn reads and decodes everything on IO first, then
@@ -59,11 +61,24 @@ clears, sizes, sets the sheet and loads both rasters back to back on Main: one c
 and one panel present (a suspension between them is two). The pager's next arrow past the last
 page inserts one, like the swipe.
 
-The top bar: Back, Pencil, Pen, Eraser, Smudge, Guides. A re-tap on the armed pencil or pen
-hangs the palette, Atelier's sixteen tones in four rows, white first; the pencil is 1 px, the
-gel pen 5 px, the pencil's default `#505050` and the pen's black; the eraser rubs at 12 px; the
-smudge tool is 24 px, and a single finger rubs too (`SmudgeRub`). The device remembers the pen
-kind and both shades, never the eraser or the smudge. The bottom bar is the pager alone. Undo
+The top bar: Back, Pencil, Pen, Marker, Eraser, Smudge, Guides. The three pens are one
+`Tool.PEN` to the engine, told apart by what it is armed with (`SketchToolState`: the kind, and
+each kind's shade and size). A re-tap on the armed pen of any kind hangs the palette: Atelier's
+sixteen tones in four rows, white first, and under them the kind's **sizes**, four to a row,
+each cell a sample of the stroke at its real width on the page (the marker's at its
+translucency, the two widest badged "2x" and "4x" since their samples fill the cell alike). The
+ladders are fixed (Greg, 2026-10-08), a millimetre being a millimetre on the page at its 300 ppi
+(`SketchPalette.PPI`, the Nomad's and the Manta's pitch alike), stored as an index so a size can
+be retuned without stranding a choice: the pencil 1, 2, 4 px and a 5 mm shading lead (default
+1 px, the hand's hairline); the gel pen 0.1, 0.38, 0.5, 0.7, 1.0 mm (default 0.5 mm, 5.9 px, a
+hair over the 5 px that stood before); the marker 1, 3, 5, 10, 20 mm (default 3 mm). The
+pencil's default shade is `#505050`, the pen's and the marker's black. The **marker** is
+translucent, the renderer's 45 %, laid on its own raster over graphite and ink so both show
+through it; two strokes are darker where they cross; the rubber and the smudge never touch it
+and it comes off by undo alone; its ends stay flat, the samples within half its width of either
+end trimmed so a wobble at the lift is never a notch. The eraser rubs at 12 px; the smudge tool
+is 24 px, and a single finger rubs too (`SmudgeRub`). The device remembers the pen kind and
+each kind's shade and size, never the eraser or the smudge. The bottom bar is the pager alone. Undo
 and redo are the gestures, no arrows: a raster edit is the tiles it touched, 64 px squares in
 both directions (`RasterTiles`, `RasterEditBuilder`), swapped back through the engine; a page
 insert, delete, paste or template change is a structural entry of no cost; the stack's budget is
@@ -104,7 +119,8 @@ under the cover.
 `export.RenderService` answers `ACTION_RENDER` for the kind `sketchbook` in the notebook's
 shape: the item opened through the seam for the call and closed untidied, `pages()` naming the
 ids and numbers, `render()` flattening each page as the cover is — white, the paper under the
-export screen's paper toggle, graphite, then ink, in true greys, never the guides — one page in
+export screen's paper toggle, graphite, ink, then the marker on top, in true greys, never the
+guides — one page in
 memory at a time into Soil's page bundle; `relabelStatements` for an import under a new id;
 pages only. Export page… and Export sketchbook… go through `ACTION_EXPORT` with the page id and
 `RETURN_TO_APP` after the exit's flush, and Soil opens the sketchbook again on the way back.
@@ -149,7 +165,7 @@ now (Greg, 2026-10-07): the two shapes considered are in `BACKLOG.md`.
 
 ## Walked on the Nomad
 
-Phases 1 to 10, 2026-10-07 and 2026-10-08.
+Phases 1 to 10, 2026-10-07 and 2026-10-08; the marker and the sizes (M1 to M3), 2026-10-08.
 
 ## Decisions (Greg, 2026-10-06 to 2026-10-08)
 
@@ -169,11 +185,18 @@ Phases 1 to 10, 2026-10-07 and 2026-10-08.
 - Undo and redo by gesture only, no arrows.
 - The New screen names the kind it makes, and making a file shows "Creating…".
 - The seam's value cap is 16 MiB.
+- **A marker** (2026-10-08): translucent, on its own raster over pencil and pen, both showing
+  through; crossings build up darker; removed by undo only; all sixteen shades, black the
+  default; its ends flat, the wobble at the lift trimmed.
+- **Fixed sizes**, chosen on each tool's palette: pencil 1, 2, 4 px and 5 mm; pen 0.1, 0.38,
+  0.5, 0.7, 1.0 mm; marker 1, 3, 5, 10 ("2x"), 20 mm ("4x"); four to a row.
 
 Proposed by the build and standing: `SketchbookSchema` as NotebookSchema's columns; the rasters
 as lossless RGBA WebP, one value each; paper and guides in one sheet; no seam or index change
 beyond the page-of-item extra and the cap; a 48 MiB undo budget; "Paste ink" as its own row;
-the effort by coverage; the over-cap message.
+the effort by coverage; the over-cap message; the marker's row without a schema step; 300 ppi as
+a constant of the page; a pen kind as an index on the bars; Tabler `highlight` for the marker;
+Paste ink and Convert baking into ink, never the marker.
 
 ## Traps
 
@@ -187,4 +210,8 @@ at effort 100 is a minute on a dense page. A broadcast receiver that bakes on Ma
 broadcast past its timeout and the app is killed: the debug doors post their work. A reloaded
 raster differs from the live one by at most one grey level (premultiplied alpha). Sketchsprout's
 own icon reopens the last sketchbook, which on a walk is the person's; reach a test sketchbook
-through the library.
+through the library. A butt-capped path with round joins ends however the hand's last samples
+wobble inside its width — a stub out of the join's disc is a notch — hence g-paper's
+`MarkerTrim`. A size added at the front of a ladder shifts every stored index one step; add at
+the end, or accept it once as the 0.1 mm pen did. A third page raster is +10.5 MB on the Nomad
+and +19.7 MB on the Manta, only once a marker lands.

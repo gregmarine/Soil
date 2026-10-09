@@ -80,3 +80,5 @@ backup. The conversion into Soil follows the same pattern.
   between them: decode first, then call the engine back to back.
 - **A broadcast receiver that works on Main past its timeout gets the app killed.** Post the
   work; the debug doors do.
+- **A butt-capped path with round joins ends however the hand wobbled at the lift.** Trim the
+  samples within half the width of the end before drawing (g-paper's `MarkerTrim`).

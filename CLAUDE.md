@@ -37,7 +37,8 @@ sketchbook as a Sprout app with items of its own, SN's pencil, gel pen, shades, 
 and guides over two rasters a page in one `.soil`, paper from the library under the raster,
 undo by tiles, export through Soil's screen, the clipboard (pages between sketchbooks, ink
 pasted in), Convert from a notebook, a sketch page as a link target, the seam's value cap at
-16 MiB, and these documents. `docs/design.md` §16 lists the phases.
+16 MiB, then a translucent marker on a third raster (g-paper 0.1.68 and 0.1.69) and fixed sizes
+for every pen on the palette, and these documents. `docs/design.md` §16 lists the phases.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged

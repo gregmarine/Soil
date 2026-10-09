@@ -562,6 +562,10 @@ The Sketchsprout effort, on the branch `sketchsprout`, eleven phases, each walke
 | 9 | Links: a sketch page as a target; the picker's shelf; "N links to here" | `links.md` |
 | 10 | The edges: the seam's cap at 16 MiB and SQLCipher's window, the effort by coverage, the over-cap message, backup pinned | `sketchsprout.md`, `seam.md`, `backup.md` |
 | 11 | These documents | |
+| M1 | g-paper 0.1.68 and 0.1.69: the marker's own raster, its live preview, its flat ends | `sketchsprout.md` |
+| M2 | The marker in the file, the flatten and on the bar; the three-kind tool model with shades and sizes | `sketchsprout.md` |
+| M3 | The sizes on the palette, four to a row, the wide markers badged | `sketchsprout.md` |
+| M4 | These documents | |
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
 
