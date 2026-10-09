@@ -51,9 +51,9 @@ data class CellRect(val left: Int, val top: Int, val width: Int, val height: Int
  * the first time a contact touches a cell that cell is read; every later batch that crosses it
  * reads nothing. Three things follow, and all three are the reason:
  *
- * - **An entry is bounded by the page.** The Nomad's page is 1404 × 1685 — about 9.5 MB whatever
- *   the hand does for however long — so one contact can never be the thing that overflows the
- *   48 MB history. (The Manta's 1860 × 2480 is ~18.4 MB, still one entry.)
+ * - **An entry is bounded by the page.** The Nomad's page is its screen, 1404 × 1872 — about
+ *   10.5 MB whatever the hand does for however long — so one contact can never be the thing that
+ *   overflows the 48 MB history. (The Manta's 1920 × 2560 is ~19.7 MB, still one entry.)
  * - **The tiles are disjoint**, so they can be swapped back in any order and the replayer has no
  *   read order to remember.
  * - **A small mark stays small.** A hairline stroke touches one to four cells — 16 to 64 KB — which
@@ -151,7 +151,7 @@ object RasterTiles {
 class RasterEditBuilder(
     private val pageKey: String,
     private val pageIndex: Int,
-    /** Which of the page's two rasters this contact is changing — read from, and swapped back into. */
+    /** Which of the page's three rasters this contact is changing — read from, and swapped back into. */
     val layer: RasterLayer,
     private val pageWidth: Int,
     private val pageHeight: Int,

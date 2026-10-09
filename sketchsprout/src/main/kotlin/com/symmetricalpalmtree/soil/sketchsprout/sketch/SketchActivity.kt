@@ -36,6 +36,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkPlacement
 import com.symmetricalpalmtree.soil.seamkit.clip.InkClip
 import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchClipboard
 import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
+import com.symmetricalpalmtree.soil.sketchsprout.ingest.InkIngest
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
@@ -71,6 +72,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.R
 import com.symmetricalpalmtree.soil.sketchsprout.SketchPrefs
 import com.symmetricalpalmtree.soil.sketchsprout.SketchsproutApp
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchPage
+import com.symmetricalpalmtree.soil.sketchsprout.data.SketchRow
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore
 import com.symmetricalpalmtree.soil.sketchsprout.databinding.ActivitySketchBinding
@@ -136,7 +138,7 @@ import java.io.File
  * - **The paper is the sheet.** A page's template row (the paper library's, reused by bytes as
  *   the notebook reuses them) is decoded and handed to g-paper as the **sheet** — never as the
  *   template, which the Supernote's direct raster path does not flatten onto the panel. The sheet
- *   is drawn over white and under both rasters on the window and the panel alike, and is never
+ *   is drawn over white and under the rasters on the window and the panel alike, and is never
  *   in the engine's own render, so the cover and the export compose the page themselves
  *   ([PageFlatten]). The guides (phase 5) join the paper in the same one sheet.
  * - **The smudge is a gesture on top of being a tool**: a one-finger rub under any tool goes
@@ -190,7 +192,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     private val smudge = SmudgeRub(
         hopPx = SMUDGE_HOP_PX,
         armWithinPx = SMUDGE_ARM_WITHIN_PX,
-        gate = { !paper.isPenActive && opened && !closing },
+        gate = { !paper.isPenActive && opened && !closing && turning == 0 },
         listener = object : SmudgeRub.Listener {
             override fun onArmed(points: List<StrokePoint>) {
                 Slog.d(TAG) { "smudge armed: ${points.size} samples so far" }
@@ -206,8 +208,14 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     )
     private val smudgeOrigin = IntArray(2)
 
-    /** Serialises every page / flush operation. */
+    /** Serialises every page / flush operation — the open and the close among them. */
     private val pageOps = Mutex()
+
+    /** Above zero while a page op is taking the page off the glass — from the flush that freezes
+     *  its pixels to the load that replaces them ([holdingThePage]). The pen and the smudge are
+     *  refused the whole time: a mark made in between would be neither in the copy nor on the
+     *  page that lands, and the load's clean mark would drop it unsaved. Main thread. */
+    private var turning = 0
 
     /** The open file in Soil, until the screen closes it. */
     private var session: ISeamItem? = null
@@ -454,7 +462,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             extraContains = { x, y -> floatingContains(x, y) },
             // The surface accepts no ink until the page is truly on it: a mark composited now would
             // be thrown away by the load that follows, with nowhere to have been recorded.
-            blockAll = { !opened },
+            // …and none while a page op is swapping the page under it (F3): see [turning].
+            blockAll = { !opened || turning > 0 },
         )
         gestures = PageGestures(
             host = paper.asView(),
@@ -472,7 +481,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         })
         pushExclusions()
 
-        lifecycleScope.launch { openSketchbook() }
+        // Under the page lock: a stop while the open is still running parks after it, never under it.
+        lifecycleScope.launch { pageOps.withLock { openSketchbook() } }
     }
 
     /** A second open while this one shows: the same sketchbook is nothing; another is a flush and
@@ -481,18 +491,26 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         super.onNewIntent(intent)
         val askedId = intent.getStringExtra(Seam.EXTRA_ITEM_ID)
         val newName = intent.getStringExtra(Seam.EXTRA_NEW_NAME)
-        if (newName.isNullOrBlank() && askedId != null && askedId == itemId) return
+        if (newName.isNullOrBlank() && askedId != null && askedId == itemId) {
+            // The same sketchbook, asked for at a page (a link, the library's page search): walk
+            // there. Before the open has landed, the open takes it.
+            val pageId = intent.getStringExtra(Seam.EXTRA_PAGE_ID) ?: return
+            if (!opened) { getIntent().putExtra(Seam.EXTRA_PAGE_ID, pageId); return }
+            runPageOp { if (currentPage?.id != pageId && !walkToPage(pageId)) Log.w(TAG, "the page asked for is not in this sketchbook") }
+            return
+        }
         setIntent(intent)
         if (closing) return
         closing = true
-        appScope.launch {
-            withContext(NonCancellable) {
-                pageOps.withLock { runCatching { saver.flushAndAwait() }.onFailure { Log.w(TAG, "flush failed: ${it.javaClass.simpleName}") } }
-            }
-            if (!isFinishing && !isDestroyed) {
-                paper.releaseForHandoff()
-                recreate()
-            }
+        dismissCollapsed()
+        hidePaletteBar()
+        guides?.hide()
+        saver.cancelTimers()
+        // The exit's own flush and its dialog: a sketchbook whose pixels did not land is asked
+        // about, never rebuilt over.
+        leaveWhenFlushed {
+            paper.releaseForHandoff()
+            recreate()
         }
     }
 
@@ -576,7 +594,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         // Opened via a link or the library's page search: land on the page named, once.
         val asked = intent.getStringExtra(Seam.EXTRA_PAGE_ID)?.also { intent.removeExtra(Seam.EXTRA_PAGE_ID) }
         val first = pages.firstOrNull { it.id == asked } ?: pages.firstOrNull { it.id == loadedBook.first.currentId } ?: pages.first()
-        loadPage(first, firstLoad = true)
+        if (!loadPage(first, firstLoad = true)) {
+            // Never opened blank over a picture that is there: the next mark would save over it.
+            if (!isFinishing && !isDestroyed && !closing) refuse(R.string.open_page_unreadable)
+            return
+        }
         if (isFinishing || isDestroyed || closing) return
         // Before `opened`, which is what the block-all rect waits on: the tools are in place before
         // the first mark is possible, so nothing is ever drawn with a pencil the person did not
@@ -591,76 +613,127 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     }
 
     /**
-     * Put [page] on the paper — **both of its rasters**: read each one's WebP from the store,
+     * Put [page] on the paper — **every one of its rasters**: read each one's WebP from the store,
      * decode it, and load it onto that layer (`clearForContentSwap` → `setPageSize` → the content
-     * calls, one EPD refresh, no blank flash).
+     * calls, one EPD refresh, no blank flash). Answers whether the page landed.
      *
-     * **Both layers are always loaded, null for an absent one**, so the screen never has to
-     * reason about which rasters the *previous* page had. **Both decoded first, then both loaded
-     * back-to-back**: the engine rebuilds its dithered display at every load, so two loads with a
+     * **Every layer is always loaded, null for an absent one**, so the screen never has to reason
+     * about which rasters the *previous* page had. **All decoded first, then all loaded
+     * back-to-back**: the engine rebuilds its dithered display at every load, so loads with a
      * decode between them showed the pencil first and the ink a moment later; together they fold
      * into one rebuild. The header guard runs before each decode ([RasterImage.decode]).
      *
-     * **A page with a save still in the air waits for it first** ([SketchSaver.awaitPushes]): a
-     * turn straight back to a page drawn on seconds ago would otherwise read the row as it was
-     * before the last strokes.
+     * **A raster that is there and cannot be read refuses the page** (false, nothing on the glass
+     * touched): opened blank, the next mark would save the blank over the drawing. Only *no row*
+     * is a blank layer.
+     *
+     * **The page's own writes are settled first** ([SketchSaver.settlePage]): a save still in the
+     * air is awaited and bytes a write refused are offered again, so a turn straight back to a page
+     * drawn on seconds ago never reads the row as it was before the last strokes. What still could
+     * not land is loaded from those bytes instead of the row, and those rasters are dirty.
      */
-    private suspend fun loadPage(page: SketchPage, firstLoad: Boolean) {
+    private suspend fun loadPage(page: SketchPage, firstLoad: Boolean): Boolean {
         // A contact that never got its pen-up leaves a half-gathered entry tagged with the page
-        // being left; carried across the turn it would go on collecting the next page's cells
-        // under the old page's key. The honest loss.
-        openEdit = null
-        if (saver.isPushPending(page.id)) {
-            val t0 = SystemClock.elapsedRealtime()
-            saver.awaitPushes(page.id)
-            Slog.d(TAG) { "waited ${SystemClock.elapsedRealtime() - t0} ms for this page's own save before loading it" }
-        }
+        // being left: it is closed into the history now, on its own page, rather than carried
+        // across the turn collecting the next page's cells — or dropped, which lost the smudge's
+        // entry held open for its chatter window.
+        closeOpenEdit()
+        val t0 = SystemClock.elapsedRealtime()
+        val held = saver.settlePage(page.id)
+        val settledMs = SystemClock.elapsedRealtime() - t0
+        if (settledMs > 0 || held.isNotEmpty()) Slog.d(TAG) { "settled this page's own saves in $settledMs ms before loading it${if (held.isEmpty()) "" else " (${held.size} raster(s) from held bytes)"}" }
         dismissCollapsed()   // a floating row never survives a content swap
         hidePaletteBar()     // nor a panel hung under one
         guides?.hide()       // nor the guides panel — it is this page's
         val width = page.width.toInt(); val height = page.height.toInt()
-        val s = store ?: return
-        // **Everything is read and decoded before the paper is touched**: the page's paper
-        // and both rasters, side by side on IO — two reads over the seam and two WebP decodes,
-        // each hundreds of milliseconds on a drawn page. The outgoing page stays on the glass
-        // the whole time, and what follows is one synchronous run of engine calls.
-        val t0 = SystemClock.elapsedRealtime()
-        val paperBitmap = paperFor(page)
-        // The sheet: the paper, the page's reference image and its grid, one bitmap.
-        val sheet = guides?.load(page, paperBitmap) ?: paperBitmap
-        val decoded = withContext(Dispatchers.IO) {
+        val s = store ?: run { saver.hold(page.id, held); return false }
+        // **Everything is read and decoded before the paper is touched**: the rasters side by
+        // side on IO — reads over the seam and WebP decodes, each hundreds of milliseconds on a
+        // drawn page — then the paper and the guides. The outgoing page stays on the glass the
+        // whole time, and what follows is one synchronous run of engine calls.
+        val t1 = SystemClock.elapsedRealtime()
+        val results = withContext(Dispatchers.IO) {
             RasterRows.LAYERS.map { layer ->
                 async {
-                    val bytes = runCatching { s.readRaster(page.id, layer) }
-                        .onFailure { Log.w(TAG, "the page's ${RasterRows.name(layer)} raster could not be read: ${it.javaClass.simpleName}") }
-                        .getOrNull()
-                    layer to RasterImage.decode(bytes, width, height)
+                    layer to runCatching { RasterImage.decode(held[layer] ?: s.readRaster(page.id, layer), width, height) }
                 }
             }.awaitAll()
         }
-        val decodedMs = SystemClock.elapsedRealtime() - t0
-        if (isFinishing || isDestroyed) { decoded.forEach { it.second?.recycle() }; return }
+        val failed = results.firstOrNull { it.second.isFailure }
+        if (failed != null) {
+            results.forEach { it.second.getOrNull()?.recycle() }
+            saver.hold(page.id, held)
+            Log.w(TAG, "the page's ${RasterRows.name(failed.first)} raster could not be read: ${failed.second.exceptionOrNull()?.javaClass?.simpleName}; the page was not opened")
+            return false
+        }
+        val decoded = results.map { it.first to it.second.getOrNull() }
+        val paperBitmap = paperFor(page)
+        // The sheet: the paper, the page's reference image and its grid, one bitmap.
+        val sheet = guides?.load(page, paperBitmap) ?: paperBitmap
+        val decodedMs = SystemClock.elapsedRealtime() - t1
+        if (isFinishing || isDestroyed) { decoded.forEach { it.second?.recycle() }; saver.hold(page.id, held); return false }
         // Now the swap, in one breath with no suspension inside it: the clear, the size, the
-        // sheet and both rasters announce the whole page, and the engine's coalescer folds every
+        // sheet and the rasters announce the whole page, and the engine's coalescer folds every
         // announcement made before the next loop into ONE rebuild and one present (a yield in
         // here, such as a decode, let the sheet present alone and the drawing a frame later).
-        val t1 = SystemClock.elapsedRealtime()
+        val t2 = SystemClock.elapsedRealtime()
         if (!firstLoad) paper.clearForContentSwap()
         paper.setPageSize(width, height)
         // The paper is the SHEET: the direct raster path never flattens a template. Set only
-        // when it changes — the engine holds it by reference across loads.
+        // when it changes — the engine holds it by reference across loads, so the sheet it held
+        // is let go only now that it holds the new one.
         if (sheet !== currentSheet) { paper.setSheet(sheet); currentSheet = sheet }
+        guides?.sheetSet()
         for ((layer, bitmap) in decoded) {
             // Silent: a page we loaded ourselves is our own news, so no will-change/changed pair
             // arrives and nothing here has to swallow one.
             paper.loadPageRaster(layer, bitmap)
             bitmap?.recycle()
         }
-        Slog.d(TAG) { "page load: read+decode $decodedMs ms, swap ${SystemClock.elapsedRealtime() - t1} ms" }
+        Slog.d(TAG) { "page load: read+decode $decodedMs ms, swap ${SystemClock.elapsedRealtime() - t2} ms" }
         currentPage = page
         saver.pageKey = page.id
         saver.markClean()
+        // Loaded from bytes the file does not have yet: the glass is their copy now.
+        if (held.isNotEmpty()) {
+            for (layer in held.keys) saver.markDirty(layer)
+            saver.schedule()
+        }
         toolbar.setPage(pages.indexOf(page) + 1, pages.size)
+        return true
+    }
+
+    /**
+     * Land on [page] after the page list has moved — an insert, a delete, a paste, a replay, a
+     * walk. A page that will not load is a dialog; if the page still on the glass is no longer in
+     * the sketchbook, there is nothing left to draw on safely, and the screen leaves.
+     */
+    private suspend fun landOn(page: SketchPage): Boolean {
+        if (loadPage(page, firstLoad = false)) return true
+        if (isFinishing || isDestroyed || closing) return false
+        val here = currentPage
+        if (here != null && pages.any { it.id == here.id }) {
+            toolbar.setPage(pages.indexOf(here) + 1, pages.size)
+            showProblem(R.string.page_failed_title, R.string.page_unreadable_body)
+        } else {
+            refuse(R.string.page_unreadable_leave)
+        }
+        return false
+    }
+
+    /**
+     * Run [block] with the page held off the glass ([turning]): the pen and the smudge are refused
+     * from before the flush that freezes this page to after the load that replaces it. Nests.
+     */
+    private suspend fun <T> holdingThePage(block: suspend () -> T): T {
+        turning++
+        if (turning == 1) pushExclusions()
+        try {
+            return block()
+        } finally {
+            turning--
+            if (turning == 0) pushExclusions()
+        }
     }
 
     // ── Paper ────────────────────────────────────────────────────────────────
@@ -795,11 +868,17 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             Slog.d(TAG) { "page turn refused at the edge (page ${i + 1}/${pages.size})" }
             return
         }
-        if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the turn; the raster stays dirty")
-        val to = pages[target]
-        loadPage(to, firstLoad = false)
-        rememberLastOpened(to)
-        Slog.d(TAG) { "turned to page ${target + 1}/${pages.size}" }
+        holdingThePage {
+            if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the turn; the raster stays dirty")
+            val to = pages[target]
+            if (!loadPage(to, firstLoad = false)) {
+                // The turn is refused: this page stays on the glass, as it was.
+                showProblem(R.string.page_failed_title, R.string.page_unreadable_body)
+                return@holdingThePage
+            }
+            rememberLastOpened(to)
+            Slog.d(TAG) { "turned to page ${target + 1}/${pages.size}" }
+        }
     }
 
     private suspend fun rememberLastOpened(page: SketchPage) {
@@ -816,9 +895,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     /** A blank page on the side [after] names, landed on. **This page's pixels go first**, awaited:
      *  the row is about to be read beside it. Recorded as one structural entry. */
-    private suspend fun insertPageNow(after: Boolean) {
-        val here = currentPage ?: return
-        val s = store ?: return
+    private suspend fun insertPageNow(after: Boolean) = holdingThePage {
+        val here = currentPage ?: return@holdingThePage
+        val s = store ?: return@holdingThePage
         if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the insert; its pixels stay parked")
         val before = pages
         val (next, page) = try {
@@ -826,7 +905,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         } catch (e: Exception) {
             Log.w(TAG, "the page could not be inserted: ${e.javaClass.simpleName}")
             showProblem(R.string.page_failed_title, R.string.page_failed_body)
-            return
+            return@holdingThePage
         }
         pages = next
         val at = next.indexOf(page)
@@ -834,7 +913,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         // Recorded AFTER the re-index, so the entry is never shifted by its own insert — and
         // through `record`, which clears the redo side: a new edit forks the history here.
         undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.INSERTED, page.id, at, before, next, emptyList(), here.id, page.id))
-        loadPage(page, firstLoad = false)
+        landOn(page)
         tellPages()
         Slog.d(TAG) { "inserted page ${at + 1}/${next.size}" }
     }
@@ -844,9 +923,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      * first**: what the undo brings back is whatever was last saved, so a mark made just before
      * the long-press must be in the row. The only page is replaced by a fresh blank one.
      */
-    private suspend fun deletePageNow() {
-        val here = currentPage ?: return
-        val s = store ?: return
+    private suspend fun deletePageNow() = holdingThePage {
+        val here = currentPage ?: return@holdingThePage
+        val s = store ?: return@holdingThePage
         if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the delete; its pixels stay parked")
         saver.cancelTimers()
         saver.markClean()
@@ -857,7 +936,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         } catch (e: Exception) {
             Log.w(TAG, "the page could not be deleted: ${e.javaClass.simpleName}")
             showProblem(R.string.page_failed_title, R.string.page_failed_body)
-            return
+            return@holdingThePage
         }
         pages = next
         // Pixel entries for the page that went are dropped by KEY (the only thing that certainly
@@ -867,7 +946,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             else edit.withIndex(PageTurn.reindexAfterDelete(edit.pageIndex, at))
         }
         undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.DELETED, here.id, at, before, next, taken, here.id, landing.id))
-        loadPage(landing, firstLoad = false)
+        landOn(landing)
         tellPages()
         Slog.d(TAG) { "deleted a page; now page ${next.indexOf(landing) + 1}/${next.size}" }
     }
@@ -1001,6 +1080,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
             return
         }
+        holdingThePage { pastePageHeld(here, s, rows, before) }
+    }
+
+    private suspend fun pastePageHeld(here: SketchPage, s: SketchbookStore, rows: List<SketchRow>, before: Boolean) {
         if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the paste; its pixels stay parked")
         val before0 = pages
         val (next, page) = try {
@@ -1016,7 +1099,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         val at = next.indexOf(page)
         undo.remap { it.withIndex(PageTurn.reindexAfterInsert(it.pageIndex, at)) }
         undo.record(SketchEdit.PagesChanged(SketchEdit.PagesChanged.Kind.INSERTED, page.id, at, before0, next, emptyList(), here.id, page.id))
-        loadPage(page, firstLoad = false)
+        landOn(page)
         tellPages()
         val anchor = PageMath.anchorNumberAfterPaste(before0.indexOf(here), before, 1)
         toast(getString(if (before) R.string.pasted_before_toast else R.string.pasted_after_toast, anchor))
@@ -1024,15 +1107,15 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     }
 
     /**
-     * Paste ink: the notebook slot's strokes — a lasso's, the pad's, a copied page's — laid
-     * **centred** on this page and baked **black into the ink layer** (Greg, 2026-10-07), one undo
+     * Paste ink: the notebook slot's strokes — a lasso's, the pad's, a copied page's (of a copy
+     * of several pages, the first, as the pad and the calendar take it) — laid **centred** on this page and baked **black into the ink layer** (Greg, 2026-10-07), one undo
      * entry, as a bake: the builder opens on the layer the engine names and the door closes it.
      */
     private suspend fun doPasteInk() {
         val page = currentPage ?: return
         val env = runCatching { withContext(Dispatchers.IO) { SketchClipboard.readInk((application as SketchsproutApp).soil.seam()) } }.getOrNull()
         if (env == null) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_ink_failed); return }
-        val black = InkClip.strokesOf(env).map { it.copy(color = 0xFF000000.toInt(), style = StrokeStyle.PEN) }
+        val black = InkIngest.strokesToPaste(env).map { it.copy(color = 0xFF000000.toInt(), style = StrokeStyle.PEN) }
         val placed = InkPlacement.centred(black, page.width, page.height) { java.util.UUID.randomUUID().toString() }
         if (placed.isEmpty()) { Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_ink_empty); return }
         paper.awaitPenIdle()
@@ -1137,7 +1220,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     /** Take back — or put back — one page insert or delete: one reconcile of the file to the list
      *  on the other side, landing where that side landed. This page's pixels go first, awaited. */
-    private suspend fun applyPages(edit: SketchEdit.PagesChanged, generation: Int, undoing: Boolean): Boolean {
+    private suspend fun applyPages(edit: SketchEdit.PagesChanged, generation: Int, undoing: Boolean): Boolean = holdingThePage {
+        applyPagesHeld(edit, generation, undoing)
+    }
+
+    private suspend fun applyPagesHeld(edit: SketchEdit.PagesChanged, generation: Int, undoing: Boolean): Boolean {
         if (currentPage == null) return false
         val s = store ?: return false
         if (!saver.flushAndAwait()) Log.w(TAG, "the page could not be saved before the page replay; its pixels stay parked")
@@ -1167,7 +1254,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (back) undo.remap { it.withIndex(PageTurn.reindexAfterInsert(it.pageIndex, at)) }
         else undo.remap { it.withIndex(PageTurn.reindexAfterDelete(it.pageIndex, at)) }
         val to = target.firstOrNull { it.id == landing } ?: target.first()
-        loadPage(to, firstLoad = false)
+        landOn(to)
         tellPages()
         Slog.d(TAG) { "${if (undoing) "undo" else "redo"} of a page ${edit.kind.name.lowercase()}: now page ${target.indexOf(to) + 1}/${target.size}" }
         return true
@@ -1211,10 +1298,12 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     private suspend fun walkToPage(pageKey: String): Boolean {
         val target = pages.firstOrNull { it.id == pageKey } ?: return false
-        if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the replay's turn; the raster stays dirty")
-        loadPage(target, firstLoad = false)
-        rememberLastOpened(target)
-        return true
+        return holdingThePage {
+            if (!saver.flushForTurn()) Log.w(TAG, "the page's pixels could not be copied before the walk's turn; the raster stays dirty")
+            if (!landOn(target)) return@holdingThePage false
+            rememberLastOpened(target)
+            true
+        }
     }
 
     private val closeOpenEditRunnable = Runnable { closeOpenEdit() }
@@ -1357,7 +1446,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         override fun onStrokeCommitted(stroke: Stroke) = Unit
 
         /**
-         * One of the page's two rasters is **about to** change — the one moment the pixels that
+         * One of the page's rasters is **about to** change — the one moment the pixels that
          * are there can still be read, and so the one moment an undo entry can be made of them.
          * The layered form is the one the engine calls; the rect is fed to the open contact's
          * builder, which reads each 64 px cell once. One contact is one raster; a second layer
@@ -1447,7 +1536,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      *
      * `am broadcast -a <pkg>.SKETCH_FILL` composites a fixed diagonal lattice of strokes with the
      * armed tool, as a bake does; `am broadcast -a <pkg>.SKETCH_DUMP` writes the page as the export
-     * will see it — `renderToBitmap`, both rasters flattened in true grey over white, never the
+     * will see it — `renderToBitmap`, the rasters flattened in true grey over white, never the
      * panel's dither — to `files/dump/page.png` in this app's external files dir, for `adb pull`.
      * Registered only in debug builds, only while resumed.
      */
@@ -1611,27 +1700,42 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     // ── Park and resume ──────
 
+    /** Resume whenever there is a session — under the page lock, so after an open still running
+     *  and after a park queued at the stop before; a resume of a session never parked is nothing. */
     override fun onStart() {
         super.onStart()
-        val open = session ?: return
-        runPageOp {
-            withContext(Dispatchers.IO) { open.resume() }
-            // Whatever a write refused while the session was parked is owed again now.
-            saver.retryParked()
+        lifecycleScope.launch {
+            pageOps.withLock {
+                val open = session ?: return@withLock
+                if (closing) return@withLock
+                try {
+                    withContext(Dispatchers.IO) { open.resume() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "resume failed: ${e.javaClass.simpleName}")
+                }
+                // Whatever a write refused while the session was parked is owed again now.
+                saver.retryParked()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
-        val open = session ?: return
         // The cover on every way out but a hand-off to Soil's picker over this screen, the close
         // included: a sketchbook put down shows the library what it last showed.
         if (!inAppHandoff) captureCover()
         if (closing || inAppHandoff) return
-        // The flush first, awaited — a parked session takes no write — then the park.
+        // The flush first, awaited — a parked session takes no write — then the park. Under the
+        // page lock, so an open still running finishes first and the session it made is the one
+        // parked; a screen that never opened parks nothing. A start after this queues its resume
+        // behind it.
         appScope.launch {
             withContext(NonCancellable) {
                 pageOps.withLock {
+                    val open = session ?: return@withLock
+                    if (!opened || closing) return@withLock
                     runCatching { saver.flushAndAwait() }.onFailure { Log.w(TAG, "the flush before the park failed: ${it.javaClass.simpleName}") }
                     withContext(Dispatchers.IO) { runCatching { open.park() }.onFailure { Log.w(TAG, "park failed: ${it.javaClass.simpleName}") } }
                 }
@@ -1640,7 +1744,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     }
 
     /**
-     * The library card's cover: the showing page as the engine has it — white, both rasters in
+     * The library card's cover: the showing page as the engine has it — white, the rasters in
      * true grey — rendered here on Main, encoded and sent off it. Never while the pen is down, and
      * never worth failing a park for.
      */
@@ -1691,11 +1795,13 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         leaveWhenFlushed()
     }
 
-    private fun leaveWhenFlushed() {
+    /** The leave flush, awaited, then [then] — the finish, or a rebuild for another sketchbook —
+     *  or the dialog that asks first when the pixels did not land. */
+    private fun leaveWhenFlushed(then: () -> Unit = ::leaveNow) {
         appScope.launch {
             val ok = withContext(NonCancellable) { pageOps.withLock { saver.flushForExit() } }
             if (isFinishing || isDestroyed) return@launch
-            if (ok) leaveNow() else askAboutUnsaved()
+            if (ok) then() else askAboutUnsaved(then)
         }
     }
 
@@ -1706,25 +1812,38 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         finishWithHandoff()
     }
 
-    private fun askAboutUnsaved() {
+    private fun askAboutUnsaved(then: () -> Unit) {
         Dialogs.style(
             AlertDialog.Builder(this)
                 .setTitle(R.string.sketch_not_saved_title)
                 .setMessage(R.string.sketch_not_saved_body)
-                .setPositiveButton(R.string.sketch_try_again) { _, _ -> leaveWhenFlushed() }
-                .setNegativeButton(R.string.sketch_leave_anyway) { _, _ -> leaveNow() }
+                .setPositiveButton(R.string.sketch_try_again) { _, _ -> leaveWhenFlushed(then) }
+                .setNegativeButton(R.string.sketch_leave_anyway) { _, _ -> then() }
                 .setCancelable(false)
                 .create(),
         ).show()
     }
 
+    /**
+     * The close, **under the page lock and after the saver has drained**: a flush still running
+     * (the stop's, the exit's) and every write in the air land before the store goes, rather than
+     * finding it gone and parking bytes no one will retry. An open still running finishes first,
+     * so a session it made is closed too.
+     */
     override fun onScreenDestroyed() {
-        if (::saver.isInitialized) saver.cancelTimers()
-        val open = session ?: return
-        session = null
-        store = null
-        appScope.launch(Dispatchers.IO + NonCancellable) {
-            runCatching { open.close(true) }.onFailure { Log.w(TAG, "close failed: ${it.javaClass.simpleName}") }
+        if (!::saver.isInitialized) return
+        saver.cancelTimers()
+        val drainer = saver
+        appScope.launch {
+            withContext(NonCancellable) {
+                pageOps.withLock {
+                    runCatching { drainer.drain() }.onFailure { Log.w(TAG, "the saves before the close did not settle: ${it.javaClass.simpleName}") }
+                    val open = session ?: return@withLock
+                    session = null
+                    store = null
+                    withContext(Dispatchers.IO) { runCatching { open.close(true) }.onFailure { Log.w(TAG, "close failed: ${it.javaClass.simpleName}") } }
+                }
+            }
         }
     }
 

@@ -11,7 +11,7 @@ package com.symmetricalpalmtree.soil.sketchsprout.raster
  * why the screen checks [matches] before it hands stored bytes to a decoder, and the store
  * never has to.
  *
- * **Why WebP:** a sketch is two rasters — graphite and ink — each stored as a page-sized
+ * **Why WebP:** a sketch is three rasters — graphite, ink and marker — each stored as a page-sized
  * **lossless WebP with alpha** (RGBA, colour-ready for the platforms where the pen will have a
  * colour). A PNG is simply not a WebP and fails this guard; there is no legacy to sniff for.
  *

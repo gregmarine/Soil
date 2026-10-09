@@ -83,6 +83,9 @@
     <string name="delete_confirm">Delete</string>
     <string name="page_failed_title">Page</string>
     <string name="page_failed_body">The page could not be changed. The sketchbook is as it was.</string>
+    <!-- A page whose drawing is stored and will not read: refused, never opened blank. -->
+    <string name="page_unreadable_body">That page\'s drawing could not be read, so it was not opened. Nothing on it has been changed.</string>
+    <string name="page_unreadable_leave">A page\'s drawing could not be read, so the sketchbook was closed rather than show it blank. Nothing on it has been changed.</string>
 
     <!-- Opening: never a path, never a name. -->
     <string name="open_failed_title">Can\'t open sketchbook</string>
@@ -91,6 +94,7 @@
     <string name="open_missing">This sketchbook is no longer in the library.</string>
     <string name="open_newer">This sketchbook was written by a later Sketchsprout. It has not been changed.</string>
     <string name="open_failed">The sketchbook could not be opened. It has not been changed.</string>
+    <string name="open_page_unreadable">A page\'s drawing could not be read, so the sketchbook was not opened. It has not been changed.</string>
 
     <!-- Leaving with pixels that could not be written: a drawing with no other copy is a dialog,
          never a log line. -->

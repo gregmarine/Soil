@@ -48,6 +48,19 @@ object InkIngest {
         return out.takeIf { it.isNotEmpty() }
     }
 
+    /**
+     * The strokes a **Paste ink** lays on a sketch page: a lasso's or the pad's, all of them; of a
+     * copied page payload, **the first page's alone**, as the pad and the calendar take a page
+     * paste — every page's ink laid over one page would be a picture nobody drew.
+     */
+    fun strokesToPaste(env: ClipEnvelope): List<Stroke> {
+        val all = InkClip.strokesOf(env)
+        if (env.kind != ClipEnvelope.KIND_PAGE) return all
+        val firstPage = env.rows.firstOrNull { it.type == TYPE_PAGE }?.id ?: return all
+        val onFirst = env.rows.filter { it.parentId == firstPage }.mapTo(HashSet()) { it.id }
+        return all.filter { it.id in onFirst }
+    }
+
     const val BLACK: Int = 0xFF000000.toInt()
     private const val TYPE_PAGE = "page"
     private const val TYPE_TEMPLATE = "template"

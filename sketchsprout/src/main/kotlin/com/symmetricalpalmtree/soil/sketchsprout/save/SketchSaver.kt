@@ -26,7 +26,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * stream: Soil's seam carries a raster whole): timers, threads and the write. Every *decision* is
  * [SketchSaveGovernor]'s; this class owns only the parts that need Android.
  *
- * **A page is two rasters and they are saved apart**, one governor each, walked graphite first
+ * **A page is three rasters and they are saved apart**, one governor each, walked graphite first
  * ([RasterRows.LAYERS]): a pencil scribble never re-encodes the ink raster.
  *
  * - **The copy is taken on Main, at the moment of the trigger.** `getPageRaster(layer)` is a
@@ -37,8 +37,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   drawing take seconds. The copy freezes the pixels; the encode and the write go on in the
  *   background while the next page loads. The leave flushes ([flushForExit], [flushAndAwait])
  *   still await the write itself.
- * - **The encode and the write run on IO, one at a time** — *one* [Mutex] for both rasters, FIFO,
- *   so the two rasters of a page land one after the other and a save is always ordered behind
+ * - **The encode and the write run on IO, one at a time** — *one* [Mutex] for every raster, FIFO,
+ *   so the rasters of a page land one after the other and a save is always ordered behind
  *   the write before it.
  * - **The bookkeeping runs back on Main**, so each governor's flags are read and written from one
  *   thread only.
@@ -76,7 +76,7 @@ class SketchSaver(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** **One** lock for both rasters: a FIFO queue is what makes two rasters of a page land in
+    /** **One** lock for every raster: a FIFO queue is what makes the rasters of a page land in
      *  order, and a save land after the write before it. */
     private val writeLock = Mutex()
 
@@ -90,6 +90,11 @@ class SketchSaver(
     /** Bytes a write refused, by page and layer, held for the retry beat and for the exit: they
      *  have no other copy. One slot per page and layer; a later failure replaces an earlier one. */
     private val parked = HashMap<Pair<String, RasterLayer>, ByteArray>()
+
+    /** Pictures the store refused as over the cap, by page and layer: never retried (no retry can
+     *  land them), but kept so a turn back to that page shows them rather than the older row, and
+     *  counted as owed at the exit. Cleared by a landing of that slot. Under [parkLock]. */
+    private val overCap = HashMap<Pair<String, RasterLayer>, ByteArray>()
     private val parkLock = Any()
 
     /** The page every save goes to, set at each load. Null before the first one — and a save with
@@ -113,18 +118,18 @@ class SketchSaver(
     /** A save past its deadline waiting for the next pen lift — completed by [notePenLifted]. */
     private var penLift: CompletableDeferred<Unit>? = null
 
-    /** Whether **either** raster on the glass holds something the file has not been given. */
+    /** Whether **any** raster on the glass holds something the file has not been given. */
     val isDirty: Boolean get() = governors.values.any { it.dirty }
 
     /** Whether anything sits parked — a write that failed and has not yet been retried. */
-    val hasParked: Boolean get() = synchronized(parkLock) { parked.isNotEmpty() }
+    val hasParked: Boolean get() = synchronized(parkLock) { parked.isNotEmpty() || overCap.isNotEmpty() }
 
     // ── What the screen says ──────
 
     /** The engine reported a change to one of the page's rasters. */
     fun markDirty(layer: RasterLayer) = governor(layer).markDirty()
 
-    /** A page was just loaded: what is on the glass is what is on disk — **both** rasters. */
+    /** A page was just loaded: what is on the glass is what is on disk — **every** raster. */
     fun markClean() {
         for (g in governors.values) g.markClean()
         dirtySince = 0L
@@ -210,16 +215,23 @@ class SketchSaver(
      * the flag goes straight back, so the leave flush's own `flushRequest` still finds it.
      */
     private fun finishWrite(key: String, layer: RasterLayer, error: Throwable?) {
+        // A page the screen has turned away from: its failure is that page's, held under its key
+        // (parked, or over the cap and kept for its next load), and never the glass's — the
+        // governor is about the page showing now, which this write never touched.
+        val elsewhere = key != pageKey
         if (error != null) {
-            governor(layer).onFailed()
             if (isTooLarge(error)) {
                 if (tooLargeTold.add(key to layer)) onTooLarge(layer)
             } else {
                 armRetry()
             }
-            return
+            if (!elsewhere) {
+                governor(layer).onFailed()
+                return
+            }
+        } else {
+            tooLargeTold.remove(key to layer)
         }
-        tooLargeTold.remove(key to layer)
         if (governor(layer).onSaved() !is SketchSaveGovernor.SaveAction.Save) return
         // A mark arrived during the write. It goes through the debounce and the deadline like any
         // other rather than chaining at the encoder's own rate (SN: fifteen encodes in one minute).
@@ -303,6 +315,47 @@ class SketchSaver(
     /** Whether the page [key] names still has a write in the air. */
     fun isPushPending(key: String): Boolean = pushes.isPending(key)
 
+    /**
+     * **Before a page is read back**: its writes in the air awaited, then whatever is held for it —
+     * bytes a write refused (parked), or a picture over the cap kept from a turn — offered again
+     * and awaited. Answers, and **takes out of the saver**, what still could not land, by layer:
+     * the screen loads those bytes instead of the stale row and marks those rasters dirty, so the
+     * glass is their copy from then on. [hold] puts them back when the load does not happen.
+     * **Main thread.**
+     */
+    suspend fun settlePage(key: String): Map<RasterLayer, ByteArray> {
+        pushes.await(key)
+        val owed = synchronized(parkLock) {
+            val mine = parked.entries.filter { it.key.first == key }.map { it.key to it.value }
+            mine.forEach { parked.remove(it.first) }
+            mine
+        }
+        for ((slot, bytes) in owed) withContext(NonCancellable) { writeBytes(key, slot.second, bytes) }
+        return synchronized(parkLock) {
+            val left = HashMap<RasterLayer, ByteArray>()
+            for (layer in RasterRows.LAYERS) {
+                (parked.remove(key to layer) ?: overCap.remove(key to layer))?.let { left[layer] = it }
+                overCap.remove(key to layer)
+            }
+            left
+        }
+    }
+
+    /** Put back what [settlePage] handed out for a page whose load did not happen. */
+    fun hold(key: String, held: Map<RasterLayer, ByteArray>) {
+        synchronized(parkLock) { for ((layer, bytes) in held) parked.putIfAbsent(key to layer, bytes) }
+    }
+
+    /**
+     * **Before the session closes**: no new save may start, and every write already in the air is
+     * awaited, landed or parked. Copies nothing — the surface may already be gone.
+     */
+    suspend fun drain() {
+        leaving = true
+        withContext(Dispatchers.Main + NonCancellable) { cancelTimers() }
+        withContext(Dispatchers.Main) { pushes.awaitAll() }
+    }
+
     /** Re-offer **everything** parked, each under its own page and raster, in the background — a
      *  resume after a park, the retry beat. **Main thread.** A write that fails again re-parks. */
     fun retryParked() {
@@ -369,13 +422,14 @@ class SketchSaver(
     private suspend fun writeBytes(key: String, layer: RasterLayer, bytes: ByteArray): Throwable? = withContext(Dispatchers.IO) {
         try {
             writeLock.withLock { write(key, layer, bytes) }
-            synchronized(parkLock) { parked.remove(key to layer) }
+            synchronized(parkLock) { parked.remove(key to layer); overCap.remove(key to layer) }
             null
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
             if (isTooLarge(t)) {
-                Log.w(TAG, "sketch save refused on the ${RasterRows.name(layer)} raster: ${bytes.size} B is over the cap; not parked")
+                synchronized(parkLock) { overCap[key to layer] = bytes }
+                Log.w(TAG, "sketch save refused on the ${RasterRows.name(layer)} raster: ${bytes.size} B is over the cap; kept, not retried")
             } else {
                 synchronized(parkLock) { parked[key to layer] = bytes }
                 Log.w(TAG, "sketch save failed on the ${RasterRows.name(layer)} raster: ${t.javaClass.simpleName} (${bytes.size} B parked)")

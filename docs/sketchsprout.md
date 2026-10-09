@@ -84,20 +84,26 @@ both directions (`RasterTiles`, `RasterEditBuilder`), swapped back through the e
 insert, delete, paste or template change is a structural entry of no cost; the stack's budget is
 48 MiB and evicts the oldest.
 
-Saves are two governors, one per raster, under one cadence: a copy of the raster on Main three
+Saves are a governor per raster under one cadence: a copy of the raster on Main three
 seconds after the last mark or at the fifteen-second deadline (at the pen's lift, or under the
-pen), the encode and the write on IO under one lock so a page's two rasters land in order. A turn
-waits only for the copy; a page with a write in flight is not read again until it lands. The
+pen), the encode and the write on IO under one lock so a page's rasters land in order. A turn
+waits only for the copy, and holds the pen off the page from that copy to the next page's load; a
+page is not read again until its writes in flight land and its parked bytes are offered again, and
+what still cannot land is loaded from those bytes rather than from the older row. The
 encoder's effort follows the page's coverage (`RasterEffort`): a sparse page takes the full
 search, a page over a tenth marked the fast one — measured on the Nomad, a page shaded edge to
 edge is 3.4 MB either way and 54 s against 1.4 s. A write that fails parks its bytes and retries
 on the beat; a raster over the cap is told once ("Too much to save") and waits for the next
-mark; Back flushes first and, failing that, asks: Try again, or Leave anyway.
+mark, kept for its page if the screen has turned away; Back flushes first and, failing that, asks:
+Try again, or Leave anyway (as does an open of another sketchbook over this one). A stored raster
+that is there and will not read refuses the page — the turn or the open, with a message — and is
+never opened blank, which the next mark would save over it. The session closes only after every
+write in the air has landed.
 
 **Guides** (SN's, per page, never in the file's picture): a grid of lines or dots with SN's cell
 counts, and a reference image from the system picker, fit to the page at 10, 25, 50 or 75 %,
 each shown or hidden from the Guides bar. They live in their own rows and never reach the export
-or the cover.
+or the cover. A page whose guide rows could not be read shows none, and its picks are not written.
 
 A finger long-press raises the page sheet: Copy page, Paste page (while the clipboard holds
 one), Paste ink (while the notebook's slot holds ink), Page template, Delete page, "N links to
@@ -129,11 +135,12 @@ pages only. Export page… and Export sketchbook… go through `ACTION_EXPORT` w
 
 **Copy page** writes the page onto the `sketchbook` kind's slot as the seam's binary rows
 (`SketchPageClip` over `RowCodec`, never Base64: a raster is megabytes): its row, its paper's
-template row, both rasters, both guide rows; the rasters are flushed first, and a page over the
+template row, its rasters, both guide rows; the rasters are flushed first, and a page over the
 slot's cap is refused with a message. **Paste page**, offered while that slot holds one, asks
 Before or After and inserts the copy with every id fresh, the paper reused by token and size when
 this sketchbook already holds it, one structural undo entry. **Paste ink**, offered while the
-notebook kind's slot holds a lasso's, the pad's or a copied page's ink, lays the strokes centred
+notebook kind's slot holds a lasso's, the pad's or a copied page's ink (of several copied pages,
+the first, as the pad and the calendar take it), lays the strokes centred
 (`InkPlacement`) and bakes them black into the ink layer as one undo entry. The headers are read
 at open and at every return to the front. Sketch out to a notebook is in `BACKLOG.md`.
 
@@ -146,7 +153,8 @@ with the extension `soilink` and a type no file on the device carries, which Soi
 app whose renderer takes that file in; Sketchsprout's `ingest` reads the pages (`InkIngest`,
 pure), bakes every stroke black as pen ink into an ink raster one page at a time
 (`StrokeRasterizer`, headless), writes the root, one template per distinct paper, the pages and
-the rasters in one transaction, tells the library the pages and sets the first as the cover.
+the rasters in batches under the seam's caps (a failure part-way fails the Convert, and Soil takes
+the item away), tells the library the pages and sets the first as the cover.
 Then **Open · Leave a link · Done** (Greg, 2026-10-07): Leave a link lands the sketchbook's name
 as a text object wrapped in an item link at the nearest clear spot on the page showing. This
 settles `design.md` §15's "graphite or ink" as ink.

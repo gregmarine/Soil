@@ -13,14 +13,16 @@ import com.symmetricalpalmtree.soil.seam.SeamSchema
  *   page                            refId = its template's row id ("" = blank) · width/height px
  *     sketch_graphite               "order" −1 · blob = a page-sized lossless WebP with alpha
  *     sketch_ink                    "order" −1 · blob = the same, for the gel pen's layer
+ *     sketch_marker                 "order" −1 · blob = the same, for the marker's layer
  *     guide_grid                    text = JSON (phase 5)
  *     guide_image                   blob = a lossy WebP · text = JSON (phase 5)
  * ```
  *
- * A page is **two rasters, one picture** (Notesprout SN's arc 45): the pencil's graphite, which
- * the rubber rubs, and the gel pen's ink, which nothing erases. Each is its own row, written whole
- * and replaced in place; a blank layer has no row at all. `"order"` is −1 for both, out of the
- * marks' stacking space: neither image is a mark.
+ * A page is **three rasters, one picture** (Notesprout SN's arc 45, the marker since 2026-10-08):
+ * the pencil's graphite, which the rubber rubs, the gel pen's ink, which nothing erases, and the
+ * marker's translucent layer over both. Each is its own row, written whole and replaced in place;
+ * a blank layer has no row at all. `"order"` is −1 for all three, out of the marks' stacking
+ * space: no image is a mark.
  *
  * A new kind of thing is a new row type, never a new column and never a new step. `"order"` is an
  * SQL keyword and is always double-quoted. A delete is soft; [PURGE] is what Soil runs when the

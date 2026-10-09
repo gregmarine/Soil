@@ -40,7 +40,7 @@ sealed class SketchEdit {
     abstract fun withIndex(index: Int): SketchEdit
 
     /**
-     * One of the page's two rasters as it was, over the patch of page one contact changed — a
+     * One of the page's rasters as it was, over the patch of page one contact changed — a
      * mark composited at pen-up, a whole rubbing sweep, a smudge, a bake. **One contact is one
      * entry**, and **one contact touches exactly one raster**, which is why [layer] is a field: a
      * patch carries no layer of its own, and a tile read from graphite can only be swapped back
