@@ -133,6 +133,8 @@ guides — one page in
 memory at a time into Soil's page bundle; `relabelStatements` for an import under a new id;
 pages only. Export page… and Export sketchbook… go through `ACTION_EXPORT` with the page id and
 `RETURN_TO_APP` after the exit's flush, and Soil opens the sketchbook again on the way back.
+A layer whose row will not decode is exported blank, with a line in the log, rather than failing
+the whole sketchbook: the export only reads, so the editor's refusal has nothing to protect.
 
 ## The clipboard
 
