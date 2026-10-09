@@ -72,7 +72,22 @@ class SeamSqlTest {
     @Test
     fun `a denied word inside a literal is only text`() {
         SeamSql.checkExec("UPDATE notebook SET text = 'PRAGMA; DROP TABLE notebook' WHERE id = ?")
-        SeamSql.checkQuery("SELECT 'soil_meta'")
+        SeamSql.checkQuery("SELECT 'notes about soil_meta'")
+    }
+
+    @Test
+    fun `a string in a reserved space is refused, since SQLite reads it as a name`() {
+        refusedQuery("SELECT 'soil_meta'")
+        refusedQuery("SELECT * FROM 'soil_meta'")
+        refusedQuery("SELECT * FROM 'SOIL_META'")
+        refusedQuery("SELECT * FROM 'sqlite_master'")
+        refusedQuery("SELECT * FROM 'pragma_table_info'")
+        refusedQuery("SELECT 'sqlcipher_export'")
+        refusedExec("DELETE FROM 'soil_link' WHERE id = ?")
+        refusedExec("INSERT INTO 'soil_link' (id, pageId, targetItemId, targetPageId) VALUES (?, ?, ?, ?)")
+        refusedExec("UPDATE notebook SET text = 'soil_x' WHERE id = ?")
+        refusedDdl("CREATE INDEX IF NOT EXISTS a_i ON notebook('sqlite_x')")
+        SeamSql.checkExec("UPDATE notebook SET text = 'my soil_ notes' WHERE id = ?")
     }
 
     @Test
@@ -108,6 +123,25 @@ class SeamSqlTest {
     }
 
     @Test
+    fun `the link mirror is exactly its five writes, whitespace aside`() {
+        SeamSql.checkExec("  " + SeamLinks.DROP.replace(" ", "\n  ") + " ;")
+        assertTrue(SeamSql.writesLinkMirror(SeamLinks.DROP_PAGE.replace(" ", "\t") + ";"))
+        assertTrue(SeamSql.writesLinkMirror(SeamLinks.DROP))
+        // Any other write of the mirror is refused, and is not a mirror write.
+        for (sql in listOf(
+            "DELETE FROM soil_link",
+            "DELETE FROM soil_link WHERE 1",
+            "DELETE FROM soil_link WHERE id = ? OR 1",
+            "INSERT INTO soil_link (id, pageId, targetItemId, targetPageId) VALUES (?, ?, ?, ?)",
+            "INSERT INTO soil_link (id, pageId, targetItemId) SELECT key, value, '' FROM soil_meta",
+            SeamLinks.DROP.lowercase(),
+        )) {
+            refusedExec(sql)
+            assertFalse(sql, SeamSql.writesLinkMirror(sql))
+        }
+    }
+
+    @Test
     fun `the doors that are ordinary words are shut`() {
         refusedQuery("SELECT * FROM pragma_table_info('notebook')")
         refusedQuery("SELECT user_version FROM pragma_user_version")
@@ -128,6 +162,11 @@ class SeamSqlTest {
         assertEquals(3, SeamSql.bindCount("SELECT ?, ?, ?"))
         assertEquals(7, SeamSql.bindCount("SELECT ?7, ?2"))
         assertEquals(0, SeamSql.bindCount("SELECT '?'"))
+        // In order, as SQLite numbers them: a bare ? is one past the largest so far.
+        assertEquals(6, SeamSql.bindCount("SELECT ?5, ?"))
+        assertEquals(5, SeamSql.bindCount("SELECT ?, ?5"))
+        assertEquals(3, SeamSql.bindCount("SELECT ?, ?1, ?, ?"))
+        refusedQuery("SELECT ?999, ?")
         refusedQuery("SELECT ?1000")
     }
 

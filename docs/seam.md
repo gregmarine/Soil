@@ -14,7 +14,9 @@ connection, the row codec, the row store).
 - Trust rests on one signing key. There is no per-app permission model.
 - Every statement is checked on both sides by `SeamSql`: one statement, an allowed head keyword,
   no `ATTACH`, `PRAGMA`, `VACUUM`, DDL or transaction words, no identifier in a reserved space
-  (`soil_*`, `sqlite_*`, `pragma_*`, `sqlcipher_*`), positional binds that match the arguments,
+  (`soil_*`, `sqlite_*`, `pragma_*`, `sqlcipher_*`) and no `'…'` string that starts with one
+  (SQLite reads a string as a name where a name belongs), positional binds that match the
+  arguments as SQLite numbers them (`?5, ?` takes six),
   values under `SeamLimits`. The one exception is the link mirror, below.
 - Large data crosses whole in shared memory (`SeamBytes`), never in chunks.
 - Only `SecurityException`, `IllegalArgumentException` and `IllegalStateException` cross. A
@@ -52,7 +54,8 @@ file is closed for good.
 Every item file carries two tables of Soil's own: `soil_meta` (what the file is) and
 `soil_link` (the link mirror). An app writes `soil_link` in the same batch as its link row,
 through exactly five admitted statements (a row to an item, a row into the Bible, a row to a
-day of the calendar, a drop, a page's drop); Soil re-reads the mirror after any batch naming it
+day of the calendar, a drop, a page's drop), `SeamLinks`' own text with only its whitespace
+free; Soil re-reads the mirror after any batch naming it
 and keeps the index's link table in step. `backlinks(itemId)` answers what links into an item,
 `bibleBacklinks(start, end)` what links into a span of verses, `calBacklinks(from, to)` what
 links into a range of days (`links.md`).

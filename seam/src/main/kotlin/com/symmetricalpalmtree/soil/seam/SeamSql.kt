@@ -6,7 +6,9 @@ package com.symmetricalpalmtree.soil.seam
  * Soil's own `soil_*` tables and SQLite's `sqlite_*` catalog — and shut two doors that are
  * ordinary words rather than keywords: the `pragma_*` table-valued functions, which read what
  * `PRAGMA` is refused for, and SQLCipher's `sqlcipher_*` functions, which can export a file.
- * [SeamSql] refuses **any** identifier in one of them, quoted or not, in every statement.
+ * [SeamSql] refuses **any** identifier in one of them, quoted or not, in every statement, and
+ * any `'…'` string that starts with one, since SQLite reads a string as a name where a name
+ * belongs (`SELECT * FROM 'soil_meta'`).
  */
 object SeamNames {
     private val SHAPE = Regex("^[a-z][a-z0-9_]{0,62}$")
@@ -33,9 +35,10 @@ object SeamNames {
  * - **Refused anywhere**: `ATTACH DETACH PRAGMA VACUUM CREATE DROP ALTER BEGIN COMMIT ROLLBACK
  *   SAVEPOINT RELEASE REINDEX ANALYZE load_extension`. DDL keeps its own head word, refuses a
  *   second, and refuses `DROP VIEW TRIGGER VIRTUAL TEMP TEMPORARY`.
- * - **Reserved names**: every identifier, bare or quoted, in a [SeamNames] reserved space. The
- *   one exception is the link mirror, `soil_link`, as the table of an exec's plain `INSERT INTO`
- *   or `DELETE FROM` ([SeamLinks]).
+ * - **Reserved names**: every identifier, bare or quoted, in a [SeamNames] reserved space, and
+ *   every `'…'` string that starts with one. The one exception is the link mirror: an exec that
+ *   is exactly one of [SeamLinks]' five writes (`PUT`, `PUT_BIBLE`, `PUT_CAL`, `DROP`,
+ *   `DROP_PAGE`), whitespace aside, may name `soil_link` as its table.
  * - **Positional binds only** (`?`, `?NNN`).
  * - **DDL shape**: `CREATE TABLE`, `CREATE [UNIQUE] INDEX … ON`, `ALTER TABLE … ADD [COLUMN]`,
  *   each with its `IF NOT EXISTS`. The name made or altered is [SeamNames.isValid] and bare.
@@ -56,15 +59,17 @@ object SeamSql {
     /** Refuses anything but one supported DDL statement. */
     fun checkDdl(sql: String) = check(sql, Kind.DDL)
 
-    /** How many `?` binds [sql] has. A numbered bind `?N` counts as N. */
+    /**
+     * How many binds [sql] takes, as SQLite numbers them, in order: `?N` is N, and a bare `?` is
+     * one more than the largest number given so far (`?5, ?` takes 6).
+     */
     fun bindCount(sql: String): Int {
-        var plain = 0
         var highest = 0
         for (t in tokenize(sql)) {
             if (t.kind != T.BIND) continue
-            if (t.text.length == 1) plain++ else highest = maxOf(highest, t.text.drop(1).toIntOrNull() ?: 0)
+            highest = if (t.text.length == 1) minOf(highest, Int.MAX_VALUE - 1) + 1 else maxOf(highest, t.text.drop(1).toIntOrNull() ?: Int.MAX_VALUE)
         }
-        return maxOf(plain, highest)
+        return highest
     }
 
     fun check(sql: String, kind: Kind) {
@@ -79,9 +84,9 @@ object SeamSql {
         }
         require(head.upper in heads) { "${kind.name.lowercase()} cannot start with ${head.text}" }
         val deny = if (kind == Kind.DDL) DDL_DENY else DENY
-        // The one reserved name an exec may carry: the link mirror, as the table of a plain
-        // INSERT or DELETE, at that one position. Anywhere else, it is refused like the rest.
-        val mirrorAt = if (kind == Kind.EXEC && writesLinkMirror(tokens)) 2 else -1
+        // The one reserved name an exec may carry: the link mirror, as the table of one of
+        // SeamLinks' own five writes, at that one position. Anywhere else, it is refused.
+        val mirrorAt = if (kind == Kind.EXEC && isMirrorWrite(sql)) 2 else -1
         for ((i, t) in tokens.withIndex()) {
             when (t.kind) {
                 T.WORD -> {
@@ -96,6 +101,8 @@ object SeamSql {
                     require(i == mirrorAt || !SeamNames.isReserved(t.text)) { "${t.text} is a reserved name" }
                 }
                 T.QUOTED -> require(!SeamNames.isReserved(t.text)) { "a quoted name is in a reserved space" }
+                // SQLite takes a string for a name where a name belongs: `FROM 'soil_meta'`.
+                T.STRING -> require(!SeamNames.isReserved(t.text)) { "a string is in a reserved space" }
                 T.NAMED_BIND -> throw IllegalArgumentException("named binds are not supported: use ?")
                 else -> Unit
             }
@@ -105,17 +112,25 @@ object SeamSql {
     }
 
     /**
-     * Whether [sql] is a write of the link mirror: `INSERT INTO soil_link …` or
-     * `DELETE FROM soil_link …`, the two shapes [SeamLinks] gives an app. Soil re-reads the
-     * mirror after a batch that holds one. Never throws: anything else is simply false.
+     * Whether [sql] is a write of the link mirror: exactly one of the five statements [SeamLinks]
+     * gives an app, whitespace and a trailing `;` aside. Soil re-reads the mirror after a batch
+     * that holds one. Never throws: anything else is simply false.
      */
-    fun writesLinkMirror(sql: String): Boolean =
-        runCatching { writesLinkMirror(statementTokens(sql)) }.getOrDefault(false)
+    fun writesLinkMirror(sql: String): Boolean = isMirrorWrite(sql)
 
-    private fun writesLinkMirror(t: List<Token>): Boolean {
-        if (t.size < 3 || t[2].kind != T.WORD || t[2].text.lowercase() != SeamLinks.TABLE) return false
-        return (t[0].isWord("INSERT") && t[1].isWord("INTO")) || (t[0].isWord("DELETE") && t[1].isWord("FROM"))
+    private val MIRROR_WRITES: Set<String> by lazy {
+        listOf(SeamLinks.PUT, SeamLinks.PUT_BIBLE, SeamLinks.PUT_CAL, SeamLinks.DROP, SeamLinks.DROP_PAGE)
+            .map(::normalized).toSet()
     }
+
+    private fun isMirrorWrite(sql: String): Boolean =
+        sql.length <= SeamLimits.MAX_SQL_CHARS && normalized(sql) in MIRROR_WRITES
+
+    /** Runs of whitespace as one space, no ends, no trailing `;`. */
+    private fun normalized(sql: String): String =
+        sql.trim().removeSuffix(";").trim().split(WHITESPACE).joinToString(" ")
+
+    private val WHITESPACE = Regex("\\s+")
 
     // ── DDL shape ──────
 
