@@ -146,6 +146,8 @@ into the index, and whatever Replace retires is deleted last.
   on export keys the exported copy alone.
 - The cloud destination waits for phase 12. Documents and sketches are not Notesprout's.
 - A document's page size is chosen at export: Letter, A4 or this device's screen (2026-10-04).
+- `:ext-pdf` spills a long unprotected PDF to a scratch file in its own cache (swept at the next
+  job); a password-protected one is built wholly in memory, so no page sits on disk unencrypted.
 - Text, Markdown and the text PDF are written by Docsprout, not by an extension. So the text
   PDF takes no password in this cut: protection is `:ext-pdf`'s work (`BACKLOG.md`).
 - The calendar exports through the same screen in a render-only mode, under a key only its
