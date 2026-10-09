@@ -12,9 +12,11 @@ import com.symmetricalpalmtree.soil.paper.core.InkTones
  * retuned without stranding a saved choice.
  *
  * **The sizes are fixed ladders, not a dial** (Greg): the pencil 1, 2 and 4 px around the 1 px
- * hairline his hand settled on (SN, 2026-09-21: 4 → 2 → 1 the same evening); the gel pen the tips
- * as sold, 0.38, 0.5, 0.7 and 1.0 mm — the default 0.5 mm is 5.9 px, a hair over the 5 px that
- * stood until 2026-10-08; the marker 1, 3 and 5 mm, the fine, medium and broad tips.
+ * hairline his hand settled on (SN, 2026-09-21: 4 → 2 → 1 the same evening), and a 5 mm lead for
+ * shading, the width of the broad marker; the gel pen the tips as sold, 0.38, 0.5, 0.7 and
+ * 1.0 mm — the default 0.5 mm is 5.9 px, a hair over the 5 px that stood until 2026-10-08 — and
+ * under them 0.1 mm, the finest line the page can hold (1.2 px); the marker 1, 3 and 5 mm, the
+ * fine, medium and broad tips, and 10 mm for a wide wash (Greg's additions on M3's walk).
  *
  * **A millimetre is a millimetre on the page**, [PPI]: a sketch page is laid out at 300 ppi on
  * the Nomad and the Manta alike (1404 × 1872 and 1920 × 2560), and a width is baked into the page's
@@ -53,17 +55,18 @@ object SketchPalette {
         fun px(index: Int): Float = sizes[if (isIndex(index)) index else default].px
     }
 
-    /** The pencil's leads: fine, medium, broad. Default 1 px, the hand's hairline. */
-    val PENCIL_SIZES: Ladder = Ladder(listOf(Size(1f, "1 px"), Size(2f, "2 px"), Size(4f, "4 px")), default = 0)
+    /** The pencil's leads: fine, medium, broad, and a shading lead as wide as the broad marker.
+     *  Default 1 px, the hand's hairline. */
+    val PENCIL_SIZES: Ladder = Ladder(listOf(Size(1f, "1 px"), Size(2f, "2 px"), Size(4f, "4 px"), Size(mmToPx(5f), "5 mm")), default = 0)
 
-    /** The gel pen's tips as sold. Default 0.5 mm. */
+    /** The gel pen's tips as sold, under them the finest line there is. Default 0.5 mm. */
     val PEN_SIZES: Ladder = Ladder(
-        listOf(Size(mmToPx(0.38f), "0.38 mm"), Size(mmToPx(0.5f), "0.5 mm"), Size(mmToPx(0.7f), "0.7 mm"), Size(mmToPx(1.0f), "1.0 mm")),
-        default = 1,
+        listOf(Size(mmToPx(0.1f), "0.1 mm"), Size(mmToPx(0.38f), "0.38 mm"), Size(mmToPx(0.5f), "0.5 mm"), Size(mmToPx(0.7f), "0.7 mm"), Size(mmToPx(1.0f), "1.0 mm")),
+        default = 2,
     )
 
-    /** The marker's tips: fine, medium, broad. Default 3 mm. */
-    val MARKER_SIZES: Ladder = Ladder(listOf(Size(mmToPx(1f), "1 mm"), Size(mmToPx(3f), "3 mm"), Size(mmToPx(5f), "5 mm")), default = 1)
+    /** The marker's tips: fine, medium, broad, and a wide wash. Default 3 mm. */
+    val MARKER_SIZES: Ladder = Ladder(listOf(Size(mmToPx(1f), "1 mm"), Size(mmToPx(3f), "3 mm"), Size(mmToPx(5f), "5 mm"), Size(mmToPx(10f), "10 mm")), default = 1)
 
     /** The ladder [kind] chooses its width from. */
     fun ladder(kind: SketchToolState.Kind): Ladder = when (kind) {
