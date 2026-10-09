@@ -546,7 +546,12 @@ class BibleActivity : AppCompatActivity() {
                     // Only what a paste can read goes on the clipboard: a clip decode would
                     // refuse would replace the one there with nothing pasteable.
                     val bytes = BibleClip.encode(clip)?.takeIf { BibleClip.decode(it) != null } ?: error("not a clip")
-                    (application as BiblesproutApp).soil.seam().putClip(BibleClip.SLOT, SeamClip(BibleClip.PAYLOAD_KIND, "", clip.copiedAt), SeamShared.write(bytes))
+                    val region = SeamShared.write(bytes)
+                    try {
+                        (application as BiblesproutApp).soil.seam().putClip(BibleClip.SLOT, SeamClip(BibleClip.PAYLOAD_KIND, "", clip.copiedAt), region)
+                    } finally {
+                        region.memory.close()
+                    }
                 }.onFailure { Log.w(TAG, "the passage was not copied: ${it.javaClass.simpleName}") }.isSuccess
             }
             copying = false
