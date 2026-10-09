@@ -15,6 +15,7 @@ import com.symmetricalpalmtree.soil.notesprout.notebook.PagePaints
 import com.symmetricalpalmtree.soil.seam.ISeamItem
 import com.symmetricalpalmtree.soil.seamkit.SeamConnection
 import com.symmetricalpalmtree.soil.seamkit.SeamRowStore
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,8 +54,13 @@ object LinkPickerRelay {
 class ForeignNotebook(private val soil: SeamConnection, val itemId: String) : PickerSource {
 
     private val owner = Binder()
-    private var session: ISeamItem? = null
+    private val session = AtomicReference<ISeamItem?>(null)
+    @Volatile
     private var store: NotebookStore? = null
+
+    /** Set by [close]: a read still in flight then never opens (or keeps) a session nobody closes. */
+    @Volatile
+    private var closed = false
     private var pages: List<PageRef> = emptyList()
 
     /** The previews read concurrently; the session is opened once, under this. */
@@ -62,9 +68,16 @@ class ForeignNotebook(private val soil: SeamConnection, val itemId: String) : Pi
 
     private suspend fun open(): NotebookStore = opening.withLock {
         withContext(Dispatchers.IO) {
+            check(!closed) { "closed" }
             store ?: run {
                 val opened = soil.seam().openItem(itemId, NotebookSchema.SCHEMA, owner)
-                session = opened
+                session.set(opened)
+                // A close that ran while the session was opening saw nothing to close: close it
+                // here. [closed] is set before [close] reads the session, so one of the two does.
+                if (closed) {
+                    session.getAndSet(null)?.let { runCatching { it.close(false) } }
+                    error("closed")
+                }
                 NotebookStore(SeamRowStore(opened), itemId).also { store = it }
             }
         }
@@ -90,7 +103,7 @@ class ForeignNotebook(private val soil: SeamConnection, val itemId: String) : Pi
             val anchor = current.firstOrNull { it.id == anchorId } ?: current.last()
             val (next, page) = s.insertPage(current, anchor.id, after = anchorId == null || !before)
             pages = next
-            runCatching { soil.seam().setPageCount(itemId, next.size) }
+            runCatching { soil.seam().setPages(itemId, next.map { it.id }) }
             page
         } catch (e: Exception) {
             Log.w(TAG, "a page could not be added: ${e.javaClass.simpleName}")
@@ -100,9 +113,9 @@ class ForeignNotebook(private val soil: SeamConnection, val itemId: String) : Pi
 
     /** Let the session go. Never throws; safe to call more than once. */
     fun close() {
-        val s = session ?: return
-        session = null
+        closed = true
         store = null
+        val s = session.getAndSet(null) ?: return
         runCatching { s.close(false) }
     }
 

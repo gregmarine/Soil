@@ -66,6 +66,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.LassoPopup
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.notesprout.clip.BibleClipboard
 import com.symmetricalpalmtree.soil.notesprout.clip.ClipEnvelope
+import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPasteRoute
 import com.symmetricalpalmtree.soil.notesprout.clip.ObjectPlacement
 import com.symmetricalpalmtree.soil.notesprout.clip.SoilClipboard
 import com.symmetricalpalmtree.soil.seam.TagRules
@@ -182,7 +183,14 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     /** Any binder of this app's own: Soil watches it, and closes the notebook if the app dies. */
     private val owner = Binder()
+    /** Read and written under [sessionLock]: the open's IO thread hands it over, the destroy takes it. */
     private var session: ISeamItem? = null
+    private val sessionLock = Any()
+    /** Set by the destroy under [sessionLock]: a session that opens after it is closed at once. */
+    private var destroyed = false
+
+    /** The page the paper shows, set by [showPage]: a gesture against any other is stale. */
+    private var shownPageId: String? = null
     private var itemId: String? = null
 
     override val logTag: String get() = TAG
@@ -413,16 +421,37 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         setIntent(intent)
         if (closing) return
         closing = true
+        handOffWhenFlushed()
+    }
+
+    /** The new ask's restart, once the page is flushed. A flush that fails is ink with no other
+     *  copy: a dialog, Try again or Leave anyway, as every exit asks. */
+    private fun handOffWhenFlushed() {
         val page = inkPage
         appScope.launch {
-            withContext(NonCancellable) {
-                pageOps.withLock { runCatching { page?.flushUntilClean() }.onFailure { Log.w(TAG, "flush failed: ${it.javaClass.simpleName}") } }
+            val ok = withContext(NonCancellable) {
+                pageOps.withLock { runCatching { page?.flushUntilClean() }.onFailure { Log.w(TAG, "flush failed: ${it.javaClass.simpleName}") }.isSuccess }
             }
-            if (!isFinishing && !isDestroyed) {
-                paper.releaseForHandoff()
-                recreate()
-            }
+            if (isFinishing || isDestroyed) return@launch
+            if (ok) restartForNewIntent() else askAboutUnsavedHandoff()
         }
+    }
+
+    private fun restartForNewIntent() {
+        paper.releaseForHandoff()
+        recreate()
+    }
+
+    private fun askAboutUnsavedHandoff() {
+        Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(R.string.notebook_not_saved_title)
+                .setMessage(R.string.notebook_not_saved_body)
+                .setPositiveButton(R.string.notebook_try_again) { _, _ -> handOffWhenFlushed() }
+                .setNegativeButton(R.string.notebook_leave_anyway) { _, _ -> restartForNewIntent() }
+                .setCancelable(false)
+                .create(),
+        ).show()
     }
 
     // ── Open ──────
@@ -442,7 +471,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 val item = if (!newName.isNullOrBlank()) seam.createItem(newName, NotebookSchema.SCHEMA)
                 else seam.item(askedId!!) ?: throw IllegalStateException(NO_SUCH_ITEM)
                 val opened = seam.openItem(item.id, NotebookSchema.SCHEMA, owner)
-                session = opened
+                // The screen may have been destroyed while the file opened: nobody would close it.
+                val gone = synchronized(sessionLock) { destroyed.also { if (!it) session = opened } }
+                if (gone) {
+                    runCatching { opened.close(false) }
+                    throw CancellationException("destroyed while opening")
+                }
                 itemId = item.id
                 val store = NotebookStore(SeamRowStore(opened), item.id)
                 storeRef = store
@@ -735,6 +769,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private fun deleteSelected(sel: Selection) {
         if (!opened || closing) return
         val doc = document ?: return
+        val pageId = doc.pageId
+        if (pageId != shownPageId) return
         val strokeIds = sel.strokeIds.toList()
         val ink = doc.erase(strokeIds)
         if (sel.contentIds.isEmpty()) {
@@ -743,8 +779,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             return
         }
         runPageOp {
+            // A flip queued ahead of this landed elsewhere: the ink half is this page's and was
+            // flushed with it; the objects are not on the page now showing.
+            if (doc.pageId != pageId) { ink?.let { record(it) }; return@runPageOp }
             val gone = doc.deleteObjects(sel.contentIds)
-            undo.record(NotebookAction.Deleted(doc.pageId, ink, gone))
+            undo.record(NotebookAction.Deleted(pageId, ink, gone))
             doc.flushUntilClean()
             // Both in one Main block: one frame.
             if (strokeIds.isNotEmpty()) paper.removeStrokes(strokeIds) else paper.clearSelection()
@@ -757,14 +796,20 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private fun erased(strokeIds: List<String>, contentIds: List<String>) {
         if (!opened || closing) return
         val doc = document ?: return
+        // The page at the gesture: the paper's, which the document leaves only inside a swap.
+        val pageId = doc.pageId
+        if (pageId != shownPageId) return
         val ink = doc.erase(strokeIds)
         if (contentIds.isEmpty()) {
             ink?.let { record(it); scheduleSave() }
             return
         }
         runPageOp {
+            // A flip queued ahead of this landed elsewhere: the ink half is this page's and was
+            // flushed with it; the objects are not on the page now showing.
+            if (doc.pageId != pageId) { ink?.let { record(it) }; return@runPageOp }
             val gone = doc.deleteObjects(contentIds)
-            undo.record(NotebookAction.Deleted(doc.pageId, ink, gone))
+            undo.record(NotebookAction.Deleted(pageId, ink, gone))
             doc.flushUntilClean()
             paper.notifyContentChanged()
             refreshContents()
@@ -1577,9 +1622,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val doc = document ?: return
         val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
         if (env == null || env.kind != ClipEnvelope.KIND_PAGE || env.rows.none { it.type == NotebookSchema.TYPE_PAGE }) {
-            // Gone, foreign, or claiming a page it does not carry: stop advertising a Paste that
-            // cannot work, in memory and in Soil.
-            retireClipboard()
+            // Gone, unreadable, or claiming a page it does not carry: stop advertising a Paste
+            // that cannot work, in memory and in Soil. Something else copied over it since the
+            // sheet opened (objects): that is a good clipboard, and it stays.
+            if (env == null || env.kind == ClipEnvelope.KIND_PAGE) retireNotebookClip() else runCatching { withContext(Dispatchers.IO) { SoilClipboard.refresh(seam()) } }
             Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_paste_failed)
             return
         }
@@ -1648,9 +1694,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         if (!opened || closing) return
         val doc = document ?: return
         val pageId = doc.pageId
-        // A passage from the Bible, copied after whatever the notebook kind's slot holds: the
-        // paste asks which of it goes in, where the pen tapped.
-        if (BibleClipboard.newerThan(SoilClipboard.header)) {
+        // A passage from the Bible, copied after the objects in the notebook kind's slot, or with
+        // no objects there (nothing, or a page the lasso cannot paste): the paste asks which of it
+        // goes in, where the pen tapped. Neither branch retires the other kind's slot.
+        val route = ObjectPasteRoute.of(SoilClipboard.header, BibleClipboard.copiedAt)
+        if (route == ObjectPasteRoute.NONE) return
+        if (route == ObjectPasteRoute.BIBLE) {
             lifecycleScope.launch {
                 val clip = withContext(Dispatchers.IO) { runCatching { BibleClipboard.read(seam()) }.getOrNull() }
                 if (!opened || closing || document?.pageId != pageId) return@launch
@@ -1667,7 +1716,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         runPageOp {
             val env = runCatching { SoilClipboard.read(seam()) }.getOrNull()
             if (env == null || env.kind != ClipEnvelope.KIND_OBJECTS || env.rows.isEmpty()) {
-                retireClipboard()
+                // Only this slot's own unreadable or empty envelope is retired; a page copied over
+                // it since is a good clipboard and stays, and the Bible's slot is never touched.
+                if (env == null || env.kind == ClipEnvelope.KIND_OBJECTS) retireNotebookClip() else runCatching { withContext(Dispatchers.IO) { SoilClipboard.refresh(seam()) } }
+                markClipboard(SoilClipboard.hasObjects || BibleClipboard.has)
                 Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
                 return@runPageOp
             }
@@ -1683,7 +1735,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             if (plan == null || plan.isEmpty) {
                 // A payload that decoded but carries nothing this build can place is retired; a
                 // write that threw is this attempt failing, and the clipboard is kept for a retry.
-                if (written.isSuccess) retireClipboard()
+                if (written.isSuccess) {
+                    retireNotebookClip()
+                    markClipboard(BibleClipboard.has)
+                }
                 Dialogs.problem(this, R.string.clip_failed_title, R.string.clip_objects_paste_failed)
                 return@runPageOp
             }
@@ -1721,7 +1776,13 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         }
     }
 
-    /** Retire the clipboard and everything that advertises it. Never throws. */
+    /** Retire the notebook kind's slot alone, in memory and in Soil; the Bible's stands. The caller
+     *  re-marks the lasso. Never throws. */
+    private suspend fun retireNotebookClip() {
+        runCatching { withContext(Dispatchers.IO) { SoilClipboard.clear((application as NotesproutApp).soil.seam()) } }
+    }
+
+    /** Retire the clipboard and everything that advertises it: the popup's Clear. Never throws. */
     private suspend fun retireClipboard() {
         markClipboard(false)
         runCatching { withContext(Dispatchers.IO) { SoilClipboard.clear((application as NotesproutApp).soil.seam()) } }
@@ -1956,9 +2017,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     // ── Paper ──────
 
     /** The showing page's paper decoded into [paperCache], off Main. Nothing to do for blank or a cached row. */
-    private suspend fun preparePaper() {
+    private suspend fun preparePaper(page: PageRef? = document?.currentPage) {
         val doc = document ?: return
-        val id = doc.currentPage?.templateId?.takeIf { it.isNotEmpty() } ?: return
+        val id = page?.templateId?.takeIf { it.isNotEmpty() } ?: return
         if (id in paperCache) return
         val bitmap = withContext(Dispatchers.IO) { Bitmaps.decodeBounded(doc.templateBlobOf(id), MAX_TEMPLATE_EDGE) } ?: return
         if (paperCache.size >= PAPER_CACHE_SIZE) paperCache.remove(paperCache.keys.first())
@@ -2193,9 +2254,10 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     private suspend fun flipTo(index: Int) {
         val doc = document ?: return
         if (index < 0 || index >= doc.pageCount) return
+        // The paper off Main before the swap; the composites after it (they need the page's
+        // links), before the frame that paints the page.
+        preparePaper(doc.pages[index])
         doc.goToIndex(index)
-        // The paper and the composites off Main, before the frame that paints the page.
-        preparePaper()
         showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
     }
 
@@ -2210,7 +2272,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         val doc = document ?: return
         undo.record(doc.deleteCurrent())
         preparePaper()
-        showPage()
+        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
     }
 
     /** The page-swap order is g-paper's law: clear for the swap, size, template, then strokes. */
@@ -2228,6 +2290,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         // The objects are handed over before `loadStrokes`, which is the frame that paints the page.
         syncRenderers(prebuilt)
         paper.loadStrokes(doc.strokes)
+        shownPageId = doc.pageId
         toolbar.setPage(doc.pageNumber, doc.pageCount)
     }
 
@@ -2279,15 +2342,21 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     // ── Park and resume ──────
 
+    /** Not gated on `opened`, as [onStop]'s park is not: a stop during the open parks, and the
+     *  start that follows must take the file up again or the ink after it is written to nothing. */
     override fun onStart() {
         super.onStart()
-        val open = session ?: return
-        runPageOp { withContext(Dispatchers.IO) { open.resume() } }
+        val open = synchronized(sessionLock) { session } ?: return
+        lifecycleScope.launch {
+            pageOps.withLock {
+                withContext(Dispatchers.IO) { runCatching { open.resume() }.onFailure { Log.w(TAG, "resume failed: ${it.javaClass.simpleName}") } }
+            }
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        val open = session ?: return
+        val open = synchronized(sessionLock) { session } ?: return
         // The cover on every way out but a hand-off to a screen of this app's own, the close
         // included: a notebook put down shows the library what it last showed.
         if (!inAppHandoff) captureCover()
@@ -2329,10 +2398,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         if (::contents.isInitialized) contents.dismiss()
         if (::backlinks.isInitialized) backlinks.dismiss()
         LinkPickerRelay.showing = null
-        val open = session ?: return
-        session = null
-        appScope.launch(Dispatchers.IO + NonCancellable) {
-            runCatching { open.close(true) }.onFailure { Log.w(TAG, "close failed: ${it.javaClass.simpleName}") }
+        val open = synchronized(sessionLock) {
+            destroyed = true
+            session.also { session = null }
+        } ?: return
+        // After any write the sticky editor still has in flight through this session's store: its
+        // last flush takes the same lock, and a close ahead of it would lose that ink.
+        appScope.launch(NonCancellable) {
+            StickyEditorTransfer.writes.withLock {
+                withContext(Dispatchers.IO) { runCatching { open.close(true) }.onFailure { Log.w(TAG, "close failed: ${it.javaClass.simpleName}") } }
+            }
         }
     }
 

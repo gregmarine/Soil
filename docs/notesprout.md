@@ -49,6 +49,11 @@ return, so a notebook in the background holds no file. Frame silence while the p
   Insert bar's Bible reference, the verses placed under one): `links.md`. **Copy, paste and
   Send**, and a passage pasted from the Bible: `clipboard.md`. **Tags**: `tags.md`.
   **Templates**: `templates.md`.
+- **The lasso's paste** takes the newer of the objects and the Bible's passage; with a page on
+  the notebook's slot (the lasso cannot paste one) it takes the passage. A paste that fails
+  retires only its own slot, never the other kind's.
+- **A new ask over the screen** (another notebook from the library) flushes first; a flush
+  that fails asks, as every exit does: Try again, or Leave anyway.
 
 ## What it gives Soil
 

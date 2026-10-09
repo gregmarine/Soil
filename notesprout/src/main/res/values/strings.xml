@@ -183,6 +183,10 @@
     <string name="open_failed">The notebook could not be opened. It has not been changed.</string>
     <string name="store_failed_title">Notebook unavailable</string>
     <string name="store_failed_body">Soil could not be reached to save this notebook. Nothing already saved was lost. Open it again.</string>
+    <string name="notebook_not_saved_title">Not saved</string>
+    <string name="notebook_not_saved_body">The ink could not be written to the notebook. Try again, or leave and lose what was written since the last save.</string>
+    <string name="notebook_try_again">Try again</string>
+    <string name="notebook_leave_anyway">Leave anyway</string>
 
     <!-- The clipboard -->
     <string name="copy_page_action">Copy page</string>

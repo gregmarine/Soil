@@ -40,6 +40,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkScreenActivity
 import com.symmetricalpalmtree.soil.paper.ink.StoreUnavailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.symmetricalpalmtree.soil.notesprout.NotesproutApp
 
@@ -72,8 +73,10 @@ class StickyEditorActivity : InkScreenActivity<InkAction>(), NotesproutApp.Front
         override fun erase(ids: Collection<String>): InkAction.Erased? = ink.erase(ids)
         override fun move(ids: Collection<String>, dx: Float, dy: Float): InkAction.Moved? = ink.move(ids, dx, dy)
         override suspend fun flushUntilClean(maxPasses: Int): Boolean =
-            ink.flushUntilClean(maxPasses = maxPasses) { statements ->
-                withContext(Dispatchers.IO) { try { showing.store.execAll(statements) } catch (e: StoreUnavailable) { throw e } }
+            StickyEditorTransfer.writes.withLock {
+                ink.flushUntilClean(maxPasses = maxPasses) { statements ->
+                    withContext(Dispatchers.IO) { try { showing.store.execAll(statements) } catch (e: StoreUnavailable) { throw e } }
+                }
             }
         fun revert(a: InkAction) = ink.revert(a)
         fun reapply(a: InkAction) = ink.reapply(a)
