@@ -428,8 +428,15 @@ class SelfTestActivity : AppCompatActivity() {
         com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController.applyRendered(view, plan.hits)
         check("a reference found by the pass is a link over its words", "see [John 3:16](bible:JHN:3:16-3:16) today\n")
         if (view.selectionStart != 0) fail("the caret moved to ${view.selectionStart}")
+        var removed: Set<Pair<String, String>> = emptySet()
+        var added: Set<Pair<String, String>> = emptySet()
+        var restored = 0
+        view.onRestored = { r, a -> removed = r; added = a; restored++ }
         view.undo()
         check("one undo takes the link off and keeps the words", "see John 3:16 today\n")
+        checkTrue("the undo says which link it took off, so the pass skips it", removed == setOf("John 3:16" to "bible:JHN:3:16-3:16") && added.isEmpty())
+        view.redo()
+        checkTrue("a redo says which link it put back, so the pass allows it again", added == setOf("John 3:16" to "bible:JHN:3:16-3:16") && removed.isEmpty())
 
         load("see John 3:16\n")
         type(at("16", after = true), " x")
@@ -439,8 +446,11 @@ class SelfTestActivity : AppCompatActivity() {
             again, com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck.Region(0, again.length), BooleanArray(again.length), emptySet(), null,
         )
         com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController.applyRendered(view, relinked.hits)
+        val before = restored
         checkTrue("a link the pass makes after an undo leaves the undone typing to redo", view.redo())
         check("and the redo puts it back", "see John 3:16 x\n")
+        checkTrue("and the redo asks for a read, so the pass links the reference again", restored == before + 1)
+        view.onRestored = null
     }
 
     private fun typeToFormat() {

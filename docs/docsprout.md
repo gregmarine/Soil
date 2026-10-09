@@ -93,9 +93,11 @@ between the view and the model, `RichOps` applies the rules, and `RichHistory` i
 undo and redo, since the platform's does not restore spans (Ctrl+Z and Ctrl+Y are taken here
 and left to the platform in the Markdown editor). It keeps a hundred steps, fewer when the
 documents held come to four million characters. A link the reference pass makes is a step of
-its own that leaves the redo steps alone, and an undo or a redo is not read again by the pass,
-so a link undone stays undone. A rule's place in the text is held by one private-use character
-(U+E000), never drawn; a zero-width space a writer put in is kept.
+its own that leaves the redo steps alone. After an undo or a redo the pass reads the whole
+document again, skipping the links an undo took off while the screen is up, so a link undone
+stays undone and a redo that put back words from before a link has them linked again. A rule's place in the text is held by one private-use character
+(U+E000), never drawn and never copied: Copy and Cut leave it off the clipboard. A zero-width
+space a writer put in is kept.
 
 Words a tool puts in (a reference, a passage, handwriting, the image skeleton) are plain: they do
 not take the style the caret stood at the end of, and a link put over them replaces any other

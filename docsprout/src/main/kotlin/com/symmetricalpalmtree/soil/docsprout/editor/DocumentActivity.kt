@@ -96,6 +96,8 @@ class DocumentActivity : AppCompatActivity() {
     private var started = false
     private var closing = false
     private var tooLongTold = false
+    /** The words a failed save on the way out has already said were not saved. */
+    private var unsavedTold: String? = null
 
     /** Only while the screen is up: once it stops, the file is parked, and the way back saves. */
     private val autosave = Runnable { if (started) save() }
@@ -583,41 +585,57 @@ class DocumentActivity : AppCompatActivity() {
      * again while the screen is up.
      */
     private fun save() {
+        val pending = saveTask() ?: return
+        appScope.launch { withContext(NonCancellable) { pending() } }
+    }
+
+    /** [save], awaited: whether the file holds the text as it stood when this was called. */
+    private suspend fun saveNow(): Boolean {
+        val pending = saveTask() ?: return false
+        return withContext(NonCancellable) { pending() }
+    }
+
+    /**
+     * The text as it stands, read now on Main, and the write of it to run in the queue. The
+     * rendered document is written as Markdown off Main, so a long document does not hold the
+     * screen up. Null when there is nothing open to save to.
+     */
+    private fun saveTask(): (suspend () -> Boolean)? {
         main.removeCallbacks(autosave)
-        if (!opened) return
-        val documents = store ?: return
-        // The rendered document is read here, on Main, as it stands; it is written as Markdown
-        // off Main, in the queue, so a long document does not hold the screen up.
+        if (!opened) return null
+        val documents = store ?: return null
         val ready: String? = if (sourceShowing || !richDirty) currentMarkdown() else null
         val doc = if (ready == null) binding.rich.document() else null
         val gen = richGen
-        appScope.launch {
-            withContext(NonCancellable) {
-                ops.withLock {
-                    val text = ready ?: withContext(Dispatchers.Default) { RichWrite.write(doc!!).text }.also {
-                        // Nothing edited since it was read: it is the Markdown of what is shown.
-                        if (gen == richGen && !sourceShowing) { richSource = it; richDirty = false }
+        return {
+            ops.withLock {
+                val text = ready ?: withContext(Dispatchers.Default) { RichWrite.write(doc!!).text }.also {
+                    // Nothing edited since it was read: it is the Markdown of what is shown.
+                    if (gen == richGen && !sourceShowing) { richSource = it; richDirty = false }
+                }
+                if (!DocumentLimits.fits(text)) {
+                    if (!tooLongTold && !isFinishing && !isDestroyed) {
+                        tooLongTold = true
+                        Dialogs.problem(this@DocumentActivity, R.string.too_long_title, R.string.too_long_body)
                     }
-                    if (!DocumentLimits.fits(text)) {
-                        if (!tooLongTold && !isFinishing && !isDestroyed) {
-                            tooLongTold = true
-                            Dialogs.problem(this@DocumentActivity, R.string.too_long_title, R.string.too_long_body)
-                        }
-                        return@withLock
-                    }
-                    tooLongTold = false
-                    if (text == savedText) return@withLock
-                    // On the way out there is no later save: one more try, then say so (an export
-                    // says so itself, and stays).
-                    val leaving = !started || closing || isFinishing
-                    var landed = write(documents, text)
-                    if (!landed && leaving) landed = write(documents, text)
-                    when {
-                        landed -> savedText = text
-                        !leaving -> main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
-                        !closing -> android.widget.Toast.makeText(applicationContext, R.string.save_failed_toast, android.widget.Toast.LENGTH_LONG).show()
+                    return@withLock false
+                }
+                tooLongTold = false
+                if (text == savedText) return@withLock true
+                // On the way out there is no later save: one more try, then say so, once for
+                // these words (the pause and the stop both try; an export says so itself, and stays).
+                val leaving = !started || closing || isFinishing
+                var landed = write(documents, text)
+                if (!landed && leaving) landed = write(documents, text)
+                when {
+                    landed -> { savedText = text; unsavedTold = null }
+                    !leaving -> main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
+                    !closing && unsavedTold != text -> {
+                        unsavedTold = text
+                        android.widget.Toast.makeText(applicationContext, R.string.save_failed_toast, android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
+                landed
             }
         }
     }
@@ -670,15 +688,10 @@ class DocumentActivity : AppCompatActivity() {
         val id = itemId ?: return
         if (isSavedOrSaveable().not()) return
         closing = true
-        save()
         appScope.launch {
-            ops.withLock { }
             // The file must hold the words before it is handed over: when the save did not land,
-            // one more, and if that fails too the document stays open and says so.
-            if (opened && savedText != currentMarkdown()) {
-                save()
-                ops.withLock { }
-            }
+            // one more, awaited, and if that fails too the document stays open and says so.
+            if (!saveNow() && opened) saveNow()
             if (!opened || isFinishing || isDestroyed) return@launch
             if (savedText != currentMarkdown()) {
                 closing = false

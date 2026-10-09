@@ -2,6 +2,8 @@ package com.symmetricalpalmtree.soil.docsprout.editor.rich
 
 import com.symmetricalpalmtree.soil.markdown.rich.RichBlock
 import com.symmetricalpalmtree.soil.markdown.rich.RichDoc
+import com.symmetricalpalmtree.soil.markdown.rich.RichSpan
+import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,5 +45,20 @@ class RichHistoryTest {
         val history = RichHistory(maxSteps = 4, maxChars = Long.MAX_VALUE)
         repeat(10) { history.beforeEdit(typing = false, now = it * 10_000L) { snap("a") } }
         assertEquals(4, history.steps)
+    }
+
+    @Test
+    fun `the links of a document are its words and addresses, so a restore can say which it took off`() {
+        val linked = RichDoc(
+            listOf(
+                RichBlock(text = "see John 3:16 now", spans = listOf(RichSpan(4, 13, RichStyle.LINK, "bible:x"), RichSpan(14, 17, RichStyle.BOLD))),
+                RichBlock(text = "and Ps 23", spans = listOf(RichSpan(4, 9, RichStyle.LINK, "bible:y"))),
+            ),
+        )
+        val plain = RichDoc(listOf(RichBlock(text = "see John 3:16 now"), RichBlock(text = "and Ps 23", spans = listOf(RichSpan(4, 9, RichStyle.LINK, "bible:y")))))
+        assertEquals(setOf("John 3:16" to "bible:x", "Ps 23" to "bible:y"), RichHistory.links(linked))
+        // An undo from linked to plain took off the first link only; a redo puts it back.
+        assertEquals(setOf("John 3:16" to "bible:x"), RichHistory.links(linked) - RichHistory.links(plain))
+        assertEquals(emptySet<Pair<String, String>>(), RichHistory.links(plain) - RichHistory.links(linked))
     }
 }

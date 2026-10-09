@@ -4,6 +4,8 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
+import com.symmetricalpalmtree.soil.docsprout.editor.BibleLinks
 import com.symmetricalpalmtree.soil.docsprout.editor.ProofreadEditText
 import com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck
 import com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadDirty
@@ -29,8 +31,11 @@ import kotlinx.coroutines.withContext
  * and the next tick looks again.
  *
  * In the rendered document a link is a span: no character moves, the caret stays, and the link
- * is one step to undo (the words stay) that leaves the redo steps as they were. An undo or a redo
- * is not read again, so a link undone is not put back. In the Markdown source a link is characters, written
+ * is one step to undo (the words stay) that leaves the redo steps as they were. After an undo or
+ * a redo the whole document is read again, skipping every link an undo took off in this editing
+ * session ([undone]), so a link undone stays undone, a reference an undo or a redo brought back
+ * is linked, and a redo that put back a document from before a link has it linked again. A redo
+ * that puts such a link back allows it again. In the Markdown source a link is characters, written
  * last first with the caret carried past them. A reference the caret is touching is left for a
  * tick after the caret has moved, which [onCaretMoved] asks for. A link the writer took off is
  * never put back ([unlinked]).
@@ -57,13 +62,16 @@ internal class BibleLinkController(
     /** Bumped on every undo or redo in the rendered document. */
     private var restores = 0
 
+    /** [BibleUnlinked] keys of the links an undo took off while this screen is up: never linked again by the pass. */
+    private val undone = HashSet<String>()
+
     init {
         for (each in listOf<ProofreadEditText>(rich, source)) {
             each.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                     generation++
-                    // An undo or a redo puts back words already seen: a link undone stays undone.
+                    // An undo or a redo is not typing: the whole document is read once it is back.
                     if (each === rich && rich.restoring) { restores++; return }
                     dirty.note(start, before, count)
                 }
@@ -71,6 +79,11 @@ internal class BibleLinkController(
             })
             val was = each.onCaretMoved
             each.onCaretMoved = { was?.invoke(); if (heldByCaret) schedule() }
+        }
+        rich.onRestored = { removed, added ->
+            for ((words, address) in added) BibleLinks.wireOfAddress(address)?.let { undone -= BibleUnlinked.key(words, it) }
+            for ((words, address) in removed) BibleLinks.wireOfAddress(address)?.let { undone += BibleUnlinked.key(words, it) }
+            checkDocument()
         }
     }
 
@@ -106,7 +119,7 @@ internal class BibleLinkController(
         val region = if (all) ProofreadCheck.Region(0, snapshot.length) else ProofreadCheck.Region(start, end)
         val protected = if (rendered()) renderedProtected(text) else null
         val caret = editor.selectionStart.takeIf { editor.selectionStart == editor.selectionEnd && it >= 0 }
-        val skip = unlinked()
+        val skip = if (undone.isEmpty()) unlinked() else unlinked() + undone
         val gen = generation
         val onRendered = rendered()
         val restoresAtStart = restores
@@ -115,7 +128,7 @@ internal class BibleLinkController(
                 ReferenceLinker.plan(snapshot, region, protected ?: ReferenceLinker.markdownProtected(snapshot), skip, caret)
             }
             if (gen != generation || !usable() || rendered() != onRendered) {
-                // An undo or a redo put back a document already seen: nothing to look at again.
+                // An undo or a redo put a document back: it asked for its own read.
                 if (restores != restoresAtStart) return@launch
                 // The document moved on: these offsets name nothing now. Look again.
                 whole = true

@@ -150,17 +150,23 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
     fun redo(): Boolean = history.redo({ snapshot() }) { restore(it) }
 
     /**
-     * True while an undo or a redo puts a document back. Its words were all seen before, so a
-     * watcher that reads what changed (the pass that links references) leaves them be: a link
-     * undone is not put straight back.
+     * True while an undo or a redo puts a document back. A watcher that reads what changed (the
+     * pass that links references) does not read the change as typing; [onRestored] says what the
+     * step did to the links, once the document is back.
      */
     var restoring = false
         private set
 
+    /** After an undo or a redo: the links (words, address) it took off, and those it put back. */
+    var onRestored: ((removed: Set<Pair<String, String>>, added: Set<Pair<String, String>>) -> Unit)? = null
+
     private fun restore(snapshot: RichHistory.Snapshot) {
+        val before = RichHistory.links(document())
         restoring = true
         try { show(snapshot.doc, snapshot.selStart, snapshot.selEnd) } finally { restoring = false }
         edited(words = false)
+        val after = RichHistory.links(snapshot.doc)
+        onRestored?.invoke(before - after, after - before)
     }
 
     /** Several changes as one step to undo: a replace-all. */
@@ -183,7 +189,25 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
         android.R.id.redo -> { redo(); true }
         // What is pasted is words: spans from elsewhere are not this document's styles.
         android.R.id.paste -> super.onTextContextMenuItem(android.R.id.pasteAsPlainText)
+        android.R.id.copy, android.R.id.cut -> copyWithoutRules(id)
         else -> super.onTextContextMenuItem(id)
+    }
+
+    /**
+     * Copy and Cut as the platform does them, but a rule's stand-in ([RichCodec.RULE_CHAR]) never
+     * reaches the clipboard: in another app, or the Markdown editor, it would be a box.
+     */
+    private fun copyWithoutRules(id: Int): Boolean {
+        val s = text
+        val a = minOf(selectionStart, selectionEnd)
+        val b = maxOf(selectionStart, selectionEnd)
+        val words = if (s != null && a in 0 until b && b <= s.length) s.subSequence(a, b).toString() else null
+        val done = super.onTextContextMenuItem(id)
+        if (done && words != null && words.indexOf(RichCodec.RULE_CHAR) >= 0) {
+            val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+            runCatching { clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(null, words.replace(RichCodec.RULE_CHAR.toString(), ""))) }
+        }
+        return done
     }
 
     // ── The caret stays in front of the last line break ──────
@@ -638,6 +662,18 @@ internal class RichHistory(private val maxSteps: Int = MAX_STEPS, private val ma
     }
 
     companion object {
+        /** Every link in [doc], as its words and its address. */
+        fun links(doc: RichDoc): Set<Pair<String, String>> {
+            val out = HashSet<Pair<String, String>>()
+            for (block in doc.blocks) for (span in block.spans) {
+                if (span.style != RichStyle.LINK) continue
+                val a = span.start.coerceIn(0, block.text.length)
+                val b = span.end.coerceIn(a, block.text.length)
+                out += block.text.substring(a, b) to span.url
+            }
+            return out
+        }
+
         const val MAX_STEPS = 100
         /** About eight megabytes of words held as text, at two bytes a character. */
         const val MAX_CHARS = 4_000_000L
