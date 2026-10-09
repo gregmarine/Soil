@@ -22,6 +22,16 @@ class MarkdownCodeTest {
     }
 
     @Test
+    fun aRunWhoseWordsHoldItsCharacterIsNotAFence() {
+        assertEquals(null, MarkdownCode.fenceRun("~~~30~~ 25 people"))
+        assertEquals(null, MarkdownCode.fenceRun("```code``` here"))
+        assertEquals("~~~", MarkdownCode.fenceRun("~~~ kotlin `x`"))
+        assertEquals("```", MarkdownCode.fenceRun("```kotlin ~x~"))
+        assertEquals(emptyList<Int>(), code("~~~30~~ 25 people\n\n# After"))
+        assertEquals(emptyList<Int>(), code("```code``` here\n# After"))
+    }
+
+    @Test
     fun indentedCodeOnlyAfterABlankLineAndNotUnderAList() {
         assertEquals(listOf(2, 3, 4), code("a\n\n    one\n\n    two\n\nb"))
         assertEquals(emptyList<Int>(), code("a\n    joined"))

@@ -213,4 +213,20 @@ class RichParseTest {
     fun `an indented list item is a nested item, not code`() {
         assertEquals(listOf(RichBlock(RichAttr(RichKind.ORDERED, depth = 2, number = 1), "a")), blocks("    1. a"))
     }
+
+    @Test
+    fun `a run whose words hold its own character is not a fence`() {
+        // An older writer left `~~~30~~ 25 people` (a strike over "~30") as it is on disk.
+        val old = blocks("~~~30~~ 25 people\n\n# After")
+        assertEquals(RichBlock(RichAttr.PARAGRAPH, "~30 25 people", listOf(RichSpan(0, 3, RichStyle.STRIKE))), old[0])
+        assertEquals(RichBlock(RichAttr.heading(1), "After"), old[1])
+        // Written again it escapes the tilde, and reads back the same.
+        val doc = RichDoc(old)
+        val written = RichWrite.write(doc).text
+        assertEquals("~~\\~30~~ 25 people\n\n# After\n", written)
+        assertEquals(old, blocks(written))
+        // A Slack-style ```code``` line is inline code, and what follows is read as written.
+        val slack = blocks("```code``` here\n# After")
+        assertEquals(listOf(RichKind.PARAGRAPH, RichKind.HEADING), slack.map { it.attr.kind })
+    }
 }

@@ -4,15 +4,15 @@ import com.symmetricalpalmtree.soil.markdown.MarkdownCode
 
 /**
  * Markdown → [RichDoc]. The block grammar is [com.symmetricalpalmtree.soil.markdown.MarkdownParser]'s,
- * line for line, and its code lines are [MarkdownCode]'s as that parser's are, with three things
- * that parser does not need and a rendered editor does:
+ * line for line, with three things that parser does not need and a rendered editor does:
  *
  *  - **Backslash escapes.** `\` before a punctuation character makes it a plain character, so
  *    what [RichWrite] escaped reads back as it was typed.
  *  - **Raw lines.** A fenced block, an indented code block and a table row are kept exactly as
- *    written, a line a block (the notebook's parser shows code as plain lines, and has no tables). A fence is three or more backticks or tildes, closed by a line of
- *    the same character at least as long and nothing else; a fence never closed runs to the end
- *    of the document. An indented code block is lines indented four spaces (or a tab) after a
+ *    written, a line a block, by [MarkdownCode]'s rule (the notebook's parser has no code and no
+ *    tables). A fence is three or more backticks or tildes, with no more of its character after
+ *    the run, closed by a line of the same character at least as long and nothing else; a fence
+ *    never closed runs to the end of the document. An indented code block is lines indented four spaces (or a tab) after a
  *    blank line, when the block before it is not a list item; a line that reads as a list item
  *    is one, at its depth, and never code, since that is how a nested item is written.
  *  - **Images stay as written**: the characters `![alt](url)`, untouched.

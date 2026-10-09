@@ -3,10 +3,12 @@ package com.symmetricalpalmtree.soil.markdown
 /**
  * Which lines of a Markdown text are code — kept as written, never read as Markdown. The one
  * rule every reader of a document's source shares: the rendered editor's [rich.RichParse], the
- * notebook's [MarkdownParser], the list renumbering, the reflow, and the proofread's skip mask.
+ * list renumbering, the reflow, and the proofread's skip mask. The notebook's [MarkdownParser]
+ * deliberately stays without it: text boxes were measured under its reading.
  *
  *  - **A fence** is three or more backticks or tildes at the start of a line (after any indent),
- *    closed by a line of the same character at least as long and nothing else. A fence never
+ *    closed by a line of the same character at least as long and nothing else. The words after
+ *    the opening run may not hold its character (else the line is not a fence). A fence never
  *    closed runs to the end of the text. Its opening and closing lines are code too.
  *  - **Indented code** is lines indented four columns or more (a tab is four) after a blank line,
  *    when the block before is not a list item. A line that reads as a list item is one, at its
@@ -21,13 +23,16 @@ object MarkdownCode {
     private val UNORDERED_ITEM = Regex("""^[-*+]\s+(.+)""")
     private val ORDERED_ITEM = Regex("""^(\d+)\.\s+(.+)""")
 
-    /** The run of three or more backticks or tildes that opens a fence on [line], or null. */
+    /** The run of three or more backticks or tildes that opens a fence on [line], or null. The
+     *  words after the run (the info string) may not hold the run's character: `~~~30~~ 25` is a
+     *  strike an older writer left unescaped, and ```` ```code``` ```` is inline code, never a fence. */
     fun fenceRun(line: String): String? {
         val t = line.trimStart()
         if (t.isEmpty() || (t[0] != '`' && t[0] != '~')) return null
         var n = 0
         while (n < t.length && t[n] == t[0]) n++
-        return if (n >= 3) t.substring(0, n) else null
+        if (n < 3 || t.indexOf(t[0], n) >= 0) return null
+        return t.substring(0, n)
     }
 
     /** Whether [line] closes the fence opened by [run]: the same character, at least as many, and nothing else. */

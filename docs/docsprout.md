@@ -59,14 +59,16 @@ actually edited there.
 Notesprout SN's set as it was: headings, bullet, numbered and task lists with nesting, quotes,
 rules, bold, italic, strikethrough, inline code and links. Tables, fenced code and images are
 not supported yet (`BACKLOG.md`), and nothing of them is lost: table rows, fenced code (three or
-more backticks or tildes, closed by a run of the same character at least as long) and indented
+more backticks or tildes with no more of that character after them on the line, closed by a run
+of the same character at least as long) and indented
 code (four spaces or a tab, after a blank line and not under a list item) are kept as raw lines,
 shown monospace, edited as plain text and written back untouched; image syntax stays the literal
 text it is. A fence never closed runs to the end of the document. A raw line edited out of its
 shape (a table row that lost its `|`, a fence whose closing line is gone with words after it) is
 written as a paragraph of its words, escaped, so it can never read back as another block or
 swallow what follows. Which lines are code is one rule (`MarkdownCode`), shared by the rendered
-editor, the list renumbering, reflow and the proofread.
+editor, the list renumbering, reflow and the proofread; a notebook's text box keeps its own
+reading, with no code, since its boxes were measured by it.
 
 The canonical form is a rewrite, not a copy: when a document is edited in the rendered mode,
 soft and hard line breaks inside a paragraph, setext headings, lazy continuation lines and a
