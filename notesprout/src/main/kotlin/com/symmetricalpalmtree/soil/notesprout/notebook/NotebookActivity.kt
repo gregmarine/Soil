@@ -213,8 +213,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
     override fun syncTool(tool: Tool) = toolbar.sync(tool)
     override fun armTool(tool: Tool) = toolbar.arm(tool)
     override fun showPage() = showPage(firstLoad = false)
-    override suspend fun revert(action: NotebookAction) { document?.revert(action); preparePaper() }
-    override suspend fun reapply(action: NotebookAction) { document?.reapply(action); preparePaper() }
+    // A replay lands on its action's page: the paper is cleared for the swap before it moves.
+    override suspend fun revert(action: NotebookAction) = leavingPage { document?.revert(action); preparePaper() }
+    override suspend fun reapply(action: NotebookAction) = leavingPage { document?.reapply(action); preparePaper() }
 
     // ── Create ──────
 
@@ -1632,9 +1633,11 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         // The anchor's number as it reads once the paste has landed (every pasted page ahead of
         // it, for a paste before): what the indicator shows.
         val anchor = PageMath.anchorNumberAfterPaste(doc.pageIndex, before, env.rows.count { it.type == NotebookSchema.TYPE_PAGE })
-        undo.record(doc.pastePage(env, before))
-        preparePaper()
-        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        leavingPage {
+            undo.record(doc.pastePage(env, before))
+            preparePaper()
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        }
         refreshContents()
         toast(getString(if (before) R.string.pasted_before_toast else R.string.pasted_after_toast, anchor))
     }
@@ -1925,7 +1928,16 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 return@runPageOp
             }
             val bytes = InkWire.encode(picked, doc.pageWidth, doc.pageHeight)
-            val sent = runCatching { withContext(Dispatchers.IO) { (application as NotesproutApp).soil.seam().sendInkToPad(com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes), placement) } }
+            val sent = runCatching {
+                withContext(Dispatchers.IO) {
+                    val region = com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes)
+                    try {
+                        (application as NotesproutApp).soil.seam().sendInkToPad(region, placement)
+                    } finally {
+                        region.memory.close()
+                    }
+                }
+            }
             if (sent.isFailure) {
                 Log.w(TAG, "send to the pad failed: ${sent.exceptionOrNull()?.javaClass?.simpleName}")
                 Dialogs.problem(this, R.string.scratch_failed_title, R.string.scratch_send_failed_body)
@@ -2141,7 +2153,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                     }
                     val seed = TemplateNames.seedFor(PageLabels.titleOf(content.headings + content.links.flatMap { it.headings }), pageNumber)
                     if (TemplateImport.overCap(bytes.size)) throw TooBig(bytes.size)
-                    (application as NotesproutApp).soil.seam().stageTemplate(com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes)) to seed
+                    val region = com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes)
+                    try {
+                        (application as NotesproutApp).soil.seam().stageTemplate(region) to seed
+                    } finally {
+                        region.memory.close()
+                    }
                 }
             } catch (e: TooBig) {
                 Dialogs.problem(
@@ -2257,22 +2274,46 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         // The paper off Main before the swap; the composites after it (they need the page's
         // links), before the frame that paints the page.
         preparePaper(doc.pages[index])
-        doc.goToIndex(index)
-        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        leavingPage {
+            doc.goToIndex(index)
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        }
     }
 
     private suspend fun doInsert(after: Boolean) {
         val doc = document ?: return
-        undo.record(doc.insert(after))
-        preparePaper()
-        showPage()
+        leavingPage {
+            undo.record(doc.insert(after))
+            preparePaper()
+            showPage()
+        }
     }
 
     private suspend fun doDelete() {
         val doc = document ?: return
-        undo.record(doc.deleteCurrent())
-        preparePaper()
-        showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        leavingPage {
+            undo.record(doc.deleteCurrent())
+            preparePaper()
+            showPage(firstLoad = false, prebuilt = linkRenderer.prebuild(doc.links.values.toList()))
+        }
+    }
+
+    /**
+     * Run [move], which may take the document to another page, with the paper already cleared for
+     * the swap. Since g-paper 0.1.70 a contact whose lift was lost is committed inside
+     * `clearForContentSwap`, through the listener, onto the document's page at that moment: here
+     * that is still the page it was drawn on, which the document flushes before it moves. The
+     * pixels hold until [showPage] loads the page that follows (its own clear is then a no-op); a
+     * move that fails puts the document's page back on the paper rather than leave it empty.
+     */
+    private suspend fun <T> leavingPage(move: suspend () -> T): T {
+        paper.clearForContentSwap()
+        try {
+            return move()
+        } catch (t: Throwable) {
+            if (t !is CancellationException && opened && !closing && !isDestroyed) showPage()
+            throw t
+        }
     }
 
     /** The page-swap order is g-paper's law: clear for the swap, size, template, then strokes. */
@@ -2383,7 +2424,12 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         appScope.launch(Dispatchers.IO) {
             try {
                 val bytes = CoverSnapshot.encode(full)
-                (application as NotesproutApp).soil.seam().setCover(id, com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes))
+                val cover = com.symmetricalpalmtree.soil.seam.SeamShared.write(bytes)
+                try {
+                    (application as NotesproutApp).soil.seam().setCover(id, cover)
+                } finally {
+                    cover.memory.close()
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "the cover was not written: ${e.javaClass.simpleName}")
             } finally {
