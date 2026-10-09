@@ -1,7 +1,10 @@
 package com.symmetricalpalmtree.soil.library
 
 import android.app.Activity
+import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Log
+import android.util.LruCache
 import android.view.View
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +28,7 @@ import com.symmetricalpalmtree.soil.paper.templates.TemplateNames
 import com.symmetricalpalmtree.soil.templates.NameDialog
 import com.symmetricalpalmtree.soil.templates.SortField
 import com.symmetricalpalmtree.soil.templates.SortOrder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,9 +59,10 @@ class LibraryBrowser(
 ) {
     enum class Shelf { NONE, PINNED, RECENTS, SEARCH }
 
-    /** Lazy: the home screen holds a browser in every state of the library, and the index is
-     *  only there to read once the library is open. */
-    private val store by lazy { LibraryStore() }
+    /** Built per use, never held: the home screen holds a browser in every state of the library,
+     *  and the index it reads closes and reopens under it (Forget, then Unlock; a passphrase
+     *  change). A store held across that reads a closed database. */
+    private val store: LibraryStore get() = LibraryStore()
     private val prefs = LibraryPrefs(activity)
 
     var folderId: String = ""
@@ -70,7 +75,14 @@ class LibraryBrowser(
     private var pageCount = 1
     private var items: List<LibraryCard> = emptyList()
     private var grid: LibraryGrid? = null
-    private val coverCache = HashMap<String, ByteArray?>()
+    /** Covers decoded on IO, bounded by their bytes; the ids with no cover apart. Both are
+     *  emptied on each listing: a cover changes without `updatedAt` moving. */
+    private val coverCache = object : LruCache<String, Bitmap>(COVER_CACHE_BYTES) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
+    }
+    private val noCover = HashSet<String>()
+    /** The newest listing asked for: an older read that lands after it is dropped. */
+    private var refreshGeneration = 0
     private var selectedId: String? = null
 
     private val moveLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -165,11 +177,11 @@ class LibraryBrowser(
                 return@show
             }
             accepting = true
-            activity.lifecycleScope.launch {
+            act {
                 try {
                     if (withContext(Dispatchers.IO) { store.folderNameTaken(parentId, name) }) {
                         Dialogs.problem(activity, R.string.name_problem_title, activity.getString(R.string.folder_duplicate_name, name))
-                        return@launch
+                        return@act
                     }
                     withContext(Dispatchers.IO) { store.createFolder(name, parentId) }
                     dismiss()
@@ -194,23 +206,40 @@ class LibraryBrowser(
 
     // ── Listing ──────
 
+    /** Read the listing again. A read that fails keeps the last listing and says so; one
+     *  overtaken by a newer read is dropped. Never throws but for cancellation. */
     private suspend fun refresh() {
         if (!com.symmetricalpalmtree.soil.data.index.SoilIndex.isReady()) return
-        val listed = withContext(Dispatchers.IO) {
-            if (folderId.isNotEmpty() && store.folder(folderId) == null) folderId = ""
-            pinnedIds = store.pinnedIds().toSet()
-            val field = prefs.sortField
-            val order = prefs.sortOrder
-            when (shelf) {
-                Shelf.NONE -> LibraryListing.folderCards(store.folders(folderId), itemsIn(folderId), pinnedIds, field, order)
-                Shelf.PINNED -> LibraryListing.pinnedCards(pinnedIds.toList(), store.aliveItems(pinnedIds).filterValues { wanted(it) }, field, order, ::placeOf)
-                Shelf.RECENTS -> LibraryListing.recentCards(store.allItems().filter { wanted(it) }, pinnedIds, ::placeOf)
-                Shelf.SEARCH -> searchCards()
+        val generation = ++refreshGeneration
+        val listed = try {
+            withContext(Dispatchers.IO) {
+                val s = store
+                if (folderId.isNotEmpty() && s.folder(folderId) == null) folderId = ""
+                pinnedIds = s.pinnedIds().toSet()
+                val field = prefs.sortField
+                val order = prefs.sortOrder
+                when (shelf) {
+                    Shelf.NONE -> LibraryListing.folderCards(s.folders(folderId), itemsIn(folderId), pinnedIds, field, order)
+                    Shelf.PINNED -> LibraryListing.pinnedCards(pinnedIds.toList(), s.aliveItems(pinnedIds).filterValues { wanted(it) }, field, order, ::placeOf)
+                    Shelf.RECENTS -> LibraryListing.recentCards(s.allItems().filter { wanted(it) }, pinnedIds, ::placeOf)
+                    Shelf.SEARCH -> searchCards()
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "the listing could not be read: ${e.javaClass.simpleName}")
+            // A library locked mid-read is not a failure: the home screen shows its line instead.
+            if (generation == refreshGeneration && com.symmetricalpalmtree.soil.data.index.SoilIndex.isReady() && !activity.isFinishing && !activity.isDestroyed) {
+                Dialogs.problem(activity, R.string.library_read_failed_title, R.string.library_read_failed_body)
+            }
+            return
         }
+        if (generation != refreshGeneration) return
         renderChrome()
         items = listed
-        coverCache.clear()
+        coverCache.evictAll()
+        noCover.clear()
         binding.emptyState.setText(emptyTextRes())
         binding.emptyState.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         pageCount = GridMath.pageCount(items.size, grid?.cardsPerPage ?: 1)
@@ -263,12 +292,14 @@ class LibraryBrowser(
     private suspend fun bindCurrentPage() {
         val g = grid ?: return
         val range = GridMath.pageRange(pageIndex, g.cardsPerPage, items.size)
-        val missing = range.mapNotNull { coverIdOf(items[it]) }.distinct().filter { it !in coverCache }
-        if (missing.isNotEmpty()) {
-            val fetched = withContext(Dispatchers.IO) { missing.associateWith { runCatching { store.cover(it) }.getOrNull() } }
-            coverCache.putAll(fetched)
+        val ids = range.mapNotNull { coverIdOf(items[it]) }.distinct()
+        val missing = ids.filter { coverCache.get(it) == null && it !in noCover }
+        val fetched = if (missing.isEmpty()) emptyMap() else withContext(Dispatchers.IO) {
+            missing.associateWith { id -> runCatching { LibraryGrid.decodeCover(store.cover(id)) }.getOrNull() }
         }
-        g.bind(items, pageIndex, coverCache, selectedId)
+        for ((id, bmp) in fetched) if (bmp != null) coverCache.put(id, bmp) else noCover.add(id)
+        val covers = ids.associateWith { fetched[it] ?: coverCache.get(it) }
+        g.bind(items, pageIndex, covers, selectedId)
         binding.pager.visibility = if (pageCount > 1) View.VISIBLE else View.INVISIBLE
         binding.pageLabel.text = activity.getString(R.string.page_indicator, pageIndex + 1, pageCount)
     }
@@ -301,7 +332,14 @@ class LibraryBrowser(
     private fun renderBreadcrumb() {
         val ink = ContextCompat.getColor(activity, com.symmetricalpalmtree.soil.paper.R.color.inkBlack)
         activity.lifecycleScope.launch {
-            val ancestry = if (folderId.isEmpty()) emptyList() else withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            val ancestry = if (folderId.isEmpty()) emptyList() else try {
+                withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the path could not be read: ${e.javaClass.simpleName}")
+                emptyList()
+            }
             val container = binding.breadcrumbContainer
             container.removeAllViews()
             container.addView(crumb(activity.getString(R.string.library_root), ink, "", activity.getString(R.string.library_root)))
@@ -342,7 +380,7 @@ class LibraryBrowser(
 
     private fun navigateUp() {
         if (folderId.isEmpty()) return
-        activity.lifecycleScope.launch {
+        act {
             val ancestry = withContext(Dispatchers.IO) { store.ancestry(folderId) }
             navigateTo(if (ancestry.size >= 2) ancestry[ancestry.size - 2].id else "")
         }
@@ -387,7 +425,7 @@ class LibraryBrowser(
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_move_folder, activity.getString(R.string.action_move)) {
                     moveLauncher.launch(FolderPickerActivity.moveIntent(activity, FolderPickerActivity.Hierarchy.LIBRARY, card.id, true, card.name, card.folder.parentId))
                 }
-                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, store, card.id, card.name) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, card.id, card.name) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, activity.getString(R.string.default_template_action)) { onDefaultTemplate?.invoke(card.id, card.name) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_trash, activity.getString(R.string.action_delete)) { confirmDeleteFolder(card.folder) }
                 .show()
@@ -414,7 +452,7 @@ class LibraryBrowser(
 
     /** The exclude bit never bumps `updatedAt`; the cards are read again so the sheet's label follows. */
     private fun toggleExcluded(itemId: String, excluded: Boolean) {
-        activity.lifecycleScope.launch {
+        act {
             withContext(Dispatchers.IO) { com.symmetricalpalmtree.soil.data.index.IndexStore().setExcludedFromBackup(itemId, excluded) }
             refresh()
         }
@@ -429,13 +467,13 @@ class LibraryBrowser(
     /** The root crumb's and any crumb's long press: the folder's say, as a sheet of its two rows. */
     private fun showFolderSaySheet(id: String, name: String) {
         ActionSheetDialog(activity).title(name)
-            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, store, id, name) }
+            .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cursor_text, activity.getString(R.string.scheme_action)) { SchemeBuilderDialog.open(activity, id, name) }
             .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_template, activity.getString(R.string.default_template_action)) { onDefaultTemplate?.invoke(id, name) }
             .show()
     }
 
     private fun togglePin(id: String, pinned: Boolean) {
-        activity.lifecycleScope.launch {
+        act {
             withContext(Dispatchers.IO) { if (pinned) store.unpin(id) else store.pin(id) }
             refresh()
         }
@@ -451,11 +489,11 @@ class LibraryBrowser(
                 return@show
             }
             accepting = true
-            activity.lifecycleScope.launch {
+            act {
                 try {
                     if (withContext(Dispatchers.IO) { store.folderNameTaken(folder.parentId, name, folder.id) }) {
                         Dialogs.problem(activity, R.string.name_problem_title, activity.getString(R.string.folder_duplicate_name, name))
-                        return@launch
+                        return@act
                     }
                     withContext(Dispatchers.IO) { store.renameFolder(folder.id, name) }
                     dismiss()
@@ -479,7 +517,7 @@ class LibraryBrowser(
                 return@show
             }
             accepting = true
-            activity.lifecycleScope.launch {
+            act {
                 try {
                     withContext(Dispatchers.IO) {
                         com.symmetricalpalmtree.soil.data.index.IndexStore().rename(item.id, clean, System.currentTimeMillis())
@@ -501,9 +539,17 @@ class LibraryBrowser(
             return
         }
         confirm(R.string.delete_item_title, R.string.delete_item_body, item.name) {
-            activity.lifecycleScope.launch {
-                withContext(Dispatchers.IO) {
+            act {
+                // Asked again at the moment of deleting: the app may have opened it while the
+                // question was up.
+                val deleted = withContext(Dispatchers.IO) {
+                    if (ItemSessions.isHeld(item.id)) return@withContext false
                     if (store.deleteItem(item.id)) LibraryFiles.deleteItemFile(activity, item.id)
+                    true
+                }
+                if (!deleted) {
+                    Dialogs.problem(activity, R.string.delete_item_open_title, activity.getString(R.string.delete_item_open_body, item.name))
+                    return@act
                 }
                 ItemSessions.changed()
                 refresh()
@@ -511,16 +557,63 @@ class LibraryBrowser(
         }
     }
 
-    private fun confirmDeleteFolder(folder: Folder) = confirm(R.string.delete_folder_title, R.string.delete_folder_body, folder.name) {
-        activity.lifecycleScope.launch {
+    /** A folder holding an item open in its app is not deleted: the item's file would go from
+     *  under the app. Asked before the question and again at the moment of deleting. */
+    private fun confirmDeleteFolder(folder: Folder) {
+        act {
+            if (withContext(Dispatchers.IO) { holdsOpenItem(folder.id) }) {
+                Dialogs.problem(activity, R.string.delete_item_open_title, activity.getString(R.string.delete_folder_open_body, folder.name))
+                return@act
+            }
+            confirm(R.string.delete_folder_title, R.string.delete_folder_body, folder.name) { deleteFolder(folder) }
+        }
+    }
+
+    private fun deleteFolder(folder: Folder) {
+        act {
             val gone = withContext(Dispatchers.IO) {
+                if (holdsOpenItem(folder.id)) return@withContext null
                 val ids = store.deleteFolderRecursive(folder.id)
                 ids.forEach { LibraryFiles.deleteItemFile(activity, it) }
                 ids
             }
+            if (gone == null) {
+                Dialogs.problem(activity, R.string.delete_item_open_title, activity.getString(R.string.delete_folder_open_body, folder.name))
+                return@act
+            }
             Slog.d(TAG) { "deleted a folder with ${gone.size} items" }
             ItemSessions.changed()
             if (folderId == folder.id) navigateTo(folder.parentId) else refresh()
+        }
+    }
+
+    /** Whether any item under [rootId], at any depth, is open in its app. IO. */
+    private fun holdsOpenItem(rootId: String): Boolean {
+        val s = store
+        val stack = ArrayDeque<String>().apply { add(rootId) }
+        val seen = HashSet<String>()
+        while (stack.isNotEmpty()) {
+            val fid = stack.removeLast()
+            if (!seen.add(fid)) continue
+            if (s.items(fid).any { ItemSessions.isHeld(it.id) }) return true
+            s.folders(fid).forEach { stack.add(it.id) }
+        }
+        return false
+    }
+
+    /** A change on Main: a store call that throws says so in a problem dialog, never a crash. */
+    private fun act(block: suspend () -> Unit) {
+        activity.lifecycleScope.launch {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "a library change failed: ${e.javaClass.simpleName}")
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    Dialogs.problem(activity, R.string.library_change_failed_title, R.string.library_change_failed_body)
+                }
+            }
         }
     }
 
@@ -546,5 +639,7 @@ class LibraryBrowser(
     private companion object {
         const val TAG = "LibraryBrowser"
         const val KEY_FOLDER = "libraryBrowser.folder"
+        /** A few pages of covers, decoded. */
+        const val COVER_CACHE_BYTES = 24 * 1024 * 1024
     }
 }

@@ -49,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
     private var cloudRef: Extension? = null
     private var cloudStatus: CloudStatus? = null
     private var cloudBusy = false
+    private var linksBusy = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -162,12 +163,18 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** Every installed recogniser in each of its languages, and None. A missing recogniser is said, not offered. */
-    /** The link index rebuilt from every file: the way back when a write was missed. */
+    /** The link index rebuilt from every file: the way back when a write was missed. One at a
+     *  time: a second tap while one runs says so. */
     private fun rebuildLinks() {
         if (!SoilIndex.isReady()) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_locked); return }
+        if (linksBusy) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_busy); return }
+        linksBusy = true
         lifecycleScope.launch {
-            val outcome = withContext(Dispatchers.IO) { runCatching { LinkRebuild.rebuild(applicationContext) }.getOrNull() }
+            val outcome = try {
+                withContext(Dispatchers.IO) { runCatching { LinkRebuild.rebuild(applicationContext) }.getOrNull() }
+            } finally {
+                linksBusy = false
+            }
             if (isFinishing || isDestroyed) return@launch
             val body = when {
                 outcome == null -> getString(R.string.settings_links_failed)
@@ -178,6 +185,7 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    /** Every installed recogniser in each of its languages, and None. A missing recogniser is said, not offered. */
     private fun askRecognizer() {
         if (installed.isEmpty()) {
             com.symmetricalpalmtree.soil.paper.core.Dialogs.problem(this, R.string.settings_recognizer, R.string.settings_recognizer_none_installed_body)

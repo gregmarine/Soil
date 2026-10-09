@@ -85,7 +85,14 @@ class HomeActivity : AppCompatActivity() {
         val pick = TemplatePick.decode(encoded) ?: return@registerForActivityResult
         lifecycleScope.launch {
             // Blank is the absence of a say: a folder whose default is Blank says nothing.
-            withContext(Dispatchers.IO) { LibraryStore().setDefaultTemplate(folderId, if (pick is TemplatePick.Blank) null else encoded) }
+            try {
+                withContext(Dispatchers.IO) { LibraryStore().setDefaultTemplate(folderId, if (pick is TemplatePick.Blank) null else encoded) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("HomeActivity", "the default paper could not be saved: ${e.javaClass.simpleName}")
+                if (!isFinishing && !isDestroyed) Dialogs.problem(this@HomeActivity, R.string.library_change_failed_title, R.string.library_change_failed_body)
+            }
         }
     }
 
@@ -241,12 +248,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun open(item: Item, pageId: String? = null) {
-        when (ItemApps.open(this, item.id, item.kind, pageId = pageId)) {
-            ItemApps.Opened.YES -> Unit
-            ItemApps.Opened.NO_APP ->
-                Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))
-            ItemApps.Opened.FAILED ->
-                Dialogs.problem(this, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, item.name))
+        lifecycleScope.launch {
+            when (ItemApps.openItem(this@HomeActivity, item.id, item.kind, pageId = pageId)) {
+                ItemApps.Opened.YES -> Unit
+                ItemApps.Opened.NO_APP ->
+                    Dialogs.problem(this@HomeActivity, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))
+                ItemApps.Opened.FAILED ->
+                    Dialogs.problem(this@HomeActivity, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, item.name))
+            }
         }
     }
 

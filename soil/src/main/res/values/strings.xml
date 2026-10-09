@@ -292,6 +292,12 @@
     <string name="delete_item_open_body">\"%1$s\" is open in its app. Close it first.</string>
     <string name="delete_folder_title">Delete \"%1$s\"?</string>
     <string name="delete_folder_body">This will permanently remove every item and folder inside it. This cannot be undone.</string>
+    <string name="delete_folder_open_body">\"%1$s\" holds an item that is open in its app. Close it first.</string>
+    <!-- A store call that threw: a problem dialog, never a crash and never a silent tap. -->
+    <string name="library_change_failed_title">Couldn\'t make that change</string>
+    <string name="library_change_failed_body">Soil could not finish that change. Try again.</string>
+    <string name="library_read_failed_title">Couldn\'t read the list</string>
+    <string name="library_read_failed_body">The list could not be read again. What was shown is still shown. Try again.</string>
     <string name="move_collision_item_folder">A folder named \"%1$s\" already exists there.</string>
     <string name="library_move_title">Move to…</string>
     <string name="item_place_detail">%1$s</string>
@@ -564,6 +570,7 @@
     <string name="settings_links_detail">Rebuild the link index from every file</string>
     <string name="settings_links_locked">The library is not open.</string>
     <string name="settings_links_failed">The link index could not be rebuilt.</string>
+    <string name="settings_links_busy">The link index is being rebuilt. The answer comes when it is done.</string>
     <string name="settings_links_done">Rebuilt from %1$d items.</string>
     <string name="settings_links_done_skipped">Rebuilt from %1$d items; %2$d could not be read.</string>
     <string name="settings_cloud_none">No cloud extension is installed</string>
