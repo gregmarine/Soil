@@ -44,8 +44,13 @@ leaves.
 SN's write rules carry over: rows are minted on the first stroke, never on open, so browsing an
 empty year writes nothing but the bookmark; never `INSERT OR REPLACE` on a parent row; strokes
 put and dropped by id; no `IN (…)`. What SN did for its binder's 4 MiB cap is gone: a flush is
-one transaction of as many statements as strokes (`AppStoreLease.MAX_BATCH` is the seam's
-10,000), and a page is read in one query.
+one transaction of as many statements as strokes, and a page is read in one query. A flush over
+the seam's 10,000 statements (`AppStoreLease.MAX_BATCH`), a large paste, goes as several batches in
+order, mint first and `updatedAt` last; every statement is idempotent, so a batch that fails is
+retried whole. A page a screen minted is written by `(period, half)` rather than by the id it
+minted, since two calendar screens (a link opens a second) can each mint one for the same empty
+page and the first row wins; a screen reads its page again when it comes back to the front. A store
+call that fails because Soil restarted opens the store again and is retried once.
 
 ## The screen
 

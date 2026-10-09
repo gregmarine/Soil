@@ -81,7 +81,8 @@ import kotlin.coroutines.resume
  * **Opened on a day** ([Seam.EXTRA_CAL_DATE] — a link followed from a notebook or a document):
  * that day's Day page, ahead of the bookmark, as a pick. Otherwise the bookmark, or today's Month.
  *
- * Every navigation writes the bookmark and nothing else — **rows are minted on the first stroke,
+ * Every navigation writes the bookmark (not on a screen a link opened: that leaves it untouched)
+ * and nothing else — **rows are minted on the first stroke,
  * never on open**, so browsing an empty year leaves the store exactly as it was.
  *
  * **Ink across is the clipboard** (Greg, 2026-10-05: copy and paste, never Send), and it is the
@@ -131,7 +132,7 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             if (ended == null || !opened || closing || isFinishing || isDestroyed) return@registerForActivityResult
             // Force the bake: an event may have been added or deleted, and the grid's marks are
             // baked into the template.
-            runPageOp { showMove(nav.picked(ended, LocalDate.now(), nowHour()), forceBake = true) }
+            runPageOp { showMove(nav.returned(ended, LocalDate.now(), nowHour()), forceBake = true) }
         }
 
     /** The day Soil asked for, or null for the bookmark. Read once, at create. */
@@ -369,7 +370,16 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
             // "Opening…" box. A store Soil will not lend throws here.
             val app = application as CalsproutApp
             val store = app.calendar()
-            doc = CalendarDocument(store, app.events()) { surfaceSize() }
+            // The marks follow the store: a lease Soil let go is opened again by the document's
+            // re-acquire, and the events half comes with it.
+            var events = app.events()
+            doc = CalendarDocument(
+                store,
+                marks = MarkSource { from, to -> events.marksFor(from, to) },
+                // A link's day opens "the bookmark untouched" (docs/calsprout.md).
+                writesBookmark = openOn == null,
+                reacquire = { app.calendar().also { events = app.events() } },
+            ) { surfaceSize() }
             document = doc
             val bookmark = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val counts = runCatching { store.counts() }.getOrNull()
@@ -772,20 +782,25 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         val ink = doc.captureInk()
         val w = doc.pageWidth
         val h = doc.pageHeight
-        val pages = ArrayList<InkClip.PageInk>(2)
-        if (t.kind == CalendarTarget.KIND_DAY) {
+        val halves = if (t.kind == CalendarTarget.KIND_DAY) {
             val other = CalendarTarget.of(CalendarTarget.KIND_DAY, t.localDate, if (t.half == CalendarTarget.HALF_AM) CalendarTarget.HALF_PM else CalendarTarget.HALF_AM)
             val store = (application as CalsproutApp).calendar()
             val stored = withContext(Dispatchers.IO) { store.readPage(other) }
-            val halves = listOf(t to ink, other to stored.strokes).sortedBy { it.first.half }
-            for ((target, strokes) in halves) pages += InkClip.PageInk(w, h, gridBytes(target), strokes)
+            listOf(t to ink, other to stored.strokes).sortedBy { it.first.half }
         } else {
-            pages += InkClip.PageInk(w, h, gridBytes(t), ink)
+            listOf(t to ink)
         }
+        // The grids are page-sized bitmaps encoded to WEBP, and the envelope is every stroke
+        // encoded: none of it on Main.
         val now = System.currentTimeMillis()
-        val envelope = InkClip.pageEnvelopeOf(pages, now) { CalendarStore.newId() }
+        val (pages, envelope, bytes) = withContext(Dispatchers.Default) {
+            val pages = halves.map { (target, strokes) -> InkClip.PageInk(w, h, gridBytes(target), strokes) }
+            val envelope = InkClip.pageEnvelopeOf(pages, now) { CalendarStore.newId() }
+            val strokes = pages.flatMap { p -> p.strokes.map { it.second } }
+            val bytes = if (envelope != null && InkWire.withinLimits(strokes)) ClipEnvelope.encode(envelope) else null
+            Triple(pages, envelope, bytes)
+        }
         val strokes = pages.flatMap { p -> p.strokes.map { it.second } }
-        val bytes = if (envelope != null && InkWire.withinLimits(strokes)) ClipEnvelope.encode(envelope) else null
         if (envelope == null || bytes == null) {
             Dialogs.problem(this, R.string.calendar_too_large_title, R.string.calendar_page_too_large_body)
             return
@@ -946,6 +961,10 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
         // when it did — a resume is otherwise not a frame. The day the showing template was baked
         // for is part of the bake key, so a changed `today` is a changed key, and a changed key
         // is a bake.
+        // Another calendar screen (a `cal:` link starts one) may have written the showing page
+        // while this one was behind — minted its row, or inked it: read it again, and put it on
+        // the paper only when it changed.
+        if (opened && !closing) runPageOp { if (document?.reload() == true) showPage(firstLoad = false) }
         val key = bakeKey ?: return
         if (opened && !closing && key.today != LocalDate.now()) applyTemplate()
     }

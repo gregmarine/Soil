@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -89,12 +90,15 @@ class CalsproutApp : Application() {
     /**
      * **The calendar, through one call** (`design.md` §3): the app store Soil lends this
      * package, opened once per process at [CalendarSchema]'s steps and shared by every screen
-     * and the render service, with the one calendar's row minted on the first open. Blocking, IO
-     * only; throws when Soil will not lend it (the library locked, Soil gone), and the caller says
+     * and the render service, with the one calendar's row minted on the first open. Runs on IO
+     * itself, from any caller (a binder call, and the first open derives a key); throws when Soil will not lend it (the library locked, Soil gone), and the caller says
      * so and leaves. A lease Soil has let go is opened again on the next ask.
      */
-    suspend fun calendar(): CalendarStore = storeMutex.withLock {
-        store?.let { return it }
+    suspend fun calendar(): CalendarStore = withContext(Dispatchers.IO) { storeMutex.withLock { store ?: open() } }
+
+    /** [calendar]'s open, under the mutex, on IO: the binder call and the first open's key
+     *  derivation never run on Main. */
+    private suspend fun open(): CalendarStore {
         val seam = soil.seam()
         val opened = seam.openAppStore(CalendarSchema.SCHEMA, owner)
         val rows = SeamStoreRows(opened)
@@ -109,14 +113,14 @@ class CalsproutApp : Application() {
         store = fresh
         eventStore = EventStore(rows, fresh.calendarId)
         Log.i(TAG, "the calendar's store is open")
-        fresh
+        return fresh
     }
 
     /** The events half of the same store, for the same calendar — opened by [calendar] if it is
-     *  not yet. Blocking, IO only; throws as [calendar] does. */
-    suspend fun events(): EventStore {
+     *  not yet. On IO itself; throws as [calendar] does. */
+    suspend fun events(): EventStore = withContext(Dispatchers.IO) {
         calendar()
-        return storeMutex.withLock { checkNotNull(eventStore) { "the store closed" } }
+        storeMutex.withLock { checkNotNull(eventStore) { "the store closed" } }
     }
 
     /** A paper screen has come to the front: Soil may ask it for the panel. */

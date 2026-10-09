@@ -92,6 +92,16 @@ class CalendarNavigation {
     }
 
     /**
+     * The way back from the Events screen, which names the day it ended on: [picked] — except when
+     * that is the day the organizer is already on, where the half it is looking at stays (a PM Day
+     * page comes back to PM, whatever the clock says).
+     */
+    fun returned(day: LocalDate, today: LocalDate, nowHour: Int): Move {
+        if (current == null || day != anchor) return picked(day, today, nowHour)
+        return Move(CalendarTarget.of(kind, day, if (kind == CalendarTarget.KIND_DAY) anchorHalf else CalendarTarget.HALF_AM), day, anchorHalf)
+    }
+
+    /**
      * A double-tap on a Month or Week cell: **that day's Day page, AM** (Greg's call, SN — a
      * double-tap always opens the morning, whatever the clock says). Null on a Day page, where a
      * double-tap is nothing at all.

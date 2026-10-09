@@ -6,6 +6,8 @@ import com.symmetricalpalmtree.soil.paper.core.CalendarTarget
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.StoreUnavailable
 import com.symmetricalpalmtree.soil.paper.store.Cell
+import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.seam.SeamLimits
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,8 +88,8 @@ class CalendarDocumentTest {
             listOf(
                 "INSERT OR IGNORE INTO period (id, calendarId, kind, date) VALUES (?, ?, ?, ?)",
                 "INSERT OR IGNORE INTO page (id, periodId, half, width, height, createdAt, updatedAt) VALUES (?, (SELECT id FROM period WHERE calendarId = ? AND kind = ? AND date = ?), ?, ?, ?, ?, ?)",
-                "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                "UPDATE page SET updatedAt = ? WHERE id = ?",
+                PUT_ON_PAGE,
+                TOUCH_OF,
             ),
             batch.map { it.sql },
         )
@@ -98,21 +100,115 @@ class CalendarDocumentTest {
         assertEquals(Cell.Real(1404.0), batch[1].args[5])
         assertEquals(Cell.Real(1872.0), batch[1].args[6])
         assertEquals(d.pageId, text(batch[1].args[0]))
-        assertEquals(d.pageId, text(batch[2].args[1]))
-        assertEquals(Cell.Integer(0), batch[2].args[2])
+        // The stroke lands under whichever page row holds (period, half) — this mint's, or another
+        // screen's that got there first.
+        assertEquals(listOf(Cell.Text("default"), Cell.Integer(0), Cell.Text("2026-09-01"), Cell.Integer(0)), batch[2].args.subList(1, 5))
+        assertEquals(Cell.Integer(0), batch[2].args[5])
         assertFalse(d.hasUnsavedChanges)
 
         // The second stroke does not mint again.
         fake.execs.clear()
         d.addStroke(stroke("b"))
         d.flushUntilClean()
-        assertEquals(
-            listOf(
-                "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                "UPDATE page SET updatedAt = ? WHERE id = ?",
-            ),
-            fake.execs.single().map { it.sql },
-        )
+        assertEquals(listOf(PUT_ON_PAGE, TOUCH_OF), fake.execs.single().map { it.sql })
+    }
+
+    @Test
+    fun aRowAnotherScreenMintedIsTakenOnReload() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = doc(fake)
+        d.show(month)
+        d.addStroke(stroke("a"))
+        d.flushUntilClean()
+        // Another calendar screen minted the page first: its row holds its stroke and ours.
+        fake.period("theirs-per", CalendarTarget.KIND_MONTH, "2026-09-01")
+        fake.page("theirs", "theirs-per", 0, 1404f, 1872f, listOf(0L to stroke("b"), 1L to stroke("a")))
+        assertTrue(d.reload())
+        assertEquals("theirs", d.pageId)
+        assertEquals(listOf("b", "a"), d.strokes.map { it.id })
+        // From here the page is written by its own id, and never minted again.
+        fake.execs.clear()
+        d.addStroke(stroke("c"))
+        d.flushUntilClean()
+        assertEquals(listOf(PUT, TOUCH), fake.execs.single().map { it.sql })
+        assertEquals("theirs", text(fake.execs.single()[0].args[1]))
+        // Unchanged since: a reload is nothing.
+        fake.pages.clear()
+        fake.page("theirs", "theirs-per", 0, 1404f, 1872f, d.captureInk())
+        assertFalse(d.reload())
+    }
+
+    @Test
+    fun reloadingAPageWithNoRowKeepsWhatIsInMemory() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = doc(fake)
+        d.show(month)
+        val id = d.pageId
+        assertFalse(d.reload())
+        assertEquals(id, d.pageId)
+    }
+
+    @Test
+    fun aScreenALinkOpenedWritesNoBookmark() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = CalendarDocument(CalendarStore(fake), MarkSource { _, _ -> emptyMap() }, writesBookmark = false) { surface }
+        d.show(month)
+        d.show(nextMonth)
+        assertTrue(fake.execs.isEmpty())
+        assertEquals(listOf("query(page)", "query(period)", "query(page)", "query(period)"), fake.calls)
+    }
+
+    @Test
+    fun aStoreThatWentAwayIsReAcquiredOnce() = runBlocking {
+        val dead = FakeCalendarStore().also { it.failWith = { IllegalStateException("binder died") } }
+        val live = FakeCalendarStore()
+        var asked = 0
+        val d = CalendarDocument(
+            CalendarStore(dead), MarkSource { _, _ -> emptyMap() },
+            reacquire = { asked++; CalendarStore(live) },
+        ) { surface }
+        d.show(month)
+        assertEquals(1, asked)
+        assertEquals(listOf("query(page)", "query(period)", "exec(3)"), live.calls)
+        // The fresh store is kept: the next write goes straight to it.
+        d.addStroke(stroke("a"))
+        d.flushUntilClean()
+        assertEquals(1, asked)
+        assertEquals(4, live.execs.last().size)
+    }
+
+    @Test
+    fun aReAcquireThatAnswersTheSameStoreIsNotRetried() = runBlocking {
+        val fake = FakeCalendarStore().also { it.failWith = { IllegalStateException("gone") } }
+        val store = CalendarStore(fake)
+        val d = CalendarDocument(store, MarkSource { _, _ -> emptyMap() }, reacquire = { store }) { surface }
+        assertTrue(runCatching { d.show(month) }.exceptionOrNull() is StoreUnavailable)
+        assertFalse(d.isOpen)
+    }
+
+    @Test
+    fun batchesSplitAtTheSeamsCap_inOrder() {
+        val five = List(5) { Statement("DELETE FROM stroke WHERE id = ?", "s$it") }
+        assertEquals(listOf(five), CalendarDocument.batches(five, cap = 5))
+        val split = CalendarDocument.batches(five, cap = 2)
+        assertEquals(listOf(2, 2, 1), split.map { it.size })
+        assertEquals(five, split.flatten())
+        assertEquals(listOf(five), CalendarDocument.batches(five))
+    }
+
+    @Test
+    fun aPasteOverTheCapIsWrittenInSeveralBatches_mintFirstTouchLast() = runBlocking {
+        val fake = FakeCalendarStore()
+        val d = doc(fake)
+        d.show(month)
+        fake.execs.clear()
+        val many = List(SeamLimits.MAX_BATCH_STATEMENTS) { stroke("p$it") }
+        d.paste(many)
+        assertEquals(listOf(SeamLimits.MAX_BATCH_STATEMENTS, 3), fake.execs.map { it.size })
+        assertTrue(fake.execs[0][0].sql.startsWith("INSERT OR IGNORE INTO period"))
+        assertTrue(fake.execs[0][1].sql.startsWith("INSERT OR IGNORE INTO page"))
+        assertEquals(TOUCH_OF, fake.execs[1].last().sql)
+        assertFalse(d.hasUnsavedChanges)
     }
 
     @Test
@@ -199,9 +295,9 @@ class CalendarDocumentTest {
         fake.calls.clear(); fake.execs.clear()
         d.addStroke(stroke("a"))
         d.show(nextMonth)
-        // The target's two reads first; then the departing page's flush (mint + stroke + touch);
-        // then the bookmark.
-        assertEquals(listOf("query(page)", "query(period)", "exec(4)", "exec(3)"), fake.calls)
+        // The target's two reads and its bookmark first, in one hop; then the departing page's
+        // flush (mint + stroke + touch), the last thing before the swap.
+        assertEquals(listOf("query(page)", "query(period)", "exec(3)", "exec(4)"), fake.calls)
         assertEquals(nextMonth, d.target)
         assertEquals(0, d.strokes.size)
     }
@@ -354,6 +450,14 @@ class CalendarDocumentTest {
         assertTrue(batch[0].sql.startsWith("INSERT OR IGNORE INTO period"))
         assertTrue(batch[1].sql.startsWith("INSERT OR IGNORE INTO page"))
         assertTrue(batch[2].sql.startsWith("INSERT OR REPLACE INTO stroke"))
+    }
+
+    private companion object {
+        const val PUT = "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        const val TOUCH = "UPDATE page SET updatedAt = ? WHERE id = ?"
+        const val PAGE_OF = "(SELECT id FROM page WHERE periodId = (SELECT id FROM period WHERE calendarId = ? AND kind = ? AND date = ?) AND half = ?)"
+        const val PUT_ON_PAGE = "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, $PAGE_OF, ?, ?, ?, ?, ?)"
+        const val TOUCH_OF = "UPDATE page SET updatedAt = ? WHERE id = $PAGE_OF"
     }
 
     /** A [MarkSource] whose answer can be swapped mid-test. */
