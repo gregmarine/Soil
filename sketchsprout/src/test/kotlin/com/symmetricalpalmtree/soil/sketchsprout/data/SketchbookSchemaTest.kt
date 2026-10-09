@@ -33,7 +33,7 @@ class SketchbookSchemaTest {
     fun `a sketchbook holds rasters and guides, and no strokes`() {
         val types = listOf(
             SketchbookSchema.TYPE_SKETCHBOOK, SketchbookSchema.TYPE_PAGE, SketchbookSchema.TYPE_TEMPLATE,
-            SketchbookSchema.TYPE_SKETCH_GRAPHITE, SketchbookSchema.TYPE_SKETCH_INK,
+            SketchbookSchema.TYPE_SKETCH_GRAPHITE, SketchbookSchema.TYPE_SKETCH_INK, SketchbookSchema.TYPE_SKETCH_MARKER,
             SketchbookSchema.TYPE_GUIDE_GRID, SketchbookSchema.TYPE_GUIDE_IMAGE,
         )
         assertEquals(types.size, types.toSet().size)

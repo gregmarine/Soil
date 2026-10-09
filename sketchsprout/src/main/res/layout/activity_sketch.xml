@@ -66,6 +66,13 @@
                     android:contentDescription="@string/cd_tool_pen"
                     android:src="@drawable/ic_pen" />
 
+                <!-- The marker: the third kind — translucent, on its own raster, off by undo alone. -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnMarker"
+                    style="@style/Widget.Soil.ToolbarButton"
+                    android:contentDescription="@string/cd_tool_marker"
+                    android:src="@drawable/ic_marker" />
+
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btnEraser"
                     style="@style/Widget.Soil.ToolbarButton"

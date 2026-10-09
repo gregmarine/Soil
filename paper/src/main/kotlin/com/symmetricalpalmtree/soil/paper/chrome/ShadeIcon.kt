@@ -32,6 +32,10 @@ object ShadeIcon {
     fun pen(ctx: Context, ink: Int): LayerDrawable =
         filled(ctx, outlineRes = R.drawable.ic_pen, fillRes = R.drawable.ic_pen_fill, ink = ink)
 
+    /** The marker glyph with its body in [ink] — the sketch face's marker (2026-10-08). */
+    fun marker(ctx: Context, ink: Int): LayerDrawable =
+        filled(ctx, outlineRes = R.drawable.ic_marker, fillRes = R.drawable.ic_marker_fill, ink = ink)
+
     fun filled(ctx: Context, @DrawableRes outlineRes: Int, @DrawableRes fillRes: Int, ink: Int): LayerDrawable {
         // Mutated before it is tinted, so the tint reaches no other instance of the resource.
         val fill = checkNotNull(AppCompatResources.getDrawable(ctx, fillRes)).mutate()

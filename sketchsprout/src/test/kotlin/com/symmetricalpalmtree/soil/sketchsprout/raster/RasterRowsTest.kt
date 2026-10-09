@@ -31,13 +31,16 @@ class RasterRowsTest {
         assertEquals(SketchbookSchema.TYPE_SKETCH_INK, RasterRows.typeFor(RasterLayer.INK))
         assertEquals(RasterLayer.GRAPHITE, RasterRows.layerOf("sketch_graphite"))
         assertEquals(RasterLayer.INK, RasterRows.layerOf("sketch_ink"))
+        assertEquals(SketchbookSchema.TYPE_SKETCH_MARKER, RasterRows.typeFor(RasterLayer.MARKER))
+        assertEquals(RasterLayer.MARKER, RasterRows.layerOf("sketch_marker"))
         assertNull("SN's dead arc-43 row name is nobody's", RasterRows.layerOf("sketch"))
         assertNull(RasterRows.layerOf("stroke"))
     }
 
     @Test
-    fun `graphite is walked first`() {
-        assertEquals(listOf(RasterLayer.GRAPHITE, RasterLayer.INK), RasterRows.LAYERS)
+    fun `graphite is walked first, the marker last`() {
+        assertEquals(listOf(RasterLayer.GRAPHITE, RasterLayer.INK, RasterLayer.MARKER), RasterRows.LAYERS)
+        assertEquals(RasterLayer.entries.toList(), RasterRows.LAYERS)
     }
 
     @Test
@@ -59,5 +62,6 @@ class RasterRowsTest {
     fun `a layer's name is a word`() {
         assertEquals("graphite", RasterRows.name(RasterLayer.GRAPHITE))
         assertEquals("ink", RasterRows.name(RasterLayer.INK))
+        assertEquals("marker", RasterRows.name(RasterLayer.MARKER))
     }
 }

@@ -36,13 +36,16 @@ object SketchbookSchema {
     const val TYPE_TEMPLATE = "template"
     const val TYPE_SKETCH_GRAPHITE = "sketch_graphite"
     const val TYPE_SKETCH_INK = "sketch_ink"
+    /** The marker's raster (2026-10-08) — a third row of the same shape; no schema step, a type is
+     *  a plain column, and a build before it never asks for the row. */
+    const val TYPE_SKETCH_MARKER = "sketch_marker"
     const val TYPE_GUIDE_GRID = "guide_grid"
     const val TYPE_GUIDE_IMAGE = "guide_image"
 
     /** The sketchbook row's `parentId`: it is the root. */
     const val ROOT_PARENT = ""
 
-    /** Both rasters' `"order"`: out of the marks' stacking space, and equal because neither is
+    /** Every raster's `"order"`: out of the marks' stacking space, and equal because neither is
      *  above the other in the file (the flatten order is the engine's). */
     const val SKETCH_ORDER = -1
 

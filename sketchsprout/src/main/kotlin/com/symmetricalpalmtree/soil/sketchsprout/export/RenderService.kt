@@ -28,6 +28,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore
 import com.symmetricalpalmtree.soil.sketchsprout.raster.PageFlatten
 import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterImage
+import com.symmetricalpalmtree.soil.sketchsprout.raster.RasterRows
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -111,7 +112,7 @@ class RenderService : Service() {
                 val first = pages.first(); val w = first.width.toInt(); val h = first.height.toInt()
                 val paper = baked.first().paper?.let { Bitmaps.decodeBounded(it, MAX_TEMPLATE_EDGE) }
                 val ink = baked.first().ink?.let { RasterImage.decode(it, w, h) }
-                val flat = try { PageFlatten.flatten(w, h, paper, null, ink) } finally { paper?.recycle(); ink?.recycle() }
+                val flat = try { PageFlatten.flatten(w, h, paper, RasterRows.LAYERS.map { if (it == RasterLayer.INK) ink else null }) } finally { paper?.recycle(); ink?.recycle() }
                 try { seam.setCover(itemId, SeamShared.write(CoverSnapshot.encode(flat))) } finally { flat.recycle() }
             }
             Slog.d(TAG) { "converted ${pages.size} page(s) into a sketchbook" }
@@ -186,20 +187,18 @@ class RenderService : Service() {
         return SeamPageNames(pages.map { it.ref.id }, pages.map { it.number }, pages.map { "" })
     }
 
-    /** One page, lossless: white, the paper, graphite, ink — both rasters decoded behind the header
-     *  guard and recycled the moment they are flattened. */
+    /** One page, lossless: white, the paper, graphite, ink, the marker — every raster decoded
+     *  behind the header guard and recycled the moment they are flattened. */
     private fun toPng(store: SketchbookStore, page: RenderPlan.Page, paper: Bitmap?): ByteArray {
         val w = page.widthPx; val h = page.heightPx
-        var graphite: Bitmap? = null
-        var ink: Bitmap? = null
+        val rasters = arrayOfNulls<Bitmap>(RasterRows.LAYERS.size)
         val flat = try {
-            graphite = RasterImage.decode(store.readRaster(page.ref.id, RasterLayer.GRAPHITE), w, h)
-            ink = RasterImage.decode(store.readRaster(page.ref.id, RasterLayer.INK), w, h)
-            PageFlatten.flatten(w, h, paper, graphite, ink)
+            RasterRows.LAYERS.forEachIndexed { i, layer -> rasters[i] = RasterImage.decode(store.readRaster(page.ref.id, layer), w, h) }
+            PageFlatten.flatten(w, h, paper, rasters.toList())
         } catch (e: OutOfMemoryError) {
             throw IOException("a ${w}x$h page would not allocate", e)
         } finally {
-            graphite?.recycle(); ink?.recycle()
+            rasters.forEach { it?.recycle() }
         }
         return try {
             val bytes = ByteArrayOutputStream(w * h / 8)

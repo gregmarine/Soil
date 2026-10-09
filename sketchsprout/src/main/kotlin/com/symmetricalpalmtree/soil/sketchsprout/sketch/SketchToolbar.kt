@@ -12,20 +12,20 @@ import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
 import com.symmetricalpalmtree.soil.sketchsprout.R
 
 /**
- * The sketch screen's chrome: Back, the pencil, the gel pen, the rubber, the smudge and Guides on
+ * The sketch screen's chrome: Back, the pencil, the gel pen, the marker, the rubber, the smudge and Guides on
  * the top bar, the sketchbook's name between the groups; the pager on the
  * bottom bar. **The arrows no-op at a bound, never disable**: a greyed control is invisible on
  * e-ink, so a turn at either edge simply stays put. The tool half is `:paper`'s [PaperToolbar] — with **no lasso button**, which is
  * what `btnLasso`'s nullability is for: a raster page has no objects to select.
  *
- * - **A graphite pencil of one width and sixteen shades**, and **one gel pen** of one width and
- *   the same sixteen shades ([SketchPalette]). Both are [Tool.PEN] to the engine; what differs is
- *   only what the engine is armed with, which is what [SketchToolState] holds and this class
- *   assigns. **Each pen button wears its own shade** as a fill inside a glyph whose outline stays
- *   solid black ([reportShades]) — the colour rule's one standing opening: greys are ink, and a
- *   control may carry the armed ink only where the ink itself is chosen or reported.
- * - **A re-tap on the armed pen button of either kind** opens the shade panel under that button,
- *   for that kind; a second re-tap closes it ([onPenReTap]).
+ * - **A graphite pencil, a gel pen and a marker**, each with sixteen shades and a ladder of sizes
+ *   ([SketchPalette]). All three are [Tool.PEN] to the engine; what differs is only what the
+ *   engine is armed with, which is what [SketchToolState] holds and this class assigns. **Each
+ *   pen button wears its own shade** as a fill inside a glyph whose outline stays solid black
+ *   ([reportShades]) — the colour rule's one standing opening: greys are ink, and a control may
+ *   carry the armed ink only where the ink itself is chosen or reported.
+ * - **A re-tap on the armed pen button of any kind** opens the palette under that button, for
+ *   that kind; a second re-tap closes it ([onPenReTap]).
  * - **The rubbing eraser** at [ERASER_RADIUS_PX] on g-paper's [RasterRubbing] defaults. No
  *   sub-bar, never remembered.
  * - **The stylus smudge** ([Tool.SMUDGE]) at [SMUDGE_TOOL_RADIUS_PX] — the finger rub done with
@@ -42,6 +42,8 @@ class SketchToolbar(
     btnPencil: ImageButton,
     /** The gel pen — [Tool.PEN]'s second **kind**, beside the pencil's. */
     btnPen: ImageButton,
+    /** The marker — the third kind (2026-10-08). */
+    btnMarker: ImageButton,
     btnEraser: ImageButton,
     /** The stylus smudge — [Tool.SMUDGE]. */
     btnSmudge: ImageButton,
@@ -58,13 +60,13 @@ class SketchToolbar(
     /** Any actual tool change — the screen takes down anything that belonged to the old tool. A
      *  pencil↔gel-pen switch is one of these, even though `paper.tool` never moves for it. */
     onToolTapped: () -> Unit,
-    /** A tap on the **already-armed** pen of either kind — the screen toggles its shade panel
-     *  under that button, for that kind. */
-    onPenReTap: (alt: Boolean) -> Unit = {},
+    /** A tap on the **already-armed** pen of any kind — the screen toggles its palette under that
+     *  button, for that kind. */
+    onPenReTap: (kind: SketchToolState.Kind) -> Unit = {},
     /** A pen **kind** was tapped: the screen applies the new state ([apply]) and remembers it. It
      *  fires before the tool is armed — the firmware pen is re-armed from the colour and width, so
      *  the kind has to be in place first. */
-    onPenKindPicked: (alt: Boolean) -> Unit = {},
+    onPenKindPicked: (kind: SketchToolState.Kind) -> Unit = {},
     /** After every sync — the collapsed chrome's corner button repaints from here. */
     onSynced: () -> Unit = {},
 ) {
@@ -78,17 +80,17 @@ class SketchToolbar(
 
     private val tools: PaperToolbar
 
-    /** The two pen buttons' glyphs: each an outline over a body that carries that kind's shade.
-     *  Built here because they are two-layer drawables whose fill this class re-inks. */
-    private val pencilIcon = ShadeIcon.pencil(btnPencil.context, SketchToolState.DEFAULT.pencilReport)
-        .also { btnPencil.setImageDrawable(it) }
-    private val penIcon = ShadeIcon.pen(btnPen.context, SketchToolState.DEFAULT.penReport)
-        .also { btnPen.setImageDrawable(it) }
+    /** The pen buttons' glyphs, by kind: each an outline over a body that carries that kind's
+     *  shade. Built here because they are two-layer drawables whose fill this class re-inks. */
+    private val icons: Map<SketchToolState.Kind, android.graphics.drawable.LayerDrawable> = mapOf(
+        SketchToolState.Kind.PENCIL to ShadeIcon.pencil(btnPencil.context, SketchToolState.DEFAULT.report(SketchToolState.Kind.PENCIL)).also { btnPencil.setImageDrawable(it) },
+        SketchToolState.Kind.PEN to ShadeIcon.pen(btnPen.context, SketchToolState.DEFAULT.report(SketchToolState.Kind.PEN)).also { btnPen.setImageDrawable(it) },
+        SketchToolState.Kind.MARKER to ShadeIcon.marker(btnMarker.context, SketchToolState.DEFAULT.report(SketchToolState.Kind.MARKER)).also { btnMarker.setImageDrawable(it) },
+    )
 
-    /** The shades the two buttons are actually wearing — ARGBs, so two levels that render the
-     *  same could never both repaint. Null until the first report. */
-    private var reportedPencil: Int? = null
-    private var reportedPen: Int? = null
+    /** The shades the buttons are actually wearing — ARGBs, so two levels that render the same
+     *  could never both repaint. Absent until the first report. */
+    private val reported = HashMap<SketchToolState.Kind, Int>()
 
     init {
         paper.tool = Tool.PEN
@@ -114,12 +116,12 @@ class SketchToolbar(
             onEraserReTap = {},
             onToolTapped = onToolTapped,
             onSynced = onSynced,
-            // The pen's two kinds. `altPenArmed` is read at every sync, never cached there — this
-            // class's field is the one copy of that answer.
-            btnAltPen = btnPen,
-            altPenArmed = { toolState.isPen },
-            onPenKindPicked = onPenKindPicked,
-            onPenReTap = onPenReTap,
+            // The pen's kinds, in [SketchToolState.Kind]'s order. `armedPenKind` is read at every
+            // sync, never cached there — this class's field is the one copy of that answer.
+            extraPens = listOf(btnPen, btnMarker),
+            armedPenKind = { toolState.kind.ordinal },
+            onPenKindPicked = { onPenKindPicked(kindAt(it)) },
+            onPenReTap = { onPenReTap(kindAt(it)) },
             btnSmudge = btnSmudge,
         )
         listOf(btnGuides, btnPrevPage, btnNextPage).forEach { androidx.appcompat.widget.TooltipCompat.setTooltipText(it, it.contentDescription) }
@@ -152,20 +154,18 @@ class SketchToolbar(
     }
 
     /** Each glyph's body filled with that kind's shade, the outline solid black. Each shade is
-     *  its kind's, not the armed kind's, so while the other kind or the rubber is armed a button
+     *  its kind's, not the armed kind's, so while another kind or the rubber is armed a button
      *  still shows what a tap on it will bring back. Unchanged is silent, per button. */
     private fun reportShades(state: SketchToolState) {
-        val pencil = state.pencilReport
-        if (pencil != reportedPencil) {
-            reportedPencil = pencil
-            ShadeIcon.tint(pencilIcon, pencil)
-        }
-        val pen = state.penReport
-        if (pen != reportedPen) {
-            reportedPen = pen
-            ShadeIcon.tint(penIcon, pen)
+        for ((kind, icon) in icons) {
+            val ink = state.report(kind)
+            if (ink != reported[kind]) {
+                reported[kind] = ink
+                ShadeIcon.tint(icon, ink)
+            }
         }
     }
+
 
     /** Make the tool buttons honest — driven from `PaperListener.onToolChanged`, never from a tap. */
     fun sync(tool: Tool) = tools.sync(tool)
@@ -185,6 +185,9 @@ class SketchToolbar(
     }
 
     companion object {
+        /** The kind a bar index names — the kinds' own order. */
+        fun kindAt(index: Int): SketchToolState.Kind = SketchToolState.Kind.entries.getOrElse(index) { SketchToolState.Kind.PENCIL }
+
         /** The rubber's radius, in px — g-paper's rubbing eraser at its default lift. */
         const val ERASER_RADIUS_PX = 12f
 

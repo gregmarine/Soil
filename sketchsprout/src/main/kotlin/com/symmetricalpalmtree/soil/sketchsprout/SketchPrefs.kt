@@ -5,7 +5,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.sketch.SketchToolState
 
 /**
  * What Sketchsprout remembers on this device: the sketchbook last open, whether the chrome was
- * hidden, and the tools — the armed pen kind and each kind's shade. Device-local: never in a
+ * hidden, and the tools — the armed pen kind and each kind's shade and size. Device-local: never in a
  * file, never backed up. **Never the eraser and never the smudge** (Greg, 2026-10-07): a face
  * that opened on the rubber would read as a broken pencil, so [tools] always names a pen kind.
  *
@@ -24,10 +24,20 @@ class SketchPrefs(context: Context) {
     /** The tools as last picked, or the defaults. */
     var tools: SketchToolState
         get() = runCatching {
-            SketchToolState.of(prefs.getString(KEY_KIND, null), prefs.getInt(KEY_PENCIL_SHADE, -1), prefs.getInt(KEY_PEN_SHADE, -1))
+            // A key not there reads −1, which is out of every range and lands on the default: an
+            // install over a build without sizes or a marker opens on their defaults, its kind and
+            // shades intact.
+            SketchToolState.of(
+                prefs.getString(KEY_KIND, null),
+                SketchToolState.Kind.entries.associateWith { k ->
+                    SketchToolState.Setting(prefs.getInt(shadeKey(k), -1), prefs.getInt(sizeKey(k), -1))
+                },
+            )
         }.getOrDefault(SketchToolState.DEFAULT)
         set(value) {
-            prefs.edit().putString(KEY_KIND, value.kind.name).putInt(KEY_PENCIL_SHADE, value.pencilShade).putInt(KEY_PEN_SHADE, value.penShade).apply()
+            val e = prefs.edit().putString(KEY_KIND, value.kind.name)
+            for ((k, s) in value.settings) e.putInt(shadeKey(k), s.shade).putInt(sizeKey(k), s.size)
+            e.apply()
         }
 
     var chromeHidden: Boolean
@@ -39,7 +49,11 @@ class SketchPrefs(context: Context) {
         const val KEY_LAST = "lastSketchbookId"
         const val KEY_CHROME_HIDDEN = "chromeHidden"
         const val KEY_KIND = "toolKind"
-        const val KEY_PENCIL_SHADE = "pencilShade"
-        const val KEY_PEN_SHADE = "penShade"
+
+        /** `pencilShade`, `penShade`, `markerShade` — the first two as they always were. */
+        fun shadeKey(k: SketchToolState.Kind): String = "${k.name.lowercase()}Shade"
+
+        /** `pencilSize`, `penSize`, `markerSize`. */
+        fun sizeKey(k: SketchToolState.Kind): String = "${k.name.lowercase()}Size"
     }
 }

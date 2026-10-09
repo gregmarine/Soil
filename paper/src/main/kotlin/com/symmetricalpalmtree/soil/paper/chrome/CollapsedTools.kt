@@ -41,21 +41,23 @@ object CollapsedTools {
     }
 
     /**
-     * Which of the PEN slot's **two kind buttons** reads as armed (arc 44 / T3) — the pencil's and
-     * the gel pen's on the sketch face, on the top bar ([PaperToolbar.sync]) and on the mini
-     * toolbar ([CollapsedChrome.sync]) alike.
+     * Which of the PEN slot's **kind buttons** reads as armed (arc 44 / T3; N kinds since
+     * Sketchsprout's marker, 2026-10-08) — the pencil's, the gel pen's and the marker's on the
+     * sketch face, on the top bar ([PaperToolbar.sync]) and on the mini toolbar
+     * ([CollapsedChrome.sync]) alike. A kind is an **index**: 0 is the primary pen button, 1 and
+     * up the extras in bar order.
      *
      * It lives here, as one rule, because both bars ask it and two spellings of "is this the armed
      * pen?" would be two things to keep in step — the module's standing answer to the
-     * `RattaNotebookView` sibling-copy trap, in miniature. Both buttons are only ever lit under
-     * [Tool.PEN], and then exactly one of them: [altPenArmed] says which kind the screen has armed,
-     * [isAltButton] which kind this button offers, and they must agree.
+     * `RattaNotebookView` sibling-copy trap, in miniature. The buttons are only ever lit under
+     * [Tool.PEN], and then exactly one of them: [armedKind] says which kind the screen has armed,
+     * [buttonKind] which kind this button offers, and they must agree.
      *
-     * A screen with **one** pen passes the defaults (`altPenArmed = false`, `isAltButton = false`)
-     * and gets `tool == PEN` back, which is the rule it has always had.
+     * A screen with **one** pen passes the defaults (`0`, `0`) and gets `tool == PEN` back, which
+     * is the rule it has always had.
      */
-    fun penButtonSelected(tool: Tool, altPenArmed: Boolean, isAltButton: Boolean): Boolean =
-        tool == Tool.PEN && altPenArmed == isAltButton
+    fun penButtonSelected(tool: Tool, armedKind: Int = 0, buttonKind: Int = 0): Boolean =
+        tool == Tool.PEN && armedKind == buttonKind
 
     /**
      * A small overflow is not an overflow (the user's calls on the sticky editor and the pad,

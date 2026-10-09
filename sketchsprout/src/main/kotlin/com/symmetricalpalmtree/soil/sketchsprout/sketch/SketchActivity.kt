@@ -103,16 +103,17 @@ import java.io.File
  * - **The rows live in Soil.** The sketchbook is held open through an [ISeamItem]; the screen
  *   parks it when it leaves the front and takes it up again when it returns, so a sketchbook left
  *   in the background holds no file. Its pictures are [SketchbookStore]'s rows, crossed whole.
- * - **A page is two rasters, one picture**: a **graphite** image the pencil bakes into and the
- *   rubber rubs and the smudge moves, and an **ink** image the gel pen bakes into and nothing
- *   erases. Neither is a user-facing layer: the artist sees the ink flattened over the graphite.
- *   Routing is g-paper's, by stroke style; this screen only ever *follows* the layer the engine
- *   names.
- * - **The tools are chosen and remembered**: a pencil of one width and sixteen shades, a gel pen
- *   of one width and the same sixteen, the rubber, and the smudge on the nib or under a finger's
- *   back-and-forth ([SmudgeRub]). Both pens are `Tool.PEN` to the engine, so which is armed lives
- *   in [SketchToolState]; a kind's shade is picked in the [PaletteBar] hung under its own button
- *   on a re-tap, and each pen button reports its shade as a fill in its glyph. The choice is
+ * - **A page is three rasters, one picture**: a **graphite** image the pencil bakes into and the
+ *   rubber rubs and the smudge moves, an **ink** image the gel pen bakes into and nothing erases,
+ *   and a **marker** image (2026-10-08) the marker bakes into at its own translucency, over both,
+ *   off by undo alone. None is a user-facing layer: the artist sees the ink flattened over the
+ *   graphite and the marker over both. Routing is g-paper's, by stroke style; this screen only
+ *   ever *follows* the layer the engine names.
+ * - **The tools are chosen and remembered**: a pencil, a gel pen and a marker, each with sixteen
+ *   shades and a ladder of sizes, the rubber, and the smudge on the nib or under a finger's
+ *   back-and-forth ([SmudgeRub]). The three pens are `Tool.PEN` to the engine, so which is armed
+ *   lives in [SketchToolState]; a kind's shade and size are picked in the [PaletteBar] hung under
+ *   its own button on a re-tap, and each pen button reports its shade as a fill in its glyph. The choice is
  *   device state ([SketchPrefs]), never page state; the rubber and the smudge are never
  *   remembered (Greg, 2026-10-07).
  * - **A mark is not an object.** `pageMode = RASTER` is set once, before any content: the engine
@@ -248,34 +249,55 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     override fun armTool(tool: Tool) = toolbar.arm(tool)
 
-    /** Three tools on the mini toolbar: the pen (two kinds, [collapsedPenKinds]), the rubber and
-     *  the stylus smudge — the row reads Pencil · Pen · Eraser · Smudge, the top bar's own order. */
+    /** Three tools on the mini toolbar: the pen (three kinds, [collapsedPenKinds]), the rubber and
+     *  the stylus smudge — the row reads Pencil · Pen · Marker · Eraser · Smudge, the top bar's own
+     *  order. */
     override fun collapsedTools(): List<Tool> = listOf(Tool.PEN, Tool.ERASER, Tool.SMUDGE)
 
     /**
-     * The pen's two kinds on the mini toolbar: the graphite pencil and the gel pen, both
-     * `Tool.PEN`. A pick of the already-armed kind opens the [PaletteBar] **under that row's own
-     * button** for that kind and leaves the row up beneath it: the top bar's pen buttons are
-     * `GONE` while the chrome is collapsed, so a bar hung under one would land under nothing.
-     * The row and the corner button report the shades too, the same filled glyphs the top bar's
-     * buttons wear; the ARGB is the token `CollapsedChrome` compares.
+     * The pen's three kinds on the mini toolbar: the graphite pencil, the gel pen and the marker,
+     * all `Tool.PEN`, in [SketchToolState.Kind]'s order. A pick of the already-armed kind opens
+     * the [PaletteBar] **under that row's own button** for that kind and leaves the row up beneath
+     * it: the top bar's pen buttons are `GONE` while the chrome is collapsed, so a bar hung under
+     * one would land under nothing. The row and the corner button report the shades too, the same
+     * filled glyphs the top bar's buttons wear; the ARGB is the token `CollapsedChrome` compares.
      */
     override fun collapsedPenKinds(): CollapsedChrome.PenKinds = CollapsedChrome.PenKinds(
-        primaryHint = getString(R.string.cd_tool_pencil),
-        altIconRes = com.symmetricalpalmtree.soil.paper.R.drawable.ic_pen,
-        altHint = getString(R.string.cd_tool_pen),
-        altArmed = { toolbar.state.isPen },
-        onPick = { alt -> armPen(alt) },
+        kinds = SketchToolState.Kind.entries.map { kind ->
+            CollapsedChrome.PenKinds.Kind(iconResOf(kind), getString(hintOf(kind))) {
+                val ink = toolbar.state.report(kind)
+                CollapsedChrome.PenIcon(ink) { glyphOf(kind, ink) }
+            }
+        },
+        armed = { toolbar.state.kind.ordinal },
+        onPick = { index -> armPen(SketchToolbar.kindAt(index)) },
         onReTap = { _, anchor -> togglePaletteBar(anchor) },
-        primaryIcon = {
-            val ink = toolbar.state.pencilReport
-            CollapsedChrome.PenIcon(ink) { ShadeIcon.pencil(this, ink) }
-        },
-        altIcon = {
-            val ink = toolbar.state.penReport
-            CollapsedChrome.PenIcon(ink) { ShadeIcon.pen(this, ink) }
-        },
     )
+
+    private fun iconResOf(kind: SketchToolState.Kind): Int = when (kind) {
+        SketchToolState.Kind.PENCIL -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_pencil
+        SketchToolState.Kind.PEN -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_pen
+        SketchToolState.Kind.MARKER -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_marker
+    }
+
+    private fun hintOf(kind: SketchToolState.Kind): Int = when (kind) {
+        SketchToolState.Kind.PENCIL -> R.string.cd_tool_pencil
+        SketchToolState.Kind.PEN -> R.string.cd_tool_pen
+        SketchToolState.Kind.MARKER -> R.string.cd_tool_marker
+    }
+
+    private fun glyphOf(kind: SketchToolState.Kind, ink: Int): android.graphics.drawable.Drawable = when (kind) {
+        SketchToolState.Kind.PENCIL -> ShadeIcon.pencil(this, ink)
+        SketchToolState.Kind.PEN -> ShadeIcon.pen(this, ink)
+        SketchToolState.Kind.MARKER -> ShadeIcon.marker(this, ink)
+    }
+
+    /** The top bar's button for [kind] — the re-tap's anchor and the outside-tap rule's toggler. */
+    private fun buttonOf(kind: SketchToolState.Kind): ImageButton = when (kind) {
+        SketchToolState.Kind.PENCIL -> binding.btnPencil
+        SketchToolState.Kind.PEN -> binding.btnPen
+        SketchToolState.Kind.MARKER -> binding.btnMarker
+    }
 
     /** The shade panel and the guides panel are this screen's own floating chrome: the pen refuses
      *  under them and a finger landing on them is not a page gesture. */
@@ -347,7 +369,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 if (!isFinishing && !isDestroyed) {
                     Dialogs.problem(
                         this, R.string.sketch_too_large_title,
-                        if (layer == RasterLayer.GRAPHITE) R.string.sketch_too_large_graphite_body else R.string.sketch_too_large_ink_body,
+                        when (layer) {
+                            RasterLayer.GRAPHITE -> R.string.sketch_too_large_graphite_body
+                            RasterLayer.INK -> R.string.sketch_too_large_ink_body
+                            RasterLayer.MARKER -> R.string.sketch_too_large_marker_body
+                        },
                     )
                 }
             },
@@ -359,6 +385,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             btnBack = binding.btnBack,
             btnPencil = binding.btnPencil,
             btnPen = binding.btnPen,
+            btnMarker = binding.btnMarker,
             btnEraser = binding.btnEraser,
             btnSmudge = binding.btnSmudge,
             btnGuides = binding.btnGuides,
@@ -371,12 +398,12 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             onPrevPage = { runPageOp { turnPageNow(PageTurn.Direction.PREV) } },
             // Past the last page the arrow makes one, as the swipe does (Greg, 2026-10-07).
             onNextPage = { gestureListener.onFlipNext() },
-            // An actual tool change — including a pencil↔gel-pen switch, which never moves
-            // `paper.tool`: the shade panel shows the kind that is leaving.
+            // An actual tool change — including a switch between pen kinds, which never moves
+            // `paper.tool`: the palette shows the kind that is leaving.
             onToolTapped = { dismissCollapsed(); hidePaletteBar(); guides?.hide() },
-            // The armed kind's own button: the pencil's or the pen's.
-            onPenReTap = { alt -> togglePaletteBar(if (alt) binding.btnPen else binding.btnPencil) },
-            onPenKindPicked = { alt -> pickTools(toolbar.state.withKind(kindOf(alt))) },
+            // The armed kind's own button.
+            onPenReTap = { kind -> togglePaletteBar(buttonOf(kind)) },
+            onPenKindPicked = { kind -> pickTools(toolbar.state.withKind(kind)) },
             onSynced = { syncCollapsed() },   // the corner button repaints with the bar
         )
         // The panel edits the ARMED KIND's shade; the bar itself is :paper's and edits a level —
@@ -1204,14 +1231,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         Slog.d(TAG) { "tools picked: $state" }
     }
 
-    /** Which kind the two pen buttons stand for — the alt one is the gel pen. */
-    private fun kindOf(alt: Boolean): SketchToolState.Kind =
-        if (alt) SketchToolState.Kind.PEN else SketchToolState.Kind.PENCIL
-
     /** Arm a pen **kind** from the mini toolbar: the kind first, then the tool through the
      *  toolbar's own `arm`, which does the one pen-gated render release and the syncs. */
-    private fun armPen(alt: Boolean) {
-        pickTools(toolbar.state.withKind(kindOf(alt)))
+    private fun armPen(kind: SketchToolState.Kind) {
+        pickTools(toolbar.state.withKind(kind))
         toolbar.arm(Tool.PEN)
     }
 
@@ -1262,7 +1285,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (floatingContains(x, y)) return
         paletteBar?.let { bar ->
             if (bar.isShowing) {
-                val toggler = if (toolbar.state.isPen) binding.btnPen else binding.btnPencil
+                val toggler = buttonOf(toolbar.state.kind)
                 if (PaperToolbar.rectOf(toggler)?.contains(x, y) != true) hidePaletteBar()
             }
         }
@@ -1628,12 +1651,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         val page = currentPage ?: return null
         val w = page.width.toInt(); val h = page.height.toInt()
         if (w <= 0 || h <= 0) return null
-        val graphite = paper.getPageRaster(RasterLayer.GRAPHITE)
-        val ink = paper.getPageRaster(RasterLayer.INK)
+        val rasters = RasterRows.LAYERS.map { paper.getPageRaster(it) }
         return try {
-            PageFlatten.flatten(w, h, paperCache[page.templateId], graphite, ink)
+            PageFlatten.flatten(w, h, paperCache[page.templateId], rasters)
         } finally {
-            graphite?.recycle(); ink?.recycle()
+            rasters.forEach { it?.recycle() }
         }
     }
 

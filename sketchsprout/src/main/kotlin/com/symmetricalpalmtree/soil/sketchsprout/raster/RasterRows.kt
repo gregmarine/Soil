@@ -10,9 +10,9 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
  * that can be *proved* is proved on a laptop. The encoding and decoding themselves need Android
  * and are [RasterImage]'s; the rules about them live here.
  *
- * **Two rows, named by layer.** A sketch is a graphite raster and an ink raster, and which is
- * which is the *row's type*: [typeFor] is the one place the two names are chosen, so nothing
- * downstream can invent a third. The layer itself is g-paper's [RasterLayer], because the engine
+ * **Three rows, named by layer.** A sketch is a graphite raster, an ink raster and, since
+ * 2026-10-08, a marker raster, and which is which is the *row's type*: [typeFor] is the one place
+ * the names are chosen, so nothing downstream can invent a fourth. The layer itself is g-paper's [RasterLayer], because the engine
  * routes a mark by its style and this border only ever follows the layer the engine names.
  *
  * **The size guard reads the header, never the image.** [fitsPage] answers from the first 30 bytes
@@ -35,21 +35,23 @@ object RasterRows {
      *  is refused. */
     const val WATCH_BYTES: Int = 12 * 1024 * 1024
 
-    /** The order every loop over the rasters takes: graphite first, then ink — the flatten order,
-     *  the load order, the save order, so a log line naming two layers always names them the same
-     *  way round. */
-    val LAYERS: List<RasterLayer> = listOf(RasterLayer.GRAPHITE, RasterLayer.INK)
+    /** The order every loop over the rasters takes: graphite, then ink, then the marker — the
+     *  flatten order (the engine's, bottom up), the load order, the save order, so a log line
+     *  naming the layers always names them the same way round. */
+    val LAYERS: List<RasterLayer> = listOf(RasterLayer.GRAPHITE, RasterLayer.INK, RasterLayer.MARKER)
 
     /** The row type the raster [layer] names. Exhaustive by construction. */
     fun typeFor(layer: RasterLayer): String = when (layer) {
         RasterLayer.GRAPHITE -> SketchbookSchema.TYPE_SKETCH_GRAPHITE
         RasterLayer.INK -> SketchbookSchema.TYPE_SKETCH_INK
+        RasterLayer.MARKER -> SketchbookSchema.TYPE_SKETCH_MARKER
     }
 
     /** The raster a row [type] names, or null for any other row. */
     fun layerOf(type: String): RasterLayer? = when (type) {
         SketchbookSchema.TYPE_SKETCH_GRAPHITE -> RasterLayer.GRAPHITE
         SketchbookSchema.TYPE_SKETCH_INK -> RasterLayer.INK
+        SketchbookSchema.TYPE_SKETCH_MARKER -> RasterLayer.MARKER
         else -> null
     }
 
@@ -63,5 +65,9 @@ object RasterRows {
         pageWidth > 0 && pageHeight > 0 && ImageHeader.matches(bytes, pageWidth, pageHeight)
 
     /** A raster's name for a log line — a word, never a pixel. */
-    fun name(layer: RasterLayer): String = if (layer == RasterLayer.INK) "ink" else "graphite"
+    fun name(layer: RasterLayer): String = when (layer) {
+        RasterLayer.GRAPHITE -> "graphite"
+        RasterLayer.INK -> "ink"
+        RasterLayer.MARKER -> "marker"
+    }
 }
