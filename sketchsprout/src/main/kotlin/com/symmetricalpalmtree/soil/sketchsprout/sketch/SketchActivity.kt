@@ -342,6 +342,15 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 val s = store ?: throw IllegalStateException("no store")
                 s.writeRaster(pageKey, layer, bytes)
             },
+            isTooLarge = { it is SketchbookStore.RasterTooLarge },
+            onTooLarge = { layer ->
+                if (!isFinishing && !isDestroyed) {
+                    Dialogs.problem(
+                        this, R.string.sketch_too_large_title,
+                        if (layer == RasterLayer.GRAPHITE) R.string.sketch_too_large_graphite_body else R.string.sketch_too_large_ink_body,
+                    )
+                }
+            },
         )
 
         toolbar = SketchToolbar(
@@ -1406,19 +1415,40 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      */
     private val debugDoors = if (!BuildConfig.DEBUG) null else object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                "$packageName.SKETCH_FILL" -> runPageOp { fillTestPattern() }
-                "$packageName.SKETCH_DUMP" -> dumpPage()
+            // Posted, never run inline: a receiver that bakes a page on Main holds the broadcast
+            // past its timeout and Android kills the app (a dense fill is a minute's composite).
+            val action = intent.action
+            val dense = intent.getIntExtra("dense", 0)
+            val noise = intent.getBooleanExtra("noise", false)
+            // `--ei effort N`: the encoder's effort for every save from here on (−1 puts it back).
+            if (intent.hasExtra("effort")) RasterImage.debugEffort = intent.getIntExtra("effort", -1).takeIf { it >= 0 }
+            window.decorView.post {
+                when (action) {
+                    // `--ei dense N`: N passes of horizontal lines 2 px apart across the whole page,
+                    // the worst case a shaded page can be — what the raster cap is measured against.
+                    // `--ez noise true`: the graphite raster replaced by random colour, incompressible —
+                    // the largest raster a page can produce (about 3 B/px), for the cap and the window.
+                    "$packageName.SKETCH_FILL" -> runPageOp { if (noise) fillNoise() else fillTestPattern(dense = dense) }
+                    "$packageName.SKETCH_DUMP" -> dumpPage()
+                }
             }
         }
     }
 
-    private fun fillTestPattern() {
+    private fun fillTestPattern(dense: Int = 0) {
         val page = currentPage ?: return
         val tools = toolbar.state
         val w = page.width; val h = page.height
         val strokes = ArrayList<Stroke>(TEST_PATTERN_LINES)
-        for (i in 0 until TEST_PATTERN_LINES) {
+        if (dense > 0) {
+            // Edge to edge, 2 px apart, [dense] passes each a pixel lower: the whole page shaded.
+            for (pass in 0 until dense) for (y in 0 until h.toInt() step 2) {
+                val yy = (y.toFloat() + pass.toFloat() / dense).coerceAtMost(h - 1f)
+                val points = ArrayList<StrokePoint>(TEST_PATTERN_POINTS)
+                for (p in 0 until TEST_PATTERN_POINTS) points += StrokePoint(x = p / (TEST_PATTERN_POINTS - 1f) * (w - 1), y = yy, pressure = 0.7f)
+                strokes += Stroke(id = "dense-$pass-$y-${System.nanoTime()}", points = points, color = tools.penColor, width = tools.penWidth, style = tools.penStyle)
+            }
+        } else for (i in 0 until TEST_PATTERN_LINES) {
             val t = (i + 1f) / (TEST_PATTERN_LINES + 1f)
             val points = ArrayList<StrokePoint>(TEST_PATTERN_POINTS)
             for (p in 0 until TEST_PATTERN_POINTS) {
@@ -1438,6 +1468,20 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         for (layer in strokes.mapTo(LinkedHashSet()) { RasterLayer.of(it.style) }) saver.markDirty(layer)
         saver.schedule()
         Log.w(TAG, "debug fill door: ${strokes.size} test strokes composited")
+    }
+
+    private fun fillNoise() {
+        val page = currentPage ?: return
+        val w = page.width.toInt(); val h = page.height.toInt()
+        val px = IntArray(w * h)
+        val rnd = java.util.Random(7)
+        for (i in px.indices) px[i] = (0xFF shl 24) or (rnd.nextInt() and 0xFFFFFF)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { it.setPixels(px, 0, w, 0, 0, w, h) }
+        undo.clear()
+        paper.loadPageRaster(RasterLayer.GRAPHITE, bmp)
+        saver.markDirty(RasterLayer.GRAPHITE)
+        saver.schedule()
+        Log.w(TAG, "debug noise door: the graphite raster is ${w}×${h} of random colour")
     }
 
     private fun dumpPage() {

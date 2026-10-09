@@ -62,7 +62,17 @@ class SketchSaver(
     /** The write itself: these bytes as that page's picture of that layer, over the seam. Blocking,
      *  called on IO under the one write lock; throws on failure. */
     private val write: (pageKey: String, layer: RasterLayer, bytes: ByteArray) -> Unit,
+    /** Whether a write's failure is the store's **over the cap** — a raster no retry can land
+     *  until the page is lightened. Its bytes are not parked (there is nothing to re-offer), the
+     *  beat does not re-encode it, and the screen is told once through [onTooLarge]; the raster
+     *  stays dirty, so the next mark tries again. */
+    private val isTooLarge: (Throwable) -> Boolean = { false },
+    /** **Main thread.** Called once per page and layer while a raster is over the cap. */
+    private val onTooLarge: (RasterLayer) -> Unit = {},
 ) {
+
+    /** The page-and-layer pairs the screen has been told are over the cap; cleared by a landing. */
+    private val tooLargeTold = HashSet<Pair<String, RasterLayer>>()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -202,9 +212,14 @@ class SketchSaver(
     private fun finishWrite(key: String, layer: RasterLayer, error: Throwable?) {
         if (error != null) {
             governor(layer).onFailed()
-            armRetry()
+            if (isTooLarge(error)) {
+                if (tooLargeTold.add(key to layer)) onTooLarge(layer)
+            } else {
+                armRetry()
+            }
             return
         }
+        tooLargeTold.remove(key to layer)
         if (governor(layer).onSaved() !is SketchSaveGovernor.SaveAction.Save) return
         // A mark arrived during the write. It goes through the debounce and the deadline like any
         // other rather than chaining at the encoder's own rate (SN: fifteen encodes in one minute).
@@ -359,8 +374,12 @@ class SketchSaver(
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
-            synchronized(parkLock) { parked[key to layer] = bytes }
-            Log.w(TAG, "sketch save failed on the ${RasterRows.name(layer)} raster: ${t.javaClass.simpleName} (${bytes.size} B parked)")
+            if (isTooLarge(t)) {
+                Log.w(TAG, "sketch save refused on the ${RasterRows.name(layer)} raster: ${bytes.size} B is over the cap; not parked")
+            } else {
+                synchronized(parkLock) { parked[key to layer] = bytes }
+                Log.w(TAG, "sketch save failed on the ${RasterRows.name(layer)} raster: ${t.javaClass.simpleName} (${bytes.size} B parked)")
+            }
             t
         }
     }

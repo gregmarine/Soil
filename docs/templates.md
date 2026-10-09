@@ -9,7 +9,7 @@ rules and the fuzzy ranking.
 ## The screen
 
 Templates, reached from Settings: folders, sort, rename, move, duplicate, Fit, pin, import of a
-PNG, JPEG or WebP through the system picker under the 6 MiB cap, PNG export at this device's
+PNG, JPEG or WebP through the system picker under the seam's 16 MiB cap, PNG export at this device's
 page size, and the Pinned, Recents and Search shelves. Cards are true miniatures, rendered off
 Main and cached. The Default folder is reserved: nothing of the person's lands in it.
 

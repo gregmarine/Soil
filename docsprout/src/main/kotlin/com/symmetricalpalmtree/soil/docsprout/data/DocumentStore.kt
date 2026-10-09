@@ -82,8 +82,9 @@ class DocumentStore(private val store: RowStore, private val documentId: String,
 }
 
 /**
- * How long a document may be. The seam carries a value of up to 6 MiB; a document stops a little
- * short of it, counted as the UTF-8 it is stored as.
+ * How long a document may be. The seam carried a value of up to 6 MiB when this was set (16 MiB
+ * since 2026-10-08); a document stops at 5 MiB, counted as the UTF-8 it is stored as, which is
+ * already far more prose than one document should be.
  */
 object DocumentLimits {
     const val MAX_BODY_BYTES = 5 * 1024 * 1024

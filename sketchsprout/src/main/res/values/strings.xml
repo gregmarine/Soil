@@ -93,6 +93,9 @@
 
     <!-- Leaving with pixels that could not be written: a drawing with no other copy is a dialog,
          never a log line. -->
+    <string name="sketch_too_large_title">Too much to save</string>
+    <string name="sketch_too_large_graphite_body">This page\'s pencil is more than the sketchbook can hold on one page (16 MB). Lighten it with the eraser, or the page keeps what it last saved.</string>
+    <string name="sketch_too_large_ink_body">This page\'s ink is more than the sketchbook can hold on one page (16 MB). Erase some of it, or the page keeps what it last saved.</string>
     <string name="sketch_not_saved_title">Not saved</string>
     <string name="sketch_not_saved_body">The sketch could not be written to the sketchbook. Try again, or leave and lose what was drawn since the last save.</string>
     <string name="sketch_try_again">Try again</string>

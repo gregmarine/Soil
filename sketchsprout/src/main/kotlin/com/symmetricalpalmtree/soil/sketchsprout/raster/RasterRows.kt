@@ -22,7 +22,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
  * person is drawing.
  *
  * **The cap is the seam's.** A raster crosses the seam whole, as one value, and the seam carries
- * a value of at most [SeamLimits.MAX_VALUE_BYTES] — the same 6 MiB Notesprout SN's host drew the
+ * a value of at most [SeamLimits.MAX_VALUE_BYTES] — 16 MiB since 2026-10-08 (the 6 MiB Notesprout SN's host drew the
  * line at, by the same reason (the cursor window). The store refuses above it; [WATCH_BYTES] is
  * where a log line starts saying a page is getting heavy.
  */
@@ -33,7 +33,7 @@ object RasterRows {
 
     /** Where a save starts warning. Two thirds of the cap, so a page reads as heavy well before it
      *  is refused. */
-    const val WATCH_BYTES: Int = 4 * 1024 * 1024
+    const val WATCH_BYTES: Int = 12 * 1024 * 1024
 
     /** The order every loop over the rasters takes: graphite first, then ink — the flatten order,
      *  the load order, the save order, so a log line naming two layers always names them the same

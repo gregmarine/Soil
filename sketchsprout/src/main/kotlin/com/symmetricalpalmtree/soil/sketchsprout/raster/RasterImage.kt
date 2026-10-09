@@ -31,11 +31,20 @@ object RasterImage {
     /**
      * What `WEBP_LOSSLESS` is told to spend. **An effort, not a quality**: the image that comes back
      * is identical whatever is passed; the number buys search — 0 the fastest encode and the largest
-     * file, 100 the slowest and the smallest. SN's Nomad measurement chose 100: the top of the dial
-     * was the smallest on both rasters and no slower than the PNG it replaced, on an IO thread
-     * seconds behind the last mark.
+     * file, 100 the slowest and the smallest. SN's Nomad measurement chose 100 on sparse pages;
+     * on a dense page that is a minute's encode, so since 2026-10-08 the effort is [RasterEffort]'s
+     * choice by the page's coverage, and this is the sparse page's.
      */
-    const val WEBP_EFFORT: Int = 100
+    const val WEBP_EFFORT: Int = RasterEffort.FULL
+
+    /** Every [COVERAGE_STEP]th pixel on every [COVERAGE_STEP]th row is looked at for the coverage:
+     *  forty thousand reads of a Nomad page, a few milliseconds, before an encode of seconds. */
+    private const val COVERAGE_STEP = 8
+
+    /** **Debug only** — the walk's door sets it to measure another effort on the same page; null
+     *  is [WEBP_EFFORT]. Never read by a release build. */
+    @Volatile
+    var debugEffort: Int? = null
 
     /**
      * One raster as WebP bytes — **or an empty array for a blank layer**, which is the store's word
@@ -48,7 +57,7 @@ object RasterImage {
     fun encode(bitmap: Bitmap?): ByteArray {
         if (bitmap == null) return ByteArray(0)
         val out = ByteArrayOutputStream(INITIAL_BUFFER_BYTES)
-        compressLossless(bitmap, out)
+        compressLossless(bitmap, out, debugEffort ?: RasterEffort.choose(coverage(bitmap)))
         val bytes = out.toByteArray()
         if (bytes.size > RasterRows.WATCH_BYTES) {
             Log.w(TAG, "this page's raster is ${bytes.size} bytes, over the ${RasterRows.WATCH_BYTES}-byte watch line; saved anyway")
@@ -88,13 +97,30 @@ object RasterImage {
 
     /** The one place the encoder is chosen. `WEBP_LOSSLESS` arrived in API 30; on 29 the plain
      *  `WEBP` constant at quality 100 is documented as lossless. */
-    private fun compressLossless(bitmap: Bitmap, out: ByteArrayOutputStream) {
+    private fun compressLossless(bitmap: Bitmap, out: ByteArrayOutputStream, effort: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, WEBP_EFFORT, out)
+            bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, effort, out)
         } else {
             @Suppress("DEPRECATION")
             bitmap.compress(Bitmap.CompressFormat.WEBP, 100, out)
         }
+    }
+
+    /** The share of [bitmap]'s pixels that carry any mark (alpha above zero), sampled. */
+    private fun coverage(bitmap: Bitmap): Double {
+        var seen = 0
+        var marked = 0
+        var y = 0
+        while (y < bitmap.height) {
+            var x = 0
+            while (x < bitmap.width) {
+                seen++
+                if (bitmap.getPixel(x, y) ushr 24 != 0) marked++
+                x += COVERAGE_STEP
+            }
+            y += COVERAGE_STEP
+        }
+        return if (seen == 0) 0.0 else marked.toDouble() / seen
     }
 
     /** What the encoder's buffer starts at: a page's raster measures in the hundreds of kilobytes

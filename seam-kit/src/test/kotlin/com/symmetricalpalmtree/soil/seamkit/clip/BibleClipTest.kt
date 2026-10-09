@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.seamkit.clip
 
 import org.junit.Assert.assertEquals
+import com.symmetricalpalmtree.soil.seam.SeamLimits
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -21,6 +22,6 @@ class BibleClipTest {
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(version = 2))))
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(wire = "not a wire"))))
         assertNull(BibleClip.decode(BibleClip.encode(clip.copy(label = " "))))
-        assertNull(BibleClip.encode(clip.copy(text = "x".repeat(7 * 1024 * 1024))))
+        assertNull(BibleClip.encode(clip.copy(text = "x".repeat(SeamLimits.MAX_VALUE_BYTES + 1))))
     }
 }
