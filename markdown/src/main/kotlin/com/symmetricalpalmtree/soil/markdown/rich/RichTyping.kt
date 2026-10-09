@@ -45,8 +45,17 @@ object RichTyping {
      */
     class Pair(val openStart: Int, val markerLength: Int, val style: RichStyle)
 
-    /** [typed] is the block's words from its start to the caret, a marker character having just been typed. */
-    fun pairClosed(typed: String): Pair? {
+    /**
+     * [typed] is the block's words from its start to the caret, a marker character having just been typed.
+     * [held] says which of its characters are held as themselves (inside code or a link): an
+     * opening marker there is that character, never the start of a pair.
+     */
+    fun pairClosed(typed: String, held: (Int) -> Boolean = { false }): Pair? {
+        val pair = pairIn(typed) ?: return null
+        return if ((pair.openStart until pair.openStart + pair.markerLength).any(held)) null else pair
+    }
+
+    private fun pairIn(typed: String): Pair? {
         if (typed.isEmpty()) return null
         return when (typed.last()) {
             '*' -> if (typed.endsWith("**")) double(typed, "**", RichStyle.BOLD) else single(typed, '*')

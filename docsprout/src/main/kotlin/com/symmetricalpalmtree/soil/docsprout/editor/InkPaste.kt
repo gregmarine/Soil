@@ -174,7 +174,10 @@ internal class InkPaste(
             var right = 1f
             var bottom = 1f
             for (s in clip.strokes) { right = maxOf(right, s.bounds.right); bottom = maxOf(bottom, s.bounds.bottom) }
-            val raw = call { it.recognizePage(SeamShared.write(InkWire.encode(clip.strokes, right, bottom)), right, bottom) }
+            val raw = call {
+                val ink = SeamShared.write(InkWire.encode(clip.strokes, right, bottom))
+                try { it.recognizePage(ink, right, bottom) } finally { ink.memory.close() }
+            }
             val paragraphs = paragraphsOf(raw)
             Slog.d(TAG) { "read ${clip.strokes.size} strokes into ${paragraphs.size} paragraph(s) in ${System.currentTimeMillis() - started} ms" }
             RecognizingOverlay.hide(activity)
@@ -185,7 +188,12 @@ internal class InkPaste(
             // Kept beside the ink for the next paste. Never worth failing this one for.
             withContext(Dispatchers.IO) {
                 runCatching {
-                    seam().putClip(InkClip.WORDS_SLOT, SeamClip(InkClip.WORDS_KIND, "", clip.copiedAt), SeamShared.write(paragraphs.joinToString("\n").toByteArray(Charsets.UTF_8)))
+                    val words = SeamShared.write(paragraphs.joinToString("\n").toByteArray(Charsets.UTF_8))
+                    try {
+                        seam().putClip(InkClip.WORDS_SLOT, SeamClip(InkClip.WORDS_KIND, "", clip.copiedAt), words)
+                    } finally {
+                        words.memory.close()
+                    }
                 }.onFailure { Log.w(TAG, "the words were not kept: ${it.javaClass.simpleName}") }
             }
             deliver(paragraphs)

@@ -37,8 +37,12 @@ class LinkSpan(val url: String) : UnderlineSpan()
  */
 object RichCodec {
 
-    /** What a rule block holds in place of words. */
-    const val RULE_CHAR = '​'
+    /**
+     * What a rule block holds in place of words: a private-use character, which no document
+     * holds, so taking it out of the words never takes out one that was written (a zero-width
+     * space was, and pasted text carries those). It is never drawn ([BlockSpan]).
+     */
+    const val RULE_CHAR = '\uE000'
 
     /** A block span holds from its paragraph's first character, and typing at its start is typing into it. */
     const val BLOCK_FLAGS = Spanned.SPAN_INCLUSIVE_EXCLUSIVE

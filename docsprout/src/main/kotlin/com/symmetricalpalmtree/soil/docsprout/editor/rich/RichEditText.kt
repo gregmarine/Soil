@@ -149,14 +149,32 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
     fun undo(): Boolean = history.undo({ snapshot() }) { restore(it) }
     fun redo(): Boolean = history.redo({ snapshot() }) { restore(it) }
 
+    /**
+     * True while an undo or a redo puts a document back. Its words were all seen before, so a
+     * watcher that reads what changed (the pass that links references) leaves them be: a link
+     * undone is not put straight back.
+     */
+    var restoring = false
+        private set
+
     private fun restore(snapshot: RichHistory.Snapshot) {
-        show(snapshot.doc, snapshot.selStart, snapshot.selEnd)
+        restoring = true
+        try { show(snapshot.doc, snapshot.selStart, snapshot.selEnd) } finally { restoring = false }
         edited(words = false)
     }
 
     /** Several changes as one step to undo: a replace-all. */
     fun asOneEdit(body: () -> Unit) {
         beforeTool()
+        history.hold { body() }
+    }
+
+    /**
+     * A change this app made by itself, not the writer (a reference linked as it was typed): one
+     * step to undo, but what was undone stays to redo.
+     */
+    fun asProgramEdit(body: () -> Unit) {
+        history.beforeEdit(typing = false, keepRedo = true) { snapshot() }
         history.hold { body() }
     }
 
@@ -334,7 +352,10 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
 
         // Inside code a marker is a character.
         if (RichCodec.around(s, caret, CodeSpan::class.java).any { s.getSpanStart(it) < caret && s.getSpanEnd(it) >= caret }) return false
-        val pair = RichTyping.pairClosed(typed) ?: return false
+        // Nor is a marker inside code or a link's words the start of a pair.
+        val held = (s.getSpans(start, caret, CodeSpan::class.java).asList<Any>() + s.getSpans(start, caret, LinkSpan::class.java).asList<Any>())
+            .map { (s.getSpanStart(it) - start) until (s.getSpanEnd(it) - start) }
+        val pair = RichTyping.pairClosed(typed) { i -> held.any { i in it } } ?: return false
         history.beforeEdit(typing = false) { snapshot() }
         val m = pair.markerLength
         val open = start + pair.openStart
@@ -542,32 +563,52 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
 
 /**
  * The rendered editor's own undo: whole documents, taken before each step. Typing that follows
- * typing within a moment is one step; a tool is always its own.
+ * typing within a moment is one step; a tool is always its own. The oldest steps go once there
+ * are [maxSteps] of them, or once the documents held come to [maxChars] characters, whichever is
+ * first; the newest step is always kept.
  */
-internal class RichHistory {
+internal class RichHistory(private val maxSteps: Int = MAX_STEPS, private val maxChars: Long = MAX_CHARS) {
 
-    class Snapshot(val doc: RichDoc, val selStart: Int, val selEnd: Int)
+    class Snapshot(val doc: RichDoc, val selStart: Int, val selEnd: Int) {
+        val chars: Long = doc.blocks.sumOf { it.text.length.toLong() + 1 }
+    }
 
     private val undo = ArrayDeque<Snapshot>()
     private val redo = ArrayDeque<Snapshot>()
     private var typingUntil = 0L
     private var held = false
+    private var undoChars = 0L
+    private var redoChars = 0L
+
+    val steps: Int get() = undo.size
+    val redoSteps: Int get() = redo.size
 
     fun clear() {
         undo.clear()
         redo.clear()
+        undoChars = 0L
+        redoChars = 0L
         typingUntil = 0L
     }
 
-    fun beforeEdit(typing: Boolean, now: Long = SystemClock.uptimeMillis(), snapshot: () -> Snapshot) {
+    /** A step taken before an edit. [keepRedo] for a change the app made by itself: what was undone stays to redo. */
+    fun beforeEdit(typing: Boolean, now: Long = SystemClock.uptimeMillis(), keepRedo: Boolean = false, snapshot: () -> Snapshot) {
         if (held) return
         val continues = typing && now < typingUntil
         if (!continues) {
-            undo.addLast(snapshot())
-            if (undo.size > MAX_STEPS) undo.removeFirst()
-            redo.clear()
+            pushUndo(snapshot())
+            if (!keepRedo) {
+                redo.clear()
+                redoChars = 0L
+            }
         }
         typingUntil = if (typing) now + TYPING_GROUP_MS else 0L
+    }
+
+    private fun pushUndo(step: Snapshot) {
+        undo.addLast(step)
+        undoChars += step.chars
+        while (undo.size > 1 && (undo.size > maxSteps || undoChars + redoChars > maxChars)) undoChars -= undo.removeFirst().chars
     }
 
     /** Everything done inside is part of the step already taken. */
@@ -578,7 +619,10 @@ internal class RichHistory {
 
     fun undo(current: () -> Snapshot, restore: (Snapshot) -> Unit): Boolean {
         val back = undo.removeLastOrNull() ?: return false
-        redo.addLast(current())
+        undoChars -= back.chars
+        val now = current()
+        redo.addLast(now)
+        redoChars += now.chars
         typingUntil = 0L
         restore(back)
         return true
@@ -586,14 +630,17 @@ internal class RichHistory {
 
     fun redo(current: () -> Snapshot, restore: (Snapshot) -> Unit): Boolean {
         val forward = redo.removeLastOrNull() ?: return false
-        undo.addLast(current())
+        redoChars -= forward.chars
+        pushUndo(current())
         typingUntil = 0L
         restore(forward)
         return true
     }
 
-    private companion object {
+    companion object {
         const val MAX_STEPS = 100
+        /** About eight megabytes of words held as text, at two bytes a character. */
+        const val MAX_CHARS = 4_000_000L
         const val TYPING_GROUP_MS = 1_500L
     }
 }

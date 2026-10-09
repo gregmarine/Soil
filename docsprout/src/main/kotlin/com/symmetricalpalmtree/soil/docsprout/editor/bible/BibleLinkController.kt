@@ -29,7 +29,8 @@ import kotlinx.coroutines.withContext
  * and the next tick looks again.
  *
  * In the rendered document a link is a span: no character moves, the caret stays, and the link
- * is one step to undo (the words stay). In the Markdown source a link is characters, written
+ * is one step to undo (the words stay) that leaves the redo steps as they were. An undo or a redo
+ * is not read again, so a link undone is not put back. In the Markdown source a link is characters, written
  * last first with the caret carried past them. A reference the caret is touching is left for a
  * tick after the caret has moved, which [onCaretMoved] asks for. A link the writer took off is
  * never put back ([unlinked]).
@@ -53,15 +54,20 @@ internal class BibleLinkController(
     /** Bumped on every change: a result from an older generation never lands. */
     private var generation = 0
 
+    /** Bumped on every undo or redo in the rendered document. */
+    private var restores = 0
+
     init {
         for (each in listOf<ProofreadEditText>(rich, source)) {
             each.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                     generation++
+                    // An undo or a redo puts back words already seen: a link undone stays undone.
+                    if (each === rich && rich.restoring) { restores++; return }
                     dirty.note(start, before, count)
                 }
-                override fun afterTextChanged(s: Editable?) { schedule() }
+                override fun afterTextChanged(s: Editable?) { if (!(each === rich && rich.restoring)) schedule() }
             })
             val was = each.onCaretMoved
             each.onCaretMoved = { was?.invoke(); if (heldByCaret) schedule() }
@@ -103,11 +109,14 @@ internal class BibleLinkController(
         val skip = unlinked()
         val gen = generation
         val onRendered = rendered()
+        val restoresAtStart = restores
         scope.launch {
             val plan = withContext(Dispatchers.Default) {
                 ReferenceLinker.plan(snapshot, region, protected ?: ReferenceLinker.markdownProtected(snapshot), skip, caret)
             }
             if (gen != generation || !usable() || rendered() != onRendered) {
+                // An undo or a redo put back a document already seen: nothing to look at again.
+                if (restores != restoresAtStart) return@launch
                 // The document moved on: these offsets name nothing now. Look again.
                 whole = true
                 schedule()
@@ -148,10 +157,11 @@ internal class BibleLinkController(
         private const val TAG = "BibleLinks"
         const val DELAY_MS = 1_500L
 
-        /** Every hit as a link span over its words: no character moves, one step to undo. */
+        /** Every hit as a link span over its words: no character moves, one step to undo, and
+         *  what was undone before it is still there to redo. */
         fun applyRendered(rich: RichEditText, hits: List<ReferenceLinker.Hit>) {
             val s = rich.text ?: return
-            rich.asOneEdit {
+            rich.asProgramEdit {
                 for (hit in hits) {
                     if (hit.end > s.length || s.subSequence(hit.start, hit.end).toString() != hit.words) continue
                     RichOps.addStyle(s, hit.start, hit.end, RichStyle.LINK, hit.address)

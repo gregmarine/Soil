@@ -147,4 +147,70 @@ class RichParseTest {
     fun `windows line endings are not part of the text`() {
         assertEquals(listOf(RichBlock(RichAttr.heading(1), "T"), RichBlock(RichAttr.PARAGRAPH, "a b")), blocks("# T\r\n\r\na\r\nb\r\n"))
     }
+
+    @Test
+    fun `a tilde fence and a longer fence are raw, closed only by the same run`() {
+        val raw = RichAttr(RichKind.RAW)
+        assertEquals(
+            listOf(RichBlock(raw, "~~~"), RichBlock(raw, "**x**"), RichBlock(raw, "```"), RichBlock(raw, "~~~"), RichBlock(RichAttr.PARAGRAPH, "after")),
+            blocks("~~~\n**x**\n```\n~~~\nafter"),
+        )
+        assertEquals(
+            listOf(RichBlock(raw, "````md"), RichBlock(raw, "```"), RichBlock(raw, "```kotlin"), RichBlock(raw, "````"), RichBlock(RichAttr.PARAGRAPH, "after")),
+            blocks("````md\n```\n```kotlin\n````\nafter"),
+        )
+    }
+
+    @Test
+    fun `a fence never closed runs to the end`() {
+        val raw = RichAttr(RichKind.RAW)
+        assertEquals(listOf(RichBlock(RichAttr.PARAGRAPH, "a"), RichBlock(raw, "```"), RichBlock(raw, "# b")), blocks("a\n```\n# b"))
+    }
+
+    @Test
+    fun `indented code after a blank line is raw, blank lines inside it kept`() {
+        val raw = RichAttr(RichKind.RAW)
+        assertEquals(
+            listOf(RichBlock(RichAttr.PARAGRAPH, "a"), RichBlock(raw, "    x = *1*"), RichBlock(raw, ""), RichBlock(raw, "\t# y"), RichBlock(RichAttr.PARAGRAPH, "b")),
+            blocks("a\n\n    x = *1*\n\n\t# y\n\nb"),
+        )
+    }
+
+    @Test
+    fun `an indented line is not code inside a paragraph or under a list`() {
+        assertEquals(listOf(RichBlock(RichAttr.PARAGRAPH, "a b")), blocks("a\n    b"))
+        assertEquals(
+            listOf(RichBlock(RichAttr(RichKind.BULLET), "a"), RichBlock(RichAttr(RichKind.BULLET, depth = 2), "b")),
+            blocks("- a\n\n    - b"),
+        )
+    }
+
+    @Test
+    fun `many brackets with nothing to close them read as written`() {
+        val text = "[".repeat(20_000) + "x"
+        assertEquals(text, one(text).text)
+        val opened = "[a](".repeat(5_000)
+        assertEquals(opened, one(opened).text)
+    }
+
+    @Test
+    fun `the bracket scan finds what a scan from each bracket finds`() {
+        val random = kotlin.random.Random(20261008)
+        val alphabet = "[]()\\a!"
+        repeat(2_000) {
+            val src = String(CharArray(random.nextInt(0, 24)) { alphabet[random.nextInt(alphabet.length)] })
+            val scan = RichInline.Scan(src)
+            for (i in src.indices) {
+                if (src[i] != '[') continue
+                val plain = RichInline.linkAt(src, i)
+                val cached = RichInline.linkAt(src, i, scan)
+                assertEquals(src, plain?.let { it.textEnd to it.end }, cached?.let { it.textEnd to it.end })
+            }
+        }
+    }
+
+    @Test
+    fun `an indented list item is a nested item, not code`() {
+        assertEquals(listOf(RichBlock(RichAttr(RichKind.ORDERED, depth = 2, number = 1), "a")), blocks("    1. a"))
+    }
 }

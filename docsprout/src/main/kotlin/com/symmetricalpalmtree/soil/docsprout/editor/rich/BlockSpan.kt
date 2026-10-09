@@ -49,7 +49,12 @@ class BlockSpan(var attr: RichAttr, val metrics: BlockMetrics) : MetricAffecting
     // ── The words ──────
 
     override fun updateMeasureState(paint: TextPaint) = style(paint)
-    override fun updateDrawState(paint: TextPaint) = style(paint)
+
+    override fun updateDrawState(paint: TextPaint) {
+        style(paint)
+        // A rule's one character stands in for it and is never seen: the rule is drawn in the margin.
+        if (attr.kind == RichKind.RULE) paint.alpha = 0
+    }
 
     private fun style(paint: TextPaint) {
         when (attr.kind) {
@@ -60,6 +65,8 @@ class BlockSpan(var attr: RichAttr, val metrics: BlockMetrics) : MetricAffecting
                 paint.typeface = Typeface.create(old, (old?.style ?: Typeface.NORMAL) or Typeface.BOLD)
             }
             RichKind.RAW -> paint.typeface = Typeface.MONOSPACE
+            // Its stand-in character takes no room, as near as a paint can make it.
+            RichKind.RULE -> paint.textScaleX = RULE_SCALE_X
             else -> Unit
         }
     }
@@ -163,3 +170,6 @@ class BlockSpan(var attr: RichAttr, val metrics: BlockMetrics) : MetricAffecting
         p.textAlign = align
     }
 }
+
+/** How narrow a rule's stand-in character is drawn: as near nothing as a paint will take. */
+private const val RULE_SCALE_X = 0.01f

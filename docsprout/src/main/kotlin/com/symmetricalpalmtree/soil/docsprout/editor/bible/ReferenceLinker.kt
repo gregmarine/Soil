@@ -43,6 +43,8 @@ object ReferenceLinker {
             val end = lines.start + found.end
             if ((start until end).any { it < protected.size && protected[it] }) continue
             val words = text.substring(start, end)
+            // A link is one line's words: one across a line break would join two blocks.
+            if (words.indexOf('\n') >= 0) continue
             val wire = found.wire
             if (BibleUnlinked.key(words, wire) in unlinked) continue
             if (caret != null && caret in start..end) { held = true; continue }
@@ -64,6 +66,7 @@ object ReferenceLinker {
         val slice = text.substring(lines.start, lines.end)
         return ReferenceScan.scan(slice)
             .map { Hit(lines.start + it.start, lines.start + it.end, text.substring(lines.start + it.start, lines.start + it.end), it.wire) }
+            .filter { it.words.indexOf('\n') < 0 }
             .firstOrNull { a <= it.end && b >= it.start }
     }
 

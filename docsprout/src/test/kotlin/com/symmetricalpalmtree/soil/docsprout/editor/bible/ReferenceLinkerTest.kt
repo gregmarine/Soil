@@ -84,4 +84,12 @@ class ReferenceLinkerTest {
         assertEquals(null, ReferenceLinker.hitAt(text, 15, 18))
         assertEquals(null, ReferenceLinker.hitAt("plain words", 3, 3))
     }
+
+    @Test
+    fun `a reference never runs across a line break`() {
+        for (text in listOf("1. Genesis\n2. Exodus\n", "John\n3:16\n", "Read Genesis\n1 today\n")) {
+            assertTrue(text, plan(text).hits.none { it.words.contains('\n') })
+            assertTrue(text, (0..text.length).mapNotNull { ReferenceLinker.hitAt(text, it, it) }.none { it.words.contains('\n') })
+        }
+    }
 }
