@@ -115,4 +115,12 @@ class PassageAtomsTest {
     fun `nothing in, nothing out`() {
         assertTrue(PassageAtoms.atomsFor(emptyList()).isEmpty())
     }
+
+    @Test
+    fun `the Full chapter door opens on the first verse shown, not the first range asked for`() {
+        // The first range named a book the source omits: the rows start in the second range.
+        val shown = listOf(verse("PRO", 3, 5, "Trust"), verse("PRO", 3, 6, "In all"))
+        assertEquals(ChapterRef("PRO", 3) to 5, PassageAtoms.openAt(shown))
+        assertEquals(null, PassageAtoms.openAt(emptyList()))
+    }
 }

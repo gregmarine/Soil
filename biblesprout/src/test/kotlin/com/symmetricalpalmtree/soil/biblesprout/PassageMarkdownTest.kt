@@ -50,4 +50,14 @@ class PassageMarkdownTest {
     fun `no verses builds nothing`() {
         assertEquals("", PassageMarkdown.build("John 3:16", emptyList()))
     }
+
+    @Test
+    fun `a clip's label is cut to the cap with an ellipsis, and one that fits is kept`() {
+        assertEquals("John 3:16", PassageMarkdown.clipLabel(" John 3:16 ", 200))
+        val long = "John 1:1; ".repeat(40)
+        val cut = PassageMarkdown.clipLabel(long, 200)
+        assertTrue(cut.length <= 200)
+        assertTrue(cut.endsWith("…"))
+        assertTrue(cut.startsWith("John 1:1; John 1:1"))
+    }
 }

@@ -181,7 +181,7 @@ object SearchRank {
  *   its flow and its bookmark, not a citation.
  * - **Anything else that parses** ("John 3:16", "Gen 1-2", "John 3:14-17, Acts 1:3") is a
  *   passage, opened in the passage view.
- * - **Anything else** is words.
+ * - **Anything else** is words, and so is a list of references too long to make one wire.
  */
 sealed interface SearchRoute {
     data class Chapter(val ref: ChapterRef) : SearchRoute
@@ -206,7 +206,11 @@ sealed interface SearchRoute {
                     return Chapter(ChapterRef(passages[0].book.usfm, c1))
                 }
             }
-            return Passage(ReferenceCodec.encode(passages), passages)
+            // A list of references too long for a wire ([ReferenceCodec.isWire]) cannot be
+            // opened, linked or copied: it is searched as words.
+            val wire = ReferenceCodec.encode(passages)
+            if (!ReferenceCodec.isWire(wire)) return Words(trimmed)
+            return Passage(wire, passages)
         }
     }
 }
