@@ -89,7 +89,10 @@ seconds after the last mark or at the fifteen-second deadline (at the pen's lift
 pen), the encode and the write on IO under one lock so a page's rasters land in order. A turn
 waits only for the copy, and holds the pen off the page from that copy to the next page's load; a
 page is not read again until its writes in flight land and its parked bytes are offered again, and
-what still cannot land is loaded from those bytes rather than from the older row. The
+what still cannot land is loaded from those bytes rather than from the older row. A contact
+whose lift was lost is ended by the engine inside the swap, on the outgoing page (g-paper
+0.1.70): its mark is copied there and then and saved to that page, and is dropped with a page the
+operation has just deleted. The
 encoder's effort follows the page's coverage (`RasterEffort`): a sparse page takes the full
 search, a page over a tenth marked the fast one — measured on the Nomad, a page shaded edge to
 edge is 3.4 MB either way and 54 s against 1.4 s. A write that fails parks its bytes and retries

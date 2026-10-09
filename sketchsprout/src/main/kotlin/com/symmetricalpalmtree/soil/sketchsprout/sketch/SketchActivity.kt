@@ -217,6 +217,15 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
      *  page that lands, and the load's clean mark would drop it unsaved. Main thread. */
     private var turning = 0
 
+    /** True only inside [loadPage]'s `clearForContentSwap`. Since g-paper 0.1.70 that call ends a
+     *  contact whose lift was lost **on the outgoing page** — its will-change, changed and
+     *  `onPenLifted` fire inside it, while [currentPage] and the saver's key still name that page,
+     *  and after the turn's flush took its copy. The listener copies such a mark there and then
+     *  (the swap drops the rasters right after) and closes its entry at once; a mark on a page the
+     *  op has just taken out of the list goes with that page. [turning] does not stop these
+     *  callbacks: it gates new contacts, and this one was already open. Main thread. */
+    private var swapping = false
+
     /** The open file in Soil, until the screen closes it. */
     private var session: ISeamItem? = null
     private var store: SketchbookStore? = null
@@ -677,7 +686,11 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         // announcement made before the next loop into ONE rebuild and one present (a yield in
         // here, such as a decode, let the sheet present alone and the drawing a frame later).
         val t2 = SystemClock.elapsedRealtime()
-        if (!firstLoad) paper.clearForContentSwap()
+        if (!firstLoad) {
+            // Before `currentPage`, the saver's key and its clean mark move: see [swapping].
+            swapping = true
+            try { paper.clearForContentSwap() } finally { swapping = false }
+        }
         paper.setPageSize(width, height)
         // The paper is the SHEET: the direct raster path never flattens a template. Set only
         // when it changes — the engine holds it by reference across loads, so the sheet it held
@@ -1455,6 +1468,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         override fun onRasterWillChange(layer: RasterLayer, rect: Rect) {
             if (!opened || closing) return
             val page = currentPage ?: return
+            // A lost lift ended by the swap, on a page the op took out of the list: no entry for
+            // a page that is gone (see [swapping]).
+            if (swapping && pages.none { it.id == page.id }) return
             val open = openEdit
             if (open != null && open.layer != layer) {
                 Slog.d(TAG) { "one contact reported ${open.layer} then $layer; the first entry was closed" }
@@ -1479,6 +1495,16 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
          *  rubbing sweep. This is what arms the save, **for that raster alone**. */
         override fun onRasterChanged(layer: RasterLayer, rect: Rect) {
             if (!opened || closing) return
+            if (swapping) {
+                // A lost lift committed inside the swap (see [swapping]): copied now, under the
+                // outgoing page's key, before the swap drops the rasters and the load marks the
+                // glass clean. A page already out of the list is not written to.
+                val here = currentPage ?: return
+                if (pages.none { it.id == here.id }) return
+                saver.markDirty(layer)
+                if (!saver.copyNow()) Log.w(TAG, "a mark committed by the page swap could not be copied; it is lost with the page's pixels")
+                return
+            }
             saver.markDirty(layer)
             saver.schedule()
         }
@@ -1489,7 +1515,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             // A light rub with the stylus makes the tip switch chatter — four contacts a second —
             // and each was its own undo entry. Under the smudge the entry stays open a beat, and a
             // contact that lands inside it continues the same one.
-            if (paper.tool == Tool.SMUDGE) {
+            // Never held open across a swap: the entry is the outgoing page's.
+            if (paper.tool == Tool.SMUDGE && !swapping) {
                 val v = paper.asView()
                 v.removeCallbacks(closeOpenEditRunnable)
                 v.postDelayed(closeOpenEditRunnable, SMUDGE_CHATTER_MS)
@@ -1755,7 +1782,8 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         appScope.launch(Dispatchers.IO) {
             try {
                 val bytes = CoverSnapshot.encode(full)
-                (application as SketchsproutApp).soil.seam().setCover(id, SeamShared.write(bytes))
+                val cover = SeamShared.write(bytes)
+                try { (application as SketchsproutApp).soil.seam().setCover(id, cover) } finally { cover.memory.close() }
             } catch (e: Exception) {
                 Log.w(TAG, "the cover was not written: ${e.javaClass.simpleName}")
             } finally {
@@ -1770,7 +1798,16 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         val page = currentPage ?: return null
         val w = page.width.toInt(); val h = page.height.toInt()
         if (w <= 0 || h <= 0) return null
-        val rasters = RasterRows.LAYERS.map { paper.getPageRaster(it) }
+        // g-paper 0.1.70: a copy that cannot be allocated throws rather than reading as blank. The
+        // copies already taken go back; the caller has no picture (a cover skipped, a dump refused).
+        val rasters = ArrayList<Bitmap?>(RasterRows.LAYERS.size)
+        try {
+            for (layer in RasterRows.LAYERS) rasters += paper.getPageRaster(layer)
+        } catch (e: IllegalStateException) {
+            rasters.forEach { it?.recycle() }
+            Log.w(TAG, "the page could not be copied to flatten it: ${e.javaClass.simpleName}")
+            return null
+        }
         return try {
             PageFlatten.flatten(w, h, paperCache[page.templateId], rasters)
         } finally {

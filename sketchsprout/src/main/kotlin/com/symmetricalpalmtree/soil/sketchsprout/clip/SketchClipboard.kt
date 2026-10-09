@@ -42,7 +42,12 @@ object SketchClipboard {
 
     /** Put a page's [bytes] on the sketchbook slot. Throws when the seam refuses. */
     fun writePage(seam: ISoilSeam, sourceId: String, bytes: ByteArray, now: Long) {
-        seam.putClip(SLOT, SeamClip(SketchPageClip.KIND_PAGE, sourceId, now), SeamShared.write(bytes))
+        val region = SeamShared.write(bytes)
+        try {
+            seam.putClip(SLOT, SeamClip(SketchPageClip.KIND_PAGE, sourceId, now), region)
+        } finally {
+            region.memory.close()
+        }
         hasPage = true
     }
 

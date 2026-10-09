@@ -55,7 +55,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 class SketchSaver(
     /** Copies one raster off the surface — `paper.getPageRaster(layer)`. **Main thread only**; null
-     *  is a blank raster, which saves as an empty array (the store's word for "no such raster"). */
+     *  is a blank raster, which saves as an empty array (the store's word for "no such raster").
+     *  A copy that cannot be taken throws (g-paper 0.1.70): that raster stays dirty ([takeCopy]). */
     private val copyPage: (RasterLayer) -> Bitmap?,
     /** Suspends until the pen is off the glass — `paper.awaitPenIdle()`. **Main thread only.** */
     private val awaitPenIdle: suspend () -> Unit,
@@ -291,19 +292,28 @@ class SketchSaver(
      */
     suspend fun flushForTurn(): Boolean {
         cancelTimers()
+        return withContext(Dispatchers.Main + NonCancellable) { copyNow() }
+    }
+
+    /**
+     * [flushForTurn]'s copy, **synchronous**: every owed raster copied this instant and sent on
+     * its way under [pageKey]. **Main thread.** It is also what a mark the engine commits *inside*
+     * `clearForContentSwap` (a contact whose lift was lost, g-paper 0.1.70) is saved by: its
+     * pixels exist only until the swap drops the rasters, so the copy cannot wait for a timer.
+     * Returns true when nothing was owed that could not be copied.
+     */
+    fun copyNow(): Boolean {
         val key = pageKey ?: return true
         var copied = true
-        withContext(Dispatchers.Main + NonCancellable) {
-            for (layer in RasterRows.LAYERS) {
-                if (governor(layer).flushRequest() !is SketchSaveGovernor.SaveAction.Save) continue
-                val copy = takeCopy(layer)
-                if (copy == null) {
-                    copied = false
-                    armRetry()
-                    continue
-                }
-                launchWrite(key, layer, copy)
+        for (layer in RasterRows.LAYERS) {
+            if (governor(layer).flushRequest() !is SketchSaveGovernor.SaveAction.Save) continue
+            val copy = takeCopy(layer)
+            if (copy == null) {
+                copied = false
+                armRetry()
+                continue
             }
+            launchWrite(key, layer, copy)
         }
         return copied
     }

@@ -113,7 +113,8 @@ class RenderService : Service() {
                 val paper = baked.first().paper?.let { Bitmaps.decodeBounded(it, MAX_TEMPLATE_EDGE) }
                 val ink = baked.first().ink?.let { RasterImage.decode(it, w, h) }
                 val flat = try { PageFlatten.flatten(w, h, paper, RasterRows.LAYERS.map { if (it == RasterLayer.INK) ink else null }) } finally { paper?.recycle(); ink?.recycle() }
-                try { seam.setCover(itemId, SeamShared.write(CoverSnapshot.encode(flat))) } finally { flat.recycle() }
+                val cover = try { SeamShared.write(CoverSnapshot.encode(flat)) } finally { flat.recycle() }
+                try { seam.setCover(itemId, cover) } finally { cover.memory.close() }
             }
             Slog.d(TAG) { "converted ${pages.size} page(s) into a sketchbook" }
         }
