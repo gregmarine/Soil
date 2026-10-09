@@ -14,6 +14,15 @@ import org.junit.Test
  */
 class BackupPredicatesTest {
 
+    // ── The file a backup copies ─────────────────────────────────────────────
+
+    /** A backup copies item files by id and never asks their kind: a sketchbook (Sketchsprout,
+     *  2026-10-08) rides along as a notebook and a document do, with every raster in its file. */
+    @Test
+    fun `an item of any kind is named by its id alone`() {
+        assertEquals("0b7c.soil", BackupPredicates.itemName("0b7c"))
+    }
+
     // ── needsBackup: the D8 table ────────────────────────────────────────────
 
     @Test
