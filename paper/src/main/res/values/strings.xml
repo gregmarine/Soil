@@ -17,6 +17,12 @@
     <string name="tool_pen">Pen</string>
     <string name="tool_smudge">Smudge</string>
     <string name="tool_lasso">Lasso</string>
+    <!-- Leaving an ink screen whose last flush failed (the sketchbook's exit, the same words): ink
+         with no other copy is a dialog, never a log line. -->
+    <string name="ink_not_saved_title">Not saved</string>
+    <string name="ink_not_saved_body">The ink could not be written to the page. Try again, or leave and lose what was written since the last save.</string>
+    <string name="ink_try_again">Try again</string>
+    <string name="ink_leave_anyway">Leave anyway</string>
 
 
     <!-- The shade panel -->

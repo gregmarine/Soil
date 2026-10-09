@@ -26,7 +26,7 @@ class InkColorCodecTest {
 
     @Test
     fun decode_garbage_isBlack() {
-        for (s in listOf(null, "", "black", "#12345", "#GGGGGG", "123456", "#1234567890")) {
+        for (s in listOf(null, "", "black", "#12345", "#GGGGGG", "123456", "#1234567890", "#-12345", "#+12345", "#-1234567", "#+FF0080")) {
             assertEquals("for input $s", InkColorCodec.BLACK, InkColorCodec.decode(s))
         }
     }

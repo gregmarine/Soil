@@ -6,7 +6,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Base64
+import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 /**
@@ -104,11 +107,64 @@ class StrokeCodecTest {
         assertTrue(runCatching { StrokeCodec.decode(ByteArray(0)) }.isFailure)
     }
 
+    /**
+     * A writer newer than this one: flags 0x04 is a channel this reader does not know. Each set bit
+     * is one f32 per point, so the stride is 12 — the unknown channel is skipped, never read as
+     * the next point's x.
+     */
     @Test
+    fun unknownChannelBit_isSkipped() {
+        val x = floatArrayOf(1f, 2f, 3f)
+        val y = floatArrayOf(10f, 20f, 30f)
+        val pts = StrokeCodec.decode(handBuiltBlob(0x04, x, y, null, null, extras = 1))
+        assertEquals(3, pts.size)
+        assertArrayEquals(x, pts.x, 0f)
+        assertArrayEquals(y, pts.y, 0f)
+        assertNull(pts.pressure)
+        assertNull(pts.tilt)
+    }
+
+    /** Unknown bits alongside known ones: the known channels still read, the unknown two skipped. */
+    @Test
+    fun unknownChannelBits_withKnownChannels_areSkipped() {
+        val x = floatArrayOf(1f, 2f)
+        val y = floatArrayOf(10f, 20f)
+        val p = floatArrayOf(0.5f, 0.75f)
+        val t = floatArrayOf(-0.25f, 0.25f)
+        val pts = StrokeCodec.decode(handBuiltBlob(0x1B, x, y, p, t, extras = 2))
+        assertEquals(2, pts.size)
+        assertArrayEquals(x, pts.x, 0f)
+        assertArrayEquals(y, pts.y, 0f)
+        assertArrayEquals(p, pts.pressure, 0f)
+        assertArrayEquals(t, pts.tilt, 0f)
+    }
+
+    @Test(timeout = 5_000)
     fun corruptZlib_doesNotSpin() {
         // FDICT-style garbage after the version byte must return (fail or empty), not hang.
         val garbage = byteArrayOf(1, 0x78, 0x3C.toByte(), 1, 2, 3, 4)
         runCatching { StrokeCodec.decode(garbage) }
+    }
+
+    /** A format-B blob written by hand: x, y, the known channels, then [extras] unknown f32s a point. */
+    private fun handBuiltBlob(flags: Int, x: FloatArray, y: FloatArray, p: FloatArray?, t: FloatArray?, extras: Int): ByteArray {
+        val stride = 8 + (if (p != null) 4 else 0) + (if (t != null) 4 else 0) + 4 * extras
+        val payload = ByteBuffer.allocate(1 + x.size * stride).order(ByteOrder.LITTLE_ENDIAN)
+        payload.put(flags.toByte())
+        for (i in x.indices) {
+            payload.putFloat(x[i]); payload.putFloat(y[i])
+            if (p != null) payload.putFloat(p[i])
+            if (t != null) payload.putFloat(t[i])
+            repeat(extras) { payload.putFloat(999f + it) }
+        }
+        val d = Deflater()
+        d.setInput(payload.array()); d.finish()
+        val out = ByteArrayOutputStream()
+        out.write(StrokeCodec.VERSION_FLOAT32.toInt())
+        val buf = ByteArray(4096)
+        while (!d.finished()) out.write(buf, 0, d.deflate(buf))
+        d.end()
+        return out.toByteArray()
     }
 
     private fun inflate(blob: ByteArray): ByteArray {

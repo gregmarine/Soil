@@ -16,9 +16,10 @@ import java.util.zip.Inflater
  *   version : u8   (= 1)                                        -- plaintext
  *   payload : zlib{ flags:u8 | (x:f32, y:f32[, pressure:f32][, tilt:f32]) * N }   little-endian
  * ```
- * `flags` bit0 = pressure channel present, bit1 = tilt channel present. SN writes both channels
- * (g-paper always reports them; defaults 1f / 0f), reads any combination, derives the stride from
- * the flags, and skips channels it does not know. The inflate loop bails on a zero-progress round
+ * `flags` bit0 = pressure channel present, bit1 = tilt channel present. Every set bit is one f32
+ * channel, in bit order after x and y, so the stride is `8 + 4·popcount(flags)`. SN writes both
+ * channels (g-paper always reports them; defaults 1f / 0f), reads any combination, and skips the
+ * channels of bits it does not know. The inflate loop bails on a zero-progress round
  * (a corrupt header would otherwise spin forever). Pure Kotlin — JVM-tested.
  *
  * Points are carried as a [Points] struct of parallel arrays so this file has no Android or
@@ -80,10 +81,12 @@ object StrokeCodec {
         val flags = buf.get().toInt() and 0xFF
         val hasPressure = flags and FLAG_PRESSURE != 0
         val hasTilt = flags and FLAG_TILT != 0
-        // Unknown higher bits are tolerated only if they add no bytes we can't account for: the
-        // stride is derived from the bits we know, and a payload whose length isn't a multiple of
-        // it is truncated to whole points (a partial trailing point is dropped, not misread).
-        val stride = 8 + (if (hasPressure) 4 else 0) + (if (hasTilt) 4 else 0)
+        // Every set bit is one f32 channel, in bit order after x and y — a bit this reader does not
+        // know is a channel it skips, never one it reads as the next point. The stride counts every
+        // bit, and a payload whose length isn't a multiple of it is truncated to whole points (a
+        // partial trailing point is dropped, not misread).
+        val stride = 8 + 4 * Integer.bitCount(flags)
+        val unknownBytes = 4 * Integer.bitCount(flags and (FLAG_PRESSURE or FLAG_TILT).inv())
         val n = (payload.size - 1) / stride
         val x = FloatArray(n)
         val y = FloatArray(n)
@@ -94,6 +97,7 @@ object StrokeCodec {
             y[i] = buf.float
             if (p != null) p[i] = buf.float
             if (t != null) t[i] = buf.float
+            if (unknownBytes > 0) buf.position(buf.position() + unknownBytes)
         }
         return Points(x, y, p, t)
     }

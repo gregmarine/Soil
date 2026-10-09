@@ -14,9 +14,11 @@ import com.symmetricalpalmtree.soil.paper.R
  */
 object CollapsedTools {
 
-    /** The fixed order of the mini toolbar's tool buttons (decision 2 / 3): the two erasers are
-     *  two buttons, so the lasso eraser is one tap away while collapsed. */
-    val ORDER: List<Tool> = listOf(Tool.PEN, Tool.ERASER, Tool.SMUDGE, Tool.LASSO_ERASER, Tool.LASSO)
+    /** The fixed order of the mini toolbar's tool buttons on a writing screen (decision 2 / 3):
+     *  the two erasers are two buttons, so the lasso eraser is one tap away while collapsed. No
+     *  smudge — it rubs pixels, and a writing screen's strokes have none; the sketch face, the one
+     *  surface that has it, passes its own list. */
+    val ORDER: List<Tool> = listOf(Tool.PEN, Tool.ERASER, Tool.LASSO_ERASER, Tool.LASSO)
 
     /**
      * The corner button's glyph for [tool]. The lasso wears the clipboard mark exactly as the
@@ -71,8 +73,10 @@ object CollapsedTools {
 
     const val INLINE_MAX = 2
 
-    /** The one mini-toolbar button that reads as armed under [tool]; none under [Tool.NONE]. */
-    fun selectedFor(tool: Tool): Tool? = tool.takeIf { it in ORDER }
+    /** The one mini-toolbar button that reads as armed under [tool]; none under [Tool.NONE]. Any
+     *  real tool answers itself, not only [ORDER]'s: a screen's own list (the sketch face's
+     *  smudge) borders its button by the same rule. */
+    fun selectedFor(tool: Tool): Tool? = tool.takeIf { it != Tool.NONE }
 
     /**
      * Whether a contact at some point takes the rows down. Nothing showing → nothing to do; on
