@@ -69,6 +69,12 @@ object SoilRekey {
             what = "re-keyed",
         )
 
+        // Asked again at the moment of the swap: the export takes seconds, and a connection opened
+        // meanwhile would keep writing to the file renamed from under it.
+        if (OpenFiles.isOpen(file)) {
+            RekeyExport.rejectOutput(tmp)
+            throw IllegalStateException("the file was opened during the re-key")
+        }
         when (val outcome = RekeyCommit.commitReplace(RealRekeyFs, file, tmp)) {
             RekeyCommit.Outcome.Committed -> Unit
             RekeyCommit.Outcome.BothKept -> {

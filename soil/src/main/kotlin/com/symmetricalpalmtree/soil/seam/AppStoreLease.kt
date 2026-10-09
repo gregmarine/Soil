@@ -7,9 +7,10 @@ import android.os.Parcel
 import com.symmetricalpalmtree.soil.data.Schema
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.store.AppStores
+import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
 import com.symmetricalpalmtree.soil.paper.core.Slog
-import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.seamkit.RowCodec
+import com.symmetricalpalmtree.soil.seamkit.RowsBuilder
 
 /**
  * **An app's own store, lent over the seam** (`ISoilSeam.openAppStore`): an [ISeamStore] over one
@@ -23,7 +24,10 @@ import com.symmetricalpalmtree.soil.seamkit.RowCodec
  * DDL through the gate. Only Security/IllegalArgument/IllegalState exceptions cross.
  */
 class AppStoreLease private constructor(
-    private val rows: RowStore,
+    private val app: Context,
+    private val name: String,
+    private val schema: Schema,
+    opened: Pair<SqlCipherRowStore, Long>,
     private val uid: Int,
     private val owner: IBinder,
     private val gate: () -> Unit,
@@ -32,6 +36,29 @@ class AppStoreLease private constructor(
     @Volatile
     private var over = false
 
+    /** The connection, and the `AppStores.closings` count it was opened under. */
+    private var rows: SqlCipherRowStore = opened.first
+    private var openedAt: Long = opened.second
+
+    /**
+     * The store as it is now. `AppStores.closeAll` (a rotation, Forget, a restore) closes the
+     * connection this lease was given; the next call opens the store again, under whatever key
+     * it is under now, and the app goes on as if nothing had happened. The gate has already
+     * refused the call while the library is not open, and the open refuses while a rotation
+     * marker stands.
+     *
+     * Run under `AppStores`' own lock, so a close waits for the call in hand rather than closing
+     * the connection under it.
+     */
+    private fun <T> withStore(block: (SqlCipherRowStore) -> T): T = synchronized(AppStores) {
+        if (AppStores.closings() != openedAt) {
+            val (fresh, at) = AppStores.lend(app, name, schema)
+            rows = fresh
+            openedAt = at
+        }
+        block(rows)
+    }
+
     override fun exec(batch: SeamBytes): LongArray = answered {
         val statements = RowCodec.decodeStatements(SeamShared.readAndClose(batch))
         require(statements.size in 1..MAX_BATCH) { "a batch is 1..$MAX_BATCH statements" }
@@ -39,7 +66,7 @@ class AppStoreLease private constructor(
             SeamSql.checkExec(statement.sql)
             require(SeamSql.bindCount(statement.sql) == statement.args.size) { "the binds do not match the arguments" }
         }
-        rows.exec(statements)
+        withStore { it.exec(statements) }
     }
 
     override fun query(statement: SeamBytes): SeamBytes = answered {
@@ -47,8 +74,11 @@ class AppStoreLease private constructor(
         require(one.size == 1) { "a query is one statement" }
         SeamSql.checkQuery(one[0].sql)
         require(SeamSql.bindCount(one[0].sql) == one[0].args.size) { "the binds do not match the arguments" }
-        val result = rows.query(one[0])
-        SeamShared.write(RowCodec.encodeRows(result.columns, result.cells))
+        // Gathered under the seam's cap, refused at the row that would pass it — as an item's query is.
+        val encoded = withStore { rows ->
+            rows.stream(one[0], { columns -> RowsBuilder(columns) }) { builder, cells -> builder.add(cells) }.build()
+        }
+        SeamShared.write(encoded)
     }
 
     override fun close() {
@@ -117,8 +147,9 @@ class AppStoreLease private constructor(
          */
         fun open(context: Context, packageName: String, schema: SeamSchema, uid: Int, owner: IBinder, gate: () -> Unit): AppStoreLease {
             val app = context.applicationContext
-            val rows = AppStores.open(app, storeName(packageName), Schema(schema.kind, schema.steps))
-            val lease = AppStoreLease(rows, uid, owner, gate)
+            val name = storeName(packageName)
+            val soilSchema = Schema(schema.kind, schema.steps)
+            val lease = AppStoreLease(app, name, soilSchema, AppStores.lend(app, name, soilSchema), uid, owner, gate)
             try {
                 owner.linkToDeath(lease, 0)
             } catch (_: android.os.RemoteException) {

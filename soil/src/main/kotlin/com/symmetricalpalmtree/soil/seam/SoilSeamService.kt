@@ -130,7 +130,10 @@ class SoilSeamService : Service() {
 
         override fun deleteItem(itemId: String) = answered {
             check(!ItemSessions.isHeld(itemId)) { "the item is open" }
-            check(IndexStore().softDelete(itemId, System.currentTimeMillis())) { NO_SUCH_ITEM }
+            // The library's own delete: the row with its cover, pin, tags and page order, then
+            // the file, its sidecars and its derived key — what the library's Delete does.
+            check(com.symmetricalpalmtree.soil.data.index.LibraryStore().deleteItem(itemId, System.currentTimeMillis())) { NO_SUCH_ITEM }
+            com.symmetricalpalmtree.soil.library.LibraryFiles.deleteItemFile(this@SoilSeamService, itemId)
             ItemSessions.changed()
         }
 

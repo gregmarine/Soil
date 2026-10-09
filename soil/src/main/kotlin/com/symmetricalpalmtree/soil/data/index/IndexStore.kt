@@ -133,13 +133,6 @@ class IndexStore(private val rows: SqlCipherRowStore = SqlCipherRowStore(SoilInd
             ),
         )[0] > 0
 
-    /** A delete is soft: the row is marked, and the file is not touched. What the library held
-     *  for the item (its tags, its page order) goes with it. */
-    fun softDelete(itemId: String, now: Long): Boolean =
-        rows.exec(
-            listOf(Statement("UPDATE item SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL", now, itemId)) + forgetItem(itemId),
-        )[0] > 0
-
     fun setPageCount(itemId: String, count: Int) {
         rows.exec(listOf(Statement("UPDATE item SET pageCount = ? WHERE id = ?", count, itemId)))
     }

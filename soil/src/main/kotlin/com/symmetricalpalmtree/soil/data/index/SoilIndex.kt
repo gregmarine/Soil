@@ -95,12 +95,25 @@ object SoilIndex {
                 // A re-key commit that died between its two renames is put right here, before
                 // anything opens a garden file.
                 runCatching { SoilRekey.recoverGarden(app, GlobalRotation.trustedVerifier(app)) }
+                // The index is outside the garden's listing, and `prepare` sweeps its leftovers
+                // only when it is missing. One that opened beside an `.old.bak` or a
+                // `.rekey.tmp` (a death after the swap, or before it) has noise to drop: with the
+                // original verifying, recovery only ever deletes the leftovers. Not while a marker
+                // stands — a rotation's own tmp may be in the making.
+                runCatching { sweepIndexLeftovers(app) }
                 // This device's backup destination, parked by a restore, goes back over the
                 // restored row on the first open after it.
                 runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             }
             found
         }.also { _state.value = it }
+    }
+
+    private fun sweepIndexLeftovers(app: Context) {
+        val file = SoilFiles.indexFile(app)
+        if (!SoilRekey.hasLeftovers(file) || PassphraseStore.getRotationMarker(app) != null) return
+        val result = SoilRekey.recoverOne(file, GlobalRotation.trustedVerifier(app))
+        Log.w(TAG, "index rekey leftovers beside an open index: $result")
     }
 
     private fun prepare(app: Context): State {
@@ -160,18 +173,36 @@ object SoilIndex {
     /**
      * Unlock with a passphrase a person typed (the NEEDS_UNLOCK path). Verifies against the file
      * first — never opens with an unverified key — caches it as the global passphrase, opens.
-     * False on a wrong passphrase; the file is untouched either way. IO.
+     * False on a wrong passphrase; the file is untouched either way. True when the key fits, even
+     * if the open after it failed. Whenever the storage or the open failed rather than the key,
+     * the state is [State.UNAVAILABLE] and the screens say so. Never throws. IO.
      */
     suspend fun unlockAndOpen(context: Context, passphrase: String): Boolean = withContext(Dispatchers.IO) {
         prepareMutex.withLock {
             if (instance != null) return@withLock true
             val app = context.applicationContext
-            val file = SoilFiles.indexFile(app)
+            val file = try {
+                SoilFiles.indexFile(app)
+            } catch (e: Exception) {
+                // The device's storage is out of reach: no key was judged, and the caller reads
+                // the state before it counts an attempt.
+                _state.value = State.UNAVAILABLE
+                return@withLock false
+            }
             if (!SoilCrypto.verifyPassphrase(file, passphrase)) return@withLock false
-            PassphraseStore.setGlobalPassphrase(app, passphrase)
-            KeyMaterial.invalidate(app, KeyMaterial.INDEX_FILE_ID)
-            val key = KeyMaterial.rawKey(app, KeyMaterial.INDEX_FILE_ID, file, passphrase)
-            finishOpen(app, file, SoilDb.open(file, FileKey.Raw(key), IndexSchema.SCHEMA), passphrase)
+            val db = try {
+                PassphraseStore.setGlobalPassphrase(app, passphrase)
+                KeyMaterial.invalidate(app, KeyMaterial.INDEX_FILE_ID)
+                val key = KeyMaterial.rawKey(app, KeyMaterial.INDEX_FILE_ID, file, passphrase)
+                SoilDb.open(file, FileKey.Raw(key), IndexSchema.SCHEMA)
+            } catch (e: Exception) {
+                // The key is right and the open still failed (storage, a schema step). Never the
+                // message: an open's message can carry a path.
+                Log.w(TAG, "the index did not open after the unlock: ${e.javaClass.simpleName}")
+                _state.value = State.UNAVAILABLE
+                return@withLock true
+            }
+            finishOpen(app, file, db, passphrase)
             runCatching { com.symmetricalpalmtree.soil.restore.RestoreDestination.applyParked(app) }
             _state.value = State.READY
             true

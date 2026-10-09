@@ -39,9 +39,9 @@ connection, the row codec, the row store).
 |---|---|
 | `createItem(name, schema)` | A new item of the schema's kind, under the global key, empty |
 | `listItems(kind)`, `recentItems(kind, limit)`, `item(id)` | The index's rows, blob-free |
-| `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order |
+| `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order. `deleteItem` is the library's Delete: the row, then the file and its derived key |
 | `openItem(id, schema, owner)` | An `ISeamItem`: the app's hold on the file, bound to its uid and to `owner`'s death |
-| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout, Calsprout); made on first use at the schema's steps, brought to a newer schema's steps on a later open, bound to the caller's uid and to `owner`'s death, closed by `close()`; a batch of up to the seam's 10,000 statements (`biblesprout.md`, `calsprout.md`) |
+| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout, Calsprout); made on first use at the schema's steps, brought to a newer schema's steps on a later open, bound to the caller's uid and to `owner`'s death, closed by `close()`; opened again at the next call after Soil closed its stores (a passphrase change, Forget, a restore); a query's result capped as an item's is; a batch of up to the seam's 10,000 statements (`biblesprout.md`, `calsprout.md`) |
 | `makeItemFromFile(besideItemId, name, fileExtension, bytes)` | A new item beside another, made from a file's bytes by the app that imports that extension: the maker an import of a picked file uses. A notebook's Convert makes its document this way (`docsprout.md`) |
 
 An open item answers `exec(batch)` (N statements, one transaction, each checked), `query(one)`,

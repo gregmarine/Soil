@@ -4,7 +4,7 @@ package com.symmetricalpalmtree.soil.crypto
  * The pure half of the global rotation (arc 26 / U3, D2) — everything [GlobalRotation] decides
  * that does not need a file or a context, so it is JVM-tested in full.
  *
- *  - [order]: the id list a rotation walks — `GLOBAL`-scope notebooks, then `ext:<pkg>` stores,
+ *  - [order]: the id list a rotation walks — `GLOBAL`-scope items, then `store:<name>` stores,
  *    then the index **last**. The index last is the whole point: it holds the rows the loop reads
  *    (names for progress, the quarantine flag), and after its own rekey nothing in this process
  *    may touch it until the relaunch.
@@ -20,7 +20,8 @@ object RotationPlan {
     /** The id the rotation walks the index under. */
     const val INDEX_ID = KeyMaterial.INDEX_FILE_ID
 
-    /** `ext:<pkg>` — `ExtensionStores.fileIdFor`'s shape; kept here so the plan has no Android import. */
+    /** `store:<name>` — a store's id in the walk and its raw-key cache id (`AppStores`); kept here so
+     *  the plan has no Android import. */
     const val STORE_PREFIX = "store:"
 
     enum class Kind { ITEM, STORE, INDEX }
@@ -181,7 +182,7 @@ object RotationPlan {
         CLEAR_ACK,
         /** `KeyMaterial.clearAll` — every cached raw key was derived against an old salt. */
         CLEAR_RAW_KEYS,
-        /** `KeySession.set(new)` + `PassphraseCache.clear()` — the process copies. */
+        /** `KeySession.set(new)` — the process copy. */
         SET_SESSION,
         /** `clearRotationMarker` — last: the journal outlives everything it guards. */
         CLEAR_MARKER,
