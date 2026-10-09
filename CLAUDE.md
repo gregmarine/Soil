@@ -32,6 +32,13 @@ pages from a long-press sheet, a Day as two pages), the export screen's render-o
 day as a link target (`cal:`) from a notebook and a document with the calendar's Notes door on
 the shared backlinks panel, and these documents. `docs/design.md` §16 lists the phases.
 
+**The Sketchsprout effort is done** (2026-10-06 to 2026-10-08, branch `sketchsprout`): the
+sketchbook as a Sprout app with items of its own, SN's pencil, gel pen, shades, eraser, smudge
+and guides over two rasters a page in one `.soil`, paper from the library under the raster,
+undo by tiles, export through Soil's screen, the clipboard (pages between sketchbooks, ink
+pasted in), Convert from a notebook, a sketch page as a link target, the seam's value cap at
+16 MiB, and these documents. `docs/design.md` §16 lists the phases.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.
@@ -41,7 +48,7 @@ when he is happy with it, not before.
 - `./gradlew test` — the JVM tests. `./gradlew assembleDebug assembleRelease` — both builds.
 - Modules: `:soil` (the app), `:seam` (the interface to the Sprout apps), `:paper` (shared
   theme, chrome and ink), `:seam-kit`, `:markdown`, `:bible-ref` (the canon and the parser),
-  `:notesprout`, `:docsprout`, `:biblesprout`, `:calsprout`, `:ext-api` (the extension
+  `:notesprout`, `:sketchsprout`, `:docsprout`, `:biblesprout`, `:calsprout`, `:ext-api` (the extension
   contract), the extensions `:ext-mlkit`, `:ext-soilfile`, `:ext-pdf`, `:ext-image`,
   `:ext-cloud` (needs `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET` in the shell), and
   `:seam-stranger` (joins the build only where its key exists).
@@ -77,7 +84,7 @@ when he is happy with it, not before.
   resume from it.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
-  `docs/notesprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/calsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
+  `docs/notesprout.md`, `docs/sketchsprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/calsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
   `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.

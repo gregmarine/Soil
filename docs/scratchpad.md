@@ -3,6 +3,9 @@
 For the quick thought that has no place yet. It is part of Soil, tied to nothing, and opened
 from the side menu over whatever app is in front. Back returns to that app.
 
+Its row in the side menu wears Tabler's `scribble` since Sketchsprout (Greg, 2026-10-06): the
+sketch glyph it wore is the sketchbook's.
+
 It is Notesprout SN's pad, moved inside Soil. How the screen works underneath is in Notesprout
 SN's `scratchpad.md` and `sn-screen.md` (see `references.md`).
 

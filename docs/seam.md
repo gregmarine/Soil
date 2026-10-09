@@ -73,8 +73,11 @@ links into a range of days (`links.md`).
 An app starts Soil's screens for a result with the actions in `Seam`: `ACTION_PICK_TEMPLATE`,
 `ACTION_SAVE_TEMPLATE`, `ACTION_PICK_ITEM`, `ACTION_TAGS`, `ACTION_SCRATCH_PAD`, `ACTION_EXPORT`,
 `ACTION_FOLLOW`. Each is guarded by the seam permission and carries ids only, never a path or a
-key. `ACTION_PICK_ITEM` with `EXTRA_PICK_PAGE` also asks for a page when a notebook is picked,
-and answers the item's name with its id. `ACTION_FOLLOW` opens an item, at a page or whole, in
+key. `ACTION_PICK_ITEM` takes one kind or several in `EXTRA_KIND`, comma-separated; with
+`EXTRA_PICK_PAGE` it also asks for a page when an item with pages is picked, named by the item's
+own app, and with `EXTRA_PAGE_OF_ITEM` it goes straight to that item's pages; it answers the
+item's name with its id, and the page's id when one was asked. The seam's value cap is 16 MiB
+since Sketchsprout (`SeamLimits`), a sketch page's raster being one value. `ACTION_FOLLOW` opens an item, at a page or whole, in
 the app for its kind, whichever app asks: how a notebook opens a document and a document a
 notebook (`links.md`); with `EXTRA_BIBLE_WIRE` in place of an item it opens the Bible's reader
 on a passage, with `EXTRA_CAL_DATE` the calendar on a day. `ACTION_EXPORT` with

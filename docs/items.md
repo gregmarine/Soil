@@ -39,12 +39,13 @@ never reused; a delete is soft, and the file goes with it.
 ## The library
 
 Soil's home opens on it: folders and items as cover cards, three across, a page at a time,
-never scrolled. Each card wears a glyph for its kind, and a notebook writes its cover through
-the seam when it is put down.
+never scrolled. Each card wears a glyph for its kind, and a notebook or a sketchbook writes its
+cover through the seam when it is put down.
 
 - **The path line**: breadcrumb and back on the left; Search, Recents and Pinned, the three
   shelves, and Sort on the right. A shelf is a glance across the tree, not a place.
-- **The top bar**: New notebook and New folder.
+- **The top bar**: New notebook, New sketchbook (Sketchsprout, 2026-10-07: the same screen,
+  the kind in its title) and New folder.
 - **The bottom bar**: Backup and Import on the left, the pager centred.
 - **The long-press sheet** of an item: Pin, Rename, Move, Tags, Export, Exclude from backup,
   Delete. Of a folder: Rename, Move, the naming scheme, the default template, Delete.
@@ -62,8 +63,10 @@ schema; the app lays the pick onto its first page.
 
 ### For the apps
 
-`ItemPickerActivity` is the library in pick shape, narrowed to a kind, started by an app for a
-result; there is one library, and an app never browses on its own. `FolderPickerActivity`
+`ItemPickerActivity` is the library in pick shape, narrowed to a kind or to several, started by
+an app for a result, and asked for a page it has the item's own app name its pages — or, with
+`EXTRA_PAGE_OF_ITEM`, goes straight to one item's pages; there is one library, and an app never
+browses on its own. `FolderPickerActivity`
 serves both hierarchies, the library's and the paper library's.
 
 Walked on the Nomad through Notesprout's phases 1 and 7, 2026-09-30 and 2026-10-01.

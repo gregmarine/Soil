@@ -58,6 +58,17 @@ lands a page as a new page after the current one at the copied page's size; the 
 a copied page's ink on the showing page at its own coordinates. The pad's top-bar Copy page
 stays, and writes the same page clip.
 
+## A sketchbook's pages, and ink into a sketch
+
+With Sketchsprout (Greg, 2026-10-07): **Copy page** on the sketch page sheet writes the page
+onto the `sketchbook` kind's slot as the seam's binary rows (`SketchPageClip`: the page, its
+paper, both rasters, both guides — never Base64, a raster is megabytes), refused over the slot's
+cap with a message; **Paste page** in another sketchbook asks Before or After and inserts the
+copy with fresh ids, the paper reused by token and size, one undo step. **Paste ink** on the
+same sheet, offered while the notebook kind's slot holds a lasso's, the pad's or a copied page's
+ink, bakes the strokes black into the page's ink layer, centred, one undo step. A sketch out to
+a notebook is in `BACKLOG.md`.
+
 ## A passage from the Bible
 
 Reworked from SN's Send on 2026-10-05 (Greg): the reader copies, the apps paste, and the paste
@@ -75,4 +86,5 @@ asks each time.
   cap. Clear clipboard empties this slot too.
 
 Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04;
-the notebook's shape on the pad and the calendar, Calsprout's phase 6, 2026-10-06.
+the notebook's shape on the pad and the calendar, Calsprout's phase 6, 2026-10-06; the
+sketchbook's pages and ink in, Sketchsprout's phase 7, 2026-10-07.
