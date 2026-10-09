@@ -46,7 +46,8 @@ state  (key, value)      -- 'current' -> the current page
 - Ink is saved 800 ms after the pen rests, and always before the screen is left.
 - A page turn ends a contact whose lift was lost (g-paper's `clearForContentSwap`) before the
   departing page's last flush, so the stroke it commits stays on the page it was written on.
-- A store closed under the pad (a rotation, Forget, a restore) is opened again at its next call.
+- A store closed under the pad (a rotation, Forget) is opened again at its next call. A restore
+  is refused while the pad is open: the pad's page ids are the old library's.
 - A page row is never written with `INSERT OR REPLACE`: the replace deletes first, and the
   delete would take the page's strokes with it.
 

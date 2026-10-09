@@ -95,27 +95,9 @@ object ItemApps {
 
     enum class Opened { YES, NO_APP, FAILED }
 
-    /** Have the app for [kind] make a new item called [name] and open it. Only the app knows the
-     *  shape of its own files, so Soil asks rather than making the file itself. */
-    fun create(context: Context, kind: String, name: String): Opened {
-        val app = find(context, kind) ?: return Opened.NO_APP
-        return start(
-            context,
-            Intent(Seam.ACTION_OPEN_ITEM)
-                .setComponent(ComponentName(app.packageName, app.className))
-                .putExtra(Seam.EXTRA_NEW_NAME, name),
-        )
-    }
-
     /** Open the item in the app for its kind. What rides the Intent is the item's id, and for a
-     *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). Blocks on
-     *  the package manager: from Main, [openItem]. */
-    fun open(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
-        val app = find(context, kind) ?: return Opened.NO_APP
-        return start(context, itemIntent(app, itemId, templatePick, pageId))
-    }
-
-    /** [open], the look on IO and the start on the caller's thread (Main). */
+     *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). The look
+     *  on IO and the start on the caller's thread (Main). */
     suspend fun openItem(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
         val app = withContext(Dispatchers.IO) { find(context, kind) } ?: return Opened.NO_APP
         return start(context, itemIntent(app, itemId, templatePick, pageId))
@@ -160,14 +142,9 @@ object ItemApps {
      * Open the Bible on [wire], a passage in the codec's form; the reader decodes it. In the
      * caller's own task, never a new one: a link followed from a notebook or a document puts the
      * reader over that screen, so Back and the reader's swipe up come back to it, whatever
-     * reader may be alive in Biblesprout's own task from the menu.
+     * reader may be alive in Biblesprout's own task from the menu. The look on IO and the start
+     * on the caller's thread (Main).
      */
-    fun openBible(context: Context, wire: String): Opened {
-        val app = findBible(context) ?: return Opened.NO_APP
-        return start(context, bibleIntent(app, wire), newTask = false)
-    }
-
-    /** [openBible], the look on IO and the start on the caller's thread (Main). */
     suspend fun showBible(context: Context, wire: String): Opened {
         val app = withContext(Dispatchers.IO) { findBible(context) } ?: return Opened.NO_APP
         return start(context, bibleIntent(app, wire), newTask = false)
@@ -203,15 +180,10 @@ object ItemApps {
 
     /**
      * Open the calendar on [date] (ISO `yyyy-MM-dd`), or where it was left when null. In the
-     * caller's own task, as [openBible]: a link followed from a notebook or a document puts the
-     * day over that screen, so Back comes back to it.
+     * caller's own task, as [showBible]: a link followed from a notebook or a document puts the
+     * day over that screen, so Back comes back to it. The look on IO and the start on the
+     * caller's thread (Main).
      */
-    fun openCalendar(context: Context, date: String?): Opened {
-        val app = findCalendar(context) ?: return Opened.NO_APP
-        return start(context, calendarIntent(app, date), newTask = false)
-    }
-
-    /** [openCalendar], the look on IO and the start on the caller's thread (Main). */
     suspend fun showCalendar(context: Context, date: String?): Opened {
         val app = withContext(Dispatchers.IO) { findCalendar(context) } ?: return Opened.NO_APP
         return start(context, calendarIntent(app, date), newTask = false)

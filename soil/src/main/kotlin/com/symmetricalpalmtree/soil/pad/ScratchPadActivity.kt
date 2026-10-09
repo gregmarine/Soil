@@ -712,7 +712,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
 
         /**
          * True while a pad screen exists, shown or not. The Encryption screen asks before it
-         * re-keys or locks: the pad's store cannot be taken from under a live page.
+         * re-keys or locks, and Restore before it replaces the library: the pad's store cannot be
+         * taken from under a live page.
          */
         @Volatile
         var isOpen: Boolean = false
@@ -721,8 +722,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
 }
 
 /**
- * The pad's store, as `AppStoreLease` holds an app's: `AppStores.closeAll` (a rotation, Forget, a
- * restore) closes the connection the pad was given, and the next call opens the store again under
+ * The pad's store, as `AppStoreLease` holds an app's: `AppStores.closeAll` (a rotation, Forget)
+ * closes the connection the pad was given, and the next call opens the store again under
  * whatever key it is under now — or fails while the library is locked or a rotation marker stands,
  * which the screen answers as any store failure. Each call runs under `AppStores`' own lock, so a
  * close waits for the call in hand. The first lend happens here, so construct on IO.

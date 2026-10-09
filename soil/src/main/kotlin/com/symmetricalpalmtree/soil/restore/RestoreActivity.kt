@@ -27,6 +27,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityRestoreBinding
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.home.HomeActivity
 import com.symmetricalpalmtree.soil.importing.ImportDialogs
+import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -175,13 +176,23 @@ class RestoreActivity : AppCompatActivity() {
     // ── The run ──────
 
     private fun confirmReplace(backup: RestoreBackup) {
-        if (running.get()) return
+        if (running.get() || !padIsShut()) return
         Dialogs.style(
             AlertDialog.Builder(this).setTitle(R.string.restore_confirm_title)
                 .setMessage(getString(R.string.restore_confirm_body, backup.name, itemsText(backup.itemCount), stampText(backup.indexModifiedAt)))
-                .setPositiveButton(R.string.restore_confirm_replace) { _, _ -> runRestore(backup) }
+                .setPositiveButton(R.string.restore_confirm_replace) { _, _ -> if (padIsShut()) runRestore(backup) }
                 .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
         ).show()
+    }
+
+    /**
+     * The pad keeps its page ids across a store reopen, so a restore under a live pad would land its
+     * next write in the restored store as stray rows. As the Encryption screen does: asked, not run.
+     */
+    private fun padIsShut(): Boolean {
+        if (!ScratchPadActivity.isOpen) return true
+        Dialogs.problem(this, R.string.encryption_pad_open_title, R.string.restore_pad_open_body)
+        return false
     }
 
     private fun runRestore(backup: RestoreBackup) {
@@ -231,15 +242,20 @@ class RestoreActivity : AppCompatActivity() {
         RestoreEngine.validate(this, pruned, RestoreEngine.ITEMS)?.let { discardStaging(); hideProgress(); problemDialog(it); return }
 
         setProgress(getString(R.string.restore_progress_installing))
-        val outcome = RestoreEngine.commit(this, pruned, proven, prunedResult.leftOut, prunedResult.missing)
+        var outcome = RestoreEngine.commit(this, pruned, proven, prunedResult.leftOut, prunedResult.missing)
         Slog.d(TAG) { "restore outcome: ${outcome::class.simpleName}" }
         if (outcome !is RestoreEngine.Outcome.Refused) {
             // The index is closed: open it again under whichever key is now this device's, so Home finds the library open.
-            withContext(Dispatchers.IO) {
+            val repairedNow = withContext(Dispatchers.IO) {
+                // After a rename back that stopped part-way this open retries the repair first.
                 SoilIndex.ensureReady(applicationContext)
                 // The restored files are the truth of what links where: the index follows them.
                 runCatching { com.symmetricalpalmtree.soil.data.index.LinkRebuild.rebuild(applicationContext) }
+                runCatching { !RestoreEngine.asideIndexStands(applicationContext) }.getOrDefault(false)
             }
+            // The ending tells the library as it now is: a retried repair that finished is a whole library.
+            val rolled = outcome
+            if (rolled is RestoreEngine.Outcome.RolledBack && !rolled.repaired && repairedNow) outcome = rolled.copy(repaired = true)
             Library.refresh(applicationContext)
         }
         hideProgress()

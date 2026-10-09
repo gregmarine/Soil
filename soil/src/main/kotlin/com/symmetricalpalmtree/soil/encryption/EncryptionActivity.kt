@@ -105,6 +105,12 @@ class EncryptionActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A rotation this process is already running is watched at once (its progress, its
+        // Cancel), not left to a Resume tap: the tap would only attach to the same run.
+        if (!rotating && inFlight?.work?.isActive == true) {
+            runRotation(resume = true)
+            return
+        }
         renderStatus()
     }
 
@@ -323,8 +329,8 @@ class EncryptionActivity : AppCompatActivity() {
      * **The work is the process's, not the screen's.** It runs in `SoilApp.appScope`, its tail
      * (the index opened again, the status re-read) under [NonCancellable], so leaving this screen
      * — Home, the side menu — cannot stop it between files and strand the index closed. The
-     * screen only watches: a screen opened while one runs (the banner's Resume) watches the same
-     * run instead of starting a second.
+     * screen only watches: a screen opened while one runs watches the same run on resume, without
+     * a tap, and the banner's Resume attaches to it instead of starting a second.
      */
     private fun runRotation(resume: Boolean, newPassphrase: String? = null, minted: Boolean = false) {
         val run = inFlight?.takeIf { it.work.isActive } ?: InFlight().also { fresh ->

@@ -83,7 +83,8 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
 ```
 
 - **Preflight** refuses while a rotation marker stands, while an app holds an item, or when the
-  listing's bytes plus 64 MB of headroom will not fit the library volume.
+  listing's bytes plus 64 MB of headroom will not fit the library volume. Before it, the screen
+  refuses while the Scratch Pad is open, as the Encryption screen does.
 - **Stage** fetches every manifest item into `restore_staging/` beside the garden, each through a
   `.part` renamed on completion. Any single failure fails the whole fetch. A disk that fills
   mid-fetch is named as the disk.
@@ -103,8 +104,9 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   the index are closed; the live index and garden are renamed aside; the staged garden and index
   are renamed in, the index last as the commit marker; the proven passphrase becomes this
   device's global, acknowledged; the aside is discarded. A rename that fails renames the aside
-  back and the old library is whole; when that rename back itself stops part-way, the ending says
-  so and the next launch finishes it.
+  back and the old library is whole; when that rename back itself stops part-way, the screen's
+  reopen of the index tries the repair again, and the ending says whether it finished. Until it
+  does the library reads as unavailable, and Home's Try again (or the next launch) tries again.
 - **After**: the screen reopens the index itself, under whichever key is now the device's, and
   returns to Home. The parked destination is merged back over the restored row on that open, with
   both stamp maps and every last-run figure cleared: this device has never backed up this library.

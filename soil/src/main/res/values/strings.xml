@@ -18,6 +18,8 @@
     <string name="library_unavailable">The library could not be opened. Nothing has been changed.</string>
     <string name="action_recovery_key">Recovery key</string>
     <string name="action_unlock">Unlock</string>
+    <string name="action_try_again">Try again</string>
+    <string name="library_still_unavailable_title">The library is still closed</string>
 
     <string name="cd_view_library">Library</string>
     <string name="cd_view_apps">Apps</string>
@@ -169,6 +171,7 @@
     <string name="encryption_item_open_many">Close %1$s and the %2$d others that are open first. They cannot be re-keyed or locked while they are open.</string>
     <string name="encryption_pad_open_title">Scratch Pad is open</string>
     <string name="encryption_pad_open_body">Close the Scratch Pad first. Its pages cannot be re-keyed or locked while it is open.</string>
+    <string name="restore_pad_open_body">Close the Scratch Pad first. Its pages cannot be replaced while it is open.</string>
 
     <!-- The shell -->
     <string name="menu_home">Home</string>
@@ -740,7 +743,7 @@
     <string name="restore_restart">Continue</string>
     <string name="restore_failed_title">Restore failed</string>
     <string name="restore_failed_body">Nothing was changed. Your library is as it was.</string>
-    <string name="restore_failed_unrepaired_body">The backup was not installed, and putting your library back did not finish. Soil finishes it the next time it starts. Restart Soil before you go on.</string>
+    <string name="restore_failed_unrepaired_body">The backup was not installed, and putting your library back did not finish. Your library stays closed until it does. Soil tries again each time it opens the library, and Try again on Home tries now.</string>
     <string name="restore_interrupted_title">Restore didn\'t finish</string>
     <string name="restore_interrupted_body">The backup is installed, but a last step failed (%1$s). If Soil asks, unlock it with the passphrase or recovery key of the library this backup came from.</string>
     <string name="restore_problem_rotation_title">Finish the key change first</string>

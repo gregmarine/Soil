@@ -94,6 +94,16 @@
             android:textSize="16sp"
             android:visibility="gone" />
 
+        <!-- The library out of reach: the open is tried again on a tap. -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnTryAgain"
+            style="@style/Widget.Soil.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/toolbar_button_size"
+            android:text="@string/action_try_again"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <View
