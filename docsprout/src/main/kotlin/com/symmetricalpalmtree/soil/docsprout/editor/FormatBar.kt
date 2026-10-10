@@ -27,9 +27,8 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
 enum class FormatTool(val icon: Int, val hint: Int) {
     UNDO(R.drawable.ic_arrow_back_up, R.string.fmt_undo),
     REDO(R.drawable.ic_arrow_forward_up, R.string.fmt_redo),
-    H1(PaperR.drawable.ic_h_1, R.string.fmt_h1),
-    H2(PaperR.drawable.ic_h_2, R.string.fmt_h2),
-    H3(PaperR.drawable.ic_h_3, R.string.fmt_h3),
+    /** One button for the six levels (Greg, 2026-10-10): it opens a sheet to pick one. */
+    HEADING(PaperR.drawable.ic_heading, R.string.fmt_heading),
     BOLD(R.drawable.ic_bold, R.string.fmt_bold),
     ITALIC(R.drawable.ic_italic, R.string.fmt_italic),
     STRIKETHROUGH(R.drawable.ic_strikethrough, R.string.fmt_strikethrough),
@@ -75,7 +74,7 @@ object FormatBar {
 
         tool(FormatTool.UNDO); tool(FormatTool.REDO)
         divider()
-        tool(FormatTool.H1); tool(FormatTool.H2); tool(FormatTool.H3)
+        tool(FormatTool.HEADING)
         divider()
         tool(FormatTool.BOLD); tool(FormatTool.ITALIC)
         tool(FormatTool.STRIKETHROUGH); tool(FormatTool.CODE)

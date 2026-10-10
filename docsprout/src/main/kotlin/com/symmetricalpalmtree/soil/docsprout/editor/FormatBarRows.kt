@@ -18,7 +18,7 @@ import android.widget.LinearLayout
  * - **The rows are in flow, below the bar.** They push the text down instead of floating over it —
  *   on e-ink an overlay leaves a ghost of itself, and the rows are part of the bar, not a menu.
  *
- * The full palette is twenty-four tools plus six separators; a Nomad cannot show it on one row. A
+ * The full palette is twenty-two tools plus six separators; a Nomad cannot show it on one row. A
  * bar that scrolled would hide its tail with no sign that there is one, so the tail wraps — and it
  * always wraps at the same place for a given width, so muscle memory still holds.
  *

@@ -36,9 +36,9 @@ internal class EditorShortcuts(
             KeyEvent.KEYCODE_4 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 4); return true }
             KeyEvent.KEYCODE_5 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 5); return true }
             KeyEvent.KEYCODE_6 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 6); return true }
-            KeyEvent.KEYCODE_1 -> if (!shift) return tool(FormatTool.H1)
-            KeyEvent.KEYCODE_2 -> if (!shift) return tool(FormatTool.H2)
-            KeyEvent.KEYCODE_3 -> if (!shift) return tool(FormatTool.H3)
+            KeyEvent.KEYCODE_1 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 1); return true }
+            KeyEvent.KEYCODE_2 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 2); return true }
+            KeyEvent.KEYCODE_3 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 3); return true }
             KeyEvent.KEYCODE_B -> if (!shift) return tool(FormatTool.BOLD)
             KeyEvent.KEYCODE_I -> if (!shift) return tool(FormatTool.ITALIC)
             KeyEvent.KEYCODE_X -> if (shift) return tool(FormatTool.STRIKETHROUGH)

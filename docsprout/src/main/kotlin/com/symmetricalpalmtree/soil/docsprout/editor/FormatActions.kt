@@ -7,6 +7,9 @@ import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 import com.symmetricalpalmtree.soil.markdown.TextBuffer
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
 import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
+import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
+import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.paper.R as PaperR
 
 /**
  * One [FormatTool] applied to whichever surface is in use.
@@ -44,11 +47,26 @@ internal class FormatActions(
             FormatTool.PROOFREAD -> onProofread()
             FormatTool.PASTE_INK -> onPasteInk()
             FormatTool.BIBLE_PASSAGE -> onBiblePassage()
+            FormatTool.HEADING -> askHeading()
             else -> if (rendered()) rich(tool) else source(tool)
         }
     }
 
-    /** A block by kind, from a chord: paragraph and H4–H6 have no place on the bar. */
+    /**
+     * The bar's one Heading button (Greg, 2026-10-10): a sheet of the six levels, each with its
+     * glyph and its chord, and the pick is [block] exactly as the chord would be. The sheet is
+     * a dialog, so the editor keeps its selection under it.
+     */
+    private fun askHeading() {
+        val ctx = binding.root.context
+        val sheet = ActionSheetDialog(ctx).title(ctx.getString(R.string.fmt_heading))
+        HEADINGS.forEachIndexed { i, (icon, hint) ->
+            sheet.addAction(icon, ctx.getString(hint)) { block(MarkdownFormatter.Block.HEADING, i + 1) }
+        }
+        sheet.show()
+    }
+
+    /** A block by kind, from a chord or the heading sheet: paragraph has no place on the bar. */
     fun block(kind: MarkdownFormatter.Block, level: Int = 1) {
         if (!rendered()) return sourceBlock(kind, level)
         when (kind) {
@@ -76,9 +94,6 @@ internal class FormatActions(
         when (tool) {
             FormatTool.UNDO -> view.undo()
             FormatTool.REDO -> view.redo()
-            FormatTool.H1 -> RichOps.setBlock(view, RichKind.HEADING, 1)
-            FormatTool.H2 -> RichOps.setBlock(view, RichKind.HEADING, 2)
-            FormatTool.H3 -> RichOps.setBlock(view, RichKind.HEADING, 3)
             FormatTool.BOLD -> RichOps.toggleInline(view, RichStyle.BOLD)
             FormatTool.ITALIC -> RichOps.toggleInline(view, RichStyle.ITALIC)
             FormatTool.STRIKETHROUGH -> RichOps.toggleInline(view, RichStyle.STRIKE)
@@ -93,7 +108,7 @@ internal class FormatActions(
             // An image is not drawn: it is the characters that spell it, here as in the file.
             FormatTool.IMAGE -> RichOps.insertText(view, IMAGE_SKELETON, 2, 2 + IMAGE_DESCRIPTION.length)
             FormatTool.RULE -> RichOps.insertRule(view)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE, FormatTool.HEADING -> Unit
         }
     }
 
@@ -103,9 +118,6 @@ internal class FormatActions(
         when (tool) {
             FormatTool.UNDO -> undo()
             FormatTool.REDO -> redo()
-            FormatTool.H1 -> sourceBlock(MarkdownFormatter.Block.HEADING, 1)
-            FormatTool.H2 -> sourceBlock(MarkdownFormatter.Block.HEADING, 2)
-            FormatTool.H3 -> sourceBlock(MarkdownFormatter.Block.HEADING, 3)
             FormatTool.BOLD -> inline("**")
             FormatTool.ITALIC -> inline("*")
             FormatTool.STRIKETHROUGH -> inline("~~")
@@ -119,7 +131,7 @@ internal class FormatActions(
             FormatTool.LINK -> apply(MarkdownFormatter::insertLink)
             FormatTool.IMAGE -> apply(MarkdownFormatter::insertImage)
             FormatTool.RULE -> apply(MarkdownFormatter::insertRule)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE, FormatTool.HEADING -> Unit
         }
     }
 
@@ -172,6 +184,15 @@ internal class FormatActions(
     }
 
     private companion object {
+        /** The six levels' glyphs and hints, in order: index + 1 is the level. */
+        val HEADINGS = listOf(
+            PaperR.drawable.ic_h_1 to R.string.fmt_h1,
+            PaperR.drawable.ic_h_2 to R.string.fmt_h2,
+            PaperR.drawable.ic_h_3 to R.string.fmt_h3,
+            PaperR.drawable.ic_h_4 to R.string.fmt_h4,
+            PaperR.drawable.ic_h_5 to R.string.fmt_h5,
+            PaperR.drawable.ic_h_6 to R.string.fmt_h6,
+        )
         const val IMAGE_DESCRIPTION = "description"
         const val IMAGE_SKELETON = "![$IMAGE_DESCRIPTION](url)"
     }
