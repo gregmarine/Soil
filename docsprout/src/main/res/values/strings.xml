@@ -88,7 +88,6 @@
     <string name="bible_paste_verses">The verses, with the reference</string>
     <string name="ink_paste_empty_body">There is no handwriting on the clipboard. Copy some in the Scratch Pad, or with the lasso in a notebook, then paste it here.</string>
     <string name="ink_paste_no_ink_body">What is on the clipboard holds no handwriting to read.</string>
-    <string name="fmt_more">More tools</string>
 
     <!-- Proofread -->
     <string name="proofread_title">Proofread</string>

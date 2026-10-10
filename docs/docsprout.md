@@ -111,7 +111,8 @@ characters back.
 
 ### The tools
 
-The format bar and its overflow: undo, redo, H1 to H3, bold, italic, strikethrough, code, quote,
+The format bar, every tool on the glass, wrapped onto further rows when the width needs it
+(2026-10-10; before that the tail sat behind a `…`): undo, redo, H1 to H3, bold, italic, strikethrough, code, quote,
 bullet, numbered, task, outdent, indent, link, image (the Markdown for one, as text), rule, paste handwriting,
 find and replace, word count, reflow, proofread. Five text sizes, remembered. The cursor is
 remembered per document. A tap on the title renames. The Ctrl shortcuts are SN's

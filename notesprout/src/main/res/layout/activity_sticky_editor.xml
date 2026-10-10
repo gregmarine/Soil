@@ -106,7 +106,8 @@
 
     <!-- The collapsed chrome — what shows while both bars are hidden: the corner
          tool button at top-right wearing the armed tool's glyph, and, hung under it on a tap, the
-         mini toolbar and its overflow row (buttons built in code — CollapsedChrome, :paper).
+         mini toolbar as a column, with a second column beside it when the first is full (buttons
+         built in code — CollapsedChrome, :paper).
          The button is GONE while the bars show; ChromeToggle flips it with them. All three sit
          after every bar they may overlap and BEFORE openingOverlay, which stays topmost while the
          screen opens — a corner button laid over it would take the taps the overlay is there to
@@ -127,7 +128,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="4dp"
         android:visibility="gone" />
 
@@ -137,7 +138,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="4dp"
         android:visibility="gone" />
 

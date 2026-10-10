@@ -97,5 +97,27 @@ object SelectionAnchor {
         return Placement(x, y)
     }
 
+    /**
+     * A bar hung [gap] to the **left** of a column and level with a button in it (2026-10-10, the
+     * collapsed chrome's columns): the mini toolbar stands under the corner button at the right
+     * edge, so a bar hung off one of its buttons has no free side below — the next button is there
+     * — and the free side is the left. [anchorTop] is the button's top; the bar's top sits on it.
+     * Clamped inside `[0, rootWidth]` horizontally and pulled back off [bandBottom] vertically,
+     * as [placeUnder] clamps and for the same reason.
+     */
+    fun placeBeside(
+        columnLeft: Int,
+        anchorTop: Int,
+        w: Int,
+        h: Int,
+        gap: Int,
+        rootWidth: Int,
+        bandBottom: Int,
+    ): Placement {
+        val x = clamp(columnLeft - gap - w, 0, maxOf(0, rootWidth - w))
+        val y = clamp(anchorTop, 0, maxOf(0, bandBottom - h))
+        return Placement(x, y)
+    }
+
     private fun clamp(v: Int, lo: Int, hi: Int): Int = if (v < lo) lo else if (v > hi) hi else v
 }

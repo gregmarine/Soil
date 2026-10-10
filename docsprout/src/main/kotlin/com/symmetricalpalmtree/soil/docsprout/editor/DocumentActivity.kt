@@ -9,7 +9,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,7 +67,7 @@ import kotlinx.coroutines.withContext
  * for it instead.
  *
  * What is done *to* the words lives beside this screen, one collaborator a concern: the format
- * bar and its overflow, the chords, find and replace, the tidying tools, the text size, the
+ * bar and its rows, the chords, find and replace, the tidying tools, the text size, the
  * rename. Each edits through the field's own `Editable`, so the field's own undo takes it back.
  *
  * The document's text is never logged: lengths only.
@@ -105,7 +104,7 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var tools: EditorTools
     private lateinit var format: FormatActions
     private lateinit var shortcuts: EditorShortcuts
-    private lateinit var overflow: FormatBarOverflow
+    private lateinit var rows: FormatBarRows
     private lateinit var findBar: FindReplaceBar
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
@@ -260,7 +259,7 @@ class DocumentActivity : AppCompatActivity() {
         bibleLinks.checkDocument()
     }
 
-    /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
+    /** The bar, its rows, the chords, find, the tools, the text size and the rename. */
     private fun buildChrome() {
         tools = EditorTools(this, binding, ::surface, ::rendered, onEdited = ::save)
         findBar = FindReplaceBar(this, binding, ::surface, ::rendered, keepCaretVisible = { tools.keepCaretVisible() }, onReplacedAll = ::save)
@@ -293,15 +292,10 @@ class DocumentActivity : AppCompatActivity() {
                 }
             },
         )
-        val controls = FormatBar.build(
-            binding.formatBar,
-            onTool = { if (opened) format.run(it) },
-            onToolUsed = { overflow.close() },
-            onOverflow = { overflow.toggle() },
-        )
-        overflow = FormatBarOverflow(binding.formatBar, binding.overflowPanel, controls.dividerOverflow, controls.btnOverflow)
-        overflow.watchWidth()
-        shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode, closeOverflow = { overflow.close() })
+        FormatBar.build(binding.formatBar, onTool = { if (opened) format.run(it) })
+        rows = FormatBarRows(binding.formatBar, binding.formatBarRows)
+        rows.watchWidth()
+        shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode)
         binding.btnMode.setOnClickListener { toggleMode() }
         binding.btnExport.setOnClickListener { export() }
         TooltipCompat.setTooltipText(binding.btnExport, binding.btnExport.contentDescription)
@@ -321,12 +315,6 @@ class DocumentActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (opened && shortcuts.handle(event)) return true
         return super.dispatchKeyEvent(event)
-    }
-
-    /** A tap anywhere that is not the bar or its panel puts the overflow away, and still lands. */
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        overflow.dismissIfOutside(event)
-        return super.dispatchTouchEvent(event)
     }
 
     /**

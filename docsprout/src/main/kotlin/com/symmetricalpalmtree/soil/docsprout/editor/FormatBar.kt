@@ -54,30 +54,22 @@ enum class FormatTool(val icon: Int, val hint: Int) {
 /**
  * Builds the format bar's buttons into an empty bar.
  *
- * The bar is built in code rather than in XML for one reason: [FormatBarOverflow] moves the real
- * views between the bar and the panel, and a layout that declared them would be describing a
- * arrangement that stops being true the moment the bar is narrower than its contents.
+ * The bar is built in code rather than in XML for one reason: [FormatBarRows] moves the real
+ * views between the bar and the rows under it, and a layout that declared them would be describing
+ * an arrangement that stops being true the moment the bar is narrower than its contents.
  *
  * Groups are separated by a 1dp × 28dp inkBlack rule: undo / heading / inline / block / insertion
- * / the text tools. The overflow controls are built last so they pin to
- * the trailing edge, and they are handed back to the caller because the overflow manager needs them
- * by identity.
+ * / the text tools / proofread.
  */
 object FormatBar {
-
-    /** The overflow controls, which the caller passes to [FormatBarOverflow]. */
-    class Controls(val dividerOverflow: View, val btnOverflow: View)
 
     fun build(
         bar: LinearLayout,
         onTool: (FormatTool) -> Unit,
-        /** Using a tool puts the panel away: it opened to reach that tool, and its job is done. */
-        onToolUsed: () -> Unit,
-        onOverflow: () -> Unit,
-    ): Controls {
+    ) {
         val context = bar.context
         fun tool(t: FormatTool) = bar.addView(
-            iconButton(context, t.icon, context.getString(t.hint)) { onToolUsed(); onTool(t) },
+            iconButton(context, t.icon, context.getString(t.hint)) { onTool(t) },
         )
         fun divider() = bar.addView(groupDivider(context))
 
@@ -96,19 +88,9 @@ object FormatBar {
         divider()
         tool(FormatTool.SEARCH); tool(FormatTool.WORD_COUNT); tool(FormatTool.REFLOW)
         divider()
-        // Last on the bar, so on a narrow screen it lives in the overflow panel: a check runs on
-        // its own, and this is for the occasional full pass and the on/off switch.
+        // Last: a check runs on its own, and this is for the occasional full pass and the on/off
+        // switch.
         tool(FormatTool.PROOFREAD)
-
-        // Pinned at the trailing edge and hidden whenever everything fits. The overflow button is
-        // the one control that does NOT dismiss the panel first — it would close then re-open.
-        val dividerOverflow = groupDivider(context)
-        val btnOverflow = iconButton(
-            context, PaperR.drawable.ic_dots, context.getString(R.string.fmt_more), onOverflow,
-        )
-        bar.addView(dividerOverflow)
-        bar.addView(btnOverflow)
-        return Controls(dividerOverflow, btnOverflow)
     }
 
     /**
@@ -131,13 +113,13 @@ object FormatBar {
             // Never take focus: the editor must keep the caret and the selection the button acts on.
             isFocusable = false
             isFocusableInTouchMode = false
-            // An exact px width is what the overflow manager measures against — WRAP_CONTENT is 0 there.
+            // An exact px width is what the rows' cut measures against — WRAP_CONTENT is 0 there.
             layoutParams = LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(context, 2) }
             setOnClickListener { onClick() }
         }
     }
 
-    /** A group separator — a plain [View], which is how [FormatBarOverflow] tells one from a tool. */
+    /** A group separator — a plain [View], which is how [FormatBarRows] tells one from a tool. */
     private fun groupDivider(context: Context): View = View(context).apply {
         setBackgroundColor(ContextCompat.getColor(context, PaperR.color.inkBlack))
         layoutParams = LinearLayout.LayoutParams(dp(context, 1), dp(context, 28)).apply {

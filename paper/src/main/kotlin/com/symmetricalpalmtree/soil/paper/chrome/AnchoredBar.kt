@@ -24,8 +24,9 @@ import com.symmetricalpalmtree.soil.paper.R
  *
  * Buttons are **icon-only with long-press hints**, the recipe every chrome button in SN follows,
  * at [R.dimen.toolbar_button_size] so they grow with the tablet tier. [bar]'s own orientation is
- * the caller's layout: a horizontal one takes buttons ([addButton]), and a **vertical** one takes
- * rows the caller builds ([addRow], arc 44 / T3 — the sketch face's [PencilBar]).
+ * the caller's layout: a row or a column takes buttons ([addButton] — the collapsed chrome's
+ * columns since 2026-10-10), and a **vertical** one may instead take rows the caller builds
+ * ([addRow], arc 44 / T3 — the sketch face's [PencilBar]).
  *
  * What the caller still owns: *when* it opens and closes (a tool switch, a page swap, a finger
  * gesture, an outside tap), and unioning [rects] into the exclusion rects and the `overChrome`
@@ -92,28 +93,96 @@ class AnchoredBar(
         // never been visible has none (the SelectionToolbar lesson).
         bar.visibility = View.VISIBLE
         bar.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val p = SelectionAnchor.placeUnder(
-            anchorLeft = anchorLoc[0] - rootLoc[0],
-            anchorRight = anchorLoc[0] - rootLoc[0] + anchor.width,
-            anchorBottom = anchorLoc[1] - rootLoc[1] + anchor.height,
+        val gap = (GAP_DP * density).toInt()
+        // A button in a **column** (the collapsed chrome's mini toolbar, 2026-10-10) has no free
+        // side below it — the next button is there — so a bar hung off it goes beside the column,
+        // level with the button. Every other anchor is in a row or stands alone, and below is the
+        // free side it always was.
+        val column = (anchor.parent as? LinearLayout)?.takeIf { it.orientation == LinearLayout.VERTICAL }
+        val p = if (column != null) {
+            val columnLoc = IntArray(2).also { column.getLocationInWindow(it) }
+            SelectionAnchor.placeBeside(
+                columnLeft = columnLoc[0] - rootLoc[0],
+                anchorTop = anchorLoc[1] - rootLoc[1],
+                w = bar.measuredWidth,
+                h = bar.measuredHeight,
+                gap = gap,
+                rootWidth = root.width,
+                bandBottom = band,
+            )
+        } else {
+            SelectionAnchor.placeUnder(
+                anchorLeft = anchorLoc[0] - rootLoc[0],
+                anchorRight = anchorLoc[0] - rootLoc[0] + anchor.width,
+                anchorBottom = anchorLoc[1] - rootLoc[1] + anchor.height,
+                w = bar.measuredWidth,
+                h = bar.measuredHeight,
+                gap = gap,
+                rootWidth = root.width,
+                bandBottom = band,
+            )
+        }
+        place(p)
+        return true
+    }
+
+    /**
+     * Open the bar **beside** another one just placed (2026-10-10): the collapsed chrome's second
+     * column, to the left of its first and level with its top. [other] must have been shown by
+     * [show] in this same pass — its placement is read, not its view's bounds, which a layout has
+     * not yet given it.
+     */
+    fun showBeside(other: AnchoredBar): Boolean {
+        val band = bandBottom() ?: return false
+        val at = other.placed ?: return false
+        bar.visibility = View.VISIBLE
+        bar.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val p = SelectionAnchor.placeBeside(
+            columnLeft = at.x,
+            anchorTop = at.y,
             w = bar.measuredWidth,
             h = bar.measuredHeight,
             gap = (GAP_DP * density).toInt(),
             rootWidth = root.width,
             bandBottom = band,
         )
+        place(p)
+        return true
+    }
+
+    /** Where the last [show] put the bar, in root coordinates; null while hidden. */
+    private var placed: SelectionAnchor.Placement? = null
+
+    private fun place(p: SelectionAnchor.Placement) {
         val lp = (bar.layoutParams as? FrameLayout.LayoutParams)
             ?: FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.gravity = Gravity.TOP or Gravity.START
         lp.leftMargin = p.x
         lp.topMargin = p.y
         bar.layoutParams = lp
-        return true
+        placed = p
+    }
+
+    /**
+     * How many buttons of [buttonSize] px a **column** hung under [anchor] can hold before it
+     * reaches the band's bottom (2026-10-10, the collapsed chrome): the free height under the
+     * anchor less the gap and the bar's own padding, in whole buttons. Null before layout, when
+     * the geometry is not yet knowable — a caller then shows nothing, as [show] would.
+     */
+    fun columnCapacity(buttonSize: Int, anchor: View = this.anchor): Int? {
+        val band = bandBottom() ?: return null
+        if (PaperToolbar.rectOf(anchor) == null) return null
+        val rootLoc = IntArray(2).also { root.getLocationInWindow(it) }
+        val anchorLoc = IntArray(2).also { anchor.getLocationInWindow(it) }
+        val top = anchorLoc[1] - rootLoc[1] + anchor.height + (GAP_DP * density).toInt()
+        val free = band - top - bar.paddingTop - bar.paddingBottom
+        return if (buttonSize <= 0) 0 else maxOf(0, free / buttonSize)
     }
 
     /** Idempotent — every dismiss path calls it without checking. */
     fun hide() {
         bar.visibility = View.GONE
+        placed = null
     }
 
     /** The visible bar's rect in **window** coordinates — for exclusions / `overChrome`. */

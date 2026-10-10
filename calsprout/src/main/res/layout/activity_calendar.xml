@@ -235,7 +235,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="4dp"
         android:visibility="gone" />
 
@@ -245,7 +245,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:background="@drawable/shape_dialog_bordered"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:padding="4dp"
         android:visibility="gone" />
 

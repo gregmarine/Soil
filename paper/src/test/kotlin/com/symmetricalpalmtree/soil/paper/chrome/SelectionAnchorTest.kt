@@ -166,4 +166,20 @@ class SelectionAnchorTest {
     fun `a button at the left edge keeps the popup on screen`() {
         assertEquals(0, under(0, popupW = 400).x)
     }
+
+    // ── placeBeside: a bar to the left of a column, level with a button in it ──
+
+    @Test
+    fun `beside sits the gap left of the column, its top on the anchor's`() {
+        val p = SelectionAnchor.placeBeside(columnLeft = 1300, anchorTop = 400, w = w, h = h, gap = gap, rootWidth = rootWidth, bandBottom = bandBottom)
+        assertEquals(1300 - gap - w, p.x)
+        assertEquals(400, p.y)
+    }
+
+    @Test
+    fun `beside never leaves the root on the left or the band at the bottom`() {
+        val p = SelectionAnchor.placeBeside(columnLeft = 10, anchorTop = 1740, w = w, h = h, gap = gap, rootWidth = rootWidth, bandBottom = bandBottom)
+        assertEquals(0, p.x)
+        assertEquals(bandBottom - h, p.y)
+    }
 }

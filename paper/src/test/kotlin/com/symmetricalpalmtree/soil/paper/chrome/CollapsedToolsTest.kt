@@ -96,12 +96,12 @@ class CollapsedToolsTest {
         CollapsedTools.ORDER.forEach { assertEquals(it, CollapsedTools.selectedFor(it)) }
     }
 
-    @Test fun `an overflow of one or two sits on the mini toolbar - three or more go behind the dots`() {
-        assertFalse(CollapsedTools.overflowInline(0))
-        assertTrue(CollapsedTools.overflowInline(1))
-        assertTrue(CollapsedTools.overflowInline(2))
-        assertFalse(CollapsedTools.overflowInline(3))
-        assertFalse(CollapsedTools.overflowInline(8))
+    @Test fun `the first column takes every button that fits, else the capacity, never none`() {
+        assertEquals(7, CollapsedTools.firstColumn(total = 7, capacity = 22))
+        assertEquals(7, CollapsedTools.firstColumn(total = 7, capacity = 7))
+        assertEquals(5, CollapsedTools.firstColumn(total = 7, capacity = 5))
+        assertEquals(1, CollapsedTools.firstColumn(total = 7, capacity = 0))
+        assertEquals(0, CollapsedTools.firstColumn(total = 0, capacity = 0))
     }
 
     @Test fun `nothing showing - nothing to dismiss`() {
