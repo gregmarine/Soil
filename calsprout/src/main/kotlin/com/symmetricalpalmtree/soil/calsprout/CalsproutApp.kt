@@ -137,7 +137,8 @@ class CalsproutApp : Application() {
     /** A side-bar key a paper screen of this app received: Soil's shell reads the swipe from it. */
     fun barKey(event: android.view.KeyEvent) {
         val keyCode = event.keyCode; val action = event.action; val eventTime = event.eventTime; val repeatCount = event.repeatCount
-        appScope.launch(Dispatchers.IO) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
+        // On the serial seam dispatcher: a down and its up cross the seam in the order they were made.
+        appScope.launch(seamSerial) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
     }
 
     companion object {
