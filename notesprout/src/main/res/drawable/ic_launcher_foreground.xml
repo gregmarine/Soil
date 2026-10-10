@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Notesprout's mark: a notebook with a sprouting leaf, in the Tabler icons' vocabulary: an
+<!-- Notesprout's mark: a notebook, in the Tabler icons' vocabulary: an
      ink-black outline, round caps, nothing filled. Adaptive-icon 108dp viewport; the whole of it
      sits inside the 66dp circle every mask keeps. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -7,12 +7,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- The notebook: a page with a bound edge. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M38 30h30a4 4 0 0 1 4 4v42a4 4 0 0 1 -4 4h-30a2 2 0 0 1 -2 -2v-46a2 2 0 0 1 2 -2z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M44 30v50" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M52 66h12" />
-    <!-- The sprout, growing up out of the page. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M58 58v-14" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M58 50c0 -6 4 -10 10 -10c0 6 -4 10 -10 10z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M58 54c0 -5 -3 -8 -8 -8c0 5 3 8 8 8z" />
+    <group android:translateX="0" android:translateY="-1">
+        <!-- The notebook: a page with a bound edge. -->
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M38 30h30a4 4 0 0 1 4 4v42a4 4 0 0 1 -4 4h-30a2 2 0 0 1 -2 -2v-46a2 2 0 0 1 2 -2z" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M44 30v50" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M52 66h12" />
+    </group>
 </vector>

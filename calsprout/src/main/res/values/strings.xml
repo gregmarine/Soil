@@ -57,7 +57,7 @@
 
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>
-    <string name="calendar_store_failed_body">Sproutscape could not open the calendar\'s storage. Nothing was lost. Unlock the library in Sproutscape and try again.</string>
+    <string name="calendar_store_failed_body">Sproutscape could not open the calendar\'s storage. Nothing was lost. Unlock the garden in Sproutscape and try again.</string>
 
     <!-- The Events screen: the events and their notes, for one day at a time. -->
     <string name="events_title">Events</string>

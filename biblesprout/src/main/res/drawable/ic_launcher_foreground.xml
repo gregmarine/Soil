@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Biblesprout's mark: an open book (Tabler "book") with a sprouting leaf over its spine, in the
+<!-- Biblesprout's mark: an open book (Tabler "book"), in the
      Tabler icons' vocabulary: an ink-black outline, round caps, nothing filled. Adaptive-icon
      108dp viewport; the whole of it sits inside the 66dp circle every mask keeps. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -7,14 +7,12 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- The book: two curved page tops, two curved page bottoms, the spine and the two edges. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 74a22 22 0 0 1 22 0a22 22 0 0 1 22 0" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44a22 22 0 0 1 22 0a22 22 0 0 1 22 0" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44v30" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 44v30" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M76 44v30" />
-    <!-- The sprout, growing up out of the spine. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 44v-12" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 38c0 -6 4 -10 10 -10c0 6 -4 10 -10 10z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 42c0 -5 -3 -8 -8 -8c0 5 3 8 8 8z" />
+    <group android:translateX="0" android:translateY="-5">
+        <!-- The book: two curved page tops, two curved page bottoms, the spine and the two edges. -->
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 74a22 22 0 0 1 22 0a22 22 0 0 1 22 0" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44a22 22 0 0 1 22 0a22 22 0 0 1 22 0" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44v30" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 44v30" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M76 44v30" />
+    </group>
 </vector>

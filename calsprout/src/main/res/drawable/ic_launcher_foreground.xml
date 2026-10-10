@@ -1,19 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Calsprout's mark: a calendar page (Tabler "calendar") with a sprouting leaf growing out of its
-     top edge, in the Tabler icons' vocabulary: an ink-black outline, round caps, nothing filled.
+<!-- Calsprout's mark: a calendar page (Tabler "calendar"), in the Tabler icons' vocabulary: an ink-black outline, round caps, nothing filled.
      Adaptive-icon 108dp viewport; the whole of it sits inside the 66dp circle every mask keeps. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- The page: a rounded frame, the two binding pins, the rule under the header. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44a4 4 0 0 1 4 -4h36a4 4 0 0 1 4 4v30a4 4 0 0 1 -4 4h-36a4 4 0 0 1 -4 -4z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M42 36v8" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 36v8" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 54h44" />
-    <!-- The sprout, growing up out of the page's top edge. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 40v-10" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 36c0 -6 4 -10 10 -10c0 6 -4 10 -10 10z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 40c0 -5 -3 -8 -8 -8c0 5 3 8 8 8z" />
+    <group android:translateX="0" android:translateY="-3">
+        <!-- The page: a rounded frame, the two binding pins, the rule under the header. -->
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44a4 4 0 0 1 4 -4h36a4 4 0 0 1 4 4v30a4 4 0 0 1 -4 4h-36a4 4 0 0 1 -4 -4z" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M42 36v8" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 36v8" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 54h44" />
+    </group>
 </vector>
