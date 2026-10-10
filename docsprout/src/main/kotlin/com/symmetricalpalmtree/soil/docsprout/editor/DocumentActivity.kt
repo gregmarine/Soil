@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
@@ -292,7 +293,12 @@ class DocumentActivity : AppCompatActivity() {
                 }
             },
         )
-        FormatBar.build(binding.formatBar, onTool = { if (opened) format.run(it) })
+        val headingMenu = HeadingMenu(this) { level -> if (opened) format.block(MarkdownFormatter.Block.HEADING, level) }
+        FormatBar.build(
+            binding.formatBar,
+            onTool = { if (opened) format.run(it) },
+            onHeading = { anchor -> if (opened) headingMenu.toggle(anchor) },
+        )
         rows = FormatBarRows(binding.formatBar, binding.formatBarRows)
         rows.watchWidth()
         shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode)

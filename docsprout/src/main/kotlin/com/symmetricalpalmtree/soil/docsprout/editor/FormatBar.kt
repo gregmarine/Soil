@@ -27,7 +27,7 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
 enum class FormatTool(val icon: Int, val hint: Int) {
     UNDO(R.drawable.ic_arrow_back_up, R.string.fmt_undo),
     REDO(R.drawable.ic_arrow_forward_up, R.string.fmt_redo),
-    /** One button for the six levels (Greg, 2026-10-10): it opens a sheet to pick one. */
+    /** One button for the six levels (Greg, 2026-10-10): its menu ([HeadingMenu]) picks one. */
     HEADING(PaperR.drawable.ic_heading, R.string.fmt_heading),
     BOLD(R.drawable.ic_bold, R.string.fmt_bold),
     ITALIC(R.drawable.ic_italic, R.string.fmt_italic),
@@ -65,11 +65,17 @@ object FormatBar {
     fun build(
         bar: LinearLayout,
         onTool: (FormatTool) -> Unit,
+        /** The Heading button's menu, hung under the button itself — handed the button. */
+        onHeading: (anchor: View) -> Unit,
     ) {
         val context = bar.context
-        fun tool(t: FormatTool) = bar.addView(
-            iconButton(context, t.icon, context.getString(t.hint)) { onTool(t) },
-        )
+        fun tool(t: FormatTool) {
+            lateinit var button: View
+            button = iconButton(context, t.icon, context.getString(t.hint)) {
+                if (t == FormatTool.HEADING) onHeading(button) else onTool(t)
+            }
+            bar.addView(button)
+        }
         fun divider() = bar.addView(groupDivider(context))
 
         tool(FormatTool.UNDO); tool(FormatTool.REDO)

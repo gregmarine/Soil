@@ -7,9 +7,6 @@ import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 import com.symmetricalpalmtree.soil.markdown.TextBuffer
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
 import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
-import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
-import com.symmetricalpalmtree.soil.docsprout.R
-import com.symmetricalpalmtree.soil.paper.R as PaperR
 
 /**
  * One [FormatTool] applied to whichever surface is in use.
@@ -47,23 +44,9 @@ internal class FormatActions(
             FormatTool.PROOFREAD -> onProofread()
             FormatTool.PASTE_INK -> onPasteInk()
             FormatTool.BIBLE_PASSAGE -> onBiblePassage()
-            FormatTool.HEADING -> askHeading()
+            FormatTool.HEADING -> Unit // The bar's own menu ([HeadingMenu]) picks a level and calls [block].
             else -> if (rendered()) rich(tool) else source(tool)
         }
-    }
-
-    /**
-     * The bar's one Heading button (Greg, 2026-10-10): a sheet of the six levels, each with its
-     * glyph and its chord, and the pick is [block] exactly as the chord would be. The sheet is
-     * a dialog, so the editor keeps its selection under it.
-     */
-    private fun askHeading() {
-        val ctx = binding.root.context
-        val sheet = ActionSheetDialog(ctx).title(ctx.getString(R.string.fmt_heading))
-        HEADINGS.forEachIndexed { i, (icon, hint) ->
-            sheet.addAction(icon, ctx.getString(hint)) { block(MarkdownFormatter.Block.HEADING, i + 1) }
-        }
-        sheet.show()
     }
 
     /** A block by kind, from a chord or the heading sheet: paragraph has no place on the bar. */
@@ -184,15 +167,6 @@ internal class FormatActions(
     }
 
     private companion object {
-        /** The six levels' glyphs and hints, in order: index + 1 is the level. */
-        val HEADINGS = listOf(
-            PaperR.drawable.ic_h_1 to R.string.fmt_h1,
-            PaperR.drawable.ic_h_2 to R.string.fmt_h2,
-            PaperR.drawable.ic_h_3 to R.string.fmt_h3,
-            PaperR.drawable.ic_h_4 to R.string.fmt_h4,
-            PaperR.drawable.ic_h_5 to R.string.fmt_h5,
-            PaperR.drawable.ic_h_6 to R.string.fmt_h6,
-        )
         const val IMAGE_DESCRIPTION = "description"
         const val IMAGE_SKELETON = "![$IMAGE_DESCRIPTION](url)"
     }
