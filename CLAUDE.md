@@ -2,7 +2,9 @@
 
 Soil is a hub app for handwriting-first e-ink devices, with the Sprout apps (Notesprout,
 Sketchsprout, Docsprout, Biblesprout, Calsprout) built over it. It replaces Notesprout SN.
-Supernote Nomad and Manta first.
+Supernote Nomad and Manta first. To the person the launcher is **Sproutscape**, the apps are
+**Note, Document, Sketch, Bible, Calendar**, and the library is the **Garden** (2026-10-10);
+the packages, modules, files and code keep the Soil and -sprout names.
 
 ## Status
 
@@ -44,6 +46,13 @@ for every pen on the palette, and these documents. `docs/design.md` §16 lists t
 g-paper (0.1.70) read by area, the findings fixed by module in three rounds with a fresh regression
 read between, then the walk's findings (verse ranges, the bar keys paired, Snap to guides from SN,
 one hidden-bars flag through Soil). `docs/design.md` §16 lists the rounds and their documents.
+
+**The Sproutscape round is done and merged** (2026-10-10): the names the person sees
+(Sproutscape, Note, Document, Sketch, Bible, Calendar, the Garden), the apps' marks without
+their sprouts, the Garden's seedling, the notebook's and the sketchbook's names on the bottom
+bar, the side menu as a two-column grid with Settings in the corner, the drawer's pager fixed,
+a sketchbook's swipe-up walk-back, the arrow as every screen's leave. `docs/design.md` §16
+lists the steps.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged

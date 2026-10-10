@@ -21,11 +21,19 @@ Two views under one top bar, chosen with the two buttons at its start.
 
 | View | Button | Shows |
 |---|---|---|
-| Library | Tabler `books` | The library. The home screen opens on it |
+| Garden | Tabler `seeding` | The Garden, the library of items. The home screen opens on it. It was "Library" under Tabler `books` until the Sproutscape round (2026-10-10) |
 | App drawer | Tabler `apps` | The installed apps that are not hidden, with their icons, in fixed pages |
 
 The view that is showing wears a border. The drawer turns its pages on a sideways swipe, the
-same swipe the Scratch Pad uses, and by the pager on the bottom bar.
+same swipe the Scratch Pad uses, and by the pager on the bottom bar. The pager's two buttons
+are `btnDrawerPrev` and `btnDrawerNext`: `activity_home` includes the Garden browser, whose
+pager has `btnPrev` and `btnNext`, and view binding finds an id anywhere under the root, the
+included browser first. Sharing the names had wired the drawer's turns onto the Garden's buttons
+and left the drawer's own unwired (found and fixed 2026-10-10).
+
+The launcher's name is **Sproutscape** (`app_name`, the side menu's service, the extensions'
+labels and every sentence a person reads); Soil stays the name of what is underneath: the code,
+the `.soil` file, the seam (Greg, 2026-10-10).
 
 ## Hiding apps
 
@@ -83,10 +91,17 @@ What a third-party app does with the pen under the filter is its own affair.
 
 ## The menu
 
-- Home, the Scratch Pad and Settings, then a row for each Sprout app installed (Notesprout,
-  Docsprout, Biblesprout, Calsprout), found by what it answers (`ACTION_OPEN_ITEM`, or
-  `ACTION_OPEN_BIBLE` and `ACTION_OPEN_CALENDAR` for the apps with no items), not by name. A row
-  opens the app at the item last open, or the reader and the calendar where they were left.
+- A grid, two cells to a row, each an icon over its name (`cell_menu`): Home and the Scratch
+  Pad first, then a cell for each Sprout app installed, found by what it answers
+  (`ACTION_OPEN_ITEM`, or `ACTION_OPEN_BIBLE` and `ACTION_OPEN_CALENDAR` for the apps with no
+  items), in a fixed order (Note, Document, Sketch, Calendar, Bible, told by the package's own
+  segment so a dev build ranks with its release; any other Sprout app after them, by name). A
+  cell opens the app at the item last open, or the reader and the calendar where they were left.
+  Settings is an icon alone in the bottom corner. Rows, with Settings third, until the
+  Sproutscape round (Greg, 2026-10-10).
+- The apps' names and marks are their own (`app_name`, the launcher icon): Note, Document,
+  Sketch, Bible, Calendar, each a plain Tabler glyph since 2026-10-10. The drawer shows the same
+  names and marks beside Ratta's apps, which share three of the names.
 - The other installed apps are **not** listed. They are in the app drawer.
 - A tap outside the panel closes it. The panel has no title and no close button.
 

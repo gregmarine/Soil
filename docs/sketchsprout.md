@@ -62,7 +62,9 @@ clears, sizes, sets the sheet and loads both rasters back to back on Main: one c
 and one panel present (a suspension between them is two). The pager's next arrow past the last
 page inserts one, like the swipe.
 
-The top bar: Back, Pencil, Pen, Marker, Eraser, Smudge, Guides. The three pens are one
+The top bar: Back (the arrow), Pencil, Pen, Marker, Eraser, Smudge, Guides. The sketchbook's
+name is at the start of the bottom bar, the pager at the screen's centre, kept apart by
+`TitleBand` (Greg, 2026-10-10; it was centred on the top bar). The three pens are one
 `Tool.PEN` to the engine, told apart by what it is armed with (`SketchToolState`: the kind, and
 each kind's shade and size). A re-tap on the armed pen of any kind hangs the palette: Atelier's
 sixteen tones in four rows, white first, and under them the kind's **sizes**, four to a row,
