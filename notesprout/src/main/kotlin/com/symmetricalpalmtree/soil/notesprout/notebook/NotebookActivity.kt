@@ -78,6 +78,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
+import com.symmetricalpalmtree.soil.paper.chrome.SnapToggle
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.CoverSnapshot
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -237,6 +238,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
         paper.smartLassoEnabled = true
         paper.scribbleEraseEnabled = true
         paper.directInk = true
+        // Snap to guides: armed from the remembered flag; the toggle is the selection bar's first
+        // button, and the margin follows the top bar on every pushExclusions().
+        val snap = SnapToggle(this, paper)
         paper.setPaperListener(notebookListener)
         // Draw order is registration order: headings · texts · links below the ink, stickies above it.
         headingRenderer = HeadingRenderer(density, scaledDensity)
@@ -374,6 +378,7 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             onMakeText = { currentSelection?.let { convertToText(it) } },
             onBible = { currentSelection?.let { bibleRefs.convert(it) } },
             onVerses = { loneLink()?.let { bibleRefs.expand(it) } },
+            snap = snap,
         )
         // The base's own bar is never shown here: the notebook's selection bar knows objects.
         selectionBar = InkSelectionBar(

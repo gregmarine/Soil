@@ -29,6 +29,7 @@ import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.PenShadeGlyph
 import com.symmetricalpalmtree.soil.paper.chrome.ShadeIcon
+import com.symmetricalpalmtree.soil.paper.chrome.SnapToggle
 import com.symmetricalpalmtree.soil.paper.core.Immersive
 import com.symmetricalpalmtree.soil.paper.core.InkTones
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -152,6 +153,7 @@ class StickyEditorActivity : InkScreenActivity<InkAction>(), NotesproutApp.Front
             root = binding.root, paperView = paper.asView(), bar = binding.selectionToolbar, band = { chromeBand() },
             releaseRender = { paper.releaseRender() }, deleteHint = getString(R.string.delete_selection_action),
             onDelete = { currentSelection?.let { deleteSelection(it) } },
+            snap = SnapToggle(this, paper),
         )
         chrome = PaperChrome(
             paper = paper, topBar = binding.topBar, bottomStrip = null,

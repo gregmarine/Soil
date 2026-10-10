@@ -40,8 +40,18 @@ return, so a notebook in the background holds no file. Frame silence while the p
 - **Objects**: typed headings (H1 to H6), Markdown text objects (the `:markdown` module, from
   SN whole), six shapes, sticky notes with an editor of their own over the notebook's store.
   The Insert bar places each at the nearest clear spot; the lasso's bar knows what it caught:
-  H, Make text, Bible, Verses, Link, Edit link, Unlink, Copy, Cut, Tag, Send, Delete. Every act
-  is one undo step, ink and objects together.
+  Snap, Copy, Cut, H, Make text, Bible, Verses, Link, Edit link, Unlink, Tag, Send, Delete.
+  Every act is one undo step, ink and objects together.
+- **Snap to guides** (SN's arc 9), the lasso bar's first button here and in the sticky editor:
+  a dragged selection is pulled onto the page's edges, its margins and its centre, and onto the
+  edges, centres and one-margin offsets of every heading, text, sticky note or link not in the
+  selection (never strokes). Its leading edge, centre or trailing edge catches the nearest guide
+  within 20 dp, each axis on its own, and a dashed black rule is drawn edge to edge for each
+  guide caught. Nothing is clamped: drag on and it lets go. The margin is one toolbar thick, the top
+  bar's laid-out height. The guides and the rule are g-paper's (`snapToGuides`, `SnapEngine`);
+  `:paper`'s `SnapToggle` holds the flag, off by default and remembered on the device, and the
+  button wears the selected border while it is on. A paste never snaps; the pad and the
+  calendar do not offer it.
 - **The Contents** lists the headings as a tree and goes to the page tapped.
 - **Recognition**: H on ink makes a heading, Make text a text object, Tag on ink opens the tag
   screen prefilled, through Soil's relay and behind the consent flow (`extensions.md`).
@@ -68,6 +78,7 @@ return, so a notebook in the background holds no file. Frame silence while the p
 ## Device-local
 
 `NotebookPrefs`: the notebook last open, the pen's shade, whether the chrome was hidden.
+`SnapToggle`'s `snap` file: whether a drag snaps to guides.
 `LinkTrail`: the hops of a link story, ids only. Never a name, never backed up.
 
 Walked on the Nomad, phases 2 to 4 and 9 to 11, 2026-09-30 to 2026-10-03. The lost-stroke
