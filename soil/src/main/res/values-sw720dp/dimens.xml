@@ -7,6 +7,6 @@
     <dimen name="app_cell_padding">12dp</dimen>
 
     <dimen name="menu_width">340dp</dimen>
-    <dimen name="menu_row_height">76dp</dimen>
+    <dimen name="menu_cell_height">124dp</dimen>
     <dimen name="menu_icon_size">44dp</dimen>
 </resources>

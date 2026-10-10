@@ -84,3 +84,12 @@ last only the fallback: the flag is shared through Soil, one for every paper scr
 
 Walked on the Nomad, phases 2 to 4 and 9 to 11, 2026-09-30 to 2026-10-03. The lost-stroke
 investigation of 2026-10-03 and its fix are in `shell.md`.
+
+## The Sproutscape round (2026-10-10)
+
+The notebook's name moved from the top bar's centre to the start of the bottom bar, the pager
+keeping the screen's centre (`TitleBand` in `:paper` sets the name's end margin from the
+pager's width after each layout); the sticky editor keeps its title on top, since it has no
+bottom bar. The leave button is the arrow, labelled Back, on the notebook and the sticky editor,
+as on every other screen; the X is gone. The app is **Note** to the person (`app_name` and the
+sentences that named it); the package and the module keep their names.

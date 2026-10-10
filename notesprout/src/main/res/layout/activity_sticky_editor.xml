@@ -62,7 +62,7 @@
                     android:id="@+id/btnBack"
                     style="@style/Widget.Soil.ToolbarButton"
                     android:contentDescription="@string/cd_close"
-                    android:src="@drawable/ic_x" />
+                    android:src="@drawable/ic_arrow_left" />
 
                 <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btnPen"

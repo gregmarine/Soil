@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Notesprout</string>
-    <string name="selftest_name">Notesprout self-test</string>
+    <string name="app_name">Note</string>
+    <string name="selftest_name">Note self-test</string>
 
-    <string name="cd_close">Close</string>
+    <string name="cd_close">Back</string>
     <string name="cd_tool_pen">Pen</string>
     <string name="cd_tool_eraser">Eraser</string>
     <string name="cd_tool_lasso">Lasso</string>
@@ -15,7 +15,7 @@
     <string name="recents_empty">No recent notebooks.</string>
     <string name="recents_row_detail">%1$s, %2$s</string>
     <string name="recents_gone_title">Can\'t open that notebook</string>
-    <string name="recents_gone_body">It is no longer in the library.</string>
+    <string name="recents_gone_body">It is no longer in the garden.</string>
     <string name="cd_insert">Insert</string>
     <string name="cd_contents">Contents</string>
     <string name="insert_heading">Heading</string>
@@ -43,7 +43,7 @@
     <string name="bible_verses_no_room_title">No room on this page</string>
     <string name="bible_verses_no_room_body">The verses of %1$s don\'t fit on this page. Try a page with more free space.</string>
     <string name="bible_verses_unavailable_title">Verses unavailable</string>
-    <string name="bible_verses_unavailable_body">The verses could not be read. Biblesprout may not be installed, or Soil could not reach it.</string>
+    <string name="bible_verses_unavailable_body">The verses could not be read. Bible may not be installed, or Sproutscape could not reach it.</string>
     <string name="insert_sticky">Sticky note</string>
     <string name="heading_edit_title">Heading</string>
     <string name="text_edit_title">Text</string>
@@ -124,7 +124,7 @@
     </plurals>
     <string name="link_picker_no_pages">No other pages in this notebook</string>
     <string name="link_picker_no_foreign_pages">No pages in this notebook</string>
-    <string name="link_picker_no_notebooks">No other notebooks in the library</string>
+    <string name="link_picker_no_notebooks">No other notebooks in the garden</string>
     <string name="link_pick_none_title">Choose a target first</string>
     <string name="link_pick_none_page">Tap the page this link should open.</string>
     <string name="link_pick_none_notebook">Choose the notebook or document this link should open.</string>
@@ -134,22 +134,22 @@
         <item quantity="one">Sketchbook, %d page</item>
         <item quantity="other">Sketchbook, %d pages</item>
     </plurals>
-    <string name="link_follow_failed_body">Soil could not be asked to open it.</string>
+    <string name="link_follow_failed_body">Sproutscape could not be asked to open it.</string>
     <string name="link_pick_none_notebook_page">Open a notebook or a sketchbook, then choose the page this link should open.</string>
     <string name="link_pick_none_day">Choose the day this link should open.</string>
     <string name="link_picker_choose_day">Tap here to choose a day.</string>
     <string name="link_picker_day_chosen">%1$s\n\nTap to choose another day.</string>
     <string name="link_new_page">New page</string>
     <string name="link_choose_notebook">Choose notebook</string>
-    <string name="link_picker_choose_notebook">Choose from the library.</string>
+    <string name="link_picker_choose_notebook">Choose from the garden.</string>
     <string name="link_insert_before">Insert before</string>
     <string name="link_insert_after">Insert after</string>
     <string name="link_new_page_failed_title">Couldn\'t add the page</string>
     <string name="link_new_page_failed_body">The notebook may have changed while the picker was open. Close the picker and try again.</string>
     <string name="link_new_notebook_failed_title">Couldn\'t make the notebook</string>
-    <string name="link_new_notebook_failed_body">Soil could not make it. Nothing was changed.</string>
+    <string name="link_new_notebook_failed_body">Sproutscape could not make it. Nothing was changed.</string>
     <string name="link_target_gone_title">Can\'t follow this link</string>
-    <string name="link_target_notebook_gone_body">The notebook this link points to is no longer in the library.</string>
+    <string name="link_target_notebook_gone_body">The notebook this link points to is no longer in the garden.</string>
     <string name="link_target_page_gone_body">The page this link points to no longer exists.</string>
     <string name="link_target_unreadable_body">This link was made by a newer or different app, so where it points can\'t be read here.</string>
 
@@ -157,7 +157,7 @@
     <string name="page_template_action">Page template</string>
     <string name="save_as_template_action">Save as template</string>
     <string name="template_gone_title">Couldn\'t use that template</string>
-    <string name="template_gone_body">That template is no longer in the library. Nothing has been changed.</string>
+    <string name="template_gone_body">That template is no longer in the garden. Nothing has been changed.</string>
     <string name="template_render_failed_title">Couldn\'t draw that paper</string>
     <string name="template_render_failed_body">The template could not be rendered at this page\'s size. The page has been left as it was.</string>
     <string name="template_import_too_big_title">That page is too large</string>
@@ -176,13 +176,13 @@
 
     <string name="open_opening">Opening…</string>
     <string name="open_failed_title">Can\'t open notebook</string>
-    <string name="open_no_soil">Soil could not be reached. Notesprout keeps its notebooks in Soil.</string>
-    <string name="open_locked">The library is not open. Open it in Soil, then open the notebook again.</string>
-    <string name="open_missing">This notebook is no longer in the library.</string>
-    <string name="open_newer">This notebook was written by a later Notesprout. It has not been changed.</string>
+    <string name="open_no_soil">Sproutscape could not be reached. Note keeps its notebooks in Sproutscape.</string>
+    <string name="open_locked">The garden is not open. Open it in Sproutscape, then open the notebook again.</string>
+    <string name="open_missing">This notebook is no longer in the garden.</string>
+    <string name="open_newer">This notebook was written by a later version of Note. It has not been changed.</string>
     <string name="open_failed">The notebook could not be opened. It has not been changed.</string>
     <string name="store_failed_title">Notebook unavailable</string>
-    <string name="store_failed_body">Soil could not be reached to save this notebook. Nothing already saved was lost. Open it again.</string>
+    <string name="store_failed_body">Sproutscape could not be reached to save this notebook. Nothing already saved was lost. Open it again.</string>
     <string name="notebook_not_saved_title">Not saved</string>
     <string name="notebook_not_saved_body">The ink could not be written to the notebook. Try again, or leave and lose what was written since the last save.</string>
     <string name="notebook_try_again">Try again</string>
@@ -224,8 +224,8 @@
     <string name="tag_applied_toast">Tagged “%1$s”</string>
     <string name="tags_failed_title">Tags</string>
     <string name="tags_assign_failed_body">That tag could not be saved. Nothing has been changed.</string>
-    <string name="tags_full_body">This library is holding as many tags as it can. Delete one to add another.</string>
-    <string name="tags_open_failed_body">Soil\'s tag screen could not be opened.</string>
+    <string name="tags_full_body">This garden is holding as many tags as it can. Delete one to add another.</string>
+    <string name="tags_open_failed_body">Sproutscape\'s tag screen could not be opened.</string>
 
     <!-- The Scratch Pad -->
     <string name="scratch_send_action">Send to Scratch Pad</string>

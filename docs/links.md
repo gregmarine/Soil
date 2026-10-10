@@ -12,7 +12,9 @@ into the verses on its screen.
 
 The wrapped ink and objects are re-parented to the link row and drawn from its composite,
 below fresh ink; the underline is drawn live. Edit link, Unlink, move and delete are undoable.
-A finger tap follows; a swipe up walks the trail back. A target that is gone explains itself
+A finger tap follows; a swipe up walks the trail back. A sketchbook opened on a link (Soil's
+follow marks the open `EXTRA_VIA_LINK`) leaves on a swipe up too, as Back does and as the Bible
+does; a document has no such gesture (Greg, 2026-10-10). A target that is gone explains itself
 and offers Edit link or Remove: the row is never touched on its own, since a target gone today
 may be back from a backup tomorrow. A walk back that meets a dead entry skips it in silence.
 

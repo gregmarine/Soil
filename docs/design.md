@@ -475,7 +475,7 @@ order of the Notesprout effort is in §16.
 
 ---
 
-## 16. What was built (2026-10-03 to 2026-10-08)
+## 16. What was built (2026-10-03 to 2026-10-10)
 
 The Notesprout effort, on the branch `notesprout`, fourteen phases, each walked on the Nomad:
 
@@ -582,4 +582,21 @@ Manta turned up:
 | W | From the walk: a verse range links whole, the bar's down and up paired (the menu no longer opens on its own), Snap to guides from SN, one hidden-bars flag shared through Soil | `biblesprout.md`, `shell.md`, `notesprout.md`, `seam.md` |
 
 Decisions taken along the way are marked proposed in each document; what was set aside is in `BACKLOG.md`.
+
+The Sproutscape round, on the branch `sproutscape` (2026-10-10), towards the first stable
+release: what the person sees named and arranged, each change walked on the Nomad. Under the
+hood nothing moves: the packages, the modules, the `.soil` file, the seam and the code keep
+their names.
+
+| Step | What | Document |
+|---|---|---|
+| 1 | The launcher is **Sproutscape**: its label, the side menu's service, the extensions' labels and every sentence that said Soil. The apps are **Note, Document, Sketch, Bible, Calendar**, singular, in their labels and the sentences that named them. The Library is the **Garden**, in its label, its root and every sentence. Folders stay folders | `shell.md`, `items.md` |
+| 2 | The Garden's icon is Tabler's seedling. The apps' marks lose the sprouting leaf: Note is the Garden's notebook (New notebook without its plus), Document a sheet with lines (`file-text`), Calendar a month (`calendar-month`), Bible the book, Sketch the pencil. The Scratch Pad's scribble is Tabler's own path (it had closed into a ring) | `shell.md` |
+| 3 | The notebook's and the sketchbook's names leave the top bar for the start of the bottom bar, the pager keeping the screen's centre (`TitleBand` in `:paper`). The document, with no bottom bar, keeps its name on top | `notesprout.md`, `sketchsprout.md` |
+| 4 | The Garden's New buttons in order: Note, Document, Sketch, Folder. The side menu as a grid, two cells to a row (Home, Scratch Pad; Note, Document, Sketch, Calendar, Bible), Settings an icon alone in the bottom corner | `shell.md`, `items.md` |
+| 5 | The drawer's pager turned again: its Prev and Next shared ids with the Garden browser's, and view binding had wired the drawer's turns onto the Garden's buttons | `shell.md` |
+| 6 | A sketchbook opened on a link leaves on a swipe up, as Back does: Soil's follow marks the open `EXTRA_VIA_LINK` | `links.md`, `sketchsprout.md`, `seam.md` |
+| 7 | One leave button on every screen, the arrow (the backlog's entry closed); the document's trail button wears `arrow-bar-to-left` so it is neither the leave nor Undo | `docsprout.md`, `notesprout.md` |
+
+Decisions taken along the way are marked proposed in each document.
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Biblesprout's own strings. `ok` and `cancel` come from :paper and are not repeated here. -->
+<!-- Bible's own strings. `ok` and `cancel` come from :paper and are not repeated here. -->
 <resources>
-    <string name="app_name">Biblesprout</string>
+    <string name="app_name">Bible</string>
 
     <!-- Every icon button needs a long-press hint naming it, and the hint is its content description. -->
     <string name="cd_bible_back">Back</string>
@@ -58,7 +58,7 @@
     <!-- A row's own words: "Study · Page 4", "Sermon · Document". -->
     <string name="bible_notes_page_word">Page</string>
     <string name="bible_notes_document_word">Document</string>
-    <string name="bible_notes_no_soil">Soil could not be asked to open it.</string>
+    <string name="bible_notes_no_soil">Sproutscape could not be asked to open it.</string>
 
     <string name="bible_title">Bible</string>
     <string name="bible_page_indicator">%1$d / %2$d</string>

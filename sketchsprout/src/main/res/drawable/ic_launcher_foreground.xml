@@ -8,11 +8,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- The pencil, point at the bottom-left, laid as Tabler draws it. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M34 78h8l24 -24a5.657 5.657 0 1 0 -8 -8l-24 24v8" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 50l8 8" />
-    <!-- The sprout, growing up out of the pencil's top end. -->
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 42v-10" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 38c0 -6 4 -10 10 -10c0 6 -4 10 -10 10z" />
-    <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 42c0 -5 -3 -8 -8 -8c0 5 3 8 8 8z" />
+    <group android:translateX="4" android:translateY="-2">
+        <!-- The pencil, point at the bottom-left, laid as Tabler draws it. -->
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M34 78h8l24 -24a5.657 5.657 0 1 0 -8 -8l-24 24v8" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54 50l8 8" />
+    </group>
 </vector>

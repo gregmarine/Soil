@@ -44,8 +44,10 @@ cover through the seam when it is put down.
 
 - **The path line**: breadcrumb and back on the left; Search, Recents and Pinned, the three
   shelves, and Sort on the right. A shelf is a glance across the tree, not a place.
-- **The top bar**: New notebook, New sketchbook (Sketchsprout, 2026-10-07: the same screen,
-  the kind in its title) and New folder.
+- **The top bar**: New notebook, New document, New sketchbook (Sketchsprout, 2026-10-07: the
+  same screen, the kind in its title) and New folder, in that order (Greg, 2026-10-10). The
+  library is the **Garden** to the person, in its label, its root folder's name and every
+  sentence, since the same day; folders stay folders.
 - **The bottom bar**: Backup and Import on the left, the pager centred.
 - **The long-press sheet** of an item: Pin, Rename, Move, Tags, Export, Exclude from backup,
   Delete. Of a folder: Rename, Move, the naming scheme, the default template, Delete.

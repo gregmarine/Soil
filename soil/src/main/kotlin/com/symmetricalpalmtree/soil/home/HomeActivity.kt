@@ -133,8 +133,8 @@ class HomeActivity : AppCompatActivity() {
             )
         }
         browser.startIn(savedInstanceState?.getString(KEY_FOLDER) ?: libraryPrefs.folderId)
-        binding.btnPrev.setOnClickListener { grid.previous() }
-        binding.btnNext.setOnClickListener { grid.next() }
+        binding.btnDrawerPrev.setOnClickListener { grid.previous() }
+        binding.btnDrawerNext.setOnClickListener { grid.next() }
         binding.appGrid.onPrevious = { grid.previous() }
         binding.appGrid.onNext = { grid.next() }
 

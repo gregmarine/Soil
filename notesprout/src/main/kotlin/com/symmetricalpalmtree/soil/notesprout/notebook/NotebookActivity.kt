@@ -74,6 +74,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.notesprout.recognition.InkRecognition
 import com.symmetricalpalmtree.soil.notesprout.recognition.SeamRecognizerPort
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
+import com.symmetricalpalmtree.soil.paper.chrome.TitleBand
 import com.symmetricalpalmtree.soil.paper.chrome.PaletteBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
@@ -403,7 +404,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
             overChrome = { chrome.overChrome(it) },
             listener = gestureListener,
         )
-        binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> binding.root.post { pushExclusions() } }
+        binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            binding.root.post { TitleBand.keepClearOfPager(binding.bottomBarRow, binding.title, binding.pagerGroup); pushExclusions() }
+        }
         initChrome(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { exit() }

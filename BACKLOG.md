@@ -240,16 +240,6 @@ sheet; `scratchpad.md`). What remains is retiring the notebook's Send to Scratch
 
 ---
 
-## One leave button on every screen
-
-**Raised by Greg 2026-10-05, at Calsprout's phase 1 walk. To revisit after Calsprout is done.**
-
-Notesprout and Docsprout leave with an "X" on the top bar; Biblesprout, the Scratch Pad and
-Calsprout leave with a back arrow. One or the other everywhere, probably the arrow. Decide once,
-then change the two apps that differ.
-
----
-
 ## The sketchbook: what Sketchsprout left out
 
 **Set aside 2026-10-06 to 2026-10-08, as the Sketchsprout effort was built.**

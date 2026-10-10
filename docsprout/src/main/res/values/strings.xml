@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Docsprout</string>
+    <string name="app_name">Document</string>
 
-    <string name="cd_close">Close</string>
+    <string name="cd_close">Back</string>
     <string name="cd_text_size">Text size</string>
     <string name="cd_export">Export</string>
     <string name="export_failed_title">Export</string>
-    <string name="export_open_failed_body">Soil\'s export screen could not be opened.</string>
+    <string name="export_open_failed_body">Sproutscape\'s export screen could not be opened.</string>
     <string name="cd_mode">Markdown source  ·  Ctrl+P</string>
 
     <!-- A link in the rendered document -->
@@ -14,19 +14,19 @@
     <string name="link_field_hint">Address</string>
     <string name="link_confirm">Link</string>
     <string name="link_remove">Remove link</string>
-    <string name="link_choose_library">Choose from library…</string>
+    <string name="link_choose_library">Choose from garden…</string>
     <string name="link_choose_day">Choose a day…</string>
-    <string name="link_into_library">This link points into the library. Choose again to point it somewhere else, or type an address.</string>
+    <string name="link_into_library">This link points into the garden. Choose again to point it somewhere else, or type an address.</string>
     <string name="link_open">Open</string>
     <string name="link_edit">Edit link</string>
     <string name="link_sheet_library">Link to “%1$s”</string>
     <string name="link_sheet_library_page">Link to a page of “%1$s”</string>
-    <string name="link_sheet_gone">Link to something no longer in the library</string>
+    <string name="link_sheet_gone">Link to something no longer in the garden</string>
     <string name="link_failed_title">Can\'t follow this link</string>
-    <string name="link_gone_body">What this link points to is no longer in the library.</string>
-    <string name="link_no_soil_body">Soil could not be asked to open it.</string>
+    <string name="link_gone_body">What this link points to is no longer in the garden.</string>
+    <string name="link_no_soil_body">Sproutscape could not be asked to open it.</string>
     <string name="link_outside_body">Nothing on this device opens that address.</string>
-    <string name="link_picker_failed_body">Soil\'s library could not be opened to choose from.</string>
+    <string name="link_picker_failed_body">Sproutscape\'s garden could not be opened to choose from.</string>
     <string name="cd_trail_back">Back to where the link was followed from</string>
     <string name="cd_backlinks">Links to this document</string>
     <string name="backlinks_title">Links to this document</string>
@@ -71,7 +71,7 @@
     <string name="passage_not_reference_title">Not a Bible reference</string>
     <string name="passage_not_reference_body">“%1$s” does not read as a Bible reference.</string>
     <string name="passage_failed_title">Verses unavailable</string>
-    <string name="passage_no_app_body">Biblesprout is not installed.</string>
+    <string name="passage_no_app_body">Bible is not installed.</string>
     <string name="passage_too_long_body">That is more than a chapter. Insert a shorter passage.</string>
     <string name="passage_failed_body">The verses could not be read from the Bible.</string>
 
@@ -141,10 +141,10 @@
 
     <string name="open_opening">Opening…</string>
     <string name="open_failed_title">Can\'t open document</string>
-    <string name="open_no_soil">Soil could not be reached. Docsprout keeps its documents in Soil.</string>
-    <string name="open_locked">The library is not open. Open it in Soil, then open the document again.</string>
-    <string name="open_missing">This document is no longer in the library.</string>
-    <string name="open_newer">This document was written by a later Docsprout. It has not been changed.</string>
+    <string name="open_no_soil">Sproutscape could not be reached. Document keeps its documents in Sproutscape.</string>
+    <string name="open_locked">The garden is not open. Open it in Sproutscape, then open the document again.</string>
+    <string name="open_missing">This document is no longer in the garden.</string>
+    <string name="open_newer">This document was written by a later version of Document. It has not been changed.</string>
     <string name="open_failed">The document could not be opened. It has not been changed.</string>
     <string name="too_long_title">Too long to save</string>
     <string name="save_failed_toast">The latest changes to this document could not be saved.</string>

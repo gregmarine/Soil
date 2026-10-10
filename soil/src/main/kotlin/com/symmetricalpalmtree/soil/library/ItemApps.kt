@@ -60,6 +60,15 @@ object ItemApps {
     /** One Sprout app: its name, its icon, and the screen its own icon opens. */
     class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
 
+    /** The side menu's order: Note, Document, Sketch, Calendar, Bible (Greg, 2026-10-10); any
+     *  other Sprout app after them, by name. Told by the package's own segment, so a dev build
+     *  ranks with its release. */
+    private val MENU_ORDER = listOf("notesprout", "docsprout", "sketchsprout", "calsprout", "biblesprout")
+    private fun menuRank(packageName: String): Int {
+        val i = MENU_ORDER.indexOfFirst { packageName.split('.').contains(it) }
+        return if (i < 0) MENU_ORDER.size else i
+    }
+
     /**
      * Every trusted app that opens some kind of item, the Bible or the calendar, one entry per
      * app, by name.
@@ -86,7 +95,7 @@ object ItemApps {
                         launch = pm.getLaunchIntentForPackage(pkg),
                     )
                 }
-                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, SproutApp::label))
+                .sortedWith(compareBy<SproutApp> { menuRank(it.packageName) }.thenBy(String.CASE_INSENSITIVE_ORDER, SproutApp::label))
         } catch (e: Exception) {
             Log.w(TAG, "the Sprout apps could not be read: ${e.javaClass.simpleName}")
             emptyList()
@@ -98,17 +107,18 @@ object ItemApps {
     /** Open the item in the app for its kind. What rides the Intent is the item's id, and for a
      *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). The look
      *  on IO and the start on the caller's thread (Main). */
-    suspend fun openItem(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
+    suspend fun openItem(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null, viaLink: Boolean = false): Opened {
         val app = withContext(Dispatchers.IO) { find(context, kind) } ?: return Opened.NO_APP
-        return start(context, itemIntent(app, itemId, templatePick, pageId))
+        return start(context, itemIntent(app, itemId, templatePick, pageId, viaLink))
     }
 
-    private fun itemIntent(app: Candidate, itemId: String, templatePick: String?, pageId: String?): Intent =
+    private fun itemIntent(app: Candidate, itemId: String, templatePick: String?, pageId: String?, viaLink: Boolean): Intent =
         Intent(Seam.ACTION_OPEN_ITEM)
             .setComponent(ComponentName(app.packageName, app.className))
             .putExtra(Seam.EXTRA_ITEM_ID, itemId)
             .putExtra(Seam.EXTRA_TEMPLATE_PICK, templatePick)
             .putExtra(Seam.EXTRA_PAGE_ID, pageId)
+            .apply { if (viaLink) putExtra(Seam.EXTRA_VIA_LINK, true) }
 
     /**
      * The screen that opens the Bible ([Seam.ACTION_OPEN_BIBLE]), or null when no app that may be

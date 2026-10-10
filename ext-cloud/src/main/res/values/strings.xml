@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Nothing here names an account, a file or a URL: a dialog says what happened and what to do. -->
 <resources>
-    <string name="ext_label">Soil · Cloud</string>
+    <string name="ext_label">Sproutscape · Cloud</string>
 
     <string name="drive_connect_title">Connect Google Drive</string>
     <string name="drive_connect_signing_in">Signing in…</string>

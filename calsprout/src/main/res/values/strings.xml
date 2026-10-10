@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Calsprout's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
+<!-- Calendar's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
      not repeated here. -->
 <resources>
-    <string name="app_name">Calsprout</string>
+    <string name="app_name">Calendar</string>
 
     <string name="calendar_opening">Opening…</string>
 
@@ -53,11 +53,11 @@
     <!-- The Links panel: what in the library links into the period showing. -->
     <string name="calendar_links_title">Links</string>
     <string name="calendar_links_empty">Nothing links into %1$s</string>
-    <string name="calendar_links_no_soil">Soil could not be asked to open it.</string>
+    <string name="calendar_links_no_soil">Sproutscape could not be asked to open it.</string>
 
     <!-- Failure wording: never a path, never a name. -->
     <string name="calendar_store_failed_title">Calendar unavailable</string>
-    <string name="calendar_store_failed_body">Soil could not open the calendar\'s storage. Nothing was lost. Unlock the library in Soil and try again.</string>
+    <string name="calendar_store_failed_body">Sproutscape could not open the calendar\'s storage. Nothing was lost. Unlock the garden in Sproutscape and try again.</string>
 
     <!-- The Events screen: the events and their notes, for one day at a time. -->
     <string name="events_title">Events</string>
@@ -73,7 +73,7 @@
     <string name="events_section_upcoming">Upcoming</string>
     <string name="events_page_indicator">%1$d / %2$d</string>
     <string name="events_unavailable_title">Events unavailable</string>
-    <string name="events_unavailable_body">Soil could not read the calendar\'s storage. Nothing was lost — try again.</string>
+    <string name="events_unavailable_body">Sproutscape could not read the calendar\'s storage. Nothing was lost — try again.</string>
 
     <!-- The event editor: three rows over the note area, the two
          glance buttons opening the repeat and reminder dialogs. Delete is the events LIST's now. -->
@@ -139,7 +139,7 @@
     <string name="editor_problem_title">Cannot save</string>
     <string name="editor_problem_empty_title">Give the event a title.</string>
     <string name="editor_problem_until">The \"ends on\" date is before the start.</string>
-    <string name="editor_save_failed">Soil could not save the event. Nothing was changed.</string>
+    <string name="editor_save_failed">Sproutscape could not save the event. Nothing was changed.</string>
 
     <!-- Delete, on the events LIST: a trash icon per row. -->
     <string name="cd_events_delete">Delete event</string>
@@ -148,7 +148,7 @@
     <string name="events_delete_body_series">Delete every occurrence of %1$s?</string>
     <string name="events_delete_confirm">Delete</string>
     <string name="events_delete_failed_title">Cannot delete</string>
-    <string name="events_delete_failed">Soil could not delete the event. Nothing was changed.</string>
+    <string name="events_delete_failed">Sproutscape could not delete the event. Nothing was changed.</string>
 
     <!-- The three scopes, for an edit (the editor) or a delete (the list). -->
     <string name="scope_title_edit">Change which events?</string>

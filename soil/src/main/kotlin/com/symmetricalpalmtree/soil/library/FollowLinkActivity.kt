@@ -62,7 +62,7 @@ class FollowLinkActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val item = withContext(Dispatchers.IO) { runCatching { IndexStore().aliveItem(itemId) }.getOrNull() }
             if (item == null) { explain(R.string.follow_gone_body); return@launch }
-            when (ItemApps.openItem(this@FollowLinkActivity, item.id, item.kind, pageId = pageId)) {
+            when (ItemApps.openItem(this@FollowLinkActivity, item.id, item.kind, pageId = pageId, viaLink = true)) {
                 ItemApps.Opened.YES -> finish()
                 ItemApps.Opened.NO_APP -> explain(getString(R.string.item_no_app_body, item.name))
                 ItemApps.Opened.FAILED -> explain(getString(R.string.item_open_failed_body, item.name))

@@ -217,3 +217,11 @@ without a restart, panels sit in the flow, nothing is disabled (hidden, or a toa
 - The Scratch Pad's Send became a clipboard copy (`clipboard.md`).
 
 Walked on the Nomad, phases 1 to 11, 2026-10-04.
+
+## The Sproutscape round (2026-10-10)
+
+The leave button is the arrow, labelled Back, as on every other screen; the X stays only on the
+find bar's close. The trail button (back to the document a link was followed from) wears
+Tabler's `arrow-bar-to-left`, since the plain arrow is now the leave and `arrow-back-up` is
+Undo (proposed). The document's name stays on the top bar: it has no bottom bar to move to. The
+app is **Document** to the person; the package and the module keep their names.

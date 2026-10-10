@@ -10,7 +10,6 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -39,6 +38,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
 import com.symmetricalpalmtree.soil.sketchsprout.ingest.InkIngest
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
+import com.symmetricalpalmtree.soil.paper.chrome.TitleBand
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
 import com.symmetricalpalmtree.soil.paper.chrome.BacklinksPanel
@@ -353,9 +353,13 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
 
     // ── Create ───────────────────────────────────────────────────────────────
 
+    /** Opened through Soil's follow ([Seam.EXTRA_VIA_LINK]): a swipe up leaves, as Back does. */
+    private var viaLink = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = SketchPrefs(this)
+        viaLink = intent.getBooleanExtra(Seam.EXTRA_VIA_LINK, false)
         binding = ActivitySketchBinding.inflate(layoutInflater)
         setContentView(binding.root)
         Immersive.apply(window, binding.root)
@@ -485,7 +489,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             listener = gestureListener,
         )
         binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            binding.root.post { centreTitleInTheFreeBand(); pushExclusions() }
+            binding.root.post { TitleBand.keepClearOfPager(binding.bottomBarRow, binding.title, binding.pagerGroup); pushExclusions() }
         }
         initChrome(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -506,6 +510,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
         if (newName.isNullOrBlank() && askedId != null && askedId == itemId) {
             // The same sketchbook, asked for at a page (a link, the library's page search): walk
             // there. Before the open has landed, the open takes it.
+            if (intent.getBooleanExtra(Seam.EXTRA_VIA_LINK, false)) viaLink = true
             val pageId = intent.getStringExtra(Seam.EXTRA_PAGE_ID) ?: return
             if (!opened) { getIntent().putExtra(Seam.EXTRA_PAGE_ID, pageId); return }
             runPageOp { if (currentPage?.id != pageId && !walkToPage(pageId)) Log.w(TAG, "the page asked for is not in this sketchbook") }
@@ -1540,6 +1545,10 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             if (pages.indexOf(here) < pages.size - 1) turnPageNow(PageTurn.Direction.NEXT) else insertPageNow(after = true)
         }
         override fun onFlipPrevious() = runPageOp { turnPageNow(PageTurn.Direction.PREV) }
+        // The notebook's walk-back gesture: a sketchbook opened on a link leaves back to where
+        // the link was followed from, as Back does. Opened any other way, it is the origin of
+        // nothing, so the swipe is silent (Greg, 2026-10-10).
+        override fun onSwipeUp() { if (viaLink && opened && !closing) { Slog.d(TAG) { "walk back" }; exit() } }
         override fun onInsertAfter() = runPageOp { insertPageNow(after = true) }
         override fun onInsertBefore() = runPageOp { insertPageNow(after = false) }
         override fun onUndo() = runPageOp { doReplay(undoing = true) }
@@ -1885,22 +1894,6 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 }
             }
         }
-    }
-
-    /** The title sits centred in the band the two button groups leave free, not on the screen —
-     *  with three buttons on the start side the screen's centre lies under the title's start. The
-     *  groups' laid-out widths become the title's margins. */
-    private fun centreTitleInTheFreeBand() {
-        val title = binding.title
-        val lp = title.layoutParams as FrameLayout.LayoutParams
-        val start = binding.toolGroup.width
-        val end = binding.doorGroup.width
-        if (lp.marginStart == start && lp.marginEnd == end && lp.width == ViewGroup.LayoutParams.MATCH_PARENT) return
-        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-        lp.gravity = Gravity.CENTER_VERTICAL
-        lp.marginStart = start
-        lp.marginEnd = end
-        title.layoutParams = lp
     }
 
     private companion object {
