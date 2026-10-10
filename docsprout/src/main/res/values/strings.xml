@@ -147,5 +147,7 @@
     <string name="open_newer">This document was written by a later Docsprout. It has not been changed.</string>
     <string name="open_failed">The document could not be opened. It has not been changed.</string>
     <string name="too_long_title">Too long to save</string>
+    <string name="save_failed_toast">The latest changes to this document could not be saved.</string>
+    <string name="export_not_saved_body">The latest changes could not be saved, so the document was not exported. It is still open. Try again in a moment.</string>
     <string name="too_long_body">This document has grown past what one document can hold, so the latest changes are not being saved. Move some of it to another document.</string>
 </resources>

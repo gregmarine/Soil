@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 /**
  * The **sheet** — the one page-sized picture the screen hands g-paper's `setSheet`: the page's
  * paper, the reference image at its opacity over it, and the grid over both. g-paper draws it
- * over white and under both rasters, on the window and on the Supernote panel, and never
+ * over white and under the rasters, on the window and on the Supernote panel, and never
  * exports, covers, rubs or smudges it. The paper is the export's and the cover's business
  * ([com.symmetricalpalmtree.soil.sketchsprout.raster.PageFlatten]); the guides are nobody's but
  * the glass's.

@@ -18,8 +18,9 @@ import com.symmetricalpalmtree.soil.biblesprout.reader.WordAtom
  * own: a passage is not a place the reader can be left, so **no position is written from it**
  * (`REFERENCE_PLAN.md`), and there is nothing to flow into off either end.
  *
- * [openAt] / [openVerse] are the **first** range's start — where the Full chapter door goes, and
- * the one thing a passage says about the wider book.
+ * [openAt] / [openVerse] are the **first verse shown** ([PassageAtoms.openAt]) — where the Full
+ * chapter door goes, and the one thing a passage says about the wider book. Not the first
+ * range's start: a range the source has nothing for is skipped, and its chapter is not there.
  */
 class PassagePages(
     /** The wire the host handed us, kept verbatim: it is this showing's identity in the recents. */
@@ -78,6 +79,13 @@ object PassageAtoms {
         }
         return atoms
     }
+
+    /**
+     * Where the Full chapter door opens: the chapter and verse of the first of [verses], the
+     * first verse actually shown. Null for none.
+     */
+    fun openAt(verses: List<VerseRow>): Pair<ChapterRef, Int>? =
+        verses.firstOrNull()?.let { ChapterRef(it.usfm, it.chapter) to it.verse.coerceAtLeast(1) }
 }
 
 /**
@@ -102,13 +110,6 @@ class PassageLoader(private val chapters: ChapterLoader) {
      */
     fun passage(wire: String, width: Int, height: Int): PassagePages {
         val passages = ReferenceCodec.decode(wire) ?: error("unreadable reference")
-        val first = passages.first().ranges.first()
-        val openAt = ChapterRef(
-            Canon.byOrdinal(VerseKey.ordinalOf(first.startKey)).usfm,
-            VerseKey.chapterOf(first.startKey),
-        )
-        // A whole-chapter range starts at the sentinel verse 0; the chapter itself starts at 1.
-        val openVerse = VerseKey.verseOf(first.startKey).coerceAtLeast(1)
         return chapters.withSource { db, typo ->
             val verses = ArrayList<VerseRow>()
             for (passage in passages) {
@@ -116,7 +117,7 @@ class PassageLoader(private val chapters: ChapterLoader) {
                     verses.addAll(db.versesForRange(range.startKey, range.endKey))
                 }
             }
-            check(verses.isNotEmpty()) { "no verses for the reference" }
+            val (openAt, openVerse) = PassageAtoms.openAt(verses) ?: error("no verses for the reference")
             val atoms = PassageAtoms.atomsFor(verses)
             val safety = typo.dp(ChapterLoader.SAFETY_PAD_DP)
             val pages = ChapterPaginator.paginate(

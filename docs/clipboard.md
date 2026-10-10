@@ -56,7 +56,8 @@ such a clip before or after the page showing, **every page row in order** (a cal
 two, AM then PM), each on its own paper, one undo step (`PageClip.plan` over N pages); the pad
 lands a page as a new page after the current one at the copied page's size; the calendar lays
 a copied page's ink on the showing page at its own coordinates. The pad's top-bar Copy page
-stays, and writes the same page clip.
+stays, and writes the same page clip. Read as ink (a document's paste, a sketch's), a page
+clip's strokes come page by page in the pages' order, each page's in its own writing order.
 
 ## A sketchbook's pages, and ink into a sketch
 
@@ -83,7 +84,9 @@ asks each time.
   the reference goes in as a link under its label, the verses as paragraphs under that link. In
   a notebook, the lasso popup's Paste and a pen tap on bare paper do the same: the reference as
   a linked text where the pen tapped, the verses in the verses column near it, under the page's
-  cap. Clear clipboard empties this slot too.
+  cap. It reads the newer of the two slots when both could paste, and with a page on the
+  notebook's slot it pastes the passage if one is on its own (`ObjectPasteRoute`). Clear
+  clipboard empties this slot too.
 
 Walked on the Nomad, phases 8 and 9, 2026-10-02; the rework, Docsprout's phase 10, 2026-10-04;
 the notebook's shape on the pad and the calendar, Calsprout's phase 6, 2026-10-06; the

@@ -85,15 +85,17 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
     suspend fun load(loaded: NotebookStore.Loaded) {
         pages = loaded.pages
         val page = pages.first { it.id == loaded.currentId }
-        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) })
+        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) }, swap = true)
     }
 
+    /** The swap is the last step: nothing suspends between it and the caller's `showPage`, so a
+     *  gesture never meets a document on one page under paper still showing another. */
     suspend fun goTo(page: PageRef) {
         if (page.id == pageId) return
         val next = withContext(Dispatchers.IO) { store.readPage(page) }
         flushUntilClean()
-        applyPage(page, next)
         withContext(Dispatchers.IO) { store.setLastOpened(page.id) }
+        applyPage(page, next, swap = true)
     }
 
     suspend fun goToIndex(index: Int) {
@@ -115,7 +117,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         val beforeCurrent = pageId
         val (next, page) = withContext(Dispatchers.IO) { store.insertPage(before, beforeCurrent, after) }
         pages = next
-        applyPage(page, PageContent.EMPTY)
+        applyPage(page, PageContent.EMPTY, swap = true)
         onPagesChanged(pages)
         return NotebookAction.Page(before, next, emptyList(), beforeCurrent, page.id)
     }
@@ -144,7 +146,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         val victim = current ?: error("no page")
         val (next, landing, taken) = withContext(Dispatchers.IO) { store.deletePage(before, victim) }
         pages = next
-        applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) })
+        applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) }, swap = true)
         onPagesChanged(pages)
         return NotebookAction.Page(before, next, taken, victim.id, landing.id)
     }
@@ -175,7 +177,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         val beforeCurrent = pageId
         val (next, page, contentIds) = withContext(Dispatchers.IO) { store.pasteAt(before0, beforeCurrent, env, before) }
         pages = next
-        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) })
+        applyPage(page, withContext(Dispatchers.IO) { store.readPage(page) }, swap = true)
         onPagesChanged(pages)
         return NotebookAction.PagePasted(before0, next, contentIds, beforeCurrent, page.id)
     }
@@ -397,39 +399,39 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         when (a) {
             is NotebookAction.Ink -> ink(a.action.pageId) { ink.revert(a.action) }
             is NotebookAction.Deleted -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
-                store.restoreIds(a.objects.ids)
-                if (a.objects.links.isNotEmpty()) store.remirrorPage(a.pageId)
+                a.ink?.let { inkHalf { ink.revert(it) } }
+                io { store.restoreIds(a.objects.ids) }
+                if (a.objects.links.isNotEmpty()) io { store.remirrorPage(a.pageId) }
             }
             is NotebookAction.Moved -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
-                store.moveBy(a.headingIds + a.textIds + a.stickyIds, -a.dx, -a.dy)
-                store.moveLinks(a.linkIds, -a.dx, -a.dy)
+                a.ink?.let { inkHalf { ink.revert(it) } }
+                io { store.moveBy(a.headingIds + a.textIds + a.stickyIds, -a.dx, -a.dy) }
+                io { store.moveLinks(a.linkIds, -a.dx, -a.dy) }
             }
-            is NotebookAction.HeadingCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.heading.id), emptyList()) }
+            is NotebookAction.HeadingCreated -> objects(a.pageId) { io { store.deleteObjects(listOf(a.heading.id), emptyList()) } }
             is NotebookAction.Converted -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
-                store.deleteObjects(listOfNotNull(a.heading?.id, a.text?.id), emptyList())
+                a.ink?.let { inkHalf { ink.revert(it) } }
+                io { store.deleteObjects(listOfNotNull(a.heading?.id, a.text?.id), emptyList()) }
             }
-            is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.before) }
-            is NotebookAction.TextCreated -> objects(a.pageId) { store.deleteObjects(listOf(a.text.id), emptyList()) }
-            is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.before) }
-            is NotebookAction.StickyInserted -> objects(a.pageId) { store.deleteObjects(listOf(a.sticky.id), listOf(a.sticky.id)) }
-            is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.before) }
-            is NotebookAction.LinkCreated -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
-            is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.relink(a.pageId, a.link) }
+            is NotebookAction.HeadingEdited -> objects(a.pageId) { io { store.setHeadingContent(a.before) } }
+            is NotebookAction.TextCreated -> objects(a.pageId) { io { store.deleteObjects(listOf(a.text.id), emptyList()) } }
+            is NotebookAction.TextEdited -> objects(a.pageId) { io { store.setTextContent(a.before) } }
+            is NotebookAction.StickyInserted -> objects(a.pageId) { io { store.deleteObjects(listOf(a.sticky.id), listOf(a.sticky.id)) } }
+            is NotebookAction.StickyContentEdited -> objects(a.pageId) { io { store.setStickyContent(a.stickyId, a.before) } }
+            is NotebookAction.LinkCreated -> objects(a.pageId) { io { store.unlink(a.pageId, a.link) } }
+            is NotebookAction.LinkUnlinked -> objects(a.pageId) { io { store.relink(a.pageId, a.link) } }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.before) }
             is NotebookAction.BibleRefCreated -> objects(a.pageId) {
-                a.ink?.let { ink.revert(it) }
-                store.unlink(a.pageId, a.link)
-                store.deleteObjects(listOf(a.text.id), emptyList())
+                a.ink?.let { inkHalf { ink.revert(it) } }
+                io { store.unlink(a.pageId, a.link) }
+                io { store.deleteObjects(listOf(a.text.id), emptyList()) }
             }
-            is NotebookAction.BibleRefEdited -> objects(a.pageId) { store.setTextContent(a.beforeText); setPayloadOf(a.linkId, a.beforePayload) }
+            is NotebookAction.BibleRefEdited -> objects(a.pageId) { io { store.setTextContent(a.beforeText) }; setPayloadOf(a.linkId, a.beforePayload) }
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.from)
-            is NotebookAction.PageErased -> objects(a.pageId) { store.restoreIds(a.ids); store.remirrorPage(a.pageId) }
+            is NotebookAction.PageErased -> objects(a.pageId) { io { store.restoreIds(a.ids) }; io { store.remirrorPage(a.pageId) } }
             is NotebookAction.Page -> reconcile(a.before, restore = a.contentIds, delete = emptyList(), currentId = a.beforeCurrent)
             is NotebookAction.PagePasted -> reconcile(a.before, restore = emptyList(), delete = a.contentIds, currentId = a.beforeCurrent)
-            is NotebookAction.ObjectsPasted -> objects(a.pageId) { store.softDeleteIds(a.contentIds); store.remirrorPage(a.pageId) }
+            is NotebookAction.ObjectsPasted -> objects(a.pageId) { io { store.softDeleteIds(a.contentIds) }; io { store.remirrorPage(a.pageId) } }
         }
     }
 
@@ -437,46 +439,57 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         when (a) {
             is NotebookAction.Ink -> ink(a.action.pageId) { ink.reapply(a.action) }
             is NotebookAction.Deleted -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
-                store.deleteObjects(a.objects.ids, emptyList(), a.objects.links.map { it.id })
+                a.ink?.let { inkHalf { ink.reapply(it) } }
+                io { store.deleteObjects(a.objects.ids, emptyList(), a.objects.links.map { it.id }) }
             }
             is NotebookAction.Moved -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
-                store.moveBy(a.headingIds + a.textIds + a.stickyIds, a.dx, a.dy)
-                store.moveLinks(a.linkIds, a.dx, a.dy)
+                a.ink?.let { inkHalf { ink.reapply(it) } }
+                io { store.moveBy(a.headingIds + a.textIds + a.stickyIds, a.dx, a.dy) }
+                io { store.moveLinks(a.linkIds, a.dx, a.dy) }
             }
-            is NotebookAction.HeadingCreated -> objects(a.pageId) { store.restoreHeading(a.pageId, a.heading) }
+            is NotebookAction.HeadingCreated -> objects(a.pageId) { io { store.restoreHeading(a.pageId, a.heading) } }
             is NotebookAction.Converted -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
-                a.heading?.let { store.restoreHeading(a.pageId, it) }
-                a.text?.let { store.restoreText(a.pageId, it) }
+                a.ink?.let { inkHalf { ink.reapply(it) } }
+                a.heading?.let { io { store.restoreHeading(a.pageId, it) } }
+                a.text?.let { io { store.restoreText(a.pageId, it) } }
             }
-            is NotebookAction.HeadingEdited -> objects(a.pageId) { store.setHeadingContent(a.after) }
-            is NotebookAction.TextCreated -> objects(a.pageId) { store.restoreText(a.pageId, a.text) }
-            is NotebookAction.TextEdited -> objects(a.pageId) { store.setTextContent(a.after) }
-            is NotebookAction.StickyInserted -> objects(a.pageId) { store.restoreSticky(a.pageId, a.sticky) }
-            is NotebookAction.StickyContentEdited -> objects(a.pageId) { store.setStickyContent(a.stickyId, a.after) }
-            is NotebookAction.LinkCreated -> objects(a.pageId) { store.relink(a.pageId, a.link) }
-            is NotebookAction.LinkUnlinked -> objects(a.pageId) { store.unlink(a.pageId, a.link) }
+            is NotebookAction.HeadingEdited -> objects(a.pageId) { io { store.setHeadingContent(a.after) } }
+            is NotebookAction.TextCreated -> objects(a.pageId) { io { store.restoreText(a.pageId, a.text) } }
+            is NotebookAction.TextEdited -> objects(a.pageId) { io { store.setTextContent(a.after) } }
+            is NotebookAction.StickyInserted -> objects(a.pageId) { io { store.restoreSticky(a.pageId, a.sticky) } }
+            is NotebookAction.StickyContentEdited -> objects(a.pageId) { io { store.setStickyContent(a.stickyId, a.after) } }
+            is NotebookAction.LinkCreated -> objects(a.pageId) { io { store.relink(a.pageId, a.link) } }
+            is NotebookAction.LinkUnlinked -> objects(a.pageId) { io { store.unlink(a.pageId, a.link) } }
             is NotebookAction.LinkEdited -> objects(a.pageId) { setPayloadOf(a.linkId, a.after) }
             is NotebookAction.BibleRefCreated -> objects(a.pageId) {
-                a.ink?.let { ink.reapply(it) }
-                store.restoreText(a.pageId, a.text)
-                store.relink(a.pageId, a.link)
+                a.ink?.let { inkHalf { ink.reapply(it) } }
+                io { store.restoreText(a.pageId, a.text) }
+                io { store.relink(a.pageId, a.link) }
             }
-            is NotebookAction.BibleRefEdited -> objects(a.pageId) { store.setTextContent(a.afterText); setPayloadOf(a.linkId, a.afterPayload) }
+            is NotebookAction.BibleRefEdited -> objects(a.pageId) { io { store.setTextContent(a.afterText) }; setPayloadOf(a.linkId, a.afterPayload) }
             is NotebookAction.TemplateChanged -> if (goToLiving(a.pageId)) applyTemplate(a.pageId, a.to)
-            is NotebookAction.PageErased -> objects(a.pageId) { store.softDeleteIds(a.ids); store.remirrorPage(a.pageId) }
+            is NotebookAction.PageErased -> objects(a.pageId) { io { store.softDeleteIds(a.ids) }; io { store.remirrorPage(a.pageId) } }
             is NotebookAction.Page -> reconcile(a.after, restore = emptyList(), delete = a.contentIds, currentId = a.afterCurrent)
             is NotebookAction.PagePasted -> reconcile(a.after, restore = a.contentIds, delete = emptyList(), currentId = a.afterCurrent)
-            is NotebookAction.ObjectsPasted -> objects(a.pageId) { store.restoreIds(a.contentIds); store.remirrorPage(a.pageId) }
+            is NotebookAction.ObjectsPasted -> objects(a.pageId) { io { store.restoreIds(a.contentIds) }; io { store.remirrorPage(a.pageId) } }
         }
     }
 
-    /** A replay of a payload edit: the link is on the page by now (the replay landed there). */
-    private fun setPayloadOf(linkId: String, payload: String) {
+    /** A replay of a payload edit: the link is on the page by now (the replay landed there). The
+     *  lookup is here, on Main; the write is queued for IO. */
+    private fun Replay.setPayloadOf(linkId: String, payload: String) {
         val link = links[linkId] ?: return
-        store.setLinkPayload(pageId, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)), before = link.payload)
+        val page = pageId
+        io { store.setLinkPayload(page, link.copy(payload = payload, chrome = LinkPayload.chromeOf(payload)), before = link.payload) }
+    }
+
+    /** What an object replay does, queued on Main: the `store` writes, run on IO first, and the
+     *  ink half, applied on Main only once they have all landed. */
+    private class Replay {
+        val writes = ArrayList<() -> Unit>()
+        val inkHalves = ArrayList<() -> Unit>()
+        fun io(write: () -> Unit) { writes += write }
+        fun inkHalf(apply: () -> Unit) { inkHalves += apply }
     }
 
     /** An ink-only replay: in memory on the page, then flushed. */
@@ -486,12 +499,18 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         flushUntilClean()
     }
 
-    /** A replay that touches rows: the ink half first (in memory), then the rows on IO, then the
-     *  page read again so what shows is what a reopen would show. */
-    private suspend fun objects(pageId: String, replay: suspend () -> Unit) {
+    /** A replay that touches rows: the rows first, on IO; then the ink half (in memory, on Main,
+     *  as every other change to the ink and the objects); then the page read again so what shows
+     *  is what a reopen would show. Only the queued `store` writes leave Main. The order is the
+     *  undo contract's: an ink replay moves [InkDocument.replays], which tells the screen the step
+     *  reached the page — so it must not move while the rows can still fail to land. None of the
+     *  writes reads the ink. */
+    private suspend fun objects(pageId: String, replay: Replay.() -> Unit) {
         if (!goToLiving(pageId)) return
         flushUntilClean()
-        withContext(Dispatchers.IO) { replay() }
+        val queued = Replay().apply(replay)
+        withContext(Dispatchers.IO) { queued.writes.forEach { it() } }
+        queued.inkHalves.forEach { it() }
         reloadCurrent()
     }
 
@@ -510,11 +529,16 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
         withContext(Dispatchers.IO) { store.reconcile(pages, target, restore, delete, currentId) }
         pages = target
         val landing = target.first { it.id == currentId }
-        applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) })
+        applyPage(landing, withContext(Dispatchers.IO) { store.readPage(landing) }, swap = true)
         onPagesChanged(pages)
     }
 
-    private fun applyPage(page: PageRef, read: PageContent) {
+    /**
+     * Put [page] and [read] in memory. A [swap] (another page, or the first) leaves the renderers
+     * alone: every caller of one paints the page with `showPage`, which hands them the objects,
+     * with the link composites built off Main beforehand. The same page read again tells them.
+     */
+    private fun applyPage(page: PageRef, read: PageContent, swap: Boolean = false) {
         current = page
         ink.reset(page.id, read.strokes)
         headings.clear(); read.headings.forEach { headings[it.id] = measureHeading?.invoke(it) ?: it }
@@ -528,7 +552,7 @@ class NotebookDocument(private val store: NotebookStore, private val onPagesChan
                 density,
             )
         }
-        onObjectsChanged()
+        if (!swap) onObjectsChanged()
     }
 
     private companion object { const val TAG = "NotebookDocument" }

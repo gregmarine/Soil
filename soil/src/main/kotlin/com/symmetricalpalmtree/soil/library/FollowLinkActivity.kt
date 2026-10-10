@@ -35,10 +35,12 @@ class FollowLinkActivity : AppCompatActivity() {
         if (!day.isNullOrEmpty()) {
             // A link to a day: no item to look up. Untrusted input, so the shape is checked here.
             if (!CalAddress.isDate(day)) { finish(); return }
-            when (ItemApps.openCalendar(this, day)) {
-                ItemApps.Opened.YES -> finish()
-                ItemApps.Opened.NO_APP -> explain(R.string.follow_no_calendar_body)
-                ItemApps.Opened.FAILED -> explain(R.string.follow_calendar_failed_body)
+            lifecycleScope.launch {
+                when (ItemApps.showCalendar(this@FollowLinkActivity, day)) {
+                    ItemApps.Opened.YES -> finish()
+                    ItemApps.Opened.NO_APP -> explain(R.string.follow_no_calendar_body)
+                    ItemApps.Opened.FAILED -> explain(R.string.follow_calendar_failed_body)
+                }
             }
             return
         }
@@ -46,10 +48,12 @@ class FollowLinkActivity : AppCompatActivity() {
             // A link into the Bible: no item to look up, and the wire is the reader's to read.
             // Untrusted input, so only its shape is checked here; the reader says the rest.
             if (!BibleAddress.isWire(wire)) { finish(); return }
-            when (ItemApps.openBible(this, wire)) {
-                ItemApps.Opened.YES -> finish()
-                ItemApps.Opened.NO_APP -> explain(R.string.follow_no_bible_body)
-                ItemApps.Opened.FAILED -> explain(R.string.follow_bible_failed_body)
+            lifecycleScope.launch {
+                when (ItemApps.showBible(this@FollowLinkActivity, wire)) {
+                    ItemApps.Opened.YES -> finish()
+                    ItemApps.Opened.NO_APP -> explain(R.string.follow_no_bible_body)
+                    ItemApps.Opened.FAILED -> explain(R.string.follow_bible_failed_body)
+                }
             }
             return
         }
@@ -58,7 +62,7 @@ class FollowLinkActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val item = withContext(Dispatchers.IO) { runCatching { IndexStore().aliveItem(itemId) }.getOrNull() }
             if (item == null) { explain(R.string.follow_gone_body); return@launch }
-            when (ItemApps.open(this@FollowLinkActivity, item.id, item.kind, pageId = pageId)) {
+            when (ItemApps.openItem(this@FollowLinkActivity, item.id, item.kind, pageId = pageId)) {
                 ItemApps.Opened.YES -> finish()
                 ItemApps.Opened.NO_APP -> explain(getString(R.string.item_no_app_body, item.name))
                 ItemApps.Opened.FAILED -> explain(getString(R.string.item_open_failed_body, item.name))

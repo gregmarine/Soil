@@ -40,6 +40,11 @@ pasted in), Convert from a notebook, a sketch page as a link target, the seam's 
 16 MiB, then a translucent marker on a third raster (g-paper 0.1.68 and 0.1.69) and fixed sizes
 for every pen on the palette, and these documents. `docs/design.md` §16 lists the phases.
 
+**The code review is done and merged** (2026-10-08 to 2026-10-09): every module of Soil and
+g-paper (0.1.70) read by area, the findings fixed by module in three rounds with a fresh regression
+read between, then the walk's findings (verse ranges, the bar keys paired, Snap to guides from SN,
+one hidden-bars flag through Soil). `docs/design.md` §16 lists the rounds and their documents.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.

@@ -51,12 +51,27 @@ internal object RichOps {
     }
 
     /** The address of the link at the caret or over the selection, or null. */
-    fun linkAt(view: RichEditText): String? {
+    fun linkAt(view: RichEditText): String? = linkSpanAt(view)?.url
+
+    /** The words of the link at the caret or over the selection, or null. */
+    fun linkWordsAt(view: RichEditText): String? {
+        val s = view.text ?: return null
+        val link = linkSpanAt(view) ?: return null
+        return s.subSequence(s.getSpanStart(link), s.getSpanEnd(link)).toString()
+    }
+
+    private fun linkSpanAt(view: RichEditText): LinkSpan? {
         val s = view.text ?: return null
         val a = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         val b = maxOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         val links = if (b > a) s.getSpans(a, b, LinkSpan::class.java) else RichCodec.around(s, a, LinkSpan::class.java)
-        return links.firstOrNull { s.getSpanStart(it) <= a && s.getSpanEnd(it) >= b }?.url
+        return links.firstOrNull { s.getSpanStart(it) <= a && s.getSpanEnd(it) >= b }
+    }
+
+    /** `[from, to)` a link to [url] and to nothing else: any other link over it is taken off first. */
+    fun linkOver(s: Editable, from: Int, to: Int, url: String) {
+        removeStyle(s, from, to, RichStyle.LINK)
+        addStyle(s, from, to, RichStyle.LINK, url)
     }
 
     /**
@@ -251,13 +266,22 @@ internal object RichOps {
         view.edited(words = false)
     }
 
-    /** Plain words put in at the caret, over the selection, with [selectFrom]..[selectTo] of them left selected. */
+    /**
+     * Plain words put in at the caret, over the selection, with [selectFrom]..[selectTo] of them
+     * left selected. They are plain: a style the caret stood in or at the end of does not take
+     * them in, and none runs on over a line break among them.
+     */
     fun insertText(view: RichEditText, words: String, selectFrom: Int, selectTo: Int) {
         val s = view.text ?: return
         val a = minOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         val b = maxOf(view.selectionStart, view.selectionEnd).coerceAtLeast(0)
         view.beforeTool()
-        view.edit { it.replace(a, b, words) }
+        view.edit {
+            it.replace(a, b, words)
+            val end = (a + words.length).coerceAtMost(it.length)
+            for (style in RichStyle.values()) removeStyle(it, a, end, style)
+            keepOffLineBreaks(it, a, end)
+        }
         view.setSelection((a + selectFrom).coerceAtMost(s.length), (a + selectTo).coerceAtMost(s.length))
         view.edited(words = false)
     }

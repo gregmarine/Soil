@@ -77,4 +77,16 @@ class RichTypingTest {
         assertEquals(Triple(4, 1, RichStyle.ITALIC), pair("*a* *b*"))
         assertEquals(Triple(8, 2, RichStyle.BOLD), pair("**a** x **b**"))
     }
+
+    @Test
+    fun `a marker held inside code or a link does not open a pair`() {
+        // The star inside the code span is a character of the code, not an opener.
+        val typed = "see `x *y` z*"
+        assertEquals(Triple(7, 1, RichStyle.ITALIC), pair(typed))
+        assertNull(RichTyping.pairClosed(typed) { it in 4..9 })
+        // Nor is one inside a link's words.
+        assertNull(RichTyping.pairClosed("a _b c_") { it in 2..4 })
+        // What is held elsewhere does not stop a pair whose opener is free.
+        assertEquals(2, RichTyping.pairClosed("a _b c_") { it == 0 }?.openStart)
+    }
 }

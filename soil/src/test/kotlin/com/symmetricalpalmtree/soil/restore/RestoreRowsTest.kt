@@ -130,13 +130,14 @@ class RestoreRowsTest {
         val entries = listOf(
             file("soil.db", size = 100L),
             file("$uuidA.soil.part", size = 1L),
+            file("$uuidB.soil", size = 32L),
             file("$uuidB.soil.old", size = 2L),
             file("$uuidA.soil.rekey.tmp", size = 4L),
             file("$uuidB.soil.old.bak", size = 8L),
             file("$uuidA.soil-shm", size = 16L),
         )
         val row = RestoreRows.rowFor("nomad", entries, RestoreLeg.CLOUD, "nomad")!!
-        assertEquals(0, row.itemCount)
-        assertEquals(100L, row.totalBytes)
+        assertEquals(1, row.itemCount)
+        assertEquals(132L, row.totalBytes)
     }
 }

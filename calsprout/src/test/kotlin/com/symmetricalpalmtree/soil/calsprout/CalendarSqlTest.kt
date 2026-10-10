@@ -49,7 +49,9 @@ class CalendarSqlTest {
             CalendarSql.insertPage("g", "c", 0, "2026-09-01", 0, 1f, 1f, 0L),
             CalendarSql.sizePage("g", 1f, 1f, 0L),
             CalendarSql.touchPage("g", 0L),
+            CalendarSql.touchPageOf("c", 2, "2026-09-01", 1, 0L),
             CalendarSql.putStroke("g", 0L, s),
+            CalendarSql.putStrokeOnPage("c", 2, "2026-09-01", 1, 0L, s),
             CalendarSql.dropStroke("s"),
             CalendarSql.setState("c", "k", "v"),
         ).forEach { SeamSql.checkExec(it.sql); assertEquals(it.sql, SeamSql.bindCount(it.sql), it.args.size) }
@@ -161,6 +163,37 @@ class CalendarSqlTest {
         assertEquals(
             "SELECT (SELECT COUNT(*) FROM period) AS periods, (SELECT COUNT(*) FROM page) AS pages, (SELECT COUNT(*) FROM stroke) AS strokes, (SELECT COUNT(*) FROM event) AS events",
             CalendarSql.selectCounts().sql,
+        )
+    }
+
+    @Test
+    fun aPageThisShowingMintedIsNamedByPeriodAndHalf() {
+        val s = stroke()
+        val put = CalendarSql.putStrokeOnPage("default", 2, "2026-09-01", 1, 4L, s)
+        assertEquals(
+            "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, " +
+                "(SELECT id FROM page WHERE periodId = (SELECT id FROM period WHERE calendarId = ? AND kind = ? AND date = ?) AND half = ?), " +
+                "?, ?, ?, ?, ?)",
+            put.sql,
+        )
+        assertEquals(
+            listOf(
+                Cell.Text("s1"), Cell.Text("default"), Cell.Integer(2), Cell.Text("2026-09-01"), Cell.Integer(1),
+                Cell.Integer(4), Cell.Integer(Stroke.BLACK.toLong()), Cell.Real(3.0), Cell.Text("PEN"),
+            ),
+            put.args.dropLast(1),
+        )
+        assertArrayEquals(StrokeBlob.encode(s), (put.args.last() as Cell.Blob).value)
+
+        val touch = CalendarSql.touchPageOf("default", 2, "2026-09-01", 1, 8L)
+        assertEquals(
+            "UPDATE page SET updatedAt = ? WHERE id = " +
+                "(SELECT id FROM page WHERE periodId = (SELECT id FROM period WHERE calendarId = ? AND kind = ? AND date = ?) AND half = ?)",
+            touch.sql,
+        )
+        assertEquals(
+            listOf(Cell.Integer(8), Cell.Text("default"), Cell.Integer(2), Cell.Text("2026-09-01"), Cell.Integer(1)),
+            touch.args,
         )
     }
 }

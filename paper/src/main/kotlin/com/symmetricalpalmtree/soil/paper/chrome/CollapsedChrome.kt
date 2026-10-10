@@ -104,7 +104,7 @@ class CollapsedChrome(
     private val onChanged: () -> Unit,
     /**
      * Which tool buttons the mini toolbar carries, in order (arc 43 / K2). The default is
-     * [CollapsedTools.ORDER] — the four every paper screen up to now has had — and it is the whole
+     * [CollapsedTools.ORDER] — the four every writing screen has: pen, the two erasers, lasso — and it is the whole
      * of the parameter's reason: a screen with **two** tools (the sketch surface's pencil and its
      * rubbing eraser; there is no lasso on a raster page and nothing to select) would otherwise
      * show two buttons that arm tools its surface does not have. Last in the list and defaulted, so
@@ -420,7 +420,7 @@ class CollapsedChrome(
         syncKnob(armed)
         syncPrimaryPen()
         syncExtraPens()
-        // [CollapsedTools.selectedFor] answers against the full order, so on a shortened bar it can
+        // [CollapsedTools.selectedFor] answers any armed tool, so on a shortened bar it can
         // name a tool that has no button here — the walk is over the buttons this bar actually
         // built, so that reads as "nothing bordered", which is exactly right.
         val selected = CollapsedTools.selectedFor(armed)

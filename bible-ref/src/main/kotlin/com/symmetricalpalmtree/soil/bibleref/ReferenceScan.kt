@@ -14,6 +14,9 @@ package com.symmetricalpalmtree.soil.bibleref
  * left parses, so "John 3:16, 2019" links `John 3:16`; a trailing comma is never part of a hit.
  * The chapters must exist ([Canon.chapterCount]); the verses are bounded by the parser alone.
  *
+ * A reference lies on one line: no space in it crosses a line break, so a list's
+ * "1. Genesis" never reaches the next item's number.
+ *
  * Two references in one sentence are two hits, each its own link: `; Acts 1:3` starts over at
  * the book name. What is inside an existing link, a code span or anything else is the caller's
  * to mask: the scanner reads the text it is given.
@@ -24,13 +27,15 @@ object ReferenceScan {
         val wire: String get() = ReferenceCodec.encode(passages)
     }
 
-    private const val PREFIX = "(?:(?:[123]|III|II|I|1st|2nd|3rd|First|Second|Third)\\s*)?"
-    private const val WORD = "[A-Z][A-Za-z]*(?:\\s+of\\s+[A-Z][a-z]+)?"
-    private val book = Regex("(?<![A-Za-z0-9])($PREFIX$WORD)(\\.?)\\s*(?=[0-9])")
+    /** Space within one line: a reference never runs across a line break ("1. Genesis\n2. Exodus"). */
+    private const val SP = "[^\\S\\r\\n]"
+    private const val PREFIX = "(?:(?:[123]|III|II|I|1st|2nd|3rd|First|Second|Third)$SP*)?"
+    private const val WORD = "[A-Z][A-Za-z]*(?:$SP+of$SP+[A-Z][a-z]+)?"
+    private val book = Regex("(?<![A-Za-z0-9])($PREFIX$WORD)(\\.?)$SP*(?=[0-9])")
 
     private const val NUMBER = "[0-9]+(?::[0-9]+)?"
-    private val firstSegment = Regex("^$NUMBER(?:\\s*[-–—]\\s*$NUMBER)?")
-    private val nextSegment = Regex("^\\s*,\\s*($NUMBER(?:\\s*[-–—]\\s*$NUMBER)?)")
+    private val firstSegment = Regex("^$NUMBER(?:$SP*[-–—]$SP*$NUMBER)?")
+    private val nextSegment = Regex("^$SP*,$SP*($NUMBER(?:$SP*[-–—]$SP*$NUMBER)?)")
 
     /** Every reference in [text], in order, none overlapping. */
     fun scan(text: String): List<Hit> {
@@ -58,6 +63,7 @@ object ReferenceScan {
         for (k in ends.indices.reversed()) {
             val end = ends[k]
             val words = text.substring(m.range.first, end)
+            if (words.any { it == '\n' || it == '\r' }) continue
             val parsed = ReferenceParser.parse(words) ?: continue
             val passages = ReferenceResolver.normalize(listOf(parsed), Canon::chapterCount)
             if (!ReferenceResolver.valid(passages, Canon::chapterCount) { true }) continue

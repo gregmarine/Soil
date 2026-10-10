@@ -12,6 +12,7 @@ import com.symmetricalpalmtree.soil.data.item.ItemNames
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.templates.NameDialog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,12 +33,21 @@ object NewDocument {
 
     fun ask(activity: AppCompatActivity, folderId: String) {
         activity.lifecycleScope.launch {
-            val prefill = withContext(Dispatchers.IO) {
-                val store = LibraryStore()
-                val scheme = store.resolve(folderId) { it.scheme }
-                SchemePrefill.expand(scheme, System.currentTimeMillis()) { store.items(folderId).map { it.name } }
-                    ?: SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            }
+            // The folder's scheme is a prefill, not a need: a read that fails falls back to the
+            // date and time, as a folder with no scheme does.
+            val prefill = try {
+                withContext(Dispatchers.IO) {
+                    val store = LibraryStore()
+                    val scheme = store.resolve(folderId) { it.scheme }
+                    SchemePrefill.expand(scheme, System.currentTimeMillis()) { store.items(folderId).map { it.name } }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the folder's scheme could not be read: ${e.javaClass.simpleName}")
+                null
+            } ?: SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            if (activity.isFinishing || activity.isDestroyed) return@launch
             // Guarded by a flag, never a disabled button.
             var creating = false
             NameDialog.show(activity, R.string.new_document_title, R.string.new_notebook_create, initial = prefill, hintRes = R.string.new_notebook_hint) { typed, dismiss ->
@@ -82,7 +92,7 @@ object NewDocument {
                 return
             }
             ItemSessions.changed()
-            if (ItemApps.open(activity, id, IndexSchema.KIND_DOCUMENT) != ItemApps.Opened.YES) {
+            if (ItemApps.openItem(activity, id, IndexSchema.KIND_DOCUMENT) != ItemApps.Opened.YES) {
                 Dialogs.problem(activity, activity.getString(R.string.item_open_failed_title), activity.getString(R.string.item_open_failed_body, name))
             }
         } catch (e: Exception) {

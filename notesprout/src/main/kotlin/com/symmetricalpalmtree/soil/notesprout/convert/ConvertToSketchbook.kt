@@ -82,7 +82,14 @@ object ConvertToSketchbook {
                 problem(activity, activity.getString(R.string.convert_sketch_too_large_body))
                 return
             }
-            val made = withContext(Dispatchers.IO) { seam().makeItemFromFile(notebookId, name, EXTENSION, SeamShared.write(bytes)) }
+            val made = withContext(Dispatchers.IO) {
+                val file = SeamShared.write(bytes)
+                try {
+                    seam().makeItemFromFile(notebookId, name, EXTENSION, file)
+                } finally {
+                    file.memory.close()
+                }
+            }
             Slog.d(TAG) { "converted ${pages.size} page(s) (${bytes.size} B) into a sketchbook in ${System.currentTimeMillis() - started} ms" }
             RecognizingOverlay.hide(activity)
             done(activity, made, onOpen, onLeaveLink)

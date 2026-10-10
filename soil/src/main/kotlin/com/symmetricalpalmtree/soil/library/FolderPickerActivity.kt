@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.TextUtils
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -22,6 +23,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityFolderPickerBinding
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.templates.TemplateIds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,11 +84,22 @@ class FolderPickerActivity : AppCompatActivity() {
 
     // ── Listing ──────
 
-    private fun refresh() {
+    /** List [target] and stand in it. A read that fails says so and leaves the picker where it was. */
+    private fun refresh(target: String = folderId) {
         lifecycleScope.launch {
-            val (list, ancestry) = withContext(Dispatchers.IO) {
-                foldersIn(folderId).filter { it.id != moveId } to (if (folderId.isEmpty()) emptyList() else ancestryOf(folderId))
+            val read: Pair<List<Row>, List<Row>> = try {
+                withContext(Dispatchers.IO) {
+                    foldersIn(target).filter { it.id != moveId } to (if (target.isEmpty()) emptyList() else ancestryOf(target))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the folders could not be read: ${e.javaClass.simpleName}")
+                if (!isFinishing && !isDestroyed) Dialogs.problem(this@FolderPickerActivity, R.string.library_read_failed_title, R.string.library_read_failed_body)
+                return@launch
             }
+            val (list, ancestry) = read
+            folderId = target
             folders = list
             renderBreadcrumb(ancestry)
             binding.btnUp.visibility = if (folderId.isEmpty()) View.GONE else View.VISIBLE
@@ -143,11 +156,19 @@ class FolderPickerActivity : AppCompatActivity() {
     }
 
     private fun turn(to: Int) { page = to; render() }
-    private fun navigateTo(id: String) { folderId = id; refresh() }
+    private fun navigateTo(id: String) = refresh(id)
 
     private fun goUp() {
         lifecycleScope.launch {
-            val ancestry = withContext(Dispatchers.IO) { ancestryOf(folderId) }
+            val ancestry = try {
+                withContext(Dispatchers.IO) { ancestryOf(folderId) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the path could not be read: ${e.javaClass.simpleName}")
+                if (!isFinishing && !isDestroyed) Dialogs.problem(this@FolderPickerActivity, R.string.library_read_failed_title, R.string.library_read_failed_body)
+                return@launch
+            }
             navigateTo(if (ancestry.size >= 2) ancestry[ancestry.size - 2].id else "")
         }
     }
@@ -180,6 +201,11 @@ class FolderPickerActivity : AppCompatActivity() {
                 }
                 setResult(Activity.RESULT_OK, Intent().putExtra(EXTRA_PICKED_FOLDER, folderId))
                 finish()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the move failed: ${e.javaClass.simpleName}")
+                if (!isFinishing && !isDestroyed) Dialogs.problem(this@FolderPickerActivity, R.string.library_change_failed_title, R.string.library_change_failed_body)
             } finally {
                 busy = false
             }
@@ -207,6 +233,7 @@ class FolderPickerActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "FolderPicker"
         const val EXTRA_PICKED_FOLDER = "pickedFolder"
         private const val EXTRA_HIERARCHY = "hierarchy"
         private const val EXTRA_START_FOLDER = "startFolder"

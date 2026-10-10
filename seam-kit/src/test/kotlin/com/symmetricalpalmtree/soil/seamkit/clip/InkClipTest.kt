@@ -127,4 +127,17 @@ class InkClipTest {
         assertNotNull(ClipEnvelope.decode(ClipEnvelope.encode(env)))
         assertNull(InkClip.pageSizeOf(InkClip.envelopeOf(listOf(stroke("a", 1f, 1f)), 1L)!!))
     }
+
+    @Test
+    fun `two pages' ink comes page by page, each in its own writing order, never interleaved`() {
+        val am = InkClip.PageInk(1404f, 1872f, grid, listOf(9L to stroke("am-late", 1f, 1f), 5L to stroke("am-early", 1f, 1f)))
+        val pm = InkClip.PageInk(1404f, 1872f, otherGrid, listOf(0L to stroke("pm-first", 2f, 2f), 1L to stroke("pm-second", 2f, 2f)))
+        val env = InkClip.pageEnvelopeOf(listOf(am, pm), 1L, ids())!!
+        assertEquals(listOf("am-early", "am-late", "pm-first", "pm-second"), InkClip.strokesOf(env).map { it.id })
+        // The first page alone, as the pad and the calendar take it, by its page row.
+        val first = env.rows.first { it.type == "page" }.id
+        val onFirst = env.rows.filter { it.parentId == first }.mapTo(HashSet()) { it.id }
+        assertEquals(listOf("am-early", "am-late"), InkClip.strokesOf(env).filter { it.id in onFirst }.map { it.id })
+        assertEquals(1404f to 1872f, InkClip.pageSizeOf(env))
+    }
 }

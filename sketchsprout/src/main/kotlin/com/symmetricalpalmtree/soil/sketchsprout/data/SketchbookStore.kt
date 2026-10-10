@@ -197,9 +197,10 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
     class IngestedPage(val width: Float, val height: Float, val paperToken: String?, val paper: ByteArray?, val ink: ByteArray?)
 
     /**
-     * A sketchbook file Soil just made, filled in one transaction: the root row, a template row
-     * per distinct paper (shared by every page on the same paper), a page row per page in order,
-     * and an ink row under each page that has one. Answers the page ids in order.
+     * A sketchbook file Soil just made, filled: the root row, a template row per distinct paper
+     * (shared by every page on the same paper), a page row per page in order, and an ink row under
+     * each page that has one — in [StatementBatches] under the seam's caps. Answers the page ids
+     * in order.
      */
     fun ingest(name: String, pages: List<IngestedPage>): List<String> {
         require(pages.isNotEmpty()) { "no pages" }
@@ -225,7 +226,10 @@ class SketchbookStore(store: RowStore, private val sketchbookId: String) : InkSt
             }
         }
         statements += SketchbookSql.setLastOpened(sketchbookId, ids.first(), now)
-        execAll(statements)
+        // In batches the seam will carry (a raster a page: a long notebook is many payloads), in
+        // order. Not one transaction across them: a failure part-way is the whole Convert failing,
+        // and Soil takes the new item away.
+        for (batch in StatementBatches.split(statements)) execAll(batch)
         return ids
     }
 

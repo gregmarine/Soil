@@ -14,8 +14,9 @@ import com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadTokenize
  *
  * What is **not** linked: words inside an existing link, a code span or a raw block
  * ([protected]); a reference the writer took the link off ([BibleUnlinked]); and a reference
- * the caret is touching, which may still be being typed, left for the pass after the caret has
- * moved on. Pure.
+ * the caret is touching, which may still be being typed (the caret in it, at either end, or
+ * just past a `:`, a dash or a `,` after it), left for the pass after the caret has moved on.
+ * Pure.
  */
 object ReferenceLinker {
 
@@ -30,7 +31,7 @@ object ReferenceLinker {
     /**
      * The references in [text] within [region] (grown to whole lines), none of whose characters
      * are [protected], none in [unlinked], none touching [caret] (a caret anywhere in the words,
-     * or at either end of them).
+     * at either end of them, or just past a `:`, a dash or a `,` after them).
      */
     fun plan(text: String, region: ProofreadCheck.Region, protected: BooleanArray, unlinked: Set<String>, caret: Int?): Plan {
         val lines = ProofreadCheck.lineRegion(text, region.start, region.end)
@@ -43,12 +44,25 @@ object ReferenceLinker {
             val end = lines.start + found.end
             if ((start until end).any { it < protected.size && protected[it] }) continue
             val words = text.substring(start, end)
+            // A link is one line's words: one across a line break would join two blocks.
+            if (words.indexOf('\n') >= 0) continue
             val wire = found.wire
             if (BibleUnlinked.key(words, wire) in unlinked) continue
-            if (caret != null && caret in start..end) { held = true; continue }
+            if (caret != null && touches(text, start, end, caret)) { held = true; continue }
             hits += Hit(start, end, words, wire)
         }
         return Plan(hits, held)
+    }
+
+    /**
+     * Whether [caret] may still be writing the reference `[start, end)`: anywhere in its words or
+     * at either end, or just past a `:`, a dash or a `,` typed after it on its line, with spaces
+     * around it, since "John 3:" is "John 3:14-17" half typed, not "John 3" and a colon.
+     */
+    private fun touches(text: String, start: Int, end: Int, caret: Int): Boolean {
+        if (caret in start..end) return true
+        if (caret < end || caret > text.length) return false
+        return GROWING.matches(text.subSequence(end, caret))
     }
 
     /**
@@ -64,6 +78,7 @@ object ReferenceLinker {
         val slice = text.substring(lines.start, lines.end)
         return ReferenceScan.scan(slice)
             .map { Hit(lines.start + it.start, lines.start + it.end, text.substring(lines.start + it.start, lines.start + it.end), it.wire) }
+            .filter { it.words.indexOf('\n') < 0 }
             .firstOrNull { a <= it.end && b >= it.start }
     }
 
@@ -86,6 +101,9 @@ object ReferenceLinker {
         }
         return sb.toString() to moved
     }
+
+    /** What may follow a reference's last number while more of it is being typed. */
+    private val GROWING = Regex("[ \\t]*[:\\-–—,][ \\t]*")
 
     private val LINK = Regex("""!?\[[^\]\n]*]\([^)\n]*\)""")
 }

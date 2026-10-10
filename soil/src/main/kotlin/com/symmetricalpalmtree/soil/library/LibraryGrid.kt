@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.library
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.View
@@ -17,8 +18,8 @@ import java.util.Date
 
 /**
  * One page of library cards in [container], the template grid's shape: measured once against the
- * real band, paged, never scrolling. The host owns the listing, the page and the covers; a
- * missing cover is blank paper. [bind] removes only the grid it added last: the empty state is a
+ * real band, paged, never scrolling. The host owns the listing, the page and the covers, decoded
+ * off Main ([decodeCover]); a missing cover is blank paper. [bind] removes only the grid it added last: the empty state is a
  * sibling in the container.
  */
 class LibraryGrid(
@@ -44,7 +45,7 @@ class LibraryGrid(
         cardHeight = (cardWidth * GridMath.CARD_ASPECT).toInt().coerceAtLeast(1)
     }
 
-    fun bind(items: List<LibraryCard>, pageIndex: Int, covers: Map<String, ByteArray?>, selectedId: String? = null) {
+    fun bind(items: List<LibraryCard>, pageIndex: Int, covers: Map<String, Bitmap?>, selectedId: String? = null) {
         currentGrid?.let { container.removeView(it) }
         currentGrid = null
         val range = GridMath.pageRange(pageIndex, cardsPerPage, items.size)
@@ -83,7 +84,7 @@ class LibraryGrid(
             findViewById<TextView>(R.id.folderName).text = card.name
         }
 
-    private fun itemCard(inflater: LayoutInflater, context: Context, card: LibraryCard.ItemCard, coverBytes: ByteArray?): View {
+    private fun itemCard(inflater: LayoutInflater, context: Context, card: LibraryCard.ItemCard, bmp: Bitmap?): View {
         val view = inflater.inflate(R.layout.card_notebook, container, false)
         val item = card.item
         view.findViewById<TextView>(R.id.cardName).text = item.name
@@ -93,7 +94,6 @@ class LibraryGrid(
         view.findViewById<View>(R.id.pinBadge).visibility = if (card.pinned) View.VISIBLE else View.GONE
         view.findViewById<ImageView>(R.id.kindGlyph).setImageResource(kindGlyph(item.kind))
         val cover = view.findViewById<ImageView>(R.id.coverImage)
-        val bmp = Bitmaps.decodeBounded(coverBytes, COVER_DECODE_EDGE)
         if (bmp != null) {
             cover.scaleType = ImageView.ScaleType.CENTER_CROP
             cover.setImageBitmap(bmp)
@@ -104,7 +104,7 @@ class LibraryGrid(
     }
 
     /** A tagged page: the item's cover and kind, `Name · Page N` on the name line, the place and the tag under it. */
-    private fun pageCard(inflater: LayoutInflater, context: Context, card: LibraryCard.PageCard, coverBytes: ByteArray?): View {
+    private fun pageCard(inflater: LayoutInflater, context: Context, card: LibraryCard.PageCard, bmp: Bitmap?): View {
         val view = inflater.inflate(R.layout.card_notebook, container, false)
         val item = card.item
         view.findViewById<TextView>(R.id.cardName).text =
@@ -114,7 +114,6 @@ class LibraryGrid(
         view.findViewById<View>(R.id.pinBadge).visibility = View.GONE
         view.findViewById<ImageView>(R.id.kindGlyph).setImageResource(kindGlyph(item.kind))
         val cover = view.findViewById<ImageView>(R.id.coverImage)
-        val bmp = Bitmaps.decodeBounded(coverBytes, COVER_DECODE_EDGE)
         if (bmp != null) {
             cover.scaleType = ImageView.ScaleType.CENTER_CROP
             cover.setImageBitmap(bmp)
@@ -131,8 +130,11 @@ class LibraryGrid(
         else -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text
     }
 
-    private companion object {
+    companion object {
         /** Covers are written small; the decode is bounded whatever the blob claims. */
-        const val COVER_DECODE_EDGE = 512
+        private const val COVER_DECODE_EDGE = 512
+
+        /** A cover's bytes as the card shows them. IO: never on Main. */
+        fun decodeCover(bytes: ByteArray?): Bitmap? = Bitmaps.decodeBounded(bytes, COVER_DECODE_EDGE)
     }
 }

@@ -10,12 +10,12 @@ import kotlinx.serialization.json.Json
  * Lives in EncryptedSharedPreferences beside the cached global passphrase (the same posture:
  * device-local, never synced, never in the index, never in an Intent). While one exists the
  * library is in two keys: files already re-keyed open under [newPassphrase], the rest under the
- * cached global. `SnIndex.ensureReady` tries [newPassphrase] for the index and commits the rotation
+ * cached global. `SoilIndex.ensureReady` tries [newPassphrase] for the index and commits the rotation
  * itself when it fits (resume path 3); Bootstrap forwards to the Encryption screen so the banner
  * cannot be missed (path 2); the banner's Resume is path 1.
  *
  * @property pendingIds what is still to re-key, in [RotationPlan] order — notebooks, then
- *   `ext:<pkg>` stores, then the index id last. Ids only, never names.
+ *   `store:<name>` stores, then the index id last. Ids only, never names.
  * @property newPassphrase the passphrase every file ends up under. Never logged.
  * @property minted true when [newPassphrase] is an auto-minted `SOIL-` key — the commit then clears
  *   the recovery-key acknowledgement so Bootstrap shows it once through `RecoveryKeyActivity`.

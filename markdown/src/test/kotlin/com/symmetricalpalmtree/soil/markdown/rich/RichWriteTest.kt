@@ -80,6 +80,31 @@ class RichWriteTest {
     }
 
     @Test
+    fun `a raw line that would not read back as raw is written as a paragraph of its words`() {
+        val raw = RichAttr(RichKind.RAW)
+        // A line edited out of its table, and one that would read as a heading.
+        assertEquals("| a |\n\nfoo\n\n\\# bar\n\n| b |\n", write(RichBlock(raw, "| a |"), RichBlock(raw, "foo"), RichBlock(raw, "# bar"), RichBlock(raw, "| b |")))
+        // A fence whose closing line is gone, with words after it, does not swallow them.
+        assertEquals("\\`\\``\n\nx\n\nend\n", write(RichBlock(raw, "```"), RichBlock(raw, "  x"), p("end")))
+        // A fence never closed at the end of the document is kept as it was read.
+        assertEquals("a\n\n```\n  x\n", write(p("a"), RichBlock(raw, "```"), RichBlock(raw, "  x")))
+    }
+
+    @Test
+    fun `indented code and tilde fences are written as they are`() {
+        val raw = RichAttr(RichKind.RAW)
+        assertEquals("a\n\n    x\n\n    y\n~~~\n*z*\n~~~\n", write(p("a"), RichBlock(raw, "    x"), RichBlock(raw, ""), RichBlock(raw, "    y"), RichBlock(raw, "~~~"), RichBlock(raw, "*z*"), RichBlock(raw, "~~~")))
+        // Under a list the indent would be the list's.
+        assertEquals("- a\n\nx\n", write(RichBlock(RichAttr(RichKind.BULLET), "a"), RichBlock(raw, "    x")))
+    }
+
+    @Test
+    fun `a strike around a tilde at the start of a paragraph is not a fence`() {
+        assertEquals("~~\\~a~~\n", write(p("~a", RichSpan(0, 2, RichStyle.STRIKE))))
+        roundTrip(RichDoc(listOf(p("~~", RichSpan(0, 2, RichStyle.STRIKE)))))
+    }
+
+    @Test
     fun `an image is written as it is held`() {
         assertEquals("see ![a_b](http://x/y_z.png) and _it_\n", write(p("see ![a_b](http://x/y_z.png) and it", RichSpan(33, 35, RichStyle.ITALIC))))
     }
@@ -121,6 +146,26 @@ class RichWriteTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `raw documents read back as written`() {
+        val raw = RichAttr(RichKind.RAW)
+        fun r(t: String) = RichBlock(raw, t)
+        val docs = listOf(
+            listOf(p("a"), r("~~~"), r("x"), r(""), r("```"), r("~~~"), p("b")),
+            listOf(r("````"), r("```"), r("````"), r(""), r("| t |")),
+            listOf(p("a"), r("    code"), r(""), r("\tmore"), p("b"), r("    again")),
+            listOf(r("| a |"), r("foo"), r("    x"), r("```"), p("end")),
+            listOf(RichBlock(RichAttr(RichKind.ORDERED, number = 1), "a"), r("    x"), r("| t |"), r(""), r("    y")),
+        )
+        for (blocks in docs) {
+            val written = RichWrite.write(RichDoc(blocks)).text
+            // Read back, then written again, nothing changes.
+            assertEquals(written, RichWrite.write(RichParse.parse(written).doc).text)
+        }
+        roundTrip(RichDoc(listOf(p("a"), r("~~~"), r("x"), r(""), r("```"), r("~~~"), p("b"))))
+        roundTrip(RichDoc(listOf(p("a"), r("    code"), r(""), r("\tmore"), p("b"))))
     }
 
     @Test

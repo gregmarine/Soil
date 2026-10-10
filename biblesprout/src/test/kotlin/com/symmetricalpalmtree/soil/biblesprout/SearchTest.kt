@@ -114,6 +114,16 @@ class SearchTest {
         assertEquals(SearchRoute.Words("Jhon 3:16"), SearchRoute.classify("Jhon 3:16"))
     }
 
+    @Test
+    fun `a list of references too long for one wire is words`() {
+        // Fifty single verses: each "JHN:1:n-1:n" range is 11 to 13 characters, past 512 in all.
+        val typed = (1..99 step 2).joinToString(", ") { "John 1:$it" }
+        assertEquals(SearchRoute.Words(typed), SearchRoute.classify(typed))
+        // A short list of the same shape is still a passage, and its wire is one.
+        val short = SearchRoute.classify("John 1:1, John 1:3") as SearchRoute.Passage
+        assertTrue(ReferenceCodec.isWire(short.wire))
+    }
+
     // --- the snippet --------------------------------------------------------
 
     @Test

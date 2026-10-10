@@ -44,4 +44,15 @@ class HiddenAppsTest {
         assertEquals(listOf(probe, reader), HiddenApps.visible(all, hidden))
         assertEquals(listOf(notes), HiddenApps.hiddenOf(all, hidden))
     }
+
+    /** A hide tapped before the stored list was read is replayed over it, never written over it. */
+    @Test
+    fun anEarlyEditIsReplayedOverTheStoredList() {
+        val stored = setOf("a/a.Main", "b/b.Main")
+        assertEquals(setOf("a/a.Main", "b/b.Main", "c/c.Main"), HiddenApps.replay(stored, listOf("c/c.Main" to true)))
+        assertEquals(setOf("b/b.Main"), HiddenApps.replay(stored, listOf("a/a.Main" to false)))
+        // In order: hidden, then shown again, ends shown.
+        assertEquals(stored, HiddenApps.replay(stored, listOf("c/c.Main" to true, "c/c.Main" to false)))
+        assertEquals(stored, HiddenApps.replay(stored, emptyList()))
+    }
 }

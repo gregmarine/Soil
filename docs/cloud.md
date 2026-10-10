@@ -54,6 +54,12 @@ opens there and Up stops there. Backups go under `Backups/<this device's folder>
 opens at the root, so both are one tap away, and filters nothing by extension: which importer
 reads a file is decided afterwards, by its name, exactly as for a picked document.
 
+The extension remembers folder ids, the root's across runs and the rest for the life of its
+process, and forgets them all when the account goes. A folder deleted on the web is found or
+made again on the next call. One trashed on the web still answers, so the stored root is checked
+once a process, and a write that lands in the trash fails and makes the next try start again
+from the root.
+
 ## Export to the cloud
 
 With a provider installed the export screen grows a Destination row: this device, or the
@@ -91,7 +97,9 @@ A Binder call cannot be cancelled, so a budget that runs out leaves the provider
 while Soil has already spoken: a timeout undoes nothing, and nothing is retried on its own.
 Every operation is replace-by-name or idempotent, so "try again" is safe to offer. The numbers
 in `CloudTimeouts` carry their Nomad measurements from Notesprout SN; each is 5–30× its
-measurement. Uploads over 5 MiB are budgeted per 20 MiB slice.
+measurement. Uploads over 5 MiB, and downloads over 20 MiB (a restore's or an import's), are
+budgeted per 20 MiB slice. A listing at the contract's cap of 1 000 entries may have been
+truncated by the provider: a restore refuses that backup folder, and the backup leg logs it.
 
 ## Not in this phase
 

@@ -85,7 +85,14 @@ class HomeActivity : AppCompatActivity() {
         val pick = TemplatePick.decode(encoded) ?: return@registerForActivityResult
         lifecycleScope.launch {
             // Blank is the absence of a say: a folder whose default is Blank says nothing.
-            withContext(Dispatchers.IO) { LibraryStore().setDefaultTemplate(folderId, if (pick is TemplatePick.Blank) null else encoded) }
+            try {
+                withContext(Dispatchers.IO) { LibraryStore().setDefaultTemplate(folderId, if (pick is TemplatePick.Blank) null else encoded) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("HomeActivity", "the default paper could not be saved: ${e.javaClass.simpleName}")
+                if (!isFinishing && !isDestroyed) Dialogs.problem(this@HomeActivity, R.string.library_change_failed_title, R.string.library_change_failed_body)
+            }
         }
     }
 
@@ -149,6 +156,7 @@ class HomeActivity : AppCompatActivity() {
         lib.btnSort.setOnClickListener { browser.showSortSheet() }
         binding.btnRecoveryKey.setOnClickListener { startActivity(Intent(this, RecoveryKeyActivity::class.java)) }
         binding.btnUnlock.setOnClickListener { startActivity(Intent(this, UnlockActivity::class.java)) }
+        binding.btnTryAgain.setOnClickListener { tryOpenAgain() }
         // Every icon button names itself on a long press.
         listOf(binding.btnLibrary, binding.btnApps, binding.btnHiddenApps, binding.btnNewNotebook, binding.btnNewSketchbook, binding.btnNewDocument, binding.btnNewFolder, lib.btnBackup, lib.btnImport, lib.btnSearch, lib.btnRecents, lib.btnPinned, lib.btnSort)
             .forEach { TooltipCompat.setTooltipText(it, it.contentDescription) }
@@ -241,12 +249,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun open(item: Item, pageId: String? = null) {
-        when (ItemApps.open(this, item.id, item.kind, pageId = pageId)) {
-            ItemApps.Opened.YES -> Unit
-            ItemApps.Opened.NO_APP ->
-                Dialogs.problem(this, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))
-            ItemApps.Opened.FAILED ->
-                Dialogs.problem(this, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, item.name))
+        lifecycleScope.launch {
+            when (ItemApps.openItem(this@HomeActivity, item.id, item.kind, pageId = pageId)) {
+                ItemApps.Opened.YES -> Unit
+                ItemApps.Opened.NO_APP ->
+                    Dialogs.problem(this@HomeActivity, getString(R.string.item_no_app_title), getString(R.string.item_no_app_body, item.name))
+                ItemApps.Opened.FAILED ->
+                    Dialogs.problem(this@HomeActivity, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, item.name))
+            }
         }
     }
 
@@ -283,6 +293,31 @@ class HomeActivity : AppCompatActivity() {
         )
         binding.btnRecoveryKey.visibility = if (route == KeyGate.Route.RECOVERY_KEY) View.VISIBLE else View.GONE
         binding.btnUnlock.visibility = if (route == KeyGate.Route.UNLOCK) View.VISIBLE else View.GONE
+        binding.btnTryAgain.visibility = if (route == KeyGate.Route.BLOCKED && status.index == SoilIndex.State.UNAVAILABLE) View.VISIBLE else View.GONE
+    }
+
+    private var reopening = false
+
+    /**
+     * The library out of reach (storage, an open that failed, a restore's repair not finished):
+     * the open, and any repair before it, is tried again. A tap that changes nothing says so,
+     * since on e-ink a line that stays the same reads as a dead button.
+     */
+    private fun tryOpenAgain() {
+        if (reopening) return
+        reopening = true
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { SoilIndex.ensureReady(applicationContext) }
+                Library.refresh(applicationContext)
+                if (isFinishing || isDestroyed) return@launch
+                val status = Library.status.value
+                render(status)
+                if (status.route == KeyGate.Route.BLOCKED) Dialogs.problem(this@HomeActivity, getString(R.string.library_still_unavailable_title), binding.libraryMessage.text.toString())
+            } finally {
+                reopening = false
+            }
+        }
     }
 
     /** Back peels one layer of the library: out of a shelf, up a folder. A home screen has

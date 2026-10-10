@@ -14,6 +14,7 @@ import com.symmetricalpalmtree.soil.notesprout.objects.TagSelection
 import com.symmetricalpalmtree.soil.paper.chrome.AnchoredBar
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.SelectionAnchor
+import com.symmetricalpalmtree.soil.paper.chrome.SnapToggle
 import com.symmetricalpalmtree.soil.paper.core.Slog
 
 /**
@@ -24,6 +25,8 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
  *   is recognised into a heading at. **Make text** on ink alone: recognised into a text object.
  *   **Bible** on ink alone: recognised into a reference, a text wrapped in a link to its passage.
  *   **Verses** on a lone Bible reference: its passage's words placed below it.
+ * - **Snap** first, on anything: snap to guides for the next drag. A setting, not an act on this
+ *   selection, so it never changes place or disappears ([SnapToggle]).
  * - **Link** on anything that holds no link: wrap it into one.
  * - **Edit link** and **Unlink** on a lone link. A selection that holds a link among other
  *   things can only be deleted: a link is never nested.
@@ -56,8 +59,11 @@ class ObjectSelectionBar(
     private val onBible: () -> Unit,
     /** A lone Bible reference: its verses placed below it as words. */
     private val onVerses: () -> Unit,
+    /** Snap to guides: the bar's first button. */
+    private val snap: SnapToggle,
 ) {
     private val density = root.resources.displayMetrics.density
+    private val snapButton: AppCompatImageButton
     private val headingButton: AppCompatImageButton
     private val linkButton: AppCompatImageButton
     private val editLinkButton: AppCompatImageButton
@@ -74,6 +80,8 @@ class ObjectSelectionBar(
 
     init {
         val ctx = bar.context
+        snapButton = snap.button(ctx, releaseRender)
+        bar.addView(snapButton)
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_copy, ctx.getString(R.string.copy_objects_action)) { onCopy(false) })
         bar.addView(button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_cut, ctx.getString(R.string.cut_objects_action)) { onCopy(true) })
         headingButton = button(com.symmetricalpalmtree.soil.paper.R.drawable.ic_heading, ctx.getString(R.string.selection_heading)) { toggleLevels() }
@@ -107,6 +115,7 @@ class ObjectSelectionBar(
 
     fun show(bounds: Bounds, mode: SelectionMode, currentLevel: Int?, bibleReference: Boolean = false) {
         val band = band() ?: return
+        snap.sync(snapButton)
         // H on a heading changes its level; on ink alone it recognises the ink into one.
         headingButton.visibility = if (mode == SelectionMode.HEADING || mode == SelectionMode.STROKES) View.VISIBLE else View.GONE
         textButton.visibility = if (mode == SelectionMode.STROKES) View.VISIBLE else View.GONE

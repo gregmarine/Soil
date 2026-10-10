@@ -47,17 +47,32 @@ class RestoreManifestTest {
     // ── Refused shapes ───────────────────────────────────────────────────────
 
     @Test
-    fun `killed writer swap leftovers are never taken`() {
+    fun `killed writer swap leftovers beside their own file are never taken`() {
         val taken = names(
             listOf(
                 file("soil.db"),
+                file("$uuidA.soil"),
                 file("$uuidA.soil.part"),
                 file("$uuidA.soil.old"),
                 file("soil.db.part"),
                 file("soil.db.old"),
             )
         )
-        assertEquals(listOf("soil.db"), taken)
+        assertEquals(listOf("soil.db", "$uuidA.soil"), taken)
+    }
+
+    @Test
+    fun `an old standing alone is the last good copy and is taken under its own name`() {
+        val manifest = RestoreManifest.plan(
+            listOf(file("soil.db.old", size = 50L), file("$uuidA.soil.old", size = 20L), file("$store.db"), file("$uuidB.soil.part")),
+            RestoreLeg.LOCAL,
+        )!!
+        assertEquals(listOf("soil.db", "$uuidA.soil", "$store.db"), manifest.items.map { it.name })
+        assertEquals(listOf("soil.db.old", "$uuidA.soil.old", "$store.db"), manifest.items.map { it.sourceName })
+        assertEquals("garden/$uuidA.soil", manifest.items[1].relativePath)
+        assertEquals(70L + 10L, manifest.totalBytes)
+        assertTrue(RestoreManifest.isBackup(listOf(file("soil.db.old"))))
+        assertEquals("soil.db", RestoreManifest.indexEntry(listOf(file("soil.db.old")))?.name)
     }
 
     @Test

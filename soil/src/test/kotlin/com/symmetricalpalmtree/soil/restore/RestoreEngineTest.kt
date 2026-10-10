@@ -204,6 +204,14 @@ class RestoreEngineTest {
     }
 
     @Test
+    fun `missing - an alive item the backup should carry but does not is named, sorted`() {
+        val manifest = RestoreManifest(listOf(index, soil, soilWal, store))
+        assertEquals(listOf("b2.soil", "c3.soil"), RestoreEngine.missingItems(manifest, setOf("c3", "a1", "b2")))
+        assertTrue(RestoreEngine.missingItems(manifest, setOf("a1")).isEmpty())
+        assertTrue(RestoreEngine.missingItems(manifest, emptySet()).isEmpty())
+    }
+
+    @Test
     fun `orphans - nothing left out when every notebook is named`() {
         val manifest = RestoreManifest(listOf(index, soil, soilB))
         val (kept, leftOut) = RestoreEngine.orphanRule(manifest, setOf("a1", "b2", "c3"))

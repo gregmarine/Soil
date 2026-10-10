@@ -72,6 +72,11 @@ object TemplateStaging {
         return fresh
     }
 
+    /** The parked picture for [stagedId], left parked: a screen recreated before it saves can
+     *  ask again. [take] once the row is made, or when the screen goes. */
+    @Synchronized
+    fun peek(stagedId: String): ByteArray? = if (stagedId == id) bytes else null
+
     /** The parked picture for [stagedId], taken: a second ask answers null. */
     @Synchronized
     fun take(stagedId: String): ByteArray? {

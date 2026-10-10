@@ -289,9 +289,10 @@ object MarkdownFormatter {
      * markers: the caret stays in the content it was in, and a list that is already right costs no
      * edit at all.
      *
-     * Untouched on purpose: bullets and tasks (nothing to count), fenced code (not Markdown while
-     * inside it), and a deeply indented run with no list above it — that is an indented code block
-     * whose lines merely look like items. A run survives a single blank line, because a loose list
+     * Untouched on purpose: bullets and tasks (nothing to count), code ([MarkdownCode]: a fence and
+     * an indented code block, not Markdown while inside them; either ends the runs), and a deeply
+     * indented run with no list above it — lines that merely look like items, which other readers
+     * take for an indented code block. A run survives a single blank line, because a loose list
      * is still one list, and ends at two.
      */
     fun renumberOrderedLists(text: CharSequence): List<Renumber> {
@@ -301,18 +302,15 @@ object MarkdownFormatter {
         // would break lists indented by any other amount.
         val runs = HashMap<Int, Int>()
         var blanks = 0
-        var inFence = false
         var offset = 0
+        val lines = text.toString().split('\n')
+        // Code is [MarkdownCode]'s: a fence of any length of either character, closed only by its
+        // own kind, and an indented block after a blank line — the rendered editor's rule.
+        val code = MarkdownCode.codeLines(lines)
 
-        for (line in text.toString().split('\n')) {
-            val trimmed = line.trimStart()
+        for ((index, line) in lines.withIndex()) {
             when {
-                trimmed.startsWith("```") || trimmed.startsWith("~~~") -> {
-                    inFence = !inFence
-                    runs.clear()
-                }
-
-                inFence -> Unit
+                code[index] -> runs.clear()
 
                 line.isBlank() -> {
                     blanks++

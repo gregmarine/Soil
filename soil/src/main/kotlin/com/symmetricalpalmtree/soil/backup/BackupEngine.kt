@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import com.symmetricalpalmtree.soil.BuildConfig
 import com.symmetricalpalmtree.soil.cloud.CloudProviders
+import com.symmetricalpalmtree.soil.crypto.GlobalRotation
 import com.symmetricalpalmtree.soil.crypto.KeyOpener
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.crypto.OpenFiles
@@ -49,6 +50,8 @@ object BackupEngine {
         FOLDER_GONE,
         /** No key in session. */
         NO_KEY,
+        /** A rotation marker stands: the library is in two keys, and a copy taken now could be under either. */
+        ROTATION_PENDING,
         CLOUD_NOT_CONNECTED,
         CLOUD_NETWORK,
         CLOUD_UNANSWERED,
@@ -93,6 +96,7 @@ object BackupEngine {
 
     private suspend fun runInner(app: Context, onProgress: (Progress) -> Unit): Outcome {
         if (!SoilIndex.isReady() || KeySession.get() == null) return Outcome(problem = Problem.NO_KEY)
+        if (GlobalRotation.hasMarker(app)) return Outcome(problem = Problem.ROTATION_PENDING)
         val store = BackupStore()
         val state = RunState(store.read(), store)
 
@@ -214,19 +218,24 @@ object BackupEngine {
         }
     }
 
-    /** The item file, then a still-live WAL alongside; an absorbed WAL deletes the stale destination sidecar, verifiably. */
+    /**
+     * The destination's `<name>-wal` goes first, verifiably: a main file written beside a stale WAL
+     * would have that WAL replayed into it. Then the item file, then a still-live WAL alongside.
+     */
     private fun copyItem(writer: SafBackupWriter, dest: Uri, itemId: String, source: File): Boolean {
         val name = BackupPredicates.itemName(itemId)
+        val walName = name + BackupPredicates.WAL_SUFFIX
+        if (!dropDestWal(writer, dest, walName)) return false
         if (!writer.writeAtomic(dest, name, source)) return false
         val wal = File(source.path + BackupPredicates.WAL_SUFFIX)
-        val walName = name + BackupPredicates.WAL_SUFFIX
-        return if (wal.exists() && wal.length() > 0L) {
-            writer.writeAtomic(dest, walName, wal)
-        } else {
-            val entries = writer.list(dest) ?: return false
-            val stale = entries.firstOrNull { it.name == walName } ?: return true
-            writer.delete(stale.uri)
-        }
+        return if (wal.exists() && wal.length() > 0L) writer.writeAtomic(dest, walName, wal) else true
+    }
+
+    /** Delete [walName] (and a writer's `.old` of it) from [dest]; false when the listing or a delete failed. */
+    private fun dropDestWal(writer: SafBackupWriter, dest: Uri, walName: String): Boolean {
+        val entries = writer.list(dest) ?: return false
+        val oldName = walName + BackupPredicates.OLD_SUFFIX
+        return entries.filter { !it.isDir && (it.name == walName || it.name == oldName) }.all { writer.delete(it.uri) }
     }
 
     private fun copyIndex(context: Context, writer: SafBackupWriter, dest: Uri): Boolean {
@@ -266,19 +275,14 @@ object BackupEngine {
             snapshot = null
             walSnapshot = null
         }
-        val mainOk = writer.writeAtomic(dest, destName, snapshot ?: live)
         val walName = destName + BackupPredicates.WAL_SUFFIX
+        // The stale destination WAL first: a main file written beside it would have it replayed in. A delete that fails skips the write.
+        val mainOk = dropDestWal(writer, dest, walName) && writer.writeAtomic(dest, destName, snapshot ?: live)
         val walSource = walSnapshot ?: liveWal.takeIf { snapshot == null && it.exists() && it.length() > 0L }
         val walOk = when {
             !mainOk -> false
             walSource != null -> writer.writeAtomic(dest, walName, walSource)
-            else -> {
-                val entries = writer.list(dest)
-                when {
-                    entries == null -> false
-                    else -> entries.firstOrNull { it.name == walName }?.let { writer.delete(it.uri) } ?: true
-                }
-            }
+            else -> true
         }
         runCatching { dir.deleteRecursively() }
         return mainOk && walOk

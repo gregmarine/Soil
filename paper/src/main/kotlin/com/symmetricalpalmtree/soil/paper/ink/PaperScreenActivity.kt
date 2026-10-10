@@ -9,6 +9,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.PaperView
 import com.symmetricalpalmtree.gpaper.core.Tool
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -22,9 +23,11 @@ import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
 import com.symmetricalpalmtree.soil.paper.chrome.PaperChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PaperToolbar
 import com.symmetricalpalmtree.soil.paper.chrome.PenIdle
+import com.symmetricalpalmtree.soil.paper.chrome.SharedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.asBar
 import com.symmetricalpalmtree.soil.paper.R
 import android.view.KeyEvent
+import kotlinx.coroutines.launch
 
 /**
  * The **chrome and handoff half** of a paper screen — everything a screen with a g-paper surface
@@ -317,13 +320,35 @@ abstract class PaperScreenActivity : AppCompatActivity() {
     // ── The chrome toggle (arc 33 / F3) ──────────────────────────────────────
 
     /**
-     * The state the chrome opens in when the screen is new — what the subclass remembered from
-     * last time. A rebuilt Activity's own saved state wins over it.
+     * The app's **local fallback** for the chrome's state — what the subclass remembered from
+     * last time, used only while Soil's shared flag ([readSharedChromeHidden]) has not answered.
+     * A rebuilt Activity's own saved state wins over it.
      */
     protected open val initialChromeHidden: Boolean get() = false
 
-    /** The chrome was flipped to [hidden] — the subclass's moment to remember it. */
+    /** The chrome was flipped to [hidden] — by the person, or to follow Soil's shared flag — the
+     *  subclass's moment to remember it locally, as the fallback. */
     protected open fun onChromeChanged(hidden: Boolean) {}
+
+    /**
+     * **Soil's shared flag** ([SharedChrome]): one hidden state for every paper screen of every
+     * app. Read as the screen comes to the front; null when Soil cannot say, and the local state
+     * stands. The subclass does the crossing **off the main thread** and never throws.
+     */
+    protected open suspend fun readSharedChromeHidden(): Boolean? = null
+
+    /** The person flipped the chrome: hand it to Soil, off the main thread, fire and forget. Not
+     *  called for a flip that only follows Soil's flag, nor for the first build. */
+    protected open fun writeSharedChromeHidden(hidden: Boolean) {}
+
+    /** Soil's answer when it arrived before [chromeToggle] was built: [initChrome] opens in it. */
+    private var sharedChromeEarly: Boolean? = null
+
+    /** True while a flip is not the person's (the first build, following Soil): nothing to tell Soil. */
+    private var chromeQuiet = false
+
+    /** Counts the person's flips: an answer from Soil read before one is stale, and is dropped. */
+    private var chromeFlips = 0
 
     /**
      * Build [chromeToggle] over both bars and put the chrome into the state this screen should
@@ -344,16 +369,43 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             bars = listOfNotNull(topBarView, bottomBarView),
             beforeHide = { hideFloatingBars() },
             afterLayout = { pushExclusions() },
-            onChanged = { onChromeChanged(it) },
+            onChanged = {
+                onChromeChanged(it)
+                if (!chromeQuiet) { chromeFlips++; writeSharedChromeHidden(it) }
+            },
             // Arc 36 / C2: the corner button lives exactly as long as the bars do not, and the
             // rows hung under it go down before they come back.
             whileHidden = listOfNotNull(collapsedKnobView),
             beforeShow = { dismissCollapsed() },
         )
-        val hidden = savedInstanceState?.takeIf { it.containsKey(KEY_CHROME_HIDDEN) }
+        val saved = savedInstanceState?.takeIf { it.containsKey(KEY_CHROME_HIDDEN) }
             ?.getBoolean(KEY_CHROME_HIDDEN)
-            ?: initialChromeHidden
-        chromeToggle.apply(hidden, releaseRender = false)
+        val hidden = SharedChrome.opening(shared = sharedChromeEarly, saved = saved, local = initialChromeHidden)
+        // The first build is not a flip of the person's: Soil is not told it (a local fallback
+        // written over the shared flag would undo another screen's flip).
+        chromeQuiet = true
+        try { chromeToggle.apply(hidden, releaseRender = false) } finally { chromeQuiet = false }
+    }
+
+    /**
+     * Ask Soil for the shared flag, and follow it when it differs: another paper screen, in this
+     * app or another, may have flipped it while this one was away. Off the main thread; an answer
+     * that arrives after the person flipped this screen is stale and dropped. Pen-idle-gated,
+     * since it is not a deliberate act on this screen.
+     */
+    private fun followSharedChrome() {
+        val flipsAtAsk = chromeFlips
+        lifecycleScope.launch {
+            val shared = readSharedChromeHidden() ?: return@launch
+            if (chromeFlips != flipsAtAsk || closing) return@launch
+            if (!::chromeToggle.isInitialized) { sharedChromeEarly = shared; return@launch }
+            whenPenIdle {
+                if (chromeFlips != flipsAtAsk || closing || isFinishing) return@whenPenIdle
+                val target = SharedChrome.adopt(shared, chromeToggle.hidden) ?: return@whenPenIdle
+                chromeQuiet = true
+                try { chromeToggle.apply(target, releaseRender = opened) } finally { chromeQuiet = false }
+            }
+        }
     }
 
     /**
@@ -471,6 +523,7 @@ abstract class PaperScreenActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (::paper.isInitialized) paper.resumeDrawing()
+        followSharedChrome()
     }
 
     /** The durability point while backgrounded — what the subclass writes before it may be killed.

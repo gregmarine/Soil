@@ -6,7 +6,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookSchema
 
 /**
  * **A sketch page on the clipboard** — the `sketchbook` slot's one payload kind: the page row,
- * its template row when it has paper, and everything alive under it (the two rasters, the two
+ * its template row when it has paper, and everything alive under it (the three rasters, the two
  * guide rows), as the seam's own **binary** rows ([RowCodec.encodeRows]) rather than the
  * notebook's JSON-with-Base64 envelope, since a raster is megabytes and Base64 would cost a
  * third of the slot's cap for nothing. Pure.

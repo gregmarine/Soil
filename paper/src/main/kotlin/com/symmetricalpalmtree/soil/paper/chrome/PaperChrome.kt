@@ -11,10 +11,9 @@ import com.symmetricalpalmtree.gpaper.core.PaperView
  * ink under, and the "is this touch over chrome" test the finger gestures and the EPD
  * chrome-release use.
  *
- * Written here fresh rather than lifted from [NotebookActivity]: the notebook's own inline
- * `pushExclusions` also carries `paper.snapMarginPx` (arc 9) and reads two named flows by name, and
- * it stays exactly where it is — adopting this helper in the notebook is not this arc's business.
- * What both screens *do* share is the shape, so the two host-specific parts arrive as suppliers.
+ * Every screen's `pushExclusions` also carries `paper.snapMarginPx` ([SnapMargin]): the top bar's
+ * laid-out height, re-read on every chrome layout change so it can never drift from the bar it
+ * names. Harmless on a screen that never arms [SnapToggle].
  *
  * Exclusion: while [blockAll] — the page not yet on the paper, or a full-height panel showing, the
  * two cases where a pen stroke would be lost or drawn under a window — the **whole paper** is one
@@ -36,6 +35,7 @@ class PaperChrome(
 ) {
     fun pushExclusions() {
         val view = paper.asView()
+        SnapMargin.fromTopBar(topBar.height)?.let { paper.snapMarginPx = it }
         if (blockAll()) {
             paper.setExclusionRects(listOf(Rect(0, 0, maxOf(view.width, 1), maxOf(view.height, 1))))
             return

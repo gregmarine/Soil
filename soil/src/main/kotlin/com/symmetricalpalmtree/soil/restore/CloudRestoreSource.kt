@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.symmetricalpalmtree.soil.backup.BackupPredicates
+import com.symmetricalpalmtree.soil.cloud.CloudArgs
 import com.symmetricalpalmtree.soil.cloud.CloudClient
 import com.symmetricalpalmtree.soil.cloud.CloudNetworkFailed
 import com.symmetricalpalmtree.soil.cloud.CloudNotConnected
@@ -21,7 +22,8 @@ import java.io.File
 /**
  * The cloud source: `Backups/<device folder>/` under the provider's root, read through `list` and
  * `download` only. The handle is the folder's name; the fetch re-lists it. No `-wal` is ever
- * fetched. A mid-fetch failure aborts the whole restore. The four failures map as the backup leg's.
+ * fetched. A listing at the contract's cap may be truncated and is refused. A mid-fetch failure
+ * aborts the whole restore. The four failures map as the backup leg's.
  */
 class CloudRestoreSource(private val app: Context, private val ref: Extension) : RestoreSource {
 
@@ -50,6 +52,13 @@ class CloudRestoreSource(private val app: Context, private val ref: Extension) :
                 lastProblem = problemFor(e)
                 continue
             }
+            if (CloudArgs.mayBeTruncated(entries)) {
+                // A listing at the cap may leave out item files the index names: never offered.
+                Log.w(TAG, "a backup folder's listing reached the cap; not offered")
+                skipped++
+                lastProblem = RestoreProblem.ListingFailed
+                continue
+            }
             RestoreRows.rowFor(folder.name, entries.map(::listed), RestoreLeg.CLOUD, folder.name)?.let(found::add)
         }
         Slog.d(TAG) { "enumerated ${found.size} backup(s) in the cloud, $skipped folder(s) skipped" }
@@ -69,12 +78,16 @@ class CloudRestoreSource(private val app: Context, private val ref: Extension) :
         } catch (e: Exception) {
             return@withContext FetchResult.Failed(problemFor(e))
         }
+        if (CloudArgs.mayBeTruncated(entries)) {
+            Log.w(TAG, "the backup folder's listing reached the cap; refused")
+            return@withContext FetchResult.Failed(RestoreProblem.ListingFailed)
+        }
         val manifest = RestoreManifest.plan(entries.map(::listed), RestoreLeg.CLOUD) ?: return@withContext FetchResult.Failed(RestoreProblem.NotABackup)
         val byName = entries.filter { !it.isFolder }.associateBy { it.name }
         val total = manifest.items.size
         var done = 0
         for (item in manifest.items) {
-            val entry = byName[item.name] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
+            val entry = byName[item.sourceName] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
             val target = RestoreStaging.targetFor(staging, item)
             var failure: RestoreProblem? = null
             val ok = RestoreStaging.writeStagedVia(target, item.size) { part ->

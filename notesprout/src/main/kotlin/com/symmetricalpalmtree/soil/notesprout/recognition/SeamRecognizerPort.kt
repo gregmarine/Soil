@@ -5,6 +5,7 @@ import com.symmetricalpalmtree.soil.paper.ink.InkWire
 import com.symmetricalpalmtree.soil.paper.recognition.RecognizerCallException
 import com.symmetricalpalmtree.soil.paper.recognition.RecognizerPort
 import com.symmetricalpalmtree.soil.seam.ISoilSeam
+import com.symmetricalpalmtree.soil.seam.SeamBytes
 import com.symmetricalpalmtree.soil.seam.SeamLimits
 import com.symmetricalpalmtree.soil.seam.SeamShared
 import com.symmetricalpalmtree.soil.seamkit.SeamUnavailable
@@ -25,14 +26,24 @@ class SeamRecognizerPort(private val seam: suspend () -> ISoilSeam) : Recognizer
 
     /** The text of [strokes], in writing order, read in reading order by the recogniser. */
     suspend fun recognizeInk(strokes: List<Stroke>, areaWidth: Float, areaHeight: Float, preContext: String): String =
-        call { it.recognizeInk(SeamShared.write(InkWire.encode(strokes, areaWidth, areaHeight)), areaWidth, areaHeight, preContext) }
+        call { seam -> sending(InkWire.encode(strokes, areaWidth, areaHeight)) { seam.recognizeInk(it, areaWidth, areaHeight, preContext) } }
 
     /** The text of a whole page's ink: the recogniser finds the lines and paragraphs itself. */
     suspend fun recognizePage(strokes: List<Stroke>, pageWidth: Float, pageHeight: Float): String =
-        call { it.recognizePage(SeamShared.write(InkWire.encode(strokes, pageWidth, pageHeight)), pageWidth, pageHeight) }
+        call { seam -> sending(InkWire.encode(strokes, pageWidth, pageHeight)) { seam.recognizePage(it, pageWidth, pageHeight) } }
 
     /** Soil's seam, for the one call of a recognition flow that is not recognition. */
     suspend fun <T> soil(block: (ISoilSeam) -> T): T = withContext(Dispatchers.IO) { block(seam()) }
+
+    /** [bytes] in a shared region for the one call, closed on this side once the call is over. */
+    private fun <T> sending(bytes: ByteArray, block: (SeamBytes) -> T): T {
+        val region = SeamShared.write(bytes)
+        try {
+            return block(region)
+        } finally {
+            region.memory.close()
+        }
+    }
 
     private suspend fun <T> call(block: (ISoilSeam) -> T): T = withContext(Dispatchers.IO) {
         try {

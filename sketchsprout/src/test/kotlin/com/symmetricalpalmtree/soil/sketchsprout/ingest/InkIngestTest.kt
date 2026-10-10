@@ -41,4 +41,19 @@ class InkIngestTest {
         assertEquals(ClipEnvelope.KIND_OBJECTS, env.kind)
         assertNull(InkIngest.pagesOf(env))
     }
+
+    @Test
+    fun `paste ink takes a page payload's first page alone, and every stroke of an objects payload`() {
+        var n = 0
+        val pages = InkClip.pageEnvelopeOf(
+            listOf(
+                InkClip.PageInk(1404f, 1872f, null, listOf(0L to stroke("am1"), 1L to stroke("am2"))),
+                InkClip.PageInk(1404f, 1872f, null, listOf(0L to stroke("pm1"))),
+            ),
+            now = 5L, newId = { "id${n++}" },
+        )!!
+        assertEquals(listOf("am1", "am2"), InkIngest.strokesToPaste(pages).map { it.id })
+        val objects = InkClip.envelopeOf(listOf(stroke("a"), stroke("b")), now = 5L)!!
+        assertEquals(listOf("a", "b"), InkIngest.strokesToPaste(objects).map { it.id })
+    }
 }

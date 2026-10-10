@@ -31,8 +31,12 @@ none of its addresses, is ever logged: lengths only.
 `DocumentActivity`. It holds the item through an `ISeamItem`, parked at `onStop` and resumed on
 return, as a notebook does. Every save, park, resume and close goes through one queue, so they
 never overlap. Autosave runs two seconds after the last change, and always on pause and on
-leaving; a blank document is saved as blank, not deleted. The card's cover is the opening words
-(`TextCover`).
+leaving; a blank document is saved as blank, not deleted. The rendered document is read on the
+main thread and written as Markdown off it, in the queue. A save that fails is tried again while
+the screen is up; on the way out it is tried once more and, failing that, a message says the
+latest changes were not saved. Export goes ahead only once the file holds the words; otherwise
+the document stays open and says so. Words that arrive after the screen stopped (a paste being
+read) are not put in. The card's cover is the opening words (`TextCover`).
 
 There is no pen and no paper here: the app attaches no client, so the shell's key filter stays
 on and the side bars work as over any app.
@@ -54,9 +58,22 @@ actually edited there.
 
 Notesprout SN's set as it was: headings, bullet, numbered and task lists with nesting, quotes,
 rules, bold, italic, strikethrough, inline code and links. Tables, fenced code and images are
-not supported yet (`BACKLOG.md`), and nothing of them is lost: table rows and code fences are
-kept as raw lines, shown monospace, edited as plain text and written back untouched; image
-syntax stays the literal text it is.
+not supported yet (`BACKLOG.md`), and nothing of them is lost: table rows, fenced code (three or
+more backticks or tildes with no more of that character after them on the line, closed by a run
+of the same character at least as long) and indented
+code (four spaces or a tab, after a blank line and not under a list item) are kept as raw lines,
+shown monospace, edited as plain text and written back untouched; image syntax stays the literal
+text it is. A fence never closed runs to the end of the document. A raw line edited out of its
+shape (a table row that lost its `|`, a fence whose closing line is gone with words after it) is
+written as a paragraph of its words, escaped, so it can never read back as another block or
+swallow what follows. Which lines are code is one rule (`MarkdownCode`), shared by the rendered
+editor, the list renumbering, reflow and the proofread; a notebook's text box keeps its own
+reading, with no code, since its boxes were measured by it.
+
+The canonical form is a rewrite, not a copy: when a document is edited in the rendered mode,
+soft and hard line breaks inside a paragraph, setext headings, lazy continuation lines and a
+quote's separate lines are written in the one canonical hand (a paragraph on one line, an ATX
+heading, a quote as one line).
 
 ### The rich model
 
@@ -74,10 +91,22 @@ An `EditText` whose text is only the visible characters. Each paragraph carries 
 box takes a tap); bold, italic, strike, code and link are character spans. `RichCodec` moves
 between the view and the model, `RichOps` applies the rules, and `RichHistory` is the app's own
 undo and redo, since the platform's does not restore spans (Ctrl+Z and Ctrl+Y are taken here
-and left to the platform in the Markdown editor).
+and left to the platform in the Markdown editor). It keeps a hundred steps, fewer when the
+documents held come to four million characters. A link the reference pass makes is a step of
+its own that leaves the redo steps alone. After an undo or a redo the pass reads the whole
+document again, skipping the links an undo took off while the screen is up, so a link undone
+stays undone and a redo that put back words from before a link has them linked again. A rule's place in the text is held by one private-use character
+(U+E000), never drawn and never copied: Copy and Cut leave it off the clipboard. A zero-width
+space a writer put in is kept.
+
+Words a tool puts in (a reference, a passage, handwriting, the image skeleton) are plain: they do
+not take the style the caret stood at the end of, and a link put over them replaces any other
+link there. Typing at the end of a link still extends it, as typing at the end of any style
+does.
 
 **Type-to-format.** A line start (`# `, `- `, `1. `, `- [ ] `, `> `) and a closed inline pair
-(`**`, `*`, `~~`, `` ` ``) become the format as they are typed. One undo puts the typed
+(`**`, `*`, `~~`, `` ` ``) become the format as they are typed. An opening marker inside code
+or a link's words is a character, never the start of a pair. One undo puts the typed
 characters back.
 
 ### The tools
@@ -102,8 +131,9 @@ The switch and the person's own words are per device, in Docsprout's own prefere
 `bible:` address, which a Bible reference in the words becomes on its own after a pause in
 typing; in the rendered document a tap follows it at once and a long press offers Open, Edit
 link and Remove link; a button lists what links to this document, only when something does. A
-removed reference is remembered with the document; Relink Bible on the selection's menu puts it
-back.
+removed reference (from the long-press sheet or the Link dialog's Remove) is remembered with the
+document; Relink Bible on the selection's menu puts it back. A reference is never linked across
+a line break.
 
 ### A Bible passage
 

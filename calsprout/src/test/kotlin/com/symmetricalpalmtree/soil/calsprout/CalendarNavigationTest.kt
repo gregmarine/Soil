@@ -187,4 +187,16 @@ class CalendarNavigationTest {
         assertEquals(today.plusDays(9), nav.anchor)
         assertEquals(CalendarTarget.HALF_PM, nav.anchorHalf)
     }
+
+    @Test
+    fun theWayBackFromEventsKeepsTheHalfOnTheDayShowing() {
+        // A PM Day page, in the morning by the clock: the Events screen ends on that same day.
+        val nav = CalendarNavigation()
+        val pm = CalendarTarget(CalendarTarget.KIND_DAY, "2026-09-02", CalendarTarget.HALF_PM)
+        nav.shown(nav.opening(pm, today, morning))
+        assertEquals(pm, nav.returned(today, today, morning).target)
+        // Ended on another day: a pick, the clock's half for today, else the morning.
+        val other = nav.returned(LocalDate.of(2026, 9, 5), today, afternoon)
+        assertTarget(CalendarTarget.KIND_DAY, "2026-09-05", CalendarTarget.HALF_AM, other.target)
+    }
 }

@@ -61,11 +61,13 @@ class FakeTransport : HttpTransport {
             folder: Boolean = false,
             size: String? = null,
             modifiedTime: String? = null,
+            trashed: Boolean = false,
         ): String {
             val parts = mutableListOf("\"id\":\"$id\"", "\"name\":\"$name\"")
             parts += "\"mimeType\":\"" + (if (folder) DriveRest.FOLDER_MIME else "application/octet-stream") + "\""
             if (size != null) parts += "\"size\":\"$size\""
             if (modifiedTime != null) parts += "\"modifiedTime\":\"$modifiedTime\""
+            if (trashed) parts += "\"trashed\":true"
             return "{" + parts.joinToString(",") + "}"
         }
     }

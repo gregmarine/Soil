@@ -105,7 +105,14 @@ object ConvertFlow {
                 return
             }
             RecognizingOverlay.show(activity, activity.getString(R.string.convert_making))
-            val made = port.soil { it.makeItemFromFile(notebookId, name, "md", SeamShared.write(markdown.toByteArray(Charsets.UTF_8))) }
+            val made = port.soil {
+                val file = SeamShared.write(markdown.toByteArray(Charsets.UTF_8))
+                try {
+                    it.makeItemFromFile(notebookId, name, "md", file)
+                } finally {
+                    file.memory.close()
+                }
+            }
             Slog.d(TAG) { "converted ${pages.size} page(s), $strokesRead strokes, into ${blocks.size} blocks in ${System.currentTimeMillis() - started} ms" }
             RecognizingOverlay.hide(activity)
             done(activity, made, onOpen)

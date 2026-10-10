@@ -14,7 +14,9 @@ connection, the row codec, the row store).
 - Trust rests on one signing key. There is no per-app permission model.
 - Every statement is checked on both sides by `SeamSql`: one statement, an allowed head keyword,
   no `ATTACH`, `PRAGMA`, `VACUUM`, DDL or transaction words, no identifier in a reserved space
-  (`soil_*`, `sqlite_*`, `pragma_*`, `sqlcipher_*`), positional binds that match the arguments,
+  (`soil_*`, `sqlite_*`, `pragma_*`, `sqlcipher_*`) and no `'…'` string that starts with one
+  (SQLite reads a string as a name where a name belongs), positional binds that match the
+  arguments as SQLite numbers them (`?5, ?` takes six),
   values under `SeamLimits`. The one exception is the link mirror, below.
 - Large data crosses whole in shared memory (`SeamBytes`), never in chunks.
 - Only `SecurityException`, `IllegalArgumentException` and `IllegalStateException` cross. A
@@ -30,6 +32,14 @@ connection, the row codec, the row store).
 | `attachClient(client)` / `detachClient(client)` | The app's paper screen is in front; Soil may ask it `penActive`, `releasePanel` (the side menu is about to draw over it) and `releaseForHandoff` (the Scratch Pad is about to open over it). One client at a time; a dead client is detached by its binder's death |
 | `penActive()` / `releasePanel()` / `releaseForHandoff()` | The same questions, asked of Soil's own paper by an app |
 | `barKey(keyCode, action, eventTime, repeatCount)` | A side-bar key the app's window received. Soil's key filter is off while paper is in front, so this is how a swipe reaches the menu there (`shell.md`) |
+| `chromeHidden()` / `setChromeHidden(hidden)` | Whether the paper screens' bars are hidden: one flag, Soil's (`PadPrefs`), for the notebook, the sticky editor, the Scratch Pad, the sketchbook and the calendar, as SN's one host flag was. Answered while the library is locked, as `hello()` and `barKey` are |
+
+The chrome's flag, in `:paper`'s `PaperScreenActivity` and `SharedChrome`: a screen opens in its
+app's local copy (or its own state from before a rebuild), asks Soil on IO as it comes to the
+front and follows the answer when it differs, pen-idle; an answer read before the person's own
+flip is dropped. A flip of the person's goes to Soil on the app's serial seam dispatcher and to
+the local copy, which is the fallback for when Soil cannot answer. The pad, inside Soil, reads
+and writes the preference itself.
 
 ### Items
 
@@ -37,9 +47,9 @@ connection, the row codec, the row store).
 |---|---|
 | `createItem(name, schema)` | A new item of the schema's kind, under the global key, empty |
 | `listItems(kind)`, `recentItems(kind, limit)`, `item(id)` | The index's rows, blob-free |
-| `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order |
+| `renameItem`, `deleteItem`, `setPageCount`, `setCover(bytes)`, `setPages(ids)` | What the library shows without opening a file: the name, the count, the cover, the page order. `deleteItem` is the library's Delete: the row, then the file and its derived key |
 | `openItem(id, schema, owner)` | An `ISeamItem`: the app's hold on the file, bound to its uid and to `owner`'s death |
-| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout, Calsprout); made on first use at the schema's steps, brought to a newer schema's steps on a later open, bound to the caller's uid and to `owner`'s death, closed by `close()`; a batch of up to the seam's 10,000 statements (`biblesprout.md`, `calsprout.md`) |
+| `openAppStore(schema, owner)` | An `ISeamStore`: the app's own store in Soil (`garden/app_<package>.db`, under the global key), for an app with no items (Biblesprout, Calsprout); made on first use at the schema's steps, brought to a newer schema's steps on a later open, bound to the caller's uid and to `owner`'s death, closed by `close()`; opened again at the next call after Soil closed its stores (a passphrase change, Forget, a restore); a query's result capped as an item's is; a batch of up to the seam's 10,000 statements (`biblesprout.md`, `calsprout.md`) |
 | `makeItemFromFile(besideItemId, name, fileExtension, bytes)` | A new item beside another, made from a file's bytes by the app that imports that extension: the maker an import of a picked file uses. A notebook's Convert makes its document this way (`docsprout.md`) |
 
 An open item answers `exec(batch)` (N statements, one transaction, each checked), `query(one)`,
@@ -52,7 +62,8 @@ file is closed for good.
 Every item file carries two tables of Soil's own: `soil_meta` (what the file is) and
 `soil_link` (the link mirror). An app writes `soil_link` in the same batch as its link row,
 through exactly five admitted statements (a row to an item, a row into the Bible, a row to a
-day of the calendar, a drop, a page's drop); Soil re-reads the mirror after any batch naming it
+day of the calendar, a drop, a page's drop), `SeamLinks`' own text with only its whitespace
+free; Soil re-reads the mirror after any batch naming it
 and keeps the index's link table in step. `backlinks(itemId)` answers what links into an item,
 `bibleBacklinks(start, end)` what links into a span of verses, `calBacklinks(from, to)` what
 links into a range of days (`links.md`).

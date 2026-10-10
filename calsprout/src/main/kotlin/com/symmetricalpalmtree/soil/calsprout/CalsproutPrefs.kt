@@ -11,6 +11,8 @@ class CalsproutPrefs(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
+    /** Whether the bars were hidden: the fallback only, for when Soil cannot answer. The flag is
+     *  Soil's, one for every paper screen (`SharedChrome`). */
     var chromeHidden: Boolean
         get() = prefs.getBoolean(KEY_CHROME_HIDDEN, false)
         set(value) = prefs.edit().putBoolean(KEY_CHROME_HIDDEN, value).apply()

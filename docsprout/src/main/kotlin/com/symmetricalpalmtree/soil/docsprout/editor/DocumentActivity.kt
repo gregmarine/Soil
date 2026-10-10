@@ -29,7 +29,6 @@ import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBindin
 import com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController
 import com.symmetricalpalmtree.soil.docsprout.editor.bible.ReferenceLinker
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
-import com.symmetricalpalmtree.soil.markdown.rich.RichStyle
 import com.symmetricalpalmtree.soil.markdown.rich.RichParse
 import com.symmetricalpalmtree.soil.markdown.rich.RichWrite
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
@@ -97,8 +96,11 @@ class DocumentActivity : AppCompatActivity() {
     private var started = false
     private var closing = false
     private var tooLongTold = false
+    /** The words a failed save on the way out has already said were not saved. */
+    private var unsavedTold: String? = null
 
-    private val autosave = Runnable { save() }
+    /** Only while the screen is up: once it stops, the file is parked, and the way back saves. */
+    private val autosave = Runnable { if (started) save() }
 
     private lateinit var tools: EditorTools
     private lateinit var format: FormatActions
@@ -128,6 +130,10 @@ class DocumentActivity : AppCompatActivity() {
     /** The Markdown the rendered document was read from, and whether it has been edited since. */
     private var richSource = ""
     private var richDirty = false
+
+    /** Bumped on every edit of the rendered document and every change of surface: a Markdown
+     *  written from an older document is never taken as [richSource]. */
+    private var richGen = 0
 
     private fun rendered(): Boolean = !sourceShowing
     private fun surface(): EditText = if (sourceShowing) binding.editor else binding.rich
@@ -168,8 +174,10 @@ class DocumentActivity : AppCompatActivity() {
         links.install()
         installRelinkMenu()
         bibleLinks = BibleLinkController(binding.rich, binding.editor, ::rendered, usable = { opened && !closing }, lifecycleScope, unlinked = { unlinked })
-        inkPaste = InkPaste(this, usable = { opened && !closing }, insert = ::insertParagraphs)
-        biblePaste = BiblePaste(this, usable = { opened && !closing }, insertReference = ::insertReference, insertVerses = ::insertPassage)
+        // Words arrive only while the screen is up: the file is parked once it stops, and nothing
+        // may be put in that the way out has already passed.
+        inkPaste = InkPaste(this, usable = { opened && !closing && started }, insert = ::insertParagraphs)
+        biblePaste = BiblePaste(this, usable = { opened && !closing && started }, insertReference = ::insertReference, insertVerses = ::insertPassage)
         // Ctrl+V and the text menu's Paste put in the last thing copied: a passage from the
         // Bible, the clipboard's ink as words, or the text on the device's own clipboard.
         val pasteLatest = {
@@ -191,6 +199,7 @@ class DocumentActivity : AppCompatActivity() {
                 // judged. A change of words is one proofread's own watcher has already seen.
                 if (!words) proofread.styleChanged()
                 richDirty = true
+                richGen++
                 main.removeCallbacks(autosave)
                 main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
             }
@@ -226,6 +235,7 @@ class DocumentActivity : AppCompatActivity() {
                 RichParse.parse(richSource).offsets
             }
             sourceShowing = true
+            richGen++
             binding.editor.setText(richSource)
             binding.editor.setSelection((offsets.getOrNull(block) ?: richSource.length).coerceIn(0, richSource.length))
         } else {
@@ -236,6 +246,7 @@ class DocumentActivity : AppCompatActivity() {
             sourceShowing = false
             richSource = markdown
             richDirty = false
+            richGen++
             binding.rich.load(parsed.doc)
             binding.rich.setSelection(binding.rich.offsetOfBlock(block))
         }
@@ -268,6 +279,15 @@ class DocumentActivity : AppCompatActivity() {
                 // a reference the writer unlinked comes back through the selection's Relink Bible.
                 val editingBible = current != null && BibleLinks.labelOf(current) != null
                 LinkDialog.ask(this, current, onChooseFromLibrary = { links.chooseFromLibrary(apply) }, onChooseDay = { links.chooseDay(current, apply) }) { typed ->
+                    if (editingBible && typed.isEmpty()) {
+                        // Remove on a Bible link is remembered as the link sheet's Remove is, so
+                        // the pass does not put it back.
+                        val words = RichOps.linkWordsAt(binding.rich)
+                        val removed = current?.let { BibleLinks.wireOfAddress(it) }
+                        apply("", "")
+                        if (words != null && removed != null) rememberUnlinked(words, removed)
+                        return@ask
+                    }
                     val wire = if (editingBible && typed.isNotEmpty()) BibleLinks.wireOf(typed) else null
                     if (wire != null) apply(BibleLinks.addressOf(wire), typed) else apply(typed, typed)
                 }
@@ -338,7 +358,7 @@ class DocumentActivity : AppCompatActivity() {
             }
             lifecycleScope.launch {
                 val result = withContext(Dispatchers.IO) { runCatching { (application as DocsproutApp).soil.seam().passageText(wire) } }
-                if (!opened || closing) return@launch
+                if (!opened || closing || !started) return@launch
                 result.onSuccess { insertPassage(wire, it) }.onFailure { e ->
                     Log.w(TAG, "the verses could not be read: ${e.message ?: e.javaClass.simpleName}")
                     Dialogs.problem(
@@ -368,7 +388,7 @@ class DocumentActivity : AppCompatActivity() {
         } else {
             val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
             RichOps.insertText(binding.rich, label, label.length, label.length)
-            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.linkOver(s, a, a + label.length, address) }
             binding.rich.edited(words = false)
         }
         surface().requestFocus()
@@ -395,7 +415,7 @@ class DocumentActivity : AppCompatActivity() {
             val a = minOf(binding.rich.selectionStart, binding.rich.selectionEnd).coerceAtLeast(0)
             val words = (listOf(label) + paragraphs.map { it.plain }).joinToString("\n")
             RichOps.insertText(binding.rich, words, words.length, words.length)
-            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.addStyle(s, a, a + label.length, RichStyle.LINK, address) }
+            binding.rich.text?.let { s -> if (a + label.length <= s.length) RichOps.linkOver(s, a, a + label.length, address) }
             binding.rich.edited(words = false)
         }
         surface().requestFocus()
@@ -457,9 +477,7 @@ class DocumentActivity : AppCompatActivity() {
         if (!unlinked.removeAll { BibleUnlinked.names(it, wire) }) return
         bibleLinks.bump()
         val documents = store ?: return
-        lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { documents.allowAgain(wire) }.onFailure { Log.w(TAG, "an allowed reference was not remembered: ${it.javaClass.simpleName}") }
-        }
+        inQueue { runCatching { documents.allowAgain(wire) }.onFailure { Log.w(TAG, "an allowed reference was not remembered: ${it.javaClass.simpleName}") } }
     }
 
     /** A Bible link taken off: remembered now, and with the document, so no pass puts it back. */
@@ -468,9 +486,12 @@ class DocumentActivity : AppCompatActivity() {
         bibleLinks.bump()
         android.widget.Toast.makeText(this, R.string.bible_unlinked_toast, android.widget.Toast.LENGTH_LONG).show()
         val documents = store ?: return
-        lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") }
-        }
+        inQueue { runCatching { documents.forget(words, wire) }.onFailure { Log.w(TAG, "an unlinked reference was not remembered: ${it.javaClass.simpleName}") } }
+    }
+
+    /** A write to the open file in the queue's order, on IO, and finished even if the screen goes. */
+    private fun inQueue(body: suspend () -> Unit) {
+        appScope.launch { withContext(NonCancellable) { ops.withLock { withContext(Dispatchers.IO) { body() } } } }
     }
 
     // ── Open ──────
@@ -564,30 +585,63 @@ class DocumentActivity : AppCompatActivity() {
      * again while the screen is up.
      */
     private fun save() {
+        val pending = saveTask() ?: return
+        appScope.launch { withContext(NonCancellable) { pending() } }
+    }
+
+    /** [save], awaited: whether the file holds the text as it stood when this was called. */
+    private suspend fun saveNow(): Boolean {
+        val pending = saveTask() ?: return false
+        return withContext(NonCancellable) { pending() }
+    }
+
+    /**
+     * The text as it stands, read now on Main, and the write of it to run in the queue. The
+     * rendered document is written as Markdown off Main, so a long document does not hold the
+     * screen up. Null when there is nothing open to save to.
+     */
+    private fun saveTask(): (suspend () -> Boolean)? {
         main.removeCallbacks(autosave)
-        if (!opened) return
-        val documents = store ?: return
-        val text = currentMarkdown()
-        if (!DocumentLimits.fits(text)) {
-            if (!tooLongTold) {
-                tooLongTold = true
-                Dialogs.problem(this, R.string.too_long_title, R.string.too_long_body)
-            }
-            return
-        }
-        tooLongTold = false
-        appScope.launch {
-            withContext(NonCancellable) {
-                ops.withLock {
-                    if (text == savedText) return@withLock
-                    val landed = withContext(Dispatchers.IO) {
-                        runCatching { documents.save(text) }.onFailure { Log.w(TAG, "save failed: ${it.javaClass.simpleName}") }.isSuccess
-                    }
-                    if (landed) savedText = text
-                    else if (started && !closing) main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
+        if (!opened) return null
+        val documents = store ?: return null
+        val ready: String? = if (sourceShowing || !richDirty) currentMarkdown() else null
+        val doc = if (ready == null) binding.rich.document() else null
+        val gen = richGen
+        return {
+            ops.withLock {
+                val text = ready ?: withContext(Dispatchers.Default) { RichWrite.write(doc!!).text }.also {
+                    // Nothing edited since it was read: it is the Markdown of what is shown.
+                    if (gen == richGen && !sourceShowing) { richSource = it; richDirty = false }
                 }
+                if (!DocumentLimits.fits(text)) {
+                    if (!tooLongTold && !isFinishing && !isDestroyed) {
+                        tooLongTold = true
+                        Dialogs.problem(this@DocumentActivity, R.string.too_long_title, R.string.too_long_body)
+                    }
+                    return@withLock false
+                }
+                tooLongTold = false
+                if (text == savedText) return@withLock true
+                // On the way out there is no later save: one more try, then say so, once for
+                // these words (the pause and the stop both try; an export says so itself, and stays).
+                val leaving = !started || closing || isFinishing
+                var landed = write(documents, text)
+                if (!landed && leaving) landed = write(documents, text)
+                when {
+                    landed -> { savedText = text; unsavedTold = null }
+                    !leaving -> main.postDelayed(autosave, AUTOSAVE_DELAY_MS)
+                    !closing && unsavedTold != text -> {
+                        unsavedTold = text
+                        android.widget.Toast.makeText(applicationContext, R.string.save_failed_toast, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                landed
             }
         }
+    }
+
+    private suspend fun write(documents: DocumentStore, text: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching { documents.save(text) }.onFailure { Log.w(TAG, "save failed: ${it.javaClass.simpleName}") }.isSuccess
     }
 
     // ── Ink from the clipboard, as words ──────
@@ -634,12 +688,20 @@ class DocumentActivity : AppCompatActivity() {
         val id = itemId ?: return
         if (isSavedOrSaveable().not()) return
         closing = true
-        save()
-        writeCover()
-        // What the ways out would do has been done: they find nothing open.
-        opened = false
-        letGo()
         appScope.launch {
+            // The file must hold the words before it is handed over: when the save did not land,
+            // one more, awaited, and if that fails too the document stays open and says so.
+            if (!saveNow() && opened) saveNow()
+            if (!opened || isFinishing || isDestroyed) return@launch
+            if (savedText != currentMarkdown()) {
+                closing = false
+                Dialogs.problem(this@DocumentActivity, R.string.export_failed_title, R.string.export_not_saved_body)
+                return@launch
+            }
+            writeCover()
+            // What the ways out would do has been done: they find nothing open.
+            opened = false
+            letGo()
             ops.withLock { }
             val started = runCatching {
                 startActivity(
@@ -693,6 +755,8 @@ class DocumentActivity : AppCompatActivity() {
         started = false
         main.removeCallbacks(autosave)
         if (!opened) return
+        // Nothing to do when the pause's save landed; when it did not, the last try before the park.
+        save()
         writeCover()
         park()
     }
@@ -716,7 +780,12 @@ class DocumentActivity : AppCompatActivity() {
         coverText = text
         appScope.launch(Dispatchers.IO) {
             try {
-                (application as DocsproutApp).soil.seam().setCover(id, SeamShared.write(TextCover.encode(text)))
+                val cover = SeamShared.write(TextCover.encode(text))
+                try {
+                    (application as DocsproutApp).soil.seam().setCover(id, cover)
+                } finally {
+                    cover.memory.close()
+                }
             } catch (e: Throwable) {
                 Log.w(TAG, "the cover was not written: ${e.javaClass.simpleName}")
             }

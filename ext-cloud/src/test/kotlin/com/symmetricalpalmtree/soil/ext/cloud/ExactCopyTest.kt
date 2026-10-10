@@ -43,6 +43,29 @@ class ExactCopyTest {
     }
 
     @Test
+    fun aSourceWithMoreToGive_isRefusedBeforeTheLastByteIsWritten() {
+        // The resumable PUT's body is the file alone: its last byte is what lets Drive commit.
+        val sink = ByteArrayOutputStream()
+        try {
+            ExactCopy.copy(ByteArrayInputStream(ByteArray(100_000)), sink, 70_000L)
+            throw AssertionError("expected a refusal")
+        } catch (e: IllegalStateException) {
+            assertEquals(ExactCopy.LONG_READ, e.message)
+        }
+        assertEquals(true, sink.size() < 70_000)
+    }
+
+    @Test
+    fun zeroBytesExpected_fromASourceWithBytes_isRefused() {
+        try {
+            ExactCopy.copy(ByteArrayInputStream(ByteArray(1)), ByteArrayOutputStream(), 0L)
+            throw AssertionError("expected a refusal")
+        } catch (e: IllegalStateException) {
+            assertEquals(ExactCopy.LONG_READ, e.message)
+        }
+    }
+
+    @Test
     fun aNegativeExpectation_isTheCallersMistake() {
         try {
             ExactCopy.copy(ByteArrayInputStream(ByteArray(0)), ByteArrayOutputStream(), -1L)

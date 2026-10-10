@@ -25,6 +25,12 @@ class DriveJsonTest {
     }
 
     @Test
+    fun isTrashed_readsDrivesFlag_andAbsentIsFalse() {
+        assertTrue(DriveJson.isTrashed(FakeTransport.file("ID1", "Dev", folder = true, trashed = true)))
+        assertEquals(false, DriveJson.isTrashed(FakeTransport.file("ID1", "Dev", folder = true)))
+    }
+
+    @Test
     fun parseFileList_aMissingModifiedTimeIsZero() {
         val page = DriveJson.parseFileList(FakeTransport.fileList(FakeTransport.file("ID1", "a.soil", size = "1")))
         assertEquals(0L, page.entries.single().modifiedAt)

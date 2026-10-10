@@ -34,7 +34,7 @@ class SafRestoreSource(private val reader: SafBackupReader) : RestoreSource {
         val total = manifest.items.size
         var done = 0
         for (item in manifest.items) {
-            val entry = byName[item.name] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
+            val entry = byName[item.sourceName] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
             val target = RestoreStaging.targetFor(staging, item)
             val ok = reader.open(entry.uri)?.use { input -> RestoreStaging.writeStaged(target, item.size) { out -> input.copyTo(out) } } ?: false
             if (!ok) return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))

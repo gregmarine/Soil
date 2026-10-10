@@ -7,8 +7,8 @@ import android.util.Log
 import java.io.ByteArrayOutputStream
 
 /**
- * One of a page's two rasters turned into bytes, and back (Notesprout SN's, arcs 43–45) — the
- * half of the raster border that needs Android. The half that does not is [ImageHeader] and
+ * One of a page's three rasters (graphite, ink, marker) turned into bytes, and back (Notesprout
+ * SN's, arcs 43–45) — the half of the raster border that needs Android. The half that does not is [ImageHeader] and
  * [RasterRows].
  *
  * **Lossless WebP with alpha, because the drawing has to come back exactly.** A raster page has no
@@ -20,7 +20,7 @@ import java.io.ByteArrayOutputStream
  *
  * **Alpha matters as much as losslessness.** Each raster is a *layer over the paper*: its unmarked
  * pixels are transparent so the paper shows through, the rubber lifts alpha rather than painting
- * white, and the two rasters are flattened one over the other.
+ * white, and the rasters are flattened one over the other.
  *
  * **Nothing here logs a pixel** — byte counts and sizes only.
  */
@@ -65,13 +65,22 @@ object RasterImage {
         return bytes
     }
 
+    /** Stored bytes that are there and are not this page's picture: the header names another
+     *  size, or the decoder would not (or could not, for memory) turn them into one. */
+    class Unreadable(message: String, cause: Throwable? = null) : Exception(message, cause)
+
     /**
-     * The bytes as one raster's page image, or null when they are not this page's.
+     * The bytes as one raster's page image — **null only for no bytes** (no row, or a row carrying
+     * nothing: a layer nothing has been drawn on), and [Unreadable] for bytes that are there and
+     * will not come back as this page's picture.
+     *
+     * **The two are never the same answer.** A blank layer opened over a picture that failed to
+     * decode would be saved over it at the next mark, and the drawing would be gone for good: so a
+     * failure throws, and the caller refuses the page rather than opening it blank.
      *
      * **The guard runs before the decoder, always.** [RasterRows.fitsPage] answers from the WebP
      * container's own header, and only once it has said yes does anything ask `BitmapFactory` for
-     * memory. A null opens that layer blank, which is the honest state of a layer nothing could be
-     * read onto; the pixels on disk are left exactly as they are.
+     * memory. The pixels on disk are left exactly as they are.
      *
      * `ARGB_8888` because each raster is a layer over the paper: a config without an alpha channel
      * would turn every unmarked pixel into a white hole in whatever sits under it.
@@ -80,7 +89,7 @@ object RasterImage {
         if (bytes == null || bytes.isEmpty()) return null
         if (!RasterRows.fitsPage(bytes, pageWidth, pageHeight)) {
             Log.w(TAG, "a stored raster is ${ImageHeader.size(bytes)} and the page is ${pageWidth}x$pageHeight — refused before decoding")
-            return null
+            throw Unreadable("the stored raster is not this page's size")
         }
         val options = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
         val bitmap = try {
@@ -89,9 +98,12 @@ object RasterImage {
             // Throwable, not Exception: the one that matters on this device — not enough memory for
             // the page — is an Error.
             Log.e(TAG, "a stored raster passed the header guard and would not decode", t)
-            null
+            throw Unreadable("the stored raster would not decode", t)
         }
-        if (bitmap == null) Log.e(TAG, "a stored raster decoded to nothing")
+        if (bitmap == null) {
+            Log.e(TAG, "a stored raster decoded to nothing")
+            throw Unreadable("the stored raster decoded to nothing")
+        }
         return bitmap
     }
 

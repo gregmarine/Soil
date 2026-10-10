@@ -129,7 +129,10 @@ class RenderService : Service() {
                 runCatching { session.close(true) }
             }
             // A card with no cover reads as an empty document; never worth failing the import for.
-            runCatching { seam.setCover(itemId, SeamShared.write(TextCover.encode(markdown))) }
+            runCatching {
+                val cover = SeamShared.write(TextCover.encode(markdown))
+                try { seam.setCover(itemId, cover) } finally { cover.memory.close() }
+            }
             Slog.d(TAG) { "took in ${markdown.length} chars" }
         }
     }

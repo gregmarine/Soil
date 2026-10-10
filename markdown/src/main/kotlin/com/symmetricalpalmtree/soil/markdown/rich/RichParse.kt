@@ -1,12 +1,20 @@
 package com.symmetricalpalmtree.soil.markdown.rich
 
+import com.symmetricalpalmtree.soil.markdown.MarkdownCode
+
 /**
  * Markdown → [RichDoc]. The block grammar is [com.symmetricalpalmtree.soil.markdown.MarkdownParser]'s,
  * line for line, with three things that parser does not need and a rendered editor does:
  *
  *  - **Backslash escapes.** `\` before a punctuation character makes it a plain character, so
  *    what [RichWrite] escaped reads back as it was typed.
- *  - **Raw lines.** A fenced block and a table row are kept exactly as written, a line a block.
+ *  - **Raw lines.** A fenced block, an indented code block and a table row are kept exactly as
+ *    written, a line a block, by [MarkdownCode]'s rule (the notebook's parser has no code and no
+ *    tables). A fence is three or more backticks or tildes, with no more of its character after
+ *    the run, closed by a line of the same character at least as long and nothing else; a fence
+ *    never closed runs to the end of the document. An indented code block is lines indented four spaces (or a tab) after a
+ *    blank line, when the block before it is not a list item; a line that reads as a list item
+ *    is one, at its depth, and never code, since that is how a nested item is written.
  *  - **Images stay as written**: the characters `![alt](url)`, untouched.
  *
  * Every block also reports where it began in the source, so a cursor can be carried between the
@@ -23,7 +31,6 @@ object RichParse {
     private val TASK_ITEM = Regex("""^[-*+]\s+\[([xX ])\]\s+(.*)""")
     private val UNORDERED_ITEM = Regex("""^[-*+]\s+(.+)""")
     private val ORDERED_ITEM = Regex("""^(\d+)\.\s+(.+)""")
-    private const val FENCE = "```"
 
     fun parse(markdown: String): Result {
         val lines = ArrayList<String>()
@@ -55,18 +62,36 @@ object RichParse {
                 if (blocks.lastOrNull()?.attr?.kind == RichKind.RAW) {
                     var next = i + 1
                     while (next < lines.size && lines[next].isBlank()) next++
-                    if (next < lines.size && isRawStart(lines[next].trim())) add(RichBlock(RAW, ""), i)
+                    if (next < lines.size && (isRawStart(lines[next].trim()) || isIndentedCode(lines[next]))) add(RichBlock(RAW, ""), i)
                 }
                 i++
                 continue
             }
 
-            if (line.startsWith(FENCE)) {
+            // Indented code: only after a blank line (it cannot interrupt a paragraph), and not
+            // under a list item, where the indent is the list's.
+            if (isIndentedCode(raw) && (i == 0 || lines[i - 1].isBlank()) && blocks.lastOrNull()?.attr?.isList != true) {
+                add(RichBlock(RAW, raw), i)
+                i++
+                while (i < lines.size) {
+                    if (isIndentedCode(lines[i])) { add(RichBlock(RAW, lines[i]), i); i++; continue }
+                    if (!lines[i].isBlank()) break
+                    // Blank lines are the block's only when more of it follows them.
+                    var next = i
+                    while (next < lines.size && lines[next].isBlank()) next++
+                    if (next >= lines.size || !isIndentedCode(lines[next])) break
+                    while (i < next) { add(RichBlock(RAW, lines[i]), i); i++ }
+                }
+                continue
+            }
+
+            val fence = fenceRun(line)
+            if (fence != null) {
                 add(RichBlock(RAW, raw), i)
                 i++
                 while (i < lines.size) {
                     add(RichBlock(RAW, lines[i]), i)
-                    val closes = lines[i].trim().startsWith(FENCE)
+                    val closes = closesFence(lines[i], fence)
                     i++
                     if (closes) break
                 }
@@ -154,7 +179,12 @@ object RichParse {
 
     private fun Regex.matchAt0(line: String): MatchResult? = find(line)?.takeIf { it.range.first == 0 }
 
-    private fun isRawStart(line: String): Boolean = line.startsWith(FENCE) || line.startsWith("|")
+    private fun isRawStart(line: String): Boolean = fenceRun(line) != null || line.startsWith("|")
+
+    // The code rules are [MarkdownCode]'s, shared with every other reader of the source.
+    internal fun fenceRun(line: String): String? = MarkdownCode.fenceRun(line)
+    internal fun closesFence(line: String, run: String): Boolean = MarkdownCode.closesFence(line, run)
+    internal fun isIndentedCode(line: String): Boolean = MarkdownCode.isIndentedCode(line)
 
     private fun startsBlock(line: String): Boolean =
         isRawStart(line) ||
@@ -165,12 +195,7 @@ object RichParse {
             UNORDERED_ITEM.matchAt0(line) != null ||
             ORDERED_ITEM.matchAt0(line) != null
 
-    /** Three or more of `-`, `*`, or `_`; mixed together they are not a rule. */
-    internal fun isHorizontalRule(line: String): Boolean {
-        val bare = line.replace(" ", "").replace("\t", "")
-        if (bare.length < 3) return false
-        return bare.all { it == '-' } || bare.all { it == '*' } || bare.all { it == '_' }
-    }
+    internal fun isHorizontalRule(line: String): Boolean = MarkdownCode.isHorizontalRule(line)
 
     // ── Inlines ──────
 
@@ -188,6 +213,7 @@ object RichParse {
      * Markup with nothing inside it is left as its characters, so nothing typed is ever lost.
      */
     private fun inlineInto(src: String, out: StringBuilder, spans: MutableList<RichSpan>) {
+        val scan = RichInline.Scan(src)
         var i = 0
         while (i < src.length) {
             val c = src[i]
@@ -207,9 +233,9 @@ object RichParse {
                     } else { out.append(c); i++ }
                 }
 
-                src.startsWith("~~", i) -> i = styled(src, i, "~~", RichStyle.STRIKE, out, spans)
-                src.startsWith("**", i) -> i = styled(src, i, "**", RichStyle.BOLD, out, spans)
-                src.startsWith("__", i) -> i = styled(src, i, "__", RichStyle.BOLD, out, spans)
+                src.startsWith("~~", i) -> i = styled(src, i, "~~", RichStyle.STRIKE, out, spans, scan)
+                src.startsWith("**", i) -> i = styled(src, i, "**", RichStyle.BOLD, out, spans, scan)
+                src.startsWith("__", i) -> i = styled(src, i, "__", RichStyle.BOLD, out, spans, scan)
 
                 c == '!' && RichInline.imageEnd(src, i) > 0 -> {
                     val end = RichInline.imageEnd(src, i)
@@ -218,7 +244,7 @@ object RichParse {
                 }
 
                 c == '[' -> {
-                    val link = RichInline.linkAt(src, i)
+                    val link = RichInline.linkAt(src, i, scan)
                     val display = link?.let { RichInline.unescape(src.substring(i + 1, it.textEnd)) }
                     if (link != null && !display.isNullOrEmpty()) {
                         val start = out.length
@@ -228,8 +254,8 @@ object RichParse {
                     } else { out.append(c); i++ }
                 }
 
-                c == '*' -> i = styled(src, i, "*", RichStyle.ITALIC, out, spans)
-                c == '_' -> i = styled(src, i, "_", RichStyle.ITALIC, out, spans)
+                c == '*' -> i = styled(src, i, "*", RichStyle.ITALIC, out, spans, scan)
+                c == '_' -> i = styled(src, i, "_", RichStyle.ITALIC, out, spans, scan)
 
                 else -> { out.append(c); i++ }
             }
@@ -238,8 +264,8 @@ object RichParse {
 
     /** The run opened by [marker] at [i], when it closes around something; else the marker's
      *  first character as itself. Answers where the scan goes on. */
-    private fun styled(src: String, i: Int, marker: String, style: RichStyle, out: StringBuilder, spans: MutableList<RichSpan>): Int {
-        val close = RichInline.closer(src, i + marker.length, marker)
+    private fun styled(src: String, i: Int, marker: String, style: RichStyle, out: StringBuilder, spans: MutableList<RichSpan>, scan: RichInline.Scan): Int {
+        val close = RichInline.closer(src, i + marker.length, marker, scan)
         if (close <= i + marker.length) {
             out.append(src[i])
             return i + 1
@@ -267,18 +293,57 @@ internal object RichInline {
 
     class Link(val textEnd: Int, val end: Int)
 
+    /**
+     * Where the next unescaped `]` and the next `)` stand from each position of one string,
+     * worked out once, so a line of many `[` is not scanned to its end for each of them. Escapes
+     * are read left to right from the start; every position a scan begins at is a boundary of
+     * that reading, so the answer is the one a scan from there would find.
+     */
+    class Scan(src: String) {
+        private val close: IntArray
+        private val paren: IntArray
+
+        init {
+            val n = src.length
+            val escaped = BooleanArray(n)
+            var j = 0
+            while (j < n) {
+                if (src[j] == '\\' && j + 1 < n && isPunctuation(src[j + 1])) { escaped[j + 1] = true; j += 2 } else j++
+            }
+            close = IntArray(n + 1)
+            paren = IntArray(n + 1)
+            close[n] = -1
+            paren[n] = -1
+            for (k in n - 1 downTo 0) {
+                close[k] = if (src[k] == ']' && !escaped[k]) k else close[k + 1]
+                paren[k] = if (src[k] == ')') k else paren[k + 1]
+            }
+        }
+
+        fun closeFrom(from: Int): Int = if (from >= close.size) -1 else close[from]
+        fun parenFrom(from: Int): Int = if (from >= paren.size) -1 else paren[from]
+    }
+
     /** The link that starts at `src[i] == '['`: where its text's `]` is and where it ends
-     *  (exclusive), or null. The text's own brackets are escaped, so a `\]` does not close it. */
-    fun linkAt(src: String, i: Int): Link? {
-        var j = i + 1
-        while (j < src.length) {
-            val c = src[j]
-            if (c == '\\' && j + 1 < src.length && isPunctuation(src[j + 1])) { j += 2; continue }
-            if (c == ']') break
-            j++
+     *  (exclusive), or null. The text's own brackets are escaped, so a `\]` does not close it.
+     *  [scan], when given, is [src]'s, and saves scanning it again. */
+    fun linkAt(src: String, i: Int, scan: Scan? = null): Link? {
+        val j: Int
+        if (scan != null) {
+            j = scan.closeFrom(i + 1)
+            if (j < 0) return null
+        } else {
+            var k = i + 1
+            while (k < src.length) {
+                val c = src[k]
+                if (c == '\\' && k + 1 < src.length && isPunctuation(src[k + 1])) { k += 2; continue }
+                if (c == ']') break
+                k++
+            }
+            j = k
         }
         if (j >= src.length || j + 1 >= src.length || src[j + 1] != '(') return null
-        val urlEnd = src.indexOf(')', j + 2)
+        val urlEnd = scan?.parenFrom(j + 2) ?: src.indexOf(')', j + 2)
         return if (urlEnd < 0) null else Link(j, urlEnd + 1)
     }
 
@@ -286,7 +351,7 @@ internal object RichInline {
      * Where [marker] next stands from [from], or -1: never an escaped character, never inside
      * code, a link or an image, each of which is stepped over whole.
      */
-    fun closer(src: String, from: Int, marker: String): Int {
+    fun closer(src: String, from: Int, marker: String, scan: Scan? = null): Int {
         var j = from
         while (j < src.length) {
             val c = src[j]
@@ -298,7 +363,7 @@ internal object RichInline {
                     j = if (end > j + 1) end + 1 else j + 1
                 }
                 c == '!' && imageEnd(src, j) > 0 -> j = imageEnd(src, j)
-                c == '[' -> j = linkAt(src, j)?.end ?: (j + 1)
+                c == '[' -> j = linkAt(src, j, scan)?.end ?: (j + 1)
                 else -> j++
             }
         }

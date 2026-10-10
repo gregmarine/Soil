@@ -94,6 +94,8 @@ class TokenSource(
                 cache.clear()
                 // Best effort: a store that cannot be reached still leaves the account refused.
                 runCatching { store.clear() }
+                // The folder ids were resolved under the account just forgotten.
+                DriveFolders.cache.clear()
                 Slog.d(TAG) { "refresh revoked — account forgotten" }
                 throw DriveFailures.notConnected()
             }

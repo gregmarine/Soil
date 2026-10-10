@@ -1,7 +1,9 @@
 package com.symmetricalpalmtree.soil.calsprout
 
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
+import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.paper.ink.InkSql
+import com.symmetricalpalmtree.soil.paper.ink.StrokeBlob
 import com.symmetricalpalmtree.soil.paper.store.Statement
 
 /**
@@ -58,6 +60,30 @@ object CalendarSql : InkDocument.StrokeSql by InkSql {
     /** The page's ink changed. */
     fun touchPage(id: String, now: Long): Statement =
         Statement("UPDATE page SET updatedAt = ? WHERE id = ?", now, id)
+
+    // ── a page this showing minted — named by (period, half), never by the id it minted ──────
+
+    /** The page row under `(calendarId, kind, date)` at [half], as a subselect: the row's own id,
+     *  whichever screen minted it. Two screens (a `cal:` link starts a second) can each mint an
+     *  id for one empty page; `UNIQUE(periodId, half)` keeps the first, and the other's strokes
+     *  must land under it rather than fail on the foreign key. */
+    private const val PAGE_OF =
+        "(SELECT id FROM page WHERE periodId = (SELECT id FROM period WHERE calendarId = ? AND kind = ? AND date = ?) AND half = ?)"
+
+    /** [putStroke] for a page whose row this showing minted: the `pageId` is resolved in the statement. */
+    fun putStrokeOnPage(calendarId: String, kind: Int, date: String, half: Int, order: Long, stroke: Stroke): Statement =
+        Statement(
+            "INSERT OR REPLACE INTO stroke (id, pageId, \"order\", color, width, style, blob) VALUES (?, $PAGE_OF, ?, ?, ?, ?, ?)",
+            stroke.id, calendarId, kind.toLong(), date, half.toLong(),
+            order, stroke.color.toLong(), stroke.width.toDouble(), stroke.style.name, StrokeBlob.encode(stroke),
+        )
+
+    /** [touchPage] for a page whose row this showing minted. */
+    fun touchPageOf(calendarId: String, kind: Int, date: String, half: Int, now: Long): Statement =
+        Statement(
+            "UPDATE page SET updatedAt = ? WHERE id = $PAGE_OF",
+            now, calendarId, kind.toLong(), date, half.toLong(),
+        )
 
     // ── state — the bookmark ──────
 

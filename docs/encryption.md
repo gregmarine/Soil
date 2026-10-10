@@ -66,6 +66,10 @@ A rotation re-keys every file the global key opens: items, then stores, then the
 - A death anywhere is found on the next launch. The home screen says a change was interrupted,
   every screen that needs the key leads to the Encryption screen, and its banner resumes.
 - The index is closed for its own turn and opened again when the rotation ends.
+- It belongs to the process, not the screen: leaving the Encryption screen does not stop it, and
+  a screen opened meanwhile watches the same run. The index is opened again however it ends.
+- While a marker stands no item or store is opened or made, and the seam answers that the library
+  is not open. A store an app holds is opened again at its next call once the rotation ends.
 
 ## Forget on this device
 

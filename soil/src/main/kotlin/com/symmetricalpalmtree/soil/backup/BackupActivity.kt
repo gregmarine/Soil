@@ -196,6 +196,7 @@ class BackupActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
         when (outcome.problem) {
             BackupEngine.Problem.NO_KEY -> return Dialogs.problem(this, R.string.backup_locked_title, R.string.backup_locked_body)
+            BackupEngine.Problem.ROTATION_PENDING -> return Dialogs.problem(this, R.string.backup_rotation_title, R.string.backup_rotation_body)
             BackupEngine.Problem.NO_DESTINATION -> return noDestination(cloud?.ref)
             else -> Unit
         }

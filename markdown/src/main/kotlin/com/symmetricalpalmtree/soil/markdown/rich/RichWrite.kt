@@ -16,7 +16,11 @@ package com.symmetricalpalmtree.soil.markdown.rich
  *    a `!` before a link, every backslash, and whatever at the start of a paragraph would make it another kind of
  *    block. Text with none of that is written exactly as it reads.
  *
- * A raw line and an image are written exactly as they are held. Pure Kotlin.
+ * A raw line and an image are written exactly as they are held, so long as the line reads back
+ * as raw where it stands: inside a fence, as a fence that is closed (or runs to the end, as an
+ * unclosed one is read), as a table row, as a blank line, or as indented code after a blank
+ * line. Any other raw line (one edited out of its shape) is written as a paragraph of its words,
+ * escaped, so it reads back as those words and never as some other block. Pure Kotlin.
  */
 object RichWrite {
 
@@ -25,7 +29,7 @@ object RichWrite {
     fun write(doc: RichDoc): Result {
         val normal = doc.blocks.map { it.normalized() }
         val keptIndex = normal.indices.filter { !normal[it].isBlank }
-        val kept = keptIndex.map { normal[it] }
+        val kept = settleRaw(keptIndex.map { normal[it] })
         val numbers = RichRules.numbering(kept.map { it.attr })
 
         val out = StringBuilder()
@@ -39,6 +43,47 @@ object RichWrite {
         if (kept.isNotEmpty()) out.append('\n')
         while (next < offsets.size) offsets[next++] = out.length
         return Result(out.toString(), offsets)
+    }
+
+    /** The blocks with each raw line that would not read back as raw made a paragraph of its words. */
+    private fun settleRaw(blocks: List<RichBlock>): List<RichBlock> {
+        if (blocks.none { it.attr.kind == RichKind.RAW }) return blocks
+        val raw = BooleanArray(blocks.size)
+        fun isRaw(k: Int) = blocks[k].attr.kind == RichKind.RAW
+        var indented = false
+        // The kind the last block with words on it is written as, for what may follow a blank line.
+        var lastSolid: RichAttr? = null
+        var k = 0
+        while (k < blocks.size) {
+            val b = blocks[k]
+            if (!isRaw(k)) { indented = false; lastSolid = b.attr; k++; continue }
+            val t = b.text
+            if (t.isBlank()) { raw[k] = true; k++; continue }
+            // Indented code is read only after a blank line, which a raw line before it does not leave unless it is one.
+            val afterBlank = k == 0 || !isRaw(k - 1) || !raw[k - 1] || blocks[k - 1].text.isBlank()
+            if (RichParse.isIndentedCode(t) && (indented || (afterBlank && lastSolid?.isList != true))) {
+                raw[k] = true; indented = true; lastSolid = b.attr; k++; continue
+            }
+            indented = false
+            val fence = RichParse.fenceRun(t)
+            if (fence != null) {
+                var j = k + 1
+                while (j < blocks.size && isRaw(j) && !RichParse.closesFence(blocks[j].text, fence)) j++
+                val closed = j < blocks.size && isRaw(j)
+                if (closed || j == blocks.size) {
+                    val last = if (closed) j else j - 1
+                    for (x in k..last) raw[x] = true
+                    lastSolid = b.attr
+                    k = last + 1
+                    continue
+                }
+            } else if (t.trimStart().startsWith("|")) {
+                raw[k] = true; lastSolid = b.attr; k++; continue
+            }
+            lastSolid = RichAttr.PARAGRAPH
+            k++
+        }
+        return blocks.mapIndexed { i, b -> if (isRaw(i) && !raw[i]) RichBlock(RichAttr.PARAGRAPH, b.text).normalized() else b }
     }
 
     private fun line(block: RichBlock, number: Int): String {
@@ -194,6 +239,8 @@ object RichWrite {
         line.isEmpty() -> line
         HEADING_START.containsMatchIn(line) || BULLET_START.containsMatchIn(line) -> "\\" + line
         line[0] == '>' || line[0] == '|' -> "\\" + line
+        // Only a strike's marker and the tilde inside it can start a line with three: escape that one, or it is a fence.
+        line.startsWith("~~~") -> line.substring(0, 2) + "\\" + line.substring(2)
         RichParse.isHorizontalRule(line) -> "\\" + line
         else -> ORDERED_START.find(line)?.let { m -> line.substring(0, m.groupValues[1].length) + "\\" + line.substring(m.groupValues[1].length) } ?: line
     }

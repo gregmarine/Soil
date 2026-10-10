@@ -37,16 +37,40 @@ object HiddenApps {
     /** What of [all] is hidden, in the order it came. Pure. */
     fun hiddenOf(all: List<AppEntry>, hidden: Set<String>): List<AppEntry> = all.filter { keyOf(it) in hidden }
 
+    private val lock = Any()
+    private var loaded = false
+    /** Hides and shows made before the load landed, in order: replayed over what was stored,
+     *  so an early tap never writes over the whole list. */
+    private val early = ArrayList<Pair<String, Boolean>>()
+
     suspend fun load(context: Context) = withContext(Dispatchers.IO) {
-        _hidden.value = prefs(context).getStringSet(KEY_HIDDEN, emptySet()).orEmpty().toSet()
+        val stored = prefs(context).getStringSet(KEY_HIDDEN, emptySet()).orEmpty().toSet()
+        synchronized(lock) {
+            val merged = replay(stored, early)
+            loaded = true
+            _hidden.value = merged
+            if (early.isNotEmpty()) {
+                early.clear()
+                write(context, merged)
+            }
+        }
     }
 
-    fun hide(context: Context, app: AppEntry) = save(context, _hidden.value + keyOf(app))
+    fun hide(context: Context, app: AppEntry) = edit(context, keyOf(app), true)
 
-    fun show(context: Context, app: AppEntry) = save(context, _hidden.value - keyOf(app))
+    fun show(context: Context, app: AppEntry) = edit(context, keyOf(app), false)
 
-    private fun save(context: Context, next: Set<String>) {
+    /** [stored] with each edit applied in turn: true hides the key, false shows it. Pure. */
+    fun replay(stored: Set<String>, edits: List<Pair<String, Boolean>>): Set<String> =
+        edits.fold(stored) { set, (key, hide) -> if (hide) set + key else set - key }
+
+    private fun edit(context: Context, key: String, hide: Boolean) = synchronized(lock) {
+        val next = replay(_hidden.value, listOf(key to hide))
         _hidden.value = next
+        if (loaded) write(context, next) else early += key to hide
+    }
+
+    private fun write(context: Context, next: Set<String>) {
         // A copy: a set handed to the preferences must never be changed afterwards.
         prefs(context).edit().putStringSet(KEY_HIDDEN, HashSet(next)).apply()
     }

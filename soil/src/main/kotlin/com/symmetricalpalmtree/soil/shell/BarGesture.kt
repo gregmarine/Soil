@@ -62,6 +62,40 @@ object BarGesture {
         else -> Read.SWIPE_DOWN
     }
 
+    /**
+     * The right bar's first contact, paired down to up by the keys' own times. Pure.
+     *
+     * Over an app's paper the keys cross the seam one call each, from a pool of threads, so a down
+     * and its up can arrive in either order. Read as they arrive, an up landing before its own
+     * down pairs with the *previous* contact's down, and two short brushes of a palm on the edge
+     * strip a few hundred milliseconds apart read as one swipe down: the menu, with no swipe.
+     * So an up is paired only with a down still open and not later than it, and a down older than
+     * the last up heard is stale.
+     */
+    class RightBar {
+        /** When the open contact went down, or the last one did once it is closed. */
+        var downAt = 0L
+            private set
+        private var open = false
+        private var lastUpAt = Long.MIN_VALUE
+
+        /** A first down (repeat 0). False when it is stale: an up later than it was already heard. */
+        fun down(eventTime: Long): Boolean {
+            if (eventTime < lastUpAt) return false
+            downAt = eventTime
+            open = true
+            return true
+        }
+
+        /** An up: how long its contact was held, or **null** when there is no open down for it. */
+        fun up(eventTime: Long): Long? {
+            if (eventTime > lastUpAt) lastUpAt = eventTime
+            if (!open || eventTime < downAt) return null
+            open = false
+            return eventTime - downAt
+        }
+    }
+
     /** Whether a "menu shown" broadcast, heard [sinceRightDownMs] after the right bar was
      *  touched, is the firmware's side menu slipping past the lock. */
     fun isSideMenuLeak(sinceRightDownMs: Long): Boolean = sinceRightDownMs in 0 until LEAK_WINDOW_MS

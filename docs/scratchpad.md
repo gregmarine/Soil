@@ -18,7 +18,7 @@ SN's `scratchpad.md` and `sn-screen.md` (see `references.md`).
 | Eraser | Point or lasso. A second tap on the armed eraser chooses |
 | Lasso | Select, drag, delete |
 | Undo, redo | Two-finger and three-finger double-tap. Kept in memory, for the screen's life |
-| Bars | A one-finger double-tap hides and shows them. The pad opens as it was left |
+| Bars | A one-finger double-tap hides and shows them. The flag is shared through Soil, one for every paper screen (`PadPrefs`, `seam.md`): the pad opens as any of them was left |
 | Delete a page | A long press asks first. Undo brings the page and its ink back |
 | Copy | The page (the top bar, or the long-press sheet) as a notebook page clip, or the lasso's strokes from the selection bar, to the library's clipboard. The pad stays open. A notebook pastes a page as a page and ink as ink, a document ink as words (`clipboard.md`) |
 | Paste | Strokes: a stylus tap on bare paper under the armed lasso, centred on the tap, or the lasso's re-tap popup at the source. A page: the long-press sheet's Paste page, a new page after this one at the copied page's size (2026-10-06) |
@@ -44,6 +44,10 @@ state  (key, value)      -- 'current' -> the current page
 ```
 
 - Ink is saved 800 ms after the pen rests, and always before the screen is left.
+- A page turn ends a contact whose lift was lost (g-paper's `clearForContentSwap`) before the
+  departing page's last flush, so the stroke it commits stays on the page it was written on.
+- A store closed under the pad (a rotation, Forget) is opened again at its next call. A restore
+  is refused while the pad is open: the pad's page ids are the old library's.
 - A page row is never written with `INSERT OR REPLACE`: the replace deletes first, and the
   delete would take the page's strokes with it.
 

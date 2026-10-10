@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.util.Log
 import com.symmetricalpalmtree.soil.seam.Seam
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * **Which app opens which kind of item.** An app says so itself: the screen it opens an item in
@@ -14,6 +16,10 @@ import com.symmetricalpalmtree.soil.seam.Seam
  *
  * Soil opens an item only in an app signed with its own key and of its own build. Looked for
  * each time, never remembered: an app can be installed or removed while Soil runs.
+ *
+ * A look asks the package manager, which is a binder call: never on Main. The `suspend` doors
+ * ([openItem], [showBible], [showCalendar]) look on IO and start on Main; the plain ones block
+ * and are for callers already off Main.
  */
 object ItemApps {
 
@@ -89,31 +95,20 @@ object ItemApps {
 
     enum class Opened { YES, NO_APP, FAILED }
 
-    /** Have the app for [kind] make a new item called [name] and open it. Only the app knows the
-     *  shape of its own files, so Soil asks rather than making the file itself. */
-    fun create(context: Context, kind: String, name: String): Opened {
-        val app = find(context, kind) ?: return Opened.NO_APP
-        return start(
-            context,
-            Intent(Seam.ACTION_OPEN_ITEM)
-                .setComponent(ComponentName(app.packageName, app.className))
-                .putExtra(Seam.EXTRA_NEW_NAME, name),
-        )
+    /** Open the item in the app for its kind. What rides the Intent is the item's id, and for a
+     *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). The look
+     *  on IO and the start on the caller's thread (Main). */
+    suspend fun openItem(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
+        val app = withContext(Dispatchers.IO) { find(context, kind) } ?: return Opened.NO_APP
+        return start(context, itemIntent(app, itemId, templatePick, pageId))
     }
 
-    /** Open the item in the app for its kind. What rides the Intent is the item's id, and for a
-     *  notebook just made, the paper its first page gets ([Seam.EXTRA_TEMPLATE_PICK]). */
-    fun open(context: Context, itemId: String, kind: String, templatePick: String? = null, pageId: String? = null): Opened {
-        val app = find(context, kind) ?: return Opened.NO_APP
-        return start(
-            context,
-            Intent(Seam.ACTION_OPEN_ITEM)
-                .setComponent(ComponentName(app.packageName, app.className))
-                .putExtra(Seam.EXTRA_ITEM_ID, itemId)
-                .putExtra(Seam.EXTRA_TEMPLATE_PICK, templatePick)
-                .putExtra(Seam.EXTRA_PAGE_ID, pageId),
-        )
-    }
+    private fun itemIntent(app: Candidate, itemId: String, templatePick: String?, pageId: String?): Intent =
+        Intent(Seam.ACTION_OPEN_ITEM)
+            .setComponent(ComponentName(app.packageName, app.className))
+            .putExtra(Seam.EXTRA_ITEM_ID, itemId)
+            .putExtra(Seam.EXTRA_TEMPLATE_PICK, templatePick)
+            .putExtra(Seam.EXTRA_PAGE_ID, pageId)
 
     /**
      * The screen that opens the Bible ([Seam.ACTION_OPEN_BIBLE]), or null when no app that may be
@@ -147,18 +142,18 @@ object ItemApps {
      * Open the Bible on [wire], a passage in the codec's form; the reader decodes it. In the
      * caller's own task, never a new one: a link followed from a notebook or a document puts the
      * reader over that screen, so Back and the reader's swipe up come back to it, whatever
-     * reader may be alive in Biblesprout's own task from the menu.
+     * reader may be alive in Biblesprout's own task from the menu. The look on IO and the start
+     * on the caller's thread (Main).
      */
-    fun openBible(context: Context, wire: String): Opened {
-        val app = findBible(context) ?: return Opened.NO_APP
-        return start(
-            context,
-            Intent(Seam.ACTION_OPEN_BIBLE)
-                .setComponent(ComponentName(app.packageName, app.className))
-                .putExtra(Seam.EXTRA_BIBLE_WIRE, wire),
-            newTask = false,
-        )
+    suspend fun showBible(context: Context, wire: String): Opened {
+        val app = withContext(Dispatchers.IO) { findBible(context) } ?: return Opened.NO_APP
+        return start(context, bibleIntent(app, wire), newTask = false)
     }
+
+    private fun bibleIntent(app: Candidate, wire: String): Intent =
+        Intent(Seam.ACTION_OPEN_BIBLE)
+            .setComponent(ComponentName(app.packageName, app.className))
+            .putExtra(Seam.EXTRA_BIBLE_WIRE, wire)
 
     /**
      * The screen that opens the calendar ([Seam.ACTION_OPEN_CALENDAR]), or null when no app that
@@ -185,19 +180,19 @@ object ItemApps {
 
     /**
      * Open the calendar on [date] (ISO `yyyy-MM-dd`), or where it was left when null. In the
-     * caller's own task, as [openBible]: a link followed from a notebook or a document puts the
-     * day over that screen, so Back comes back to it.
+     * caller's own task, as [showBible]: a link followed from a notebook or a document puts the
+     * day over that screen, so Back comes back to it. The look on IO and the start on the
+     * caller's thread (Main).
      */
-    fun openCalendar(context: Context, date: String?): Opened {
-        val app = findCalendar(context) ?: return Opened.NO_APP
-        return start(
-            context,
-            Intent(Seam.ACTION_OPEN_CALENDAR)
-                .setComponent(ComponentName(app.packageName, app.className))
-                .putExtra(Seam.EXTRA_CAL_DATE, date),
-            newTask = false,
-        )
+    suspend fun showCalendar(context: Context, date: String?): Opened {
+        val app = withContext(Dispatchers.IO) { findCalendar(context) } ?: return Opened.NO_APP
+        return start(context, calendarIntent(app, date), newTask = false)
     }
+
+    private fun calendarIntent(app: Candidate, date: String?): Intent =
+        Intent(Seam.ACTION_OPEN_CALENDAR)
+            .setComponent(ComponentName(app.packageName, app.className))
+            .putExtra(Seam.EXTRA_CAL_DATE, date)
 
     private fun start(context: Context, intent: Intent, newTask: Boolean = true): Opened = try {
         context.startActivity(if (newTask) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else intent)

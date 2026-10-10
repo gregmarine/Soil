@@ -574,4 +574,24 @@ class MarkdownFormatterTest {
         assertEquals(changes.map { it.at }.sorted(), changes.map { it.at })
         assertTrue(changes.isNotEmpty())
     }
+
+    @Test
+    fun aBacktickLineInsideATildeFenceDoesNotEndIt() {
+        // The old toggle read the inner ``` as the close and renumbered the rest of the fence.
+        val text = "~~~\n```\n1. a\n1. b\n~~~"
+        assertEquals(text, renumbered(text))
+    }
+
+    @Test
+    fun aLongFenceIsNotClosedByAShorterRun() {
+        val text = "````\n```\n1. a\n1. b\n````"
+        assertEquals(text, renumbered(text))
+    }
+
+    @Test
+    fun anIndentedCodeBlockEndsTheRunAboveIt() {
+        // After the code, a new list keeps the start it was given, as the editor shows it.
+        val text = "Prose.\n\n1. a\n\nMore.\n\n    code\n\n5. b"
+        assertEquals(text, renumbered(text))
+    }
 }

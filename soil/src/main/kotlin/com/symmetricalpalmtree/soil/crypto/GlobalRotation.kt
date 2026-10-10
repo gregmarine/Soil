@@ -2,12 +2,14 @@ package com.symmetricalpalmtree.soil.crypto
 
 import android.content.Context
 import android.util.Log
+import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
+import com.symmetricalpalmtree.soil.seam.SeamLimits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -47,7 +49,8 @@ import kotlin.coroutines.coroutineContext
  * `updatedAt` untouched, so a forgotten stamp would keep an old-key copy in every backup.
  *
  * **Cancel** ([AtomicBoolean]) is honoured between files; the current file always finishes. Each
- * file runs under [NonCancellable] so a dying activity scope can only land between files too.
+ * file runs under [NonCancellable] so a cancelled caller can only land between files too (the
+ * Encryption screen runs this in the application's scope, so leaving it cancels nothing).
  * Items with a passphrase of their own are never in the list. No passphrase is logged, ever.
  */
 object GlobalRotation {
@@ -86,6 +89,18 @@ object GlobalRotation {
     }
 
     fun hasMarker(context: Context): Boolean = PassphraseStore.getRotationMarker(context) != null
+
+    /**
+     * Refuse to open or make a file under the global key while a marker stands: between start
+     * and commit the library is in two keys, and a file opened now would be under the old one or
+     * under a rekey's copy. `ItemFiles` and `AppStores` call this before every fresh open; the
+     * seam's gate refuses the call before it gets here once [Library.refresh] has read the
+     * marker. Throws `IllegalStateException(LIBRARY_NOT_OPEN)`, which crosses the seam as it is.
+     * A Keystore read: IO only.
+     */
+    fun refuseWhileRotating(context: Context) {
+        check(!hasMarker(context.applicationContext)) { SeamLimits.LIBRARY_NOT_OPEN }
+    }
 
     /**
      * The trusted-key test for `SoilRekey.recoverGarden` while a rotation may be in flight: the
@@ -132,6 +147,9 @@ object GlobalRotation {
             startedAt = System.currentTimeMillis(),
         )
         PassphraseStore.setRotationMarker(app, marker)
+        // The gate reads the marker through `Library.status`: until it is re-read the seam would
+        // still answer an app as if the library were open.
+        Library.refresh(app)
         Slog.d(TAG) { "rotation started: ${itemIds.size} items, ${stores.size} stores, index" }
         run(app, marker, onProgress, cancel, resumed = false)
     }
@@ -145,6 +163,7 @@ object GlobalRotation {
         val app = context.applicationContext
         val marker = PassphraseStore.getRotationMarker(app)
             ?: return@withContext Result.Complete(0, 0) // nothing to resume — already committed
+        Library.refresh(app)
         // A commit that died between its two renames: put the survivor in place under whichever
         // key it verifies with, before the loop can find an original missing.
         SoilRekey.recoverGarden(app, trustedVerifier(app))

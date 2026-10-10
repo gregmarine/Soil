@@ -26,19 +26,29 @@ object ExactCopy {
      * Copy exactly [expectedBytes] from [source] to [sink]. Throws `IllegalStateException` with
      * [SHORT_READ] if the source ended early, [LONG_READ] if it had more to give. Answers the count,
      * which is always [expectedBytes] when it returns at all.
+     *
+     * The long-read check is a **one-byte read-ahead before the last chunk is written**: on a body
+     * that is the file's bytes alone (the resumable PUT, whose length is exactly [expectedBytes]),
+     * the last byte written is the one that completes the request and lets Drive commit, so a
+     * source with more to give must be refused while that byte is still held back.
      */
     fun copy(source: InputStream, sink: OutputStream, expectedBytes: Long): Long {
         require(expectedBytes >= 0) { "expectedBytes is negative ($expectedBytes)" }
+        if (expectedBytes == 0L) {
+            if (source.read() >= 0) throw IllegalStateException(LONG_READ)
+            sink.flush()
+            return 0L
+        }
         val buffer = ByteArray(BUFFER_BYTES)
         var total = 0L
         while (total < expectedBytes) {
             val want = minOf(buffer.size.toLong(), expectedBytes - total).toInt()
             val n = source.read(buffer, 0, want)
             if (n < 0) throw IllegalStateException(SHORT_READ)
+            if (total + n == expectedBytes && source.read() >= 0) throw IllegalStateException(LONG_READ)
             sink.write(buffer, 0, n)
             total += n
         }
-        if (source.read() >= 0) throw IllegalStateException(LONG_READ)
         sink.flush()
         return total
     }

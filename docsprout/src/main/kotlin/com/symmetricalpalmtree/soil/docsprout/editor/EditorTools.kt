@@ -7,6 +7,7 @@ import android.widget.Toast
 import com.symmetricalpalmtree.soil.docsprout.R
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.docsprout.databinding.ActivityDocumentBinding
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichCodec
 import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 import com.symmetricalpalmtree.soil.markdown.MarkdownReflow
 import com.symmetricalpalmtree.soil.markdown.TextSearch
@@ -169,7 +170,7 @@ internal class EditorTools(
             text.toString()
         }
         // A rule's stand-in character is not a character of the document.
-        return TextSearch.counts(slice.replace("\u200B", ""))
+        return TextSearch.counts(slice.replace(RichCodec.RULE_CHAR.toString(), ""))
     }
 
     private fun hasCountableSelection(): Boolean =

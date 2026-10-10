@@ -36,7 +36,13 @@ import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
+import com.symmetricalpalmtree.soil.SoilApp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
@@ -99,6 +105,12 @@ class EncryptionActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A rotation this process is already running is watched at once (its progress, its
+        // Cancel), not left to a Resume tap: the tap would only attach to the same run.
+        if (!rotating && inFlight?.work?.isActive == true) {
+            runRotation(resume = true)
+            return
+        }
         renderStatus()
     }
 
@@ -313,11 +325,31 @@ class EncryptionActivity : AppCompatActivity() {
      * [GlobalRotation] finishes the file in hand and leaves the rest to the marker. Whatever the
      * outcome, the index is opened again before anything else is shown — under whichever key it
      * is now under.
+     *
+     * **The work is the process's, not the screen's.** It runs in `SoilApp.appScope`, its tail
+     * (the index opened again, the status re-read) under [NonCancellable], so leaving this screen
+     * — Home, the side menu — cannot stop it between files and strand the index closed. The
+     * screen only watches: a screen opened while one runs watches the same run on resume, without
+     * a tap, and the banner's Resume attaches to it instead of starting a second.
      */
     private fun runRotation(resume: Boolean, newPassphrase: String? = null, minted: Boolean = false) {
-        val cancel = AtomicBoolean(false)
-        var stopping = false
-        var progress: GlobalRotation.Progress? = null
+        val run = inFlight?.takeIf { it.work.isActive } ?: InFlight().also { fresh ->
+            val app = applicationContext
+            fresh.work = SoilApp.appScope.async {
+                try {
+                    if (resume) GlobalRotation.resume(app, fresh::report, fresh.cancel)
+                    else GlobalRotation.start(app, newPassphrase!!, minted, fresh::report, fresh.cancel)
+                } finally {
+                    // The engine closed the index for its own turn. Open it again, whatever
+                    // happened — and even if the run was cancelled.
+                    withContext(NonCancellable) {
+                        SoilIndex.ensureReady(app)
+                        Library.refresh(app)
+                    }
+                }
+            }
+            inFlight = fresh
+        }
 
         val dialog = Dialogs.style(
             AlertDialog.Builder(this)
@@ -328,46 +360,60 @@ class EncryptionActivity : AppCompatActivity() {
                 .create()
         )
         dialog.show()
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+        val cancelButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+        if (run.cancel.get()) cancelButton.visibility = View.GONE
+        cancelButton.setOnClickListener {
             // A tapped Cancel that looks dead is worse than none on e-ink: the last line changes
             // and the button leaves. The dialog itself stays until the file in hand is finished.
-            cancel.set(true)
-            stopping = true
-            progress?.let { p -> dialog.setMessage(progressText(p, stopping = true)) }
+            run.cancel.set(true)
+            run.progress.value?.let { p -> dialog.setMessage(progressText(p, stopping = true)) }
             it.visibility = View.GONE
         }
 
         rotating = true
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val watch = lifecycleScope.launch {
+            run.progress.collect { p -> if (p != null) dialog.setMessage(progressText(p, run.cancel.get())) }
+        }
         lifecycleScope.launch {
-            val onProgress: suspend (GlobalRotation.Progress) -> Unit = { p ->
-                withContext(Dispatchers.Main) {
-                    progress = p
-                    dialog.setMessage(progressText(p, stopping))
-                }
-            }
             try {
-                val result = if (resume) {
-                    GlobalRotation.resume(this@EncryptionActivity, onProgress, cancel)
-                } else {
-                    GlobalRotation.start(this@EncryptionActivity, newPassphrase!!, minted, onProgress, cancel)
+                val result = try {
+                    run.work.await()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Never the message: it can carry a path.
+                    Slog.d(TAG) { "rotation threw: ${e.javaClass.simpleName}" }
+                    null
                 }
-                Slog.d(TAG) { "rotation result: ${result::class.simpleName}" }
-                // The engine closed the index for its own turn. Open it again, whatever happened.
-                SoilIndex.ensureReady(this@EncryptionActivity)
-                Library.refresh(this@EncryptionActivity)
+                watch.cancel()
+                if (inFlight === run) inFlight = null
+                Slog.d(TAG) { "rotation result: ${result?.let { it::class.simpleName }}" }
                 if (isFinishing || isDestroyed) return@launch
                 dialog.dismiss()
                 when (result) {
                     is GlobalRotation.Result.Complete -> showComplete(result)
                     is GlobalRotation.Result.Cancelled -> showCancelled(result)
                     is GlobalRotation.Result.Failed -> showFailed(result)
+                    null -> showFailed(GlobalRotation.Result.Failed(GlobalRotation.Reason.TRANSIENT, 0, 0))
                 }
             } finally {
                 rotating = false
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 renderStatus()
             }
+        }
+    }
+
+    /** One rotation in this process: its work, its Cancel, the file it is on. Outlives the
+     *  screen that started it. */
+    private class InFlight {
+        lateinit var work: Deferred<GlobalRotation.Result>
+        val cancel = AtomicBoolean(false)
+        val progress = MutableStateFlow<GlobalRotation.Progress?>(null)
+
+        suspend fun report(p: GlobalRotation.Progress) {
+            progress.value = p
         }
     }
 
@@ -471,5 +517,8 @@ class EncryptionActivity : AppCompatActivity() {
 
     private companion object {
         const val TAG = "Encryption"
+
+        /** The rotation running in this process, if any. Main thread only. */
+        private var inFlight: InFlight? = null
     }
 }

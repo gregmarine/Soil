@@ -8,6 +8,7 @@ import android.util.Log
 import com.symmetricalpalmtree.soil.ext.PageBundle
 import com.tom_roush.pdfbox.cos.COSDictionary
 import com.tom_roush.pdfbox.cos.COSName
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
@@ -21,6 +22,7 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary
 import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.FilterOutputStream
 import java.io.IOException
 import java.io.OutputStream
@@ -33,15 +35,24 @@ import java.io.OutputStream
  * Grayscale is the decision of 2026-10-03: the Nomad's ink is grey on white, and a page this way
  * is about a twentieth of the full-colour JPEG it used to be, with nothing lost. When a Sprout
  * app draws in colour, this is the place that changes.
+ *
+ * An unprotected export holds its streams in memory up to [MAIN_MEMORY_BYTES] and spills the rest
+ * to a scratch file in [scratchDir] (the extension's own cache), so a long notebook's pages do not
+ * all sit on the heap at once; pdfbox deletes the scratch file when the document closes. A
+ * **protected** export never spills: pdfbox encrypts only on save, so its scratch file would hold
+ * the pages in the clear. It stays wholly in memory, as before.
  */
 internal object PdfAssembly {
 
-    fun assemble(source: ParcelFileDescriptor, destination: ParcelFileDescriptor, exportSecret: String?, tag: String, pagePoints: Float = 1f): Long {
+    /** What the document may keep on the heap before it spills to its scratch file. */
+    private const val MAIN_MEMORY_BYTES = 16L * 1024 * 1024
+
+    fun assemble(source: ParcelFileDescriptor, destination: ParcelFileDescriptor, exportSecret: String?, tag: String, scratchDir: File, pagePoints: Float = 1f): Long {
         val startedAt = SystemClock.elapsedRealtime()
         var pages = 0
         val written: Long
         var secret = exportSecret
-        val document = PDDocument()
+        val document = if (secret != null) PDDocument() else PDDocument(MemoryUsageSetting.setupMixed(MAIN_MEMORY_BYTES).setTempDir(scratchDir))
         try {
             var links: List<PageBundle.Link> = emptyList()
             val heights = ArrayList<Int>()
@@ -76,6 +87,15 @@ internal object PdfAssembly {
         }
         if (BuildConfig.DEBUG) Log.d(tag, "assembled $pages page(s) → $written bytes in ${SystemClock.elapsedRealtime() - startedAt} ms")
         return written
+    }
+
+    /** Delete the scratch files a job that died mid-way left behind (pdfbox's `PDFBox*.tmp`). Only
+     *  unprotected exports ever write one. Best effort: a file that will not go is left. */
+    fun sweepScratch(scratchDir: File, tag: String) {
+        val stray = scratchDir.listFiles { f -> f.isFile && f.name.startsWith("PDFBox") && f.name.endsWith(".tmp") } ?: return
+        var swept = 0
+        for (f in stray) if (f.delete()) swept++
+        if (swept > 0) Log.d(tag, "swept $swept stray scratch file(s)")
     }
 
     private fun addPage(document: PDDocument, page: PageBundle.Page, number: Int, count: Int, pagePoints: Float) {

@@ -15,9 +15,14 @@ import org.junit.Test
  */
 class CollapsedToolsTest {
 
-    @Test fun `the order is pen, point eraser, smudge, lasso eraser, lasso`() {
-        // The smudge (arc 50, the sketch face's stylus stump) sits after the rubber it resembles.
-        assertEquals(listOf(Tool.PEN, Tool.ERASER, Tool.SMUDGE, Tool.LASSO_ERASER, Tool.LASSO), CollapsedTools.ORDER)
+    @Test fun `the order is pen, point eraser, lasso eraser, lasso`() {
+        // No smudge on a writing screen: it rubs pixels and strokes have none. The sketch face
+        // passes its own list with it.
+        assertEquals(listOf(Tool.PEN, Tool.ERASER, Tool.LASSO_ERASER, Tool.LASSO), CollapsedTools.ORDER)
+    }
+
+    @Test fun `the smudge borders its own button on a screen that carries it`() {
+        assertEquals(Tool.SMUDGE, CollapsedTools.selectedFor(Tool.SMUDGE))
     }
 
     @Test fun `each tool wears its own glyph`() {

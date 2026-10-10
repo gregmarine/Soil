@@ -1,5 +1,7 @@
 package com.symmetricalpalmtree.soil.docsprout.editor.proofread
 
+import com.symmetricalpalmtree.soil.markdown.MarkdownCode
+
 /**
  * A candidate word for spell checking: [word] is `text.substring(start, end)`.
  *
@@ -17,8 +19,11 @@ data class WordSpan(val start: Int, val end: Int, val word: String)
  * The editor's text is Markdown, so a naive word split would spell-check code, URLs, and link
  * targets. The tokenizer skips everything that is not prose:
  *
- * - **Fenced code** (```` ``` ````/`~~~`) — every line from the opening fence to the closing one.
- * - **Indented code** (4+ spaces or a tab at line start) — the whole line.
+ * - **Fenced code** (```` ``` ````/`~~~`, three or more) — every line from the opening fence to
+ *   the closing one of the same character and at least its length ([MarkdownCode], the rendered
+ *   editor's rule).
+ * - **Indented lines** (4+ spaces or a tab at line start) — the whole line, code or not: wider
+ *   than [MarkdownCode]'s indented code (which needs a blank line before it), as it always was.
  * - **Inline code** — a backtick run to the next run of the same length; unmatched backticks are
  *   literal text.
  * - **URLs** (`http://`, `https://`, `www.`) and **email addresses**.
@@ -32,7 +37,6 @@ data class WordSpan(val start: Int, val end: Int, val word: String)
  */
 object ProofreadTokenizer {
 
-    private val FENCE = Regex("""^ {0,3}(```|~~~)""")
     private val INDENT = Regex("""^(?: {4,}|\t)""")
     private val URL = Regex("""\b(?:https?://|www\.)[^\s>)]+""")
     private val EMAIL = Regex("""\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+""")
@@ -61,23 +65,15 @@ object ProofreadTokenizer {
         return skip
     }
 
-    /** Marks fenced code blocks (fence lines included) and indented code lines. */
+    /** Marks code lines — [MarkdownCode]'s, the rendered editor's own (a fence of either
+     *  character and any length, closed only by its own kind) — and every indented line besides. */
     private fun markCodeLines(text: String, skip: BooleanArray) {
-        var inFence = false
+        val lines = text.split('\n')
+        val code = MarkdownCode.codeLines(lines)
         var lineStart = 0
-        while (lineStart <= text.lastIndex) {
-            var lineEnd = text.indexOf('\n', lineStart)
-            if (lineEnd < 0) lineEnd = text.length
-            val line = text.substring(lineStart, lineEnd)
-            if (inFence) {
-                skip.fill(true, lineStart, lineEnd)
-                if (FENCE.containsMatchIn(line)) inFence = false
-            } else if (FENCE.containsMatchIn(line)) {
-                skip.fill(true, lineStart, lineEnd)
-                inFence = true
-            } else if (INDENT.containsMatchIn(line)) {
-                skip.fill(true, lineStart, lineEnd)
-            }
+        for ((i, line) in lines.withIndex()) {
+            val lineEnd = lineStart + line.length
+            if (code[i] || INDENT.containsMatchIn(line)) skip.fill(true, lineStart, lineEnd)
             lineStart = lineEnd + 1
         }
     }

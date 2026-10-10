@@ -27,7 +27,8 @@ app by the screen that answers `ACTION_OPEN_CALENDAR`, as it finds the Bible's b
 `ACTION_OPEN_BIBLE`; the screen is guarded by the seam permission. A link to a day from a
 notebook or a document is followed through Soil (`ACTION_FOLLOW` with `EXTRA_CAL_DATE`), and the
 calendar opens on that day's Day page over the app that followed it, the bookmark untouched.
-Standard launch mode on purpose: Back comes back.
+A screen a link opened never writes the bookmark, wherever it is walked to after: the calendar
+behind it still opens where it was left. Standard launch mode on purpose: Back comes back.
 
 ## The store
 
@@ -44,8 +45,13 @@ leaves.
 SN's write rules carry over: rows are minted on the first stroke, never on open, so browsing an
 empty year writes nothing but the bookmark; never `INSERT OR REPLACE` on a parent row; strokes
 put and dropped by id; no `IN (…)`. What SN did for its binder's 4 MiB cap is gone: a flush is
-one transaction of as many statements as strokes (`AppStoreLease.MAX_BATCH` is the seam's
-10,000), and a page is read in one query.
+one transaction of as many statements as strokes, and a page is read in one query. A flush over
+the seam's 10,000 statements (`AppStoreLease.MAX_BATCH`), a large paste, goes as several batches in
+order, mint first and `updatedAt` last; every statement is idempotent, so a batch that fails is
+retried whole. A page a screen minted is written by `(period, half)` rather than by the id it
+minted, since two calendar screens (a link opens a second) can each mint one for the same empty
+page and the first row wins; a screen reads its page again when it comes back to the front. A store
+call that fails because Soil restarted opens the store again and is retried once.
 
 ## The screen
 
@@ -60,7 +66,8 @@ The top bar: Back, Pen, Eraser, Lasso, then Month · Week · Day (the one showin
 Events. The bottom bar: the pager (‹ title ›, the title opening the shared day picker), and at
 its far end **Notes**, present only while something links into the period showing. A finger
 double-tap on a Month or Week cell opens that day; in the Notes band, or anywhere on a Day page,
-it hides and shows the bars. A finger long-press raises the page sheet: Copy page, Paste page
+it hides and shows the bars; the flag is shared through Soil, one for every paper screen
+(`seam.md`), `CalsproutPrefs` keeping it only as the fallback. A finger long-press raises the page sheet: Copy page, Paste page
 (while the clipboard holds a page), Export…. The pen is fixed, the pad's: one black pen, the
 point and lasso erasers, the lasso. Navigation is `CalendarNavigation`'s anchor rule, SN's.
 

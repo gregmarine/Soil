@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.Library
 import com.symmetricalpalmtree.soil.cloud.CloudProviders
+import com.symmetricalpalmtree.soil.crypto.PassphraseRules
 import com.symmetricalpalmtree.soil.crypto.AttemptLimiter
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
@@ -26,6 +27,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityRestoreBinding
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.home.HomeActivity
 import com.symmetricalpalmtree.soil.importing.ImportDialogs
+import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -174,13 +176,23 @@ class RestoreActivity : AppCompatActivity() {
     // ── The run ──────
 
     private fun confirmReplace(backup: RestoreBackup) {
-        if (running.get()) return
+        if (running.get() || !padIsShut()) return
         Dialogs.style(
             AlertDialog.Builder(this).setTitle(R.string.restore_confirm_title)
                 .setMessage(getString(R.string.restore_confirm_body, backup.name, itemsText(backup.itemCount), stampText(backup.indexModifiedAt)))
-                .setPositiveButton(R.string.restore_confirm_replace) { _, _ -> runRestore(backup) }
+                .setPositiveButton(R.string.restore_confirm_replace) { _, _ -> if (padIsShut()) runRestore(backup) }
                 .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
         ).show()
+    }
+
+    /**
+     * The pad keeps its page ids across a store reopen, so a restore under a live pad would land its
+     * next write in the restored store as stray rows. As the Encryption screen does: asked, not run.
+     */
+    private fun padIsShut(): Boolean {
+        if (!ScratchPadActivity.isOpen) return true
+        Dialogs.problem(this, R.string.encryption_pad_open_title, R.string.restore_pad_open_body)
+        return false
     }
 
     private fun runRestore(backup: RestoreBackup) {
@@ -222,22 +234,28 @@ class RestoreActivity : AppCompatActivity() {
         }
 
         setProgress(getString(R.string.restore_progress_checking))
-        val (pruned, leftOut) = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
+        val prunedResult = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
             is RestoreEngine.PruneResult.Failed -> { discardStaging(); hideProgress(); problemDialog(r.problem); return }
-            is RestoreEngine.PruneResult.Pruned -> r.manifest to r.leftOut
+            is RestoreEngine.PruneResult.Pruned -> r
         }
+        val pruned = prunedResult.manifest
         RestoreEngine.validate(this, pruned, RestoreEngine.ITEMS)?.let { discardStaging(); hideProgress(); problemDialog(it); return }
 
         setProgress(getString(R.string.restore_progress_installing))
-        val outcome = RestoreEngine.commit(this, pruned, proven, leftOut)
+        var outcome = RestoreEngine.commit(this, pruned, proven, prunedResult.leftOut, prunedResult.missing)
         Slog.d(TAG) { "restore outcome: ${outcome::class.simpleName}" }
         if (outcome !is RestoreEngine.Outcome.Refused) {
             // The index is closed: open it again under whichever key is now this device's, so Home finds the library open.
-            withContext(Dispatchers.IO) {
+            val repairedNow = withContext(Dispatchers.IO) {
+                // After a rename back that stopped part-way this open retries the repair first.
                 SoilIndex.ensureReady(applicationContext)
                 // The restored files are the truth of what links where: the index follows them.
                 runCatching { com.symmetricalpalmtree.soil.data.index.LinkRebuild.rebuild(applicationContext) }
+                runCatching { !RestoreEngine.asideIndexStands(applicationContext) }.getOrDefault(false)
             }
+            // The ending tells the library as it now is: a retried repair that finished is a whole library.
+            val rolled = outcome
+            if (rolled is RestoreEngine.Outcome.RolledBack && !rolled.repaired && repairedNow) outcome = rolled.copy(repaired = true)
             Library.refresh(applicationContext)
         }
         hideProgress()
@@ -248,8 +266,11 @@ class RestoreActivity : AppCompatActivity() {
 
     private fun onOutcome(outcome: RestoreEngine.Outcome, backupName: String) {
         when (outcome) {
-            is RestoreEngine.Outcome.Committed -> endDialog(getString(R.string.restore_done_title), getString(R.string.restore_done_body, itemsText(outcome.items), storesText(outcome.stores), backupName) + leftOutText(outcome.leftOut))
-            is RestoreEngine.Outcome.RolledBack -> endDialog(getString(R.string.restore_failed_title), getString(R.string.restore_failed_body))
+            is RestoreEngine.Outcome.Committed -> endDialog(getString(R.string.restore_done_title), getString(R.string.restore_done_body, itemsText(outcome.items), storesText(outcome.stores), backupName) + leftOutText(outcome.leftOut) + missingText(outcome.missing))
+            is RestoreEngine.Outcome.RolledBack -> endDialog(
+                getString(R.string.restore_failed_title),
+                getString(if (outcome.repaired) R.string.restore_failed_body else R.string.restore_failed_unrepaired_body),
+            )
             is RestoreEngine.Outcome.Interrupted -> endDialog(getString(R.string.restore_interrupted_title), getString(R.string.restore_interrupted_body, (outcome.problem as? RestoreEngine.Problem.Unexpected)?.what ?: ""))
             is RestoreEngine.Outcome.Refused -> problemDialog(outcome.problem)
         }
@@ -259,6 +280,13 @@ class RestoreActivity : AppCompatActivity() {
         if (leftOut.isEmpty()) return ""
         val head = if (leftOut.size == 1) getString(R.string.restore_done_left_out_one) else getString(R.string.restore_done_left_out_many, leftOut.size)
         return "\n\n" + head + "\n" + leftOut.joinToString("\n")
+    }
+
+    /** Items the backup's index names but the backup did not carry, listed after a line that says so. */
+    private fun missingText(missing: List<String>): String {
+        if (missing.isEmpty()) return ""
+        val head = if (missing.size == 1) getString(R.string.restore_done_missing_one) else getString(R.string.restore_done_missing_many, missing.size)
+        return "\n\n" + head + "\n" + missing.joinToString("\n")
     }
 
     /** The one ending with one action: back to Home, which is open on the library as it now is. */
@@ -283,7 +311,7 @@ class RestoreActivity : AppCompatActivity() {
             if (remaining > 0) { Dialogs.problem(this, R.string.restore_key_title, getString(R.string.unlock_locked_out, formatSeconds(remaining))); return null }
             val typed = ImportDialogs.passphrase(this, R.string.restore_key_title, R.string.restore_key_body, errorRes, R.string.restore_key_hint) ?: return null
             showProgress(getString(R.string.restore_progress_unlocking), getString(R.string.restore_progress_title))
-            val proven = RestoreEngine.proveTyped(this, typed.trim())
+            val proven = RestoreEngine.proveTyped(this, PassphraseRules.normalize(typed))
             hideProgress()
             if (proven != null) return proven
             errorRes = R.string.restore_key_wrong

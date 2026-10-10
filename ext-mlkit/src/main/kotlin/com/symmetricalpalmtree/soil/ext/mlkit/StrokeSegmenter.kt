@@ -42,6 +42,12 @@ object StrokeSegmenter {
     private const val WORD_MIN_WIDTH_FRAC = 1.0f
     private const val WORD_MIN_HEIGHT_FRAC = 0.5f
 
+    /** The farthest a point may sit from the page's origin, in page px, for its stroke to be read.
+     *  The profile below is one counter per couple of px between the highest and lowest stroke, so
+     *  a point far off the page (or not a number at all) would size it to the coordinate rather
+     *  than the writing; no page is anywhere near this tall. */
+    private const val MAX_COORD_PX = 100_000f
+
     /** A stroke together with its bounding box, computed exactly once. */
     private class Boxed(val stroke: InkStroke, val box: Box)
 
@@ -72,7 +78,9 @@ object StrokeSegmenter {
     fun segment(strokes: List<InkStroke>): PageLayout {
         // Two points is the minimum a band can be measured from; single-point taps are widened
         // upstream (PageText.widenDots) rather than being special-cased here.
-        val usable = strokes.filter { it.size >= 2 }.map { Boxed(it, Box.of(it.x, it.y)) }
+        // A stroke with a point that is not a number or far off any page is not writing; it is
+        // dropped rather than let size the profile.
+        val usable = strokes.filter { it.size >= 2 && onAPage(it) }.map { Boxed(it, Box.of(it.x, it.y)) }
         if (usable.isEmpty()) return PageLayout(emptyList())
 
         val medianStrokeH = median(usable.map { it.box.height }).coerceAtLeast(1f)
@@ -171,6 +179,12 @@ object StrokeSegmenter {
         paragraphs += Paragraph(current)
 
         return PageLayout(paragraphs, medianLineH)
+    }
+
+    private fun onAPage(stroke: InkStroke): Boolean {
+        for (v in stroke.x) if (!v.isFinite() || abs(v) > MAX_COORD_PX) return false
+        for (v in stroke.y) if (!v.isFinite() || abs(v) > MAX_COORD_PX) return false
+        return true
     }
 
     /** A run of writing on the Y axis, as bucket-centre coordinates. */

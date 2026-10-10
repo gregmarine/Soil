@@ -3,6 +3,7 @@ package com.symmetricalpalmtree.soil.templates
 import android.app.Activity
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +24,7 @@ import com.symmetricalpalmtree.soil.paper.templates.TemplateIds
 import com.symmetricalpalmtree.soil.paper.templates.TemplateNames
 import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
 import com.symmetricalpalmtree.soil.paper.templates.TemplateToken
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,7 +50,9 @@ class TemplateBrowser(
 
     enum class Shelf { NONE, PINNED, RECENTS, SEARCH }
 
-    private val store = TemplateStore()
+    /** Built per use, never held: the index it reads can close and reopen under a screen that
+     *  stays (Forget, then Unlock; a passphrase change). */
+    private val store: TemplateStore get() = TemplateStore()
     private val prefs = TemplatePrefs(activity)
     private val transfer = TemplateTransfer(activity, { store }, { folderId }, onChanged = { reload() })
 
@@ -61,6 +65,8 @@ class TemplateBrowser(
     private var pageCount = 1
     private var items: List<TemplateCard> = emptyList()
     private var grid: TemplateCardGrid? = null
+    /** The newest listing asked for: an older read that lands after it is dropped. */
+    private var refreshGeneration = 0
     private val pageWidthPx: Int
     private val pageHeightPx: Int
 
@@ -130,17 +136,31 @@ class TemplateBrowser(
 
     private fun builtInLabels() = listOf(activity.getString(R.string.template_lined), activity.getString(R.string.template_dotted), activity.getString(R.string.template_grid))
 
+    /** Read the listing again. A read that fails keeps the last listing and says so; one
+     *  overtaken by a newer read is dropped. Never throws but for cancellation. */
     private suspend fun refresh() {
         renderChrome()
-        val listed = withContext(Dispatchers.IO) {
-            pinnedIds = store.pinnedIds().toSet()
-            when {
-                shelf != Shelf.NONE -> shelfCards()
-                inDefaults -> TemplateLibrary.defaultCards(builtInLabels())
-                folderId.isEmpty() -> TemplateLibrary.rootCards(activity.getString(R.string.template_blank), activity.getString(R.string.template_default_folder), sortedRows(""))
-                else -> TemplateLibrary.rowCards(sortedRows(folderId))
+        val generation = ++refreshGeneration
+        val listed = try {
+            withContext(Dispatchers.IO) {
+                pinnedIds = store.pinnedIds().toSet()
+                when {
+                    shelf != Shelf.NONE -> shelfCards()
+                    inDefaults -> TemplateLibrary.defaultCards(builtInLabels())
+                    folderId.isEmpty() -> TemplateLibrary.rootCards(activity.getString(R.string.template_blank), activity.getString(R.string.template_default_folder), sortedRows(""))
+                    else -> TemplateLibrary.rowCards(sortedRows(folderId))
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "the listing could not be read: ${e.javaClass.simpleName}")
+            if (generation == refreshGeneration && com.symmetricalpalmtree.soil.data.index.SoilIndex.isReady() && !activity.isFinishing && !activity.isDestroyed) {
+                Dialogs.problem(activity, R.string.library_read_failed_title, R.string.library_read_failed_body)
+            }
+            return
         }
+        if (generation != refreshGeneration) return
         items = listed
         binding.emptyState.setText(emptyTextRes())
         binding.emptyState.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
@@ -240,7 +260,14 @@ class TemplateBrowser(
     private fun renderBreadcrumb() {
         val ink = ContextCompat.getColor(activity, com.symmetricalpalmtree.soil.paper.R.color.inkBlack)
         activity.lifecycleScope.launch {
-            val ancestry = if (inDefaults || folderId.isEmpty()) emptyList() else withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            val ancestry = if (inDefaults || folderId.isEmpty()) emptyList() else try {
+                withContext(Dispatchers.IO) { store.ancestry(folderId) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the path could not be read: ${e.javaClass.simpleName}")
+                emptyList()
+            }
             val container = binding.breadcrumbContainer
             container.removeAllViews()
             container.addView(crumb(activity.getString(R.string.templates_title), ink) { navigateTo("") })
@@ -281,7 +308,7 @@ class TemplateBrowser(
     private fun navigateUp() {
         if (folderId.isEmpty()) return
         if (inDefaults) { navigateTo(""); return }
-        activity.lifecycleScope.launch {
+        act {
             val ancestry = withContext(Dispatchers.IO) { store.ancestry(folderId) }
             navigateTo(if (ancestry.size >= 2) ancestry[ancestry.size - 2].id else "")
         }
@@ -361,7 +388,7 @@ class TemplateBrowser(
     private fun ActionSheetDialog.addPinRow(cardId: String): ActionSheetDialog {
         val pinned = cardId in pinnedIds
         return addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pinned, activity.getString(if (pinned) R.string.action_unpin else R.string.action_pin)) {
-            activity.lifecycleScope.launch {
+            act {
                 withContext(Dispatchers.IO) { if (pinned) store.unpin(cardId) else store.pin(cardId) }
                 refresh()
             }
@@ -377,11 +404,11 @@ class TemplateBrowser(
             if (accepting) return@show
             if (NameDialog.reject(activity, name, parentId)) return@show
             accepting = true
-            activity.lifecycleScope.launch {
+            act {
                 try {
                     if (withContext(Dispatchers.IO) { store.nameTaken(parentId, true, name) }) {
                         Dialogs.problem(activity, R.string.name_problem_title, activity.getString(R.string.template_folder_duplicate_name, name))
-                        return@launch
+                        return@act
                     }
                     withContext(Dispatchers.IO) { store.createFolder(name, parentId) }
                     dismiss()
@@ -400,12 +427,12 @@ class TemplateBrowser(
             if (name == row.name) { dismiss(); return@show }
             if (NameDialog.reject(activity, name, row.parentId)) return@show
             accepting = true
-            activity.lifecycleScope.launch {
+            act {
                 try {
                     if (withContext(Dispatchers.IO) { store.nameTaken(row.parentId, row.isFolder, name, row.id) }) {
                         val msg = if (row.isFolder) R.string.template_folder_duplicate_name else R.string.template_duplicate_name
                         Dialogs.problem(activity, R.string.name_problem_title, activity.getString(msg, name))
-                        return@launch
+                        return@act
                     }
                     withContext(Dispatchers.IO) { store.rename(row.id, row.isFolder, name) }
                     dismiss()
@@ -418,7 +445,7 @@ class TemplateBrowser(
     }
 
     private fun duplicate(row: TemplateRow) {
-        activity.lifecycleScope.launch {
+        act {
             val made = withContext(Dispatchers.IO) {
                 val taken = (store.templates(row.parentId) + store.folders(row.parentId)).map { it.name }.toSet()
                 store.duplicate(row.id, TemplateNames.duplicateName(row.name, taken))
@@ -429,7 +456,7 @@ class TemplateBrowser(
     }
 
     private fun confirmDeleteTemplate(row: TemplateRow) = confirm(R.string.delete_template_title, R.string.delete_template_body, row.name) {
-        activity.lifecycleScope.launch {
+        act {
             withContext(Dispatchers.IO) { store.deleteTemplate(row.id) }
             prefs.forget(listOf(row.id))
             refresh()
@@ -437,7 +464,7 @@ class TemplateBrowser(
     }
 
     private fun confirmDeleteFolder(row: TemplateRow) = confirm(R.string.delete_template_folder_title, R.string.delete_template_folder_body, row.name) {
-        activity.lifecycleScope.launch {
+        act {
             val gone = withContext(Dispatchers.IO) { store.deleteFolderRecursive(row.id) }
             prefs.forget(gone)
             Slog.d(TAG) { "deleted a folder with ${gone.size} templates" }
@@ -479,6 +506,22 @@ class TemplateBrowser(
         prefs.sortOrder = order
         pageIndex = 0
         reload()
+    }
+
+    /** A change on Main: a store call that throws says so in a problem dialog, never a crash. */
+    private fun act(block: suspend () -> Unit) {
+        activity.lifecycleScope.launch {
+            try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "a template change failed: ${e.javaClass.simpleName}")
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    Dialogs.problem(activity, R.string.library_change_failed_title, R.string.library_change_failed_body)
+                }
+            }
+        }
     }
 
     private companion object { const val TAG = "TemplateBrowser" }

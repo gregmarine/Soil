@@ -73,23 +73,25 @@ object SchemeBuilderDialog {
         else -> context.getString(TOKENS.first { it.second == p }.first)
     }
 
-    /** Read the folder's scheme, then show. A read that fails explains itself and opens nothing. */
-    fun open(activity: AppCompatActivity, store: LibraryStore, folderId: String, folderName: String) {
+    /** Read the folder's scheme, then show. A read that fails explains itself and opens nothing.
+     *  The store is built per use, never held: the index it reads can close and reopen (Forget,
+     *  then Unlock) while the dialog is up. */
+    fun open(activity: AppCompatActivity, folderId: String, folderName: String) {
         if (activity.isFinishing || activity.isDestroyed) return
         activity.lifecycleScope.launch {
             val current = try {
-                withContext(Dispatchers.IO) { store.folderPrefs(folderId).scheme }
+                withContext(Dispatchers.IO) { LibraryStore().folderPrefs(folderId).scheme }
             } catch (e: Exception) {
                 Log.w(TAG, "scheme read failed: ${e.javaClass.simpleName}")
                 Dialogs.problem(activity, R.string.scheme_problem_title, R.string.scheme_save_failed)
                 return@launch
             }
             val parts = current?.let { runCatching { SchemeEngine.parse(it) }.getOrNull() }.orEmpty()
-            if (!activity.isFinishing && !activity.isDestroyed) show(activity, store, folderId, folderName, parts.toMutableList())
+            if (!activity.isFinishing && !activity.isDestroyed) show(activity, folderId, folderName, parts.toMutableList())
         }
     }
 
-    private fun show(activity: AppCompatActivity, store: LibraryStore, folderId: String, folderName: String, parts: MutableList<SchemeEngine.Part>) {
+    private fun show(activity: AppCompatActivity, folderId: String, folderName: String, parts: MutableList<SchemeEngine.Part>) {
         val d = activity.resources.displayMetrics.density
         val ink = ContextCompat.getColor(activity, com.symmetricalpalmtree.soil.paper.R.color.inkBlack)
         val side = (24 * d).toInt()
@@ -207,7 +209,7 @@ object SchemeBuilderDialog {
             save.isClickable = false
             activity.lifecycleScope.launch {
                 try {
-                    withContext(Dispatchers.IO) { store.setScheme(folderId, scheme.ifEmpty { null }) }
+                    withContext(Dispatchers.IO) { LibraryStore().setScheme(folderId, scheme.ifEmpty { null }) }
                     Slog.d(TAG) { "scheme ${if (scheme.isEmpty()) "cleared" else "saved"}" }
                     dialog.dismiss()
                 } catch (e: Exception) {
@@ -220,7 +222,7 @@ object SchemeBuilderDialog {
         }
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
             activity.lifecycleScope.launch {
-                runCatching { withContext(Dispatchers.IO) { store.setScheme(folderId, null) } }
+                runCatching { withContext(Dispatchers.IO) { LibraryStore().setScheme(folderId, null) } }
                 dialog.dismiss()
             }
         }

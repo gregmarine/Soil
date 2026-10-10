@@ -48,4 +48,18 @@ object PassageMarkdown {
         }
         return sb.toString()
     }
+
+    /**
+     * [label] cut to [max] characters for the clipboard, its last one "…", never splitting a
+     * surrogate pair; a label that fits is returned as it is. A long list of references makes a
+     * label past what a clip may carry (`BibleClip.MAX_LABEL_CHARS`), and a clip whose label is
+     * too long is one nothing can paste.
+     */
+    fun clipLabel(label: String, max: Int): String {
+        val trimmed = label.trim()
+        if (trimmed.length <= max) return trimmed
+        var end = (max - 1).coerceAtLeast(0)
+        if (end > 0 && Character.isHighSurrogate(trimmed[end - 1])) end--
+        return trimmed.substring(0, end).trimEnd() + "…"
+    }
 }

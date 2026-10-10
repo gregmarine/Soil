@@ -49,7 +49,7 @@ class SoilBarService : AccessibilityService() {
     private lateinit var firmwareMenu: FirmwareMenu
     private lateinit var menu: MenuOverlay
 
-    private var rightDownAt = 0L
+    private val rightBar = BarGesture.RightBar()
     private var refreshHeard = false
     private var front: CharSequence? = null
 
@@ -60,7 +60,7 @@ class SoilBarService : AccessibilityService() {
                 // Sent for the side menu and for the pull-down status bar alike. Only a recent
                 // touch of the right bar makes it the side menu; the status bar is left alone.
                 FirmwareMenu.ACTION_MENU_STATE -> if (intent.getBooleanExtra(FirmwareMenu.EXTRA_SHOW, false)) {
-                    if (BarGesture.isSideMenuLeak(SystemClock.uptimeMillis() - rightDownAt)) {
+                    if (BarGesture.isSideMenuLeak(SystemClock.uptimeMillis() - rightBar.downAt)) {
                         Slog.d(TAG) { "the firmware's side menu slipped through; locking and taking over" }
                         firmwareMenu.lock()
                         main.postDelayed({ firmwareMenu.lock() }, 400)
@@ -138,7 +138,7 @@ class SoilBarService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        onBarKey(event.keyCode, event.action, event.eventTime, event.repeatCount)
+        onBarKey(event.keyCode, event.action, event.eventTime, event.repeatCount, via = "filter")
         // Observed only: the firmware must still see the swipe, so that its refresh says "up".
         return false
     }
@@ -147,25 +147,31 @@ class SoilBarService : AccessibilityService() {
      * One bar key, from the filter or from a paper screen's window ([barKey]): the same reading
      * either way. The [eventTime] is the system's, so a held bar measures the same from both.
      */
-    private fun onBarKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
+    private fun onBarKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int, via: String) {
         if (!BarGesture.isBarKey(keyCode)) return
         if (keyCode == BarGesture.RIGHT_FIRST) {
             when (action) {
                 KeyEvent.ACTION_DOWN -> if (repeatCount == 0) {
-                    rightDownAt = eventTime
-                    refreshHeard = false
-                    firmwareMenu.lock()
+                    val fresh = rightBar.down(eventTime)
+                    Slog.d(TAG) { "right bar down at $eventTime via $via${if (fresh) "" else " (stale, ignored)"}" }
+                    if (fresh) {
+                        refreshHeard = false
+                        firmwareMenu.lock()
+                    }
                 }
                 KeyEvent.ACTION_UP -> {
-                    val held = eventTime - rightDownAt
-                    main.postDelayed({ act(held) }, BarGesture.SETTLE_MS)
+                    val held = rightBar.up(eventTime)
+                    Slog.d(TAG) { "right bar up at $eventTime via $via, " + if (held == null) "no open down (ignored)" else "held $held ms" }
+                    if (held != null) main.postDelayed({ act(held, via) }, BarGesture.SETTLE_MS)
                 }
             }
         }
     }
 
-    private fun act(heldMs: Long) {
-        when (BarGesture.read(heldMs, refreshHeard)) {
+    private fun act(heldMs: Long, via: String) {
+        val read = BarGesture.read(heldMs, refreshHeard)
+        Slog.d(TAG) { "right bar read: $read (held $heldMs ms, refresh ${if (refreshHeard) "heard" else "not heard"}, via $via)" }
+        when (read) {
             BarGesture.Read.TAP -> Unit
             BarGesture.Read.HOLD -> Unit   // a hand resting on the bar
             BarGesture.Read.SWIPE_UP -> Unit   // the firmware's refresh
@@ -187,7 +193,7 @@ class SoilBarService : AccessibilityService() {
          */
         fun barKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
             val service = instance ?: return
-            service.main.post { service.onBarKey(keyCode, action, eventTime, repeatCount) }
+            service.main.post { service.onBarKey(keyCode, action, eventTime, repeatCount, via = "window") }
         }
 
         private val _running = MutableStateFlow(false)

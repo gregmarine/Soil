@@ -154,6 +154,7 @@ class InkDocument(
 
     /** Reverse [a] on this page. The caller has already landed on `a.pageId`. */
     fun revert(a: InkAction) {
+        replays++
         when (a) {
             is InkAction.Drew -> removeStroke(a.stroke.id)
             is InkAction.Erased -> for (e in a.entries) put(e.stroke, e.order)
@@ -164,6 +165,7 @@ class InkDocument(
 
     /** Re-apply [a] — [revert]'s mirror. */
     fun reapply(a: InkAction) {
+        replays++
         when (a) {
             is InkAction.Drew -> addStroke(a.stroke)
             is InkAction.Erased -> for (e in a.entries) removeStroke(e.stroke.id)
@@ -286,5 +288,17 @@ class InkDocument(
 
         /** No bound: a leave path's flush, which has no next debounce to leave anything to. */
         const val UNBOUNDED = Int.MAX_VALUE
+
+        /**
+         * Bumped by every [revert] and [reapply], on any document — Main only, like the replays
+         * themselves. A screen's replay snapshots it, and when the replay throws it tells the two
+         * failures apart: unmoved, the edit never reached the page (a navigation or a load failed
+         * first) and the entry goes back where it was; moved, the page in memory **has** changed
+         * and only the flush after it failed, so the entry counts as replayed and the op log
+         * retries the write. Putting such an entry back would replay it twice — a move translated
+         * by twice its distance.
+         */
+        internal var replays: Long = 0L
+            private set
     }
 }

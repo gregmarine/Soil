@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.notesprout.notebook
 
 import com.symmetricalpalmtree.gpaper.core.model.Stroke
 import com.symmetricalpalmtree.soil.notesprout.data.NotebookStore
+import kotlinx.coroutines.sync.Mutex
 
 /**
  * The hand-off between the notebook and the sticky editor, a process-local singleton: the editor
@@ -24,6 +25,13 @@ object StickyEditorTransfer {
 
     @Volatile
     private var staged: Showing? = null
+
+    /**
+     * Held by every editor flush through the notebook's store and by the notebook's close of its
+     * session: the editor's last flush, launched as it pauses, lands before the session goes,
+     * whichever way the notebook is leaving (Back, or a new ask over it).
+     */
+    val writes = Mutex()
 
     /** The showing up now, for the result callback. */
     @Volatile

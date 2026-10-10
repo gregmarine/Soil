@@ -37,9 +37,11 @@ import com.symmetricalpalmtree.soil.seamkit.clip.BibleClip
 import com.symmetricalpalmtree.soil.seamkit.SeamStoreRows
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * **The reader's screen**: Notesprout SN's `BibleActivity`, whole, without SN's host handshake.
@@ -90,7 +92,13 @@ class BibleActivity : AppCompatActivity() {
 
     /** The app store, once Soil has lent it; null when it would not. See [remember]. */
     private val storeReady = CompletableDeferred<BibleStore?>()
-    private var lease: ISeamStore? = null
+
+    /** Set on IO when Soil lends the store, taken on Main in [onDestroy]: whichever side comes
+     *  second closes it, so a lease that arrives after the screen is gone is closed at once. */
+    private val lease = AtomicReference<ISeamStore?>(null)
+
+    /** Set first thing in [onDestroy]; read by [openStore] on IO. */
+    @Volatile private var destroyed = false
 
     /** What the lease is bound to: this screen's life. */
     private val owner: IBinder = Binder()
@@ -133,9 +141,11 @@ class BibleActivity : AppCompatActivity() {
     private var lastSearch: SearchResults? = null
     private var searching = false
 
-    /** Position writes: the one in flight, and the latest one that arrived while it was. */
+    /** Position writes: the one in flight, and the latest one that arrived while it was. The
+     *  writer runs in [BiblesproutApp.appScope], so the last write outlives the screen. */
     private var writing = false
     private var pendingWrite: String? = null
+    private var writer: Job? = null
 
     /** The "Loading…" line, shown only if the work outlasts [LOADING_DELAY_MS]. */
     private val showLoading = Runnable { binding.loading.visibility = View.VISIBLE }
@@ -222,6 +232,7 @@ class BibleActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        destroyed = true
         super.onDestroy()
         // A Dialog outliving its finishing Activity is a window leak.
         contentsPanel?.dismiss()
@@ -231,9 +242,14 @@ class BibleActivity : AppCompatActivity() {
         footnotePopup?.dismiss()
         binding.root.removeCallbacks(showLoading)
         loader.close()
-        val held = lease
-        lease = null
-        if (held != null) Thread { runCatching { held.close() } }.start()
+        // The position writer drains its pending write first (it runs on Main, past this
+        // screen), and only then is the lease closed.
+        val held = lease.getAndSet(null) ?: return
+        val drain = writer
+        BiblesproutApp.appScope.launch {
+            drain?.join()
+            withContext(Dispatchers.IO) { runCatching { held.close() } }
+        }
     }
 
     /** The swipe detector is an observer fed from here: it consumes nothing, so dispatch always
@@ -255,7 +271,12 @@ class BibleActivity : AppCompatActivity() {
             val store = runCatching {
                 val seam = (application as BiblesproutApp).soil.seam()
                 val opened = seam.openAppStore(BibleSchema.SCHEMA, owner)
-                lease = opened
+                lease.set(opened)
+                // The screen went while Soil was answering: nothing will use it, close it now.
+                if (destroyed) {
+                    lease.getAndSet(null)?.let { runCatching { it.close() } }
+                    return@runCatching null
+                }
                 BibleStore(SeamStoreRows(opened))
             }.onFailure { e ->
                 Log.w(TAG, "the store could not be opened: ${e.javaClass.simpleName}")
@@ -508,7 +529,10 @@ class BibleActivity : AppCompatActivity() {
             ?: chapter?.ref?.let { listOf(ReferenceCodec.wholeChapter(it)) }
             ?: return
         val wire = ReferenceCodec.encode(passages)
-        val label = ReferenceCodec.label(passages)
+        val fullLabel = ReferenceCodec.label(passages)
+        // A long list of references labels itself past what a clip may carry: shortened, so
+        // the copy still pastes. The words keep the whole label.
+        val label = PassageMarkdown.clipLabel(fullLabel, BibleClip.MAX_LABEL_CHARS)
         copying = true
         lifecycleScope.launch {
             val written = withContext(Dispatchers.IO) {
@@ -516,11 +540,18 @@ class BibleActivity : AppCompatActivity() {
                     val text = loader.withDatabase { db ->
                         val verses = ArrayList<VerseRow>()
                         for (p in passages) for (r in p.ranges) verses.addAll(db.versesForRange(r.startKey, r.endKey))
-                        PassageMarkdown.build(label, verses)
+                        PassageMarkdown.build(fullLabel, verses)
                     }
                     val clip = BibleClip(BibleClip.VERSION, wire, label, text, System.currentTimeMillis())
-                    val bytes = BibleClip.encode(clip) ?: error("too large")
-                    (application as BiblesproutApp).soil.seam().putClip(BibleClip.SLOT, SeamClip(BibleClip.PAYLOAD_KIND, "", clip.copiedAt), SeamShared.write(bytes))
+                    // Only what a paste can read goes on the clipboard: a clip decode would
+                    // refuse would replace the one there with nothing pasteable.
+                    val bytes = BibleClip.encode(clip)?.takeIf { BibleClip.decode(it) != null } ?: error("not a clip")
+                    val region = SeamShared.write(bytes)
+                    try {
+                        (application as BiblesproutApp).soil.seam().putClip(BibleClip.SLOT, SeamClip(BibleClip.PAYLOAD_KIND, "", clip.copiedAt), region)
+                    } finally {
+                        region.memory.close()
+                    }
                 }.onFailure { Log.w(TAG, "the passage was not copied: ${it.javaClass.simpleName}") }.isSuccess
             }
             copying = false
@@ -667,7 +698,9 @@ class BibleActivity : AppCompatActivity() {
 
     /** Writes the page's position, fire-and-forget. **Coalesced**: while one write is in flight
      *  the next replaces the one waiting. A failure costs the bookmark and is swallowed with a
-     *  log line. A store not yet lent costs this one write and nothing else. */
+     *  log line. A store not yet lent costs this one write and nothing else. The writer is not
+     *  the screen's: it runs in the app's scope, so the last turn's write still lands after the
+     *  screen is destroyed, and [onDestroy] closes the lease only once it has. */
     private fun remember(pages: ChapterPages, index: Int) {
         val store = storeNow() ?: return
         val verse = pages.anchors.getOrElse(index) { 1 }
@@ -677,7 +710,7 @@ class BibleActivity : AppCompatActivity() {
             return
         }
         writing = true
-        lifecycleScope.launch {
+        writer = BiblesproutApp.appScope.launch {
             var next: String? = value
             while (next != null) {
                 val writeMe = next

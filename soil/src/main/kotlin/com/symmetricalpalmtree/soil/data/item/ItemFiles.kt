@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.data.item
 
 import android.content.Context
+import com.symmetricalpalmtree.soil.crypto.GlobalRotation
 import com.symmetricalpalmtree.soil.crypto.KeyOpener
 import com.symmetricalpalmtree.soil.crypto.KeySession
 import com.symmetricalpalmtree.soil.crypto.OpenFiles
@@ -47,6 +48,8 @@ object ItemFiles {
     private fun create(context: Context, id: String, name: String, createdAt: Long, kind: String, open: (java.io.File, String) -> ZeticDB) {
         val app = context.applicationContext
         val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
+        // Made now, mid-rotation, it would be under the old key the commit forgets.
+        GlobalRotation.refuseWhileRotating(app)
         val file = SoilFiles.itemFile(app, id)
         val db = open(file, passphrase)
         try {
@@ -69,11 +72,14 @@ object ItemFiles {
      * that kind, before any step runs. Claims the file: the caller gives it back with [close].
      *
      * @throws ItemRefused when the file is another item's, another kind's, or a later Soil's
-     * @throws IllegalStateException with [SeamLimits.SCHEMA_NEWER] when the file is newer than [schema]
+     * @throws IllegalStateException with [SeamLimits.SCHEMA_NEWER] when the file is newer than [schema],
+     *   or with [SeamLimits.LIBRARY_NOT_OPEN] while a rotation marker stands
      */
     fun open(context: Context, id: String, schema: SeamSchema): ZeticDB {
         val app = context.applicationContext
         val passphrase = KeySession.get() ?: throw SoilLockedException("the library is locked")
+        // Opened now, mid-rotation, it could sit under its own rekey.
+        GlobalRotation.refuseWhileRotating(app)
         val file = SoilFiles.itemFile(app, id)
         val key = KeyOpener.keyFor(app, id, file, passphrase)
         val db = try {

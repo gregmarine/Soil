@@ -29,6 +29,11 @@ import com.symmetricalpalmtree.soil.bootstrap.Screen
 import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.store.AppStores
+import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
+import com.symmetricalpalmtree.soil.paper.store.RowStore
+import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.paper.store.StoreRows
+import android.content.Context
 import com.symmetricalpalmtree.soil.databinding.ActivityScratchPadBinding
 import com.symmetricalpalmtree.soil.paper.chrome.EraserBar
 import com.symmetricalpalmtree.soil.paper.chrome.InkSelectionBar
@@ -123,10 +128,15 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     override val storeFailedTitleRes: Int get() = R.string.scratch_store_failed_title
     override val storeFailedBodyRes: Int get() = R.string.scratch_store_failed_body
 
-    /** The pad opens as it was left. */
+    /** The pad opens as every paper screen was left: the one shared flag is Soil's own (`PadPrefs`). */
     override val initialChromeHidden: Boolean get() = PadPrefs.chromeHidden
 
     override fun onChromeChanged(hidden: Boolean) = PadPrefs.setChromeHidden(this, hidden)
+
+    /** Inside Soil: the shared flag is read here, off the main thread, not over the seam. A Sprout
+     *  app may have flipped it while the pad was away. */
+    override suspend fun readSharedChromeHidden(): Boolean? =
+        withContext(Dispatchers.IO) { runCatching { PadPrefs.readChromeHidden(this@ScratchPadActivity) }.getOrNull() }
 
     /** The pad's stack is one sealed type over both an ink edit and a page-list one. */
     override fun record(action: InkAction) = undo.record(ScratchAction.Ink(action))
@@ -138,12 +148,39 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     override fun showPage() = showPage(firstLoad = false)
 
     override suspend fun revert(action: ScratchAction) {
-        document?.revert(action)
+        onDocument { document?.revert(action) }
     }
 
     override suspend fun reapply(action: ScratchAction) {
-        document?.reapply(action)
+        onDocument { document?.reapply(action) }
     }
+
+    /**
+     * The paper's model has been dropped for a swap ([swapOut]) and the page not yet put back. A
+     * swap that fails part-way puts the document's page back on the paper ([onDocument]).
+     */
+    private var swappedOut = false
+
+    /**
+     * The document is about to leave its page: `clearForContentSwap` now, while the page id is
+     * still the departing one, so a contact whose lift was lost (g-paper 0.1.70 commits it inside
+     * the call) is filed under the page it was written on and flushed with it. [showPage] calls it
+     * again ahead of `loadStrokes`, which keeps the swap a single refresh.
+     */
+    private fun swapOut() {
+        if (!opened || closing) return
+        paper.clearForContentSwap()
+        swappedOut = true
+    }
+
+    /** Run a document call that may swap pages; one that fails after [swapOut] repaints the page. */
+    private suspend fun <T> onDocument(block: suspend () -> T): T =
+        try {
+            block()
+        } catch (t: Throwable) {
+            if (swappedOut && !closing && !isDestroyed) showPage()
+            throw t
+        }
 
     // ── Create ───────────────────────────────────────────────────────────────
 
@@ -277,10 +314,8 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         val doc = try {
             // The first open of all mints the store, which derives a key: seconds, under the
             // "Opening…" box.
-            val rows = withContext(Dispatchers.IO) {
-                AppStores.open(this@ScratchPadActivity, SoilFiles.STORE_SCRATCHPAD, ScratchSchema.SCHEMA)
-            }
-            ScratchDocument(ScratchStore(rows)) { surfaceSize() }.also {
+            val rows = withContext(Dispatchers.IO) { LentPadRows(applicationContext) }
+            ScratchDocument(ScratchStore(rows), beforeSwap = { swapOut() }) { surfaceSize() }.also {
                 document = it
                 it.load()
             }
@@ -329,7 +364,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         }
         runPageOp {
             val doc = document ?: return@runPageOp
-            val placed = runCatching { doc.receive(bundle, newPage = parked.placement == Seam.PAD_PLACEMENT_NEW_PAGE) }
+            val placed = runCatching { onDocument { doc.receive(bundle, newPage = parked.placement == Seam.PAD_PLACEMENT_NEW_PAGE) } }
                 .onFailure { Log.w(TAG, "the sent ink could not be placed: ${it.javaClass.simpleName}") }
                 .getOrNull()
             if (placed == null) {
@@ -547,7 +582,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         val strokes = InkClip.strokesOf(env).filter { firstPage == null || it.id in onFirst }
         val (w, h) = InkClip.pageSizeOf(env)?.takeIf { it.first > 0f && it.second > 0f } ?: (doc.pageWidth to doc.pageHeight)
         val placed = InkPlacement.atSource(strokes, w, h) { ScratchStore.newId() }
-        undo.record(doc.receive(InkWire.Bundle(w, h, placed), newPage = true))
+        undo.record(onDocument { doc.receive(InkWire.Bundle(w, h, placed), newPage = true) })
         showPage()
         Slog.d(TAG) { "pasted a page: ${placed.size} strokes at ${w.toInt()} × ${h.toInt()}" }
         Toast.makeText(this, getString(R.string.scratch_pasted_page_toast, doc.pageIndex + 1), Toast.LENGTH_SHORT).show()
@@ -587,19 +622,19 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     private suspend fun flipTo(index: Int) {
         val doc = document ?: return
         if (index < 0 || index >= doc.pageCount) return   // no-op at a bound
-        doc.goToIndex(index)
+        onDocument { doc.goToIndex(index) }
         showPage()
     }
 
     private suspend fun doInsert(after: Boolean) {
         val doc = document ?: return
-        undo.record(doc.insert(after))
+        undo.record(onDocument { doc.insert(after) })
         showPage()
     }
 
     private suspend fun doDelete() {
         val doc = document ?: return
-        undo.record(doc.deleteCurrent())
+        undo.record(onDocument { doc.deleteCurrent() })
         showPage()
     }
 
@@ -618,6 +653,7 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
         hideEraserBar()       // a floating bar never survives a content swap
         dismissCollapsed()    // and neither do the corner button's rows
         if (!firstLoad) paper.clearForContentSwap()
+        swappedOut = false
         paper.setPageSize(doc.pageWidth.toInt(), doc.pageHeight.toInt())
         paper.setTemplate(null)   // the pad is plain paper: no templates, ever
         paper.loadStrokes(doc.strokes)
@@ -681,10 +717,44 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
 
         /**
          * True while a pad screen exists, shown or not. The Encryption screen asks before it
-         * re-keys or locks: the pad's store cannot be taken from under a live page.
+         * re-keys or locks, and Restore before it replaces the library: the pad's store cannot be
+         * taken from under a live page.
          */
         @Volatile
         var isOpen: Boolean = false
             private set
     }
+}
+
+/**
+ * The pad's store, as `AppStoreLease` holds an app's: `AppStores.closeAll` (a rotation, Forget)
+ * closes the connection the pad was given, and the next call opens the store again under
+ * whatever key it is under now — or fails while the library is locked or a rotation marker stands,
+ * which the screen answers as any store failure. Each call runs under `AppStores`' own lock, so a
+ * close waits for the call in hand. The first lend happens here, so construct on IO.
+ */
+private class LentPadRows(private val app: Context) : RowStore {
+
+    private var rows: SqlCipherRowStore
+    private var openedAt: Long
+
+    init {
+        val (first, at) = AppStores.lend(app, SoilFiles.STORE_SCRATCHPAD, ScratchSchema.SCHEMA)
+        rows = first
+        openedAt = at
+    }
+
+    private fun <T> withStore(block: (RowStore) -> T): T = synchronized(AppStores) {
+        if (AppStores.closings() != openedAt) {
+            val (fresh, at) = AppStores.lend(app, SoilFiles.STORE_SCRATCHPAD, ScratchSchema.SCHEMA)
+            rows = fresh
+            openedAt = at
+        }
+        block(rows)
+    }
+
+    override fun exec(statements: List<Statement>): LongArray = withStore { it.exec(statements) }
+
+    override fun query(statement: Statement): StoreRows =
+        withStore { it.query(statement) }
 }

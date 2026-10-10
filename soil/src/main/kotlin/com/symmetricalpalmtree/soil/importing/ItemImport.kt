@@ -124,8 +124,9 @@ object ItemImport {
             runCatching { staging.delete() }
             keyed.copyTo(staging, overwrite = true)
             if (staging.length() != bytes) { Log.w(TAG, "staged ${staging.length()} of $bytes bytes"); throw ImportProblem(Problem.WRITE) }
+            // The old file's sidecars go before the new file takes its name: a stale WAL beside it would be replayed in.
+            if (Sidecars.of(target).any { it.exists() && !it.delete() }) { Log.w(TAG, "a stale sidecar could not be deleted"); throw ImportProblem(Problem.WRITE) }
             if (!staging.renameTo(target)) { Log.w(TAG, "staging rename failed"); throw ImportProblem(Problem.WRITE) }
-            Sidecars.of(target).forEach { runCatching { it.delete() } }
             if (target.length() != bytes) { Log.w(TAG, "wrote ${target.length()} of $bytes bytes"); throw ImportProblem(Problem.WRITE) }
         } catch (e: ImportProblem) {
             throw e

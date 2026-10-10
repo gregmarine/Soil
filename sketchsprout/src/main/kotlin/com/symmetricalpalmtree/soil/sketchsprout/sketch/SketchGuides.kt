@@ -42,7 +42,8 @@ import kotlinx.coroutines.withContext
  *
  * - **At every load** ([load]): the two guide rows and the paper are read, the image decoded
  *   behind the header guard, and the sheet built, all off the main thread; the screen sets it in
- *   the same breath as the rasters. A failure is a log line and no guides, never a dialog.
+ *   the same breath as the rasters. A failure is a log line and no guides, never a dialog —
+ *   and that page's picks are then shown but not written, never saved over rows not read.
  * - **At every settings pick**: the sheet rebuilt and set, the rows written in pick order under a
  *   fair mutex; a failure is a log line. Not on the undo stack.
  * - **At a Pick… or a Remove**: the image row written or soft-deleted first; a failure there
@@ -83,6 +84,14 @@ class SketchGuides(
     /** The bitmap g-paper holds by reference; recycled only after its replacement is set. */
     private var sheet: Bitmap? = null
 
+    /** Sheets a [load] replaced that g-paper may still hold: the screen sets the new one in its
+     *  swap and only then calls [sheetSet], which recycles these. Main thread. */
+    private val retiring = ArrayList<Bitmap>()
+
+    /** Whether the page's guide rows could not be read: its picks are shown but never written,
+     *  so a failed read is never saved over the rows that are there. */
+    private var readFailed = false
+
     private val sheetLock = Mutex()
     private val writes = Mutex()
     private var pickingFor: String? = null
@@ -113,9 +122,11 @@ class SketchGuides(
     // ── Loading a page ───────────────────────────────────────────────────────
 
     /**
-     * Read [page]'s guides and build its sheet over [paperBitmap] — off the main thread, before
+     * Read [page]'s guides and build its sheet over [paperBitmap] — off the main thread, after
      * the rasters are decoded — and answer the sheet for the screen to set in its one synchronous
-     * swap. The sheet is remembered here so a later pick can replace it.
+     * swap. The sheet is remembered here so a later pick can replace it; **the one it replaces is
+     * not recycled here**, since g-paper holds it until the swap: the screen calls [sheetSet] once
+     * `setSheet` has the new one.
      */
     suspend fun load(page: SketchPage, paperBitmap: Bitmap?): Bitmap? = sheetLock.withLock {
         pageId = page.id
@@ -128,13 +139,34 @@ class SketchGuides(
         val read = if (s == null) null else withContext(Dispatchers.IO) {
             runCatching { s.readGuides(page.id) }.onFailure { Log.w(TAG, "the page's guides could not be read: ${it.javaClass.simpleName}") }.getOrNull()
         }
-        val decoded = read?.imageBytes?.let { bytes -> withContext(Dispatchers.IO) { RasterImage.decode(bytes, pageWidth, pageHeight) } }
+        readFailed = read == null
+        val decoded = read?.imageBytes?.let { bytes ->
+            withContext(Dispatchers.IO) {
+                runCatching { RasterImage.decode(bytes, pageWidth, pageHeight) }
+                    .onFailure { Log.w(TAG, "the page's reference image could not be read: ${it.javaClass.simpleName}") }
+                    .getOrNull()
+            }
+        }
         replaceImage(decoded)
         state = GuideState.of(read?.grid, read?.image, hasImage = read?.imageBytes != null)
         val next = buildSheet()
-        swapSheet(next)
+        val old = sheet
+        sheet = next
+        if (old != null && old !== next) retiring += old
         Slog.d(TAG) { "guides loaded in ${SystemClock.elapsedRealtime() - t0} ms: grid ${state.gridKind}/${state.gridCount}${if (state.gridVisible) "" else " hidden"}, image ${read?.imageBytes?.size ?: 0} B${if (state.imageVisible) "" else " hidden"}, paper ${paperBitmap != null}" }
         next
+    }
+
+    /** The screen's swap has handed g-paper the sheet [load] answered: the ones it replaced are
+     *  let go now. Main thread. */
+    fun sheetSet() {
+        val keep = sheet
+        val iter = retiring.iterator()
+        while (iter.hasNext()) {
+            val b = iter.next()
+            if (b !== keep) b.recycle()
+            iter.remove()
+        }
     }
 
     /** The page was re-papered: the sheet is rebuilt over the new paper and set. */
@@ -160,6 +192,10 @@ class SketchGuides(
 
     /** The grid row and the image's settings written, in pick order. A failure is a log line. */
     private fun remember(id: String, s: GuideState) {
+        if (readFailed) {
+            Log.w(TAG, "the page's guides were not read, so the pick is shown and not written")
+            return
+        }
         val grid = s.toGridRow()
         val image = if (s.hasImage) s.toImageRow() else null
         activity.lifecycleScope.launch {

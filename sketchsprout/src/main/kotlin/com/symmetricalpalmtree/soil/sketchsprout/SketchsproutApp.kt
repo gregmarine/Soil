@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -79,7 +80,20 @@ class SketchsproutApp : Application() {
     /** A side-bar key a paper screen of this app received: Soil's shell reads the swipe from it. */
     fun barKey(event: android.view.KeyEvent) {
         val keyCode = event.keyCode; val action = event.action; val eventTime = event.eventTime; val repeatCount = event.repeatCount
-        appScope.launch(Dispatchers.IO) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
+        // On the serial seam dispatcher: a down and its up cross the seam in the order they were made.
+        appScope.launch(seamSerial) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
+    }
+
+    /**
+     * The chrome's hidden state, Soil's one flag for every paper screen (`SharedChrome`), or null
+     * when Soil cannot say. On the serial seam dispatcher, behind any flip this process sent.
+     */
+    suspend fun sharedChromeHidden(): Boolean? =
+        withContext(seamSerial) { runCatching { soil.seam().chromeHidden() }.getOrNull() }
+
+    /** The person flipped the chrome on a paper screen of this app: Soil's flag follows. */
+    fun putSharedChromeHidden(hidden: Boolean) {
+        appScope.launch(seamSerial) { runCatching { soil.seam().setChromeHidden(hidden) } }
     }
 
     companion object {

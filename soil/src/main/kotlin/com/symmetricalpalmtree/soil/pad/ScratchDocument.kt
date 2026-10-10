@@ -31,7 +31,9 @@ import java.util.TreeMap
  * flush ([InkDocument.flushUntilClean]'s `extraDirty`), and comes back if that write fails.
  *
  * [goTo] reads the target page **first** and flushes the departing one **second**, so the swap
- * itself has no suspension point for a commit to fall into.
+ * itself has no suspension point for a commit to fall into. Every swap runs [beforeSwap] (the
+ * screen's `clearForContentSwap`) ahead of that last flush, so a contact g-paper ends there lands
+ * on the page it was written on.
  *
  * **A received placement (J5) never lands here.** `ScratchStore.receive` writes it on the Binder
  * thread before the screen exists; the document simply [load]s what is already in the store. What
@@ -39,6 +41,12 @@ import java.util.TreeMap
  */
 class ScratchDocument(
     private val store: ScratchStore,
+    /**
+     * Run on Main just before the departing page's last flush, while this is still on it: the
+     * screen's `clearForContentSwap`, which since g-paper 0.1.70 commits a contact whose lift was
+     * lost — on the outgoing page, so the stroke has to land here before the page id changes.
+     */
+    private val beforeSwap: () -> Unit = {},
     /** The paper surface in px — the size a page with no recorded size of its own takes. */
     private val surfaceSize: () -> Pair<Float, Float>,
 ) : InkPage {
@@ -84,6 +92,7 @@ class ScratchDocument(
     suspend fun goTo(id: String) {
         if (id == pageId) return
         val next = withContext(Dispatchers.IO) { store.readPage(id) }
+        beforeSwap()
         flushUntilClean()
         applyPage(id, next)
         withContext(Dispatchers.IO) { store.setCurrent(id) }
@@ -98,12 +107,15 @@ class ScratchDocument(
     // ── Structural ───────────────────────────────────────────────────────────
 
     suspend fun insert(after: Boolean): ScratchAction.Page {
+        beforeSwap()
         flushUntilClean()
         val before = pageIds
         val beforeCurrent = pageId
         val (next, newId) = withContext(Dispatchers.IO) {
             if (after) store.insertPage(before, beforeCurrent) else store.insertPageBefore(before, beforeCurrent)
         }
+        // A stroke committed during the insert is the departing page's: down before the swap.
+        flushUntilClean()
         pageIds = next
         applyPage(newId, PageInk.EMPTY)
         return ScratchAction.Page(before, beforeCurrent, next, newId, newId, ink = null)
@@ -116,6 +128,7 @@ class ScratchDocument(
      * and the action that records that has `before == after` and still carries the ink.
      */
     suspend fun deleteCurrent(): ScratchAction.Page {
+        beforeSwap()
         flushUntilClean()
         val before = pageIds
         val deletedId = pageId
@@ -133,13 +146,17 @@ class ScratchDocument(
      * undo step: a page with its cargo, or a paste of exactly what arrived.
      */
     suspend fun receive(bundle: InkWire.Bundle, newPage: Boolean): ScratchAction {
+        if (newPage) beforeSwap()
         flushUntilClean()
         if (newPage) {
             val before = pageIds
             val beforeCurrent = pageId
             val (next, id) = withContext(Dispatchers.IO) { store.receivePage(before, beforeCurrent, bundle.pageWidth, bundle.pageHeight, bundle.strokes) }
+            val page = withContext(Dispatchers.IO) { store.readPage(id) }
+            // A stroke committed meanwhile is the departing page's: down before the swap.
+            flushUntilClean()
             pageIds = next
-            applyPage(id, withContext(Dispatchers.IO) { store.readPage(id) })
+            applyPage(id, page)
             return ScratchAction.Page(before, beforeCurrent, next, id, id, ink = null, afterInk = currentInk())
         }
         ink.addStrokes(bundle.strokes)
@@ -254,6 +271,7 @@ class ScratchDocument(
      */
     private suspend fun replayPages(ids: List<String>, current: String, pageId: String, ink: PageInk?) {
         // Anything typed since is part of the state being reversed — get it down first.
+        beforeSwap()
         flushUntilClean()
         val now = System.currentTimeMillis()
         val statements = ArrayList<Statement>(ids.size + (ink?.strokes?.size ?: 0) + 4)

@@ -32,7 +32,7 @@ object CloudTimeouts {
     /** Upload over 5 MiB, resumable: a rate per 20 MiB slice. Measured 6 435 ms for 20 MiB. */
     const val UPLOAD_LARGE_MS: Long = 120_000L
 
-    /** One metadata fetch and the stream. Measured 4 343 ms for 20 MiB. Flat: an import reads one file. */
+    /** One metadata fetch and the stream. Measured 4 343 ms for 20 MiB. The floor of [downloadBudgetMs]. */
     const val DOWNLOAD_MS: Long = 120_000L
 
     /** Measured 729 ms for one file. */
@@ -48,7 +48,7 @@ object CloudTimeouts {
         return UPLOAD_LARGE_MS * slices
     }
 
-    /** The download twin, for a caller pulling files of any size (a restore): flat per 20 MiB slice. */
+    /** The download twin, for a caller pulling files of any size (a restore, an import): flat per 20 MiB slice. */
     fun downloadBudgetMs(bytes: Long): Long {
         if (bytes <= UPLOAD_LARGE_UNIT_BYTES) return DOWNLOAD_MS
         val slices = (bytes + UPLOAD_LARGE_UNIT_BYTES - 1) / UPLOAD_LARGE_UNIT_BYTES

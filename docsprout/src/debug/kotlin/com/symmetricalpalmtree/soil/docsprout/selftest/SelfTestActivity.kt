@@ -15,6 +15,7 @@ import com.symmetricalpalmtree.soil.docsprout.editor.ProofreadFlagSpan
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.BlockSpan
+import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichCodec
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichEditText
 import com.symmetricalpalmtree.soil.docsprout.editor.rich.RichOps
 import com.symmetricalpalmtree.soil.markdown.rich.RichKind
@@ -315,12 +316,12 @@ class SelfTestActivity : AppCompatActivity() {
         check("a rule at the end leaves a paragraph to go on in", "one\n\n---\n\nx\n")
 
         load("a\n\n---\n\nb\n")
-        val rule = text().toString().indexOf('\u200B')
+        val rule = text().toString().indexOf(RichCodec.RULE_CHAR)
         type(rule, "x")
         check("a rule that is typed into is a paragraph", "a\n\nx\n\nb\n")
 
         load("a\n\n---\n\nb\n")
-        val rule2 = text().toString().indexOf('\u200B')
+        val rule2 = text().toString().indexOf(RichCodec.RULE_CHAR)
         delete(rule2, rule2 + 1)
         check("a rule whose character is deleted is gone", "a\n\nb\n")
 
@@ -372,8 +373,48 @@ class SelfTestActivity : AppCompatActivity() {
         type(view.selectionEnd, "out")
         check("Enter on an empty quote line ends the quote", "> quote\n\nout\n")
 
+        rawBlocks()
+        inserts()
         typeToFormat()
         bibleLinks()
+    }
+
+    /** Fences of every kind and indented code read and are written as they were. */
+    private fun rawBlocks() {
+        for (md in listOf("~~~\n**x**\n```\n~~~\n\nafter\n", "````md\n```\n````\n", "a\n\n    code *x*\n\n    more\n\nb\n")) {
+            load(md)
+            check("raw blocks are written back as they were read: ${md.lineSequence().first()}", md)
+        }
+
+        load("| a |\n")
+        delete(0, 1)
+        check("a raw line edited out of its shape is written as its words", "a |\n")
+
+        load("```\na\u200Bb\n```\n")
+        check("a zero-width space in a raw line is kept", "```\na\u200Bb\n```\n")
+
+        load("a\n\n---\n\nb\n")
+        checkTrue("a rule holds its stand-in character", text().toString().indexOf(RichCodec.RULE_CHAR) >= 0)
+    }
+
+    /** Words put in by a tool are plain, and a link put over them is the only one there. */
+    private fun inserts() {
+        load("**bold**\n")
+        view.setSelection(at("bold", after = true))
+        RichOps.insertText(view, " plain", 6, 6)
+        check("words put in at the end of a style do not take it", "**bold** plain\n")
+
+        load("**ab**\n")
+        view.setSelection(at("b"))
+        RichOps.insertText(view, "x\ny", 3, 3)
+        check("lines put in inside a style leave it on both sides and off the new lines", "**a**x\n\ny**b**\n")
+
+        load("[a](u)\n")
+        val end = at("a", after = true)
+        view.setSelection(end)
+        RichOps.insertText(view, "J", 1, 1)
+        RichOps.linkOver(text(), end, end + 1, "v")
+        check("a link put in beside another is its own", "[a](u)[J](v)\n")
     }
 
     /** The reference pass on the rendered surface: a span over the words, the caret untouched, one step to undo. */
@@ -387,8 +428,29 @@ class SelfTestActivity : AppCompatActivity() {
         com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController.applyRendered(view, plan.hits)
         check("a reference found by the pass is a link over its words", "see [John 3:16](bible:JHN:3:16-3:16) today\n")
         if (view.selectionStart != 0) fail("the caret moved to ${view.selectionStart}")
+        var removed: Set<Pair<String, String>> = emptySet()
+        var added: Set<Pair<String, String>> = emptySet()
+        var restored = 0
+        view.onRestored = { r, a -> removed = r; added = a; restored++ }
         view.undo()
         check("one undo takes the link off and keeps the words", "see John 3:16 today\n")
+        checkTrue("the undo says which link it took off, so the pass skips it", removed == setOf("John 3:16" to "bible:JHN:3:16-3:16") && added.isEmpty())
+        view.redo()
+        checkTrue("a redo says which link it put back, so the pass allows it again", added == setOf("John 3:16" to "bible:JHN:3:16-3:16") && removed.isEmpty())
+
+        load("see John 3:16\n")
+        type(at("16", after = true), " x")
+        view.undo()
+        val again = view.text!!.toString()
+        val relinked = com.symmetricalpalmtree.soil.docsprout.editor.bible.ReferenceLinker.plan(
+            again, com.symmetricalpalmtree.soil.docsprout.editor.proofread.ProofreadCheck.Region(0, again.length), BooleanArray(again.length), emptySet(), null,
+        )
+        com.symmetricalpalmtree.soil.docsprout.editor.bible.BibleLinkController.applyRendered(view, relinked.hits)
+        val before = restored
+        checkTrue("a link the pass makes after an undo leaves the undone typing to redo", view.redo())
+        check("and the redo puts it back", "see John 3:16 x\n")
+        checkTrue("and the redo asks for a read, so the pass links the reference again", restored == before + 1)
+        view.onRestored = null
     }
 
     private fun typeToFormat() {
@@ -472,7 +534,18 @@ class SelfTestActivity : AppCompatActivity() {
         load("| a |\n")
         view.setSelection(0)
         keys("# ")
-        check("a raw line is never converted", "# | a |\n")
+        // Never converted, and, no longer a table row, written as its words.
+        check("a raw line is never converted", "\\# | a |\n")
+
+        load("`x *y` z\n")
+        view.setSelection(at("z", after = true))
+        keys("*")
+        check("a marker inside code does not open a pair", "`x *y` z*\n")
+
+        load("[a *b](u) c\n")
+        view.setSelection(at("c", after = true))
+        keys("*")
+        check("nor one inside a link's words", "[a *b](u) c*\n")
     }
 
     private companion object {

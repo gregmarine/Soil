@@ -7,8 +7,8 @@ import android.os.Parcel
 import com.symmetricalpalmtree.soil.data.Schema
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.store.AppStores
+import com.symmetricalpalmtree.soil.data.store.SqlCipherRowStore
 import com.symmetricalpalmtree.soil.paper.core.Slog
-import com.symmetricalpalmtree.soil.paper.store.RowStore
 import com.symmetricalpalmtree.soil.seam.SeamBytes
 import com.symmetricalpalmtree.soil.seam.SeamShared
 import com.symmetricalpalmtree.soil.seam.SeamSql
@@ -28,10 +28,34 @@ import kotlinx.coroutines.withContext
  * checked itself; the only table is the one Soil made ([CloudContract.STORE_CREATE]), because an
  * extension cannot send DDL. Only Security/IllegalArgument/IllegalState exceptions cross.
  */
-class CloudStoreLease private constructor(private val rows: RowStore, private val uid: Int) : IExtStore.Stub() {
+class CloudStoreLease private constructor(
+    private val app: Context,
+    private val name: String,
+    opened: Pair<SqlCipherRowStore, Long>,
+    private val uid: Int,
+) : IExtStore.Stub() {
 
     @Volatile
     private var revoked = false
+
+    /** The connection, and the `AppStores.closings` count it was opened under. */
+    private var rows: SqlCipherRowStore = opened.first
+    private var openedAt: Long = opened.second
+
+    /**
+     * The store as it is now. `AppStores.closeAll` (a rotation, Forget, a restore) closes the
+     * connection this lease was given; the next call opens the store again, under whatever key it
+     * is under now — or fails, while the library is locked or a rotation marker stands. Run under
+     * `AppStores`' own lock, so a close waits for the call in hand (`AppStoreLease`'s rule).
+     */
+    private fun <T> withStore(block: (SqlCipherRowStore) -> T): T = synchronized(AppStores) {
+        if (AppStores.closings() != openedAt) {
+            val (fresh, at) = AppStores.lend(app, name, SCHEMA)
+            rows = fresh
+            openedAt = at
+        }
+        block(rows)
+    }
 
     override fun exec(batch: SeamBytes): LongArray = answered {
         val statements = RowCodec.decodeStatements(SeamShared.readAndClose(batch))
@@ -40,7 +64,7 @@ class CloudStoreLease private constructor(private val rows: RowStore, private va
             SeamSql.checkExec(statement.sql)
             require(SeamSql.bindCount(statement.sql) == statement.args.size) { "the binds do not match the arguments" }
         }
-        rows.exec(statements)
+        withStore { it.exec(statements) }
     }
 
     override fun query(statement: SeamBytes): SeamBytes = answered {
@@ -48,7 +72,7 @@ class CloudStoreLease private constructor(private val rows: RowStore, private va
         require(one.size == 1) { "a query is one statement" }
         SeamSql.checkQuery(one[0].sql)
         require(SeamSql.bindCount(one[0].sql) == one[0].args.size) { "the binds do not match the arguments" }
-        val result = rows.query(one[0])
+        val result = withStore { it.query(one[0]) }
         SeamShared.write(RowCodec.encodeRows(result.columns, result.cells))
     }
 
@@ -99,9 +123,10 @@ class CloudStoreLease private constructor(private val rows: RowStore, private va
          */
         suspend fun lease(context: Context, packageName: String, tag: String): CloudStoreLease? = try {
             val app = context.applicationContext
-            val rows = withContext(Dispatchers.IO) { AppStores.open(app, storeName(packageName), SCHEMA) }
+            val name = storeName(packageName)
+            val opened = withContext(Dispatchers.IO) { AppStores.lend(app, name, SCHEMA) }
             val uid = app.packageManager.getPackageUid(packageName, 0)
-            CloudStoreLease(rows, uid)
+            CloudStoreLease(app, name, opened, uid)
         } catch (e: CancellationException) {
             throw e
         } catch (e: PackageManager.NameNotFoundException) {

@@ -40,7 +40,8 @@ import kotlinx.coroutines.withContext
  * - the **page-op lock** and [runPageOp]: every page/undo/flush mutation is serialised, so two
  *   overlapping gestures cannot tangle the page and a debounced save can never run inside a swap;
  * - the **undo/redo replay** shape ([doUndo] / [doRedo]) with its record-clears-redo generation
- *   check, the put-the-entry-back-on-failure rule, and the [followReplay] hook;
+ *   check, the put-the-entry-back-on-failure rule (unless the page in memory already changed —
+ *   see [InkDocument.replays]), and the [followReplay] hook;
  * - the **debounced save** ([scheduleSave], bounded — what it leaves behind the next debounce picks
  *   up) against every **leave** flush (unbounded — there is no next debounce);
  * - [onScreenPaused] / [exit] / [onScreenDestroyed], **in their exact order**;
@@ -243,12 +244,23 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
     protected suspend fun doUndo() {
         val a = undo.popUndo() ?: return
         val g = undo.generation
+        val replays = InkDocument.replays
         try {
             revert(a)
         } catch (t: Throwable) {
-            // Failed (or cancelled) mid-replay: put the entry back so the history never silently
-            // loses a step. The store ops are idempotent, so a retry converges.
-            undo.pushUndo(a)
+            if (InkDocument.replays == replays) {
+                // Failed (or cancelled) before the edit reached the page: put the entry back so the
+                // history never silently loses a step — beneath anything recorded meanwhile, where
+                // it chronologically belongs. The store ops are idempotent, so a retry converges.
+                undo.pushUndoBeneath(a, g)
+            } else {
+                // The page in memory was reverted and only the flush after it failed: the op log
+                // keeps the write for the next flush, so the entry counts as undone. Put back, the
+                // next undo would revert it a second time (a move translated by twice its distance).
+                if (undo.generation == g) undo.pushRedo(a)
+                followReplay()
+                showPage()
+            }
             throw t
         }
         // A pen-up landing mid-replay recorded a fresh edit, which cleared redo — honour
@@ -260,10 +272,21 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
 
     protected suspend fun doRedo() {
         val a = undo.popRedo() ?: return
+        val g = undo.generation
+        val replays = InkDocument.replays
         try {
             reapply(a)
         } catch (t: Throwable) {
-            undo.pushRedo(a)
+            if (InkDocument.replays == replays) {
+                // Never reached the page: back onto redo — unless a fresh edit landed meanwhile,
+                // which cleared redo, and record-clears-redo drops it rather than resurrect it.
+                if (undo.generation == g) undo.pushRedo(a)
+            } else {
+                // Reapplied in memory, only the flush failed: the op log retries it, so it is redone.
+                undo.pushUndo(a)
+                followReplay()
+                showPage()
+            }
             throw t
         }
         undo.pushUndo(a)
@@ -318,35 +341,63 @@ abstract class InkScreenActivity<A : Any> : PaperScreenActivity() {
         appScope.launch {
             withContext(NonCancellable) {
                 pageOps.withLock { runCatching { page.flushUntilClean() }.onFailure { Log.w(logTag, "pause flush failed", it) } }
+            }.onFailure {
+                // Ink with no other copy is a dialog, not a log line: it waits for the screen to
+                // come back. The op log keeps the write; the next save or the exit retries it.
+                showProblem(storeFailedTitleRes, storeFailedBodyRes)
             }
         }
     }
 
-    /**
-     * Every exit — Back, the top bar's Back, the store-failure dialog — flushes and then hands the
-     * pipeline off. **The flush is awaited before `finish()`**, so nothing written is left in
-     * flight behind a screen that has gone.
-     */
     /** Run once the page is flushed and just before the screen finishes: a door the exit opens. */
     protected var afterExit: (() -> Unit)? = null
 
+    /**
+     * Every exit — Back, the top bar's Back, the store-failure dialog — flushes and then hands the
+     * pipeline off. **The flush is awaited before `finish()`**, so nothing written is left in
+     * flight behind a screen that has gone. A flush that fails is ink with no other copy, so it is
+     * a **dialog**, not a log line: Try again, or Leave anyway (the sketchbook's exit, the same
+     * words).
+     */
     protected fun exit() {
         if (closing) return
         closing = true
         hideEraserBar()   // a floating bar belongs to a screen that is leaving
         dismissCollapsed()   // and so do the corner button's rows
         screenRoot?.removeCallbacks(saveRunnable)
-        val page = inkPage ?: run { afterExit?.invoke(); afterExit = null; finishWithHandoff(); return }
+        leaveWhenFlushed()
+    }
+
+    private fun leaveWhenFlushed() {
+        val page = inkPage ?: run { leaveNow(); return }
         appScope.launch {
-            withContext(NonCancellable) {
-                pageOps.withLock { runCatching { page.flushUntilClean() }.onFailure { Log.w(logTag, "final flush failed", it) } }
+            val ok = withContext(NonCancellable) {
+                pageOps.withLock {
+                    runCatching { page.flushUntilClean() }.onFailure { Log.w(logTag, "final flush failed", it) }.isSuccess
+                }
             }
-            if (!isFinishing && !isDestroyed) {
-                afterExit?.invoke()
-                afterExit = null
-                finishWithHandoff()
-            }
+            if (isFinishing || isDestroyed) return@launch
+            if (ok) leaveNow() else askAboutUnsaved()
         }
+    }
+
+    /** The exit's last step: the door the exit opened, then the handoff and the finish. */
+    private fun leaveNow() {
+        afterExit?.invoke()
+        afterExit = null
+        finishWithHandoff()
+    }
+
+    private fun askAboutUnsaved() {
+        Dialogs.style(
+            AlertDialog.Builder(this)
+                .setTitle(R.string.ink_not_saved_title)
+                .setMessage(R.string.ink_not_saved_body)
+                .setPositiveButton(R.string.ink_try_again) { _, _ -> leaveWhenFlushed() }
+                .setNegativeButton(R.string.ink_leave_anyway) { _, _ -> leaveNow() }
+                .setCancelable(false)
+                .create(),
+        ).show()
     }
 
     override fun onScreenDestroyed() {

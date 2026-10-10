@@ -57,7 +57,12 @@ object SoilClipboard {
      *  previous clipboard stands. Throws when the seam refuses. */
     fun write(seam: ISoilSeam, env: ClipEnvelope): ClipHeader? {
         val bytes = ClipEnvelope.encode(env) ?: return null
-        seam.putClip(NotebookSchema.KIND, SeamClip(env.kind, env.sourceNotebookId, env.copiedAt), SeamShared.write(bytes))
+        val region = SeamShared.write(bytes)
+        try {
+            seam.putClip(NotebookSchema.KIND, SeamClip(env.kind, env.sourceNotebookId, env.copiedAt), region)
+        } finally {
+            region.memory.close()
+        }
         return ClipHeader(env.kind, env.sourceNotebookId, env.copiedAt).also { header = it; loaded = true }
     }
 

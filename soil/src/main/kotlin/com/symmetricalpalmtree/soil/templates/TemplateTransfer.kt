@@ -22,6 +22,7 @@ import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
 import com.symmetricalpalmtree.soil.paper.templates.PagePaper
 import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
 import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,8 +33,8 @@ import java.io.InputStream
  * system file picker. Import decodes bounds-first, samples down, resizes to the page's long edge,
  * re-encodes, and refuses over the cap **before** asking the fit and the name: refusing after
  * would waste the only two decisions the person makes. Export is a PNG at this device's page size,
- * the same render the page gets. The one piece of state that outlives a call is the export's row
- * id: DocumentsUI is another process on a memory-tight device.
+ * the same render the page gets. The state that outlives a call is the export's row id and the
+ * import's landing folder: DocumentsUI is another process on a memory-tight device.
  */
 class TemplateTransfer(
     private val activity: AppCompatActivity,
@@ -64,8 +65,15 @@ class TemplateTransfer(
         pageHeightPx = maxOf(metrics.widthPixels, metrics.heightPixels)
     }
 
-    fun saveState(outState: Bundle) = outState.putString(KEY_PENDING_EXPORT, pendingExportId)
-    fun restoreState(saved: Bundle?) { pendingExportId = saved?.getString(KEY_PENDING_EXPORT) }
+    fun saveState(outState: Bundle) {
+        outState.putString(KEY_PENDING_EXPORT, pendingExportId)
+        outState.putString(KEY_LANDING_FOLDER, landingFolder)
+    }
+
+    fun restoreState(saved: Bundle?) {
+        pendingExportId = saved?.getString(KEY_PENDING_EXPORT)
+        landingFolder = saved?.getString(KEY_LANDING_FOLDER).orEmpty()
+    }
 
     /** The landing folder is read at the tap: the picker is up from here, so nowhere else can be walked to. */
     fun startImport() {
@@ -170,6 +178,11 @@ class TemplateTransfer(
                     dismiss()
                     onChanged()
                     Toast.makeText(activity, R.string.template_imported, Toast.LENGTH_SHORT).show()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "import save failed: ${e.javaClass.simpleName}")
+                    Dialogs.problem(activity, R.string.library_change_failed_title, R.string.library_change_failed_body)
                 } finally {
                     accepting = false
                 }
@@ -182,7 +195,15 @@ class TemplateTransfer(
     /** Re-fit a template already in the library: the picture never changes, only how it is laid on. */
     fun chooseFit(row: TemplateRow) = fitSheet(TemplateFit.sanitize(row.fit)) { fit ->
         activity.lifecycleScope.launch {
-            val ok = withContext(Dispatchers.IO) { store().setFit(row.id, fit) }
+            val ok = try {
+                withContext(Dispatchers.IO) { store().setFit(row.id, fit) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "fit save failed: ${e.javaClass.simpleName}")
+                Dialogs.problem(activity, R.string.library_change_failed_title, R.string.library_change_failed_body)
+                return@launch
+            }
             if (!ok) Dialogs.problem(activity, R.string.template_duplicate_gone_title, R.string.template_duplicate_gone_body)
             onChanged()
         }
@@ -248,5 +269,6 @@ class TemplateTransfer(
     private companion object {
         const val TAG = "TemplateTransfer"
         const val KEY_PENDING_EXPORT = "templateTransfer.pendingExport"
+        const val KEY_LANDING_FOLDER = "templateTransfer.landingFolder"
     }
 }

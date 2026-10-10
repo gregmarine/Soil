@@ -6,7 +6,9 @@ import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.ink.InkAction
 import com.symmetricalpalmtree.soil.paper.ink.InkDocument
 import com.symmetricalpalmtree.soil.paper.ink.InkPage
+import com.symmetricalpalmtree.soil.paper.ink.StoreUnavailable
 import com.symmetricalpalmtree.soil.paper.store.Statement
+import com.symmetricalpalmtree.soil.seam.SeamLimits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -19,7 +21,7 @@ import java.time.LocalDate
  * never drift.
  *
  * **Rows are minted on the first stroke, never on open.** [show] reads what is there and writes
- * nothing but the bookmark; a page with no row is shown blank at the surface's size with ids
+ * nothing but the bookmark (and not that for a screen a link opened, [writesBookmark]); a page with no row is shown blank at the surface's size with ids
  * minted in memory. The flush that carries the page's first `Put` leads with the two
  * `INSERT OR IGNORE`s ([CalendarStore.mintRows]) — a flush that is nothing but `DELETE`s (a stroke
  * drawn and undone before the debounce) mints nothing, because there is nothing to keep. A page
@@ -27,7 +29,14 @@ import java.time.LocalDate
  * the way the pad's does: one `UPDATE`, ahead of the strokes, put back if that write fails.
  *
  * [show] reads the target page **first** and flushes the departing one **second**, so the swap
- * itself has no suspension point for a commit to fall into (the pad's rule). Every page shown is
+ * itself has no suspension point for a commit to fall into (the pad's rule).
+ *
+ * **A page this showing minted is named by `(period, half)`, not by the id it minted.** Two
+ * screens can each show one empty page (a `cal:` link starts a second calendar screen) and each
+ * mint an id for it; `UNIQUE(periodId, half)` keeps the first row, so the other screen's strokes
+ * and `updatedAt` are written against the page row resolved in the statement
+ * ([CalendarSql.putStrokeOnPage]). A page read with its row keeps the row's id. [reload] picks up
+ * the row's real id (and another screen's ink) when the screen comes back to the front. Every page shown is
  * remembered by its id, so an undo action recorded on another page can navigate back to it.
  *
  * **The split of threads is deliberate.** Mutations ([addStroke], [erase], [move]) are synchronous
@@ -36,14 +45,35 @@ import java.time.LocalDate
  * suspending half behind one mutex.
  */
 class CalendarDocument(
-    private val store: CalendarStore,
+    private var store: CalendarStore,
     /** Where the showing page's [DayMark]s come from — [EventStore] in the app, a fake in tests. */
     marks: MarkSource,
+    /** Whether a navigation writes the bookmark. False for a screen a link opened: the calendar
+     *  opens on the linked day "the bookmark untouched" (`docs/calsprout.md`). */
+    private val writesBookmark: Boolean = true,
+    /**
+     * The store again, after a call failed with [StoreUnavailable] — Soil restarted and the lease
+     * this document was handed died with it ([CalsproutApp.calendar] opens a fresh one). Null: no
+     * second try. A store it answers that is the same one is not retried.
+     */
+    private val reacquire: (suspend () -> CalendarStore)? = null,
     /** The paper surface in px — the size a page with no recorded size of its own takes. */
     private val surfaceSize: () -> Pair<Float, Float>,
 ) : InkPage {
 
-    private val ink = InkDocument(CalendarSql, TAG)
+    /**
+     * The stroke rows, by the page's id when it was read with its row, by `(period, half)` when this
+     * showing minted it (the class doc). Read on Main when a flush snapshots its op log.
+     */
+    private val strokeSql = object : InkDocument.StrokeSql {
+        override fun putStroke(pageId: String, order: Long, stroke: Stroke): Statement =
+            if (idIsRow) CalendarSql.putStroke(pageId, order, stroke)
+            else CalendarSql.putStrokeOnPage(store.calendarId, target.kind, target.date, target.half, order, stroke)
+
+        override fun dropStroke(id: String): Statement = CalendarSql.dropStroke(id)
+    }
+
+    private val ink = InkDocument(strokeSql, TAG)
 
     private val markSource = marks
 
@@ -71,6 +101,9 @@ class CalendarDocument(
     /** Whether the page row exists in the store (minted by a flush, a paste, or an earlier showing). */
     private var pageMinted = false
 
+    /** Whether [pageId] is the page row's own id — true only for a page read with its row. */
+    private var idIsRow = false
+
     /** The page's own width/height is unwritten (a minted `0 × 0` page just learned it). */
     private var sizeDirty = false
 
@@ -91,10 +124,11 @@ class CalendarDocument(
     // ── Showing ──────────────────────────────────────────────────────────────
 
     /**
-     * Show [next]. The target's page **and its marks** are read in one IO hop **before** the
-     * departing page is flushed, and the bookmark is written **before** the in-memory swap: every
-     * store round-trip a show makes comes first, so a show that throws leaves the document — and
-     * with it the paper and the organizer — exactly where it was.
+     * Show [next]. The target's page **and its marks** are read, and the bookmark written, in one
+     * IO hop **before** the departing page is flushed; the flush is the last suspension before the
+     * in-memory swap, so a stroke committed during any other round-trip is in the op log the flush
+     * writes, never in one the swap forgets. A show that throws leaves the document — and with it
+     * the paper and the organizer — exactly where it was (the bookmark may already name [next]).
      *
      * Returns without a store round-trip when [next] is already showing — **unless**
      * [refreshMarks] says to re-read them, and then it is one hop that reads the marks alone: no
@@ -104,16 +138,74 @@ class CalendarDocument(
     suspend fun show(next: CalendarTarget, refreshMarks: Boolean = false) {
         if (isOpen && next == target) {
             if (!refreshMarks) return
-            marks = withContext(Dispatchers.IO) { readMarks(next) }
+            marks = io { readMarks(next) }
             return
         }
-        val (stored, fresh) = withContext(Dispatchers.IO) { store.readPage(next) to readMarks(next) }
+        val (stored, fresh) = io { s ->
+            val page = s.readPage(next)
+            val read = readMarks(next)
+            if (writesBookmark) s.saveBookmark(next)
+            page to read
+        }
         if (isOpen) flushUntilClean()
-        withContext(Dispatchers.IO) { store.saveBookmark(next) }
         target = next
         marks = fresh
+        land(stored)
+    }
+
+    /**
+     * Read the showing page again — another screen may have written it while this one was behind
+     * (a `cal:` link's calendar minting the row this one only had an id for, or ink of its own).
+     * The page is flushed **first** and read **second**, and the read is put on the paper only if
+     * nothing was committed during it; otherwise the page in memory stands. Returns whether the
+     * page in memory changed — the screen then puts it on the paper again.
+     */
+    suspend fun reload(): Boolean {
+        if (!isOpen) return false
+        flushUntilClean()
+        val t = target
+        val stored = io { s -> s.readPage(t) }
+        if (t != target || hasUnsavedChanges) return false
+        val unchanged = stored.pageId != null && stored.pageId == pageId && sameInk(stored.strokes, ink.entries()) &&
+            stored.width == pageWidth && stored.height == pageHeight
+        if (unchanged || stored.pageId == null) {
+            // A page with no row is a page nobody wrote: nothing to take.
+            if (stored.pageId != null) idIsRow = true
+            return false
+        }
+        land(stored)
+        return true
+    }
+
+    /**
+     * Whether a page read back from the store holds the same ink as [inMemory] — by stroke id and
+     * order, and by what a row keeps of each stroke (style, colour, width, the points' x, y,
+     * pressure and tilt). Not [Stroke] equality: a stroke written in this showing carries the pen's
+     * timestamps and azimuth, which a row does not keep, so it would never compare equal to its
+     * own read-back and every return to the front would repaint the page.
+     */
+    private fun sameInk(stored: List<Pair<Long, Stroke>>, inMemory: List<Pair<Long, Stroke>>): Boolean {
+        if (stored.size != inMemory.size) return false
+        for (i in stored.indices) {
+            val (so, s) = stored[i]
+            val (mo, m) = inMemory[i]
+            if (so != mo || s.id != m.id || s.style != m.style || s.color != m.color || s.width != m.width) return false
+            if (s.points.size != m.points.size) return false
+            for (j in s.points.indices) {
+                val a = s.points[j]
+                val b = m.points[j]
+                if (a.x != b.x || a.y != b.y || a.pressure != b.pressure || a.tilt != b.tilt) return false
+            }
+        }
+        return true
+    }
+
+    /** Put [stored] in memory as the showing page. No suspension — the swap is one step. */
+    private fun land(stored: CalendarStore.StoredPage) {
+        val next = target
         periodId = stored.periodId ?: CalendarStore.newId()
         pageMinted = stored.pageId != null
+        idIsRow = stored.pageId != null
         val id = stored.pageId ?: CalendarStore.newId()
         ink.reset(id, stored.strokes)
         targetsByPage[id] = next
@@ -129,6 +221,25 @@ class CalendarDocument(
                 // it in the mint that comes with its first stroke.
                 sizeDirty = pageMinted
             }
+        }
+    }
+
+    /**
+     * Run [block] against the store on IO. A [StoreUnavailable] re-acquires the store once
+     * ([reacquire]) and runs [block] again against the fresh one; every write is idempotent, so the
+     * second run converges. Anything else, or a second failure, is thrown.
+     */
+    private suspend fun <T> io(block: (CalendarStore) -> T): T {
+        val first = store
+        try {
+            return withContext(Dispatchers.IO) { block(first) }
+        } catch (e: StoreUnavailable) {
+            val again = reacquire ?: throw e
+            val fresh = try { again() } catch (c: kotlinx.coroutines.CancellationException) { throw c } catch (_: Exception) { throw e }
+            if (fresh === first) throw e
+            store = fresh
+            Slog.d(TAG) { "the store was re-acquired; retrying once" }
+            return withContext(Dispatchers.IO) { block(fresh) }
         }
     }
 
@@ -176,7 +287,8 @@ class CalendarDocument(
      * Write the showing page until it stays written ([InkDocument.flushUntilClean]). The page's
      * rows are minted ahead of the first pass that puts a stroke; a `0 × 0` row's size leads when
      * it is owed; the page's `updatedAt` follows any stroke write. One batch, one transaction, in
-     * that order — the stroke rows can only land under a page row that exists.
+     * that order — the stroke rows can only land under a page row that exists. A flush over the
+     * seam's cap ([SeamLimits.MAX_BATCH_STATEMENTS]) goes as several batches in that same order.
      */
     override suspend fun flushUntilClean(maxPasses: Int): Boolean =
         ink.flushUntilClean(extraDirty = { sizeDirty }, maxPasses = maxPasses) { statements -> write(statements) }
@@ -191,7 +303,10 @@ class CalendarDocument(
             out += CalendarSql.sizePage(pageId, pageWidth, pageHeight, now)
         }
         out += strokeStatements
-        if (strokeStatements.isNotEmpty() && (pageMinted || puts)) out += CalendarSql.touchPage(pageId, now)
+        if (strokeStatements.isNotEmpty() && (pageMinted || puts)) {
+            out += if (idIsRow) CalendarSql.touchPage(pageId, now)
+            else CalendarSql.touchPageOf(store.calendarId, target.kind, target.date, target.half, now)
+        }
         return out
     }
 
@@ -203,7 +318,9 @@ class CalendarDocument(
         sizeDirty = false
         if (all.isEmpty()) return
         try {
-            withContext(Dispatchers.IO) { store.execAll(all) }
+            // Over the seam's cap, several batches in order: the mint leads, the touch follows, and
+            // every statement is idempotent, so a failure part-way is retried whole and converges.
+            for (batch in batches(all)) io { s -> s.execAll(batch) }
         } catch (t: Throwable) {
             sizeDirty = sizeDirty || sizeBefore
             pageMinted = mintedBefore
@@ -249,7 +366,11 @@ class CalendarDocument(
         return true
     }
 
-    private companion object {
-        const val TAG = "CalendarDocument"
+    companion object {
+        private const val TAG = "CalendarDocument"
+
+        /** [statements] as the seam takes them: in order, at most [cap] to a batch. Pure. */
+        fun batches(statements: List<Statement>, cap: Int = SeamLimits.MAX_BATCH_STATEMENTS): List<List<Statement>> =
+            if (statements.size <= cap) listOf(statements) else statements.chunked(cap)
     }
 }

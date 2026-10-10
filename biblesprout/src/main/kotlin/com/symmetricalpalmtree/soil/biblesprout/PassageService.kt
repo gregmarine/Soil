@@ -21,7 +21,18 @@ import com.symmetricalpalmtree.soil.seam.Seam
 class PassageService : Service() {
 
     private val binder = object : IBibleText.Stub() {
-        override fun passageText(wire: String): String {
+        override fun passageText(wire: String): String = try {
+            read(wire)
+        } catch (e: IllegalStateException) {
+            throw e // already one of the seam's codes
+        } catch (e: Exception) {
+            // An IOException (the install) or an SQLiteException (the read) would not cross the
+            // binder as anything Soil can name: the documented code instead.
+            Log.w(TAG, "the passage could not be read: ${e.javaClass.simpleName}")
+            throw IllegalStateException(Seam.BIBLE_UNREADABLE)
+        }
+
+        private fun read(wire: String): String {
             val passages = ReferenceCodec.decode(wire) ?: throw IllegalStateException(Seam.BIBLE_UNREADABLE)
             val file = ContentInstaller(this@PassageService).ensureInstalled(ContentInstaller.BSB_ASSET, ContentInstaller.BSB_NAME)
             val db = try {

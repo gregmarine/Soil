@@ -113,7 +113,8 @@ class RenderService : Service() {
                 val paper = baked.first().paper?.let { Bitmaps.decodeBounded(it, MAX_TEMPLATE_EDGE) }
                 val ink = baked.first().ink?.let { RasterImage.decode(it, w, h) }
                 val flat = try { PageFlatten.flatten(w, h, paper, RasterRows.LAYERS.map { if (it == RasterLayer.INK) ink else null }) } finally { paper?.recycle(); ink?.recycle() }
-                try { seam.setCover(itemId, SeamShared.write(CoverSnapshot.encode(flat))) } finally { flat.recycle() }
+                val cover = try { SeamShared.write(CoverSnapshot.encode(flat)) } finally { flat.recycle() }
+                try { seam.setCover(itemId, cover) } finally { cover.memory.close() }
             }
             Slog.d(TAG) { "converted ${pages.size} page(s) into a sketchbook" }
         }
@@ -188,12 +189,22 @@ class RenderService : Service() {
     }
 
     /** One page, lossless: white, the paper, graphite, ink, the marker — every raster decoded
-     *  behind the header guard and recycled the moment they are flattened. */
+     *  behind the header guard and recycled the moment they are flattened. A layer whose row will
+     *  not decode is drawn blank: the export writes nothing back, so the editor's refusal is not
+     *  needed here, and one damaged row does not cost the whole book. */
     private fun toPng(store: SketchbookStore, page: RenderPlan.Page, paper: Bitmap?): ByteArray {
         val w = page.widthPx; val h = page.heightPx
         val rasters = arrayOfNulls<Bitmap>(RasterRows.LAYERS.size)
         val flat = try {
-            RasterRows.LAYERS.forEachIndexed { i, layer -> rasters[i] = RasterImage.decode(store.readRaster(page.ref.id, layer), w, h) }
+            RasterRows.LAYERS.forEachIndexed { i, layer ->
+                // Export only reads: a damaged layer is drawn blank rather than failing the book.
+                rasters[i] = try {
+                    RasterImage.decode(store.readRaster(page.ref.id, layer), w, h)
+                } catch (e: RasterImage.Unreadable) {
+                    Log.w(TAG, "page ${page.number}: a layer did not decode (${e.javaClass.simpleName}) — exported blank")
+                    null
+                }
+            }
             PageFlatten.flatten(w, h, paper, rasters.toList())
         } catch (e: OutOfMemoryError) {
             throw IOException("a ${w}x$h page would not allocate", e)

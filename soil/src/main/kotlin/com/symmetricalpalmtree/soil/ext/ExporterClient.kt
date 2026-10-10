@@ -3,6 +3,7 @@ package com.symmetricalpalmtree.soil.ext
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 /** Soil's side of one exporter: describe, one export, or a held bind for a per-page loop. */
@@ -34,6 +35,7 @@ class ExporterClient(private val context: Context, private val extension: Extens
                 runCatching { destination.close() }
             }
         }
-        suspend fun close() = withContext(Dispatchers.IO) { bound.close() }
+        /** Unbinds even when the caller was cancelled: it runs in a `finally`, where a cancelled withContext would throw before the unbind. */
+        suspend fun close() = withContext(Dispatchers.IO + NonCancellable) { bound.close() }
     }
 }

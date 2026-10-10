@@ -37,8 +37,12 @@ data class BibleClip(
             encodeDefaults = true
         }
 
-        /** Encoded UTF-8 JSON, or null when it does not fit the seam's value cap. */
+        /** Encoded UTF-8 JSON, or null for a clip [decode] would refuse (a wire that is not one,
+         *  a label that is blank or too long) or one over the seam's value cap: no caller can
+         *  write a clip that cannot be pasted. */
         fun encode(clip: BibleClip): ByteArray? {
+            if (!BibleAddress.isWire(clip.wire)) return null
+            if (clip.label.isBlank() || clip.label.length > MAX_LABEL_CHARS) return null
             val bytes = json.encodeToString(serializer(), clip).toByteArray(Charsets.UTF_8)
             return bytes.takeIf { it.size <= SeamLimits.MAX_VALUE_BYTES }
         }

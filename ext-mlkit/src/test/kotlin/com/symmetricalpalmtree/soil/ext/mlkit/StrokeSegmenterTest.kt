@@ -34,6 +34,19 @@ class StrokeSegmenterTest {
     }
 
     @Test
+    fun aStrokeOffAnyPageOrNotANumber_isDropped_andTheLineStillReads() {
+        val strays = listOf(
+            stroke(100f, 1e30f, 120f, 1e30f + 30f),
+            stroke(100f, Float.NaN, 120f, 30f),
+            stroke(Float.POSITIVE_INFINITY, 0f, 120f, 30f),
+        )
+        val layout = StrokeSegmenter.segment(line(100f) + strays)
+        val read = lines(layout)
+        assertEquals(1, read.size)
+        assertEquals(8, read.single().strokes.size)
+    }
+
+    @Test
     fun oneLineIsOrderedLeftToRightWithUnionBounds() {
         val ink = line(top = 200f)
         val layout = StrokeSegmenter.segment(ink)

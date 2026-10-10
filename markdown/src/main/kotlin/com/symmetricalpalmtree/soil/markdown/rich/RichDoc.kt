@@ -7,7 +7,7 @@ package com.symmetricalpalmtree.soil.markdown.rich
  *
  * The grammar is `:markdown`'s closed set and nothing more: headings, paragraphs, the three
  * lists, quotes, rules; bold, italic, strikethrough, inline code, links. What Markdown has
- * beyond that is kept, never understood: a table row or a fenced line is a [RichKind.RAW] block
+ * beyond that is kept, never understood: a table row, a fenced line or a line of indented code is a [RichKind.RAW] block
  * holding the line exactly as written, and an image stays the characters that spell it.
  *
  * Pure Kotlin: no android imports, safe on any thread.

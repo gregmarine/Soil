@@ -12,7 +12,7 @@ Berean Standard Bible (public domain), bundled as `bsb.bible`, 15 MB of SQLite b
 
 | Module | What |
 |---|---|
-| `:bible-ref` | Pure Kotlin, shared by every app and Soil: the canon (66 books, aliases, chapter counts), `VerseKey`, `ReferenceParser`, `ReferenceCodec` (the wire), `ReferenceResolver`, `ReferenceText` (typed words to a wire, a wire to its label), `ReferenceScan` (references in prose), `VerseCap` |
+| `:bible-ref` | Pure Kotlin, shared by every app and Soil: the canon (66 books, aliases, chapter counts), `VerseKey`, `ReferenceParser`, `ReferenceCodec` (the wire), `ReferenceResolver`, `ReferenceText` (typed words to a wire, a wire to its label), `ReferenceScan` (references in prose, each on one line: "1. Genesis" never reaches the next line's number), `VerseCap` |
 | `:biblesprout` | The app: `BibleActivity` and its panels, `ChapterLoader`, `BibleDatabase`, `ContentInstaller`, `BibleStore` over the seam's store lease, `PassageService` |
 | `:seam` | `BibleAddress` (`bible:<wire>`), `ISeamStore` and `openAppStore`, `bibleBacklinks`, `passageText` and `IBibleText`, `ACTION_OPEN_BIBLE`, `EXTRA_BIBLE_WIRE` |
 | `:soil` | `ItemApps.findBible`, `FollowLinkActivity`'s Bible branch, `AppStoreLease`, `BibleTextClient`, the index's Bible columns and `LinkRebuild` |
@@ -43,7 +43,9 @@ under the global key, re-keyed and backed up with everything else. The reader de
 tables once (`BibleSchema`: `state`, `recent`, `recent_ref`) and opens the store with
 `openAppStore`; Soil lends an `ISeamStore` minted for the app's uid, every statement checked,
 no DDL through the gate, dead with the app's process. A store Soil will not lend costs the
-bookmark and the recents and nothing else.
+bookmark and the recents and nothing else. The position is written from the app's scope, not the
+screen's, so the last turn's write lands after the screen closes, and the lease is closed only
+after it; a lease that arrives after the screen has gone is closed at once.
 
 ## The Notes panel
 
@@ -56,13 +58,16 @@ reader. There is no Rebuild door here: Soil's Settings has one for the whole ind
 ## Copy
 
 Copy, on the top bar, puts the passage on screen, or the chapter being read as a whole chapter,
-on Soil's clipboard in the `bible` slot with its verses (`clipboard.md`). The reader stays.
+on Soil's clipboard in the `bible` slot with its verses (`clipboard.md`). The reader stays. A
+label longer than a clip may carry (200 characters) is cut with "…" on the clip, the verses keep
+it whole; a clip a paste could not read is never written, and the copy-failed dialog says so.
 
 ## The passage service
 
 `PassageService` answers Soil alone with a passage's words as Markdown (`PassageMarkdown`: a
 bold label line, then the verses as prose with plain numbers, a paragraph per chapter run), up
-to a chapter. Soil relays it as `passageText`; a notebook applies the page's cap first.
+to a chapter. Soil relays it as `passageText`; a notebook applies the page's cap first. A Bible
+that cannot be installed or read answers `BIBLE_UNREADABLE`, never a bare failure.
 
 ## Walked on the Nomad
 
@@ -72,7 +77,9 @@ Phase 2 (the reader), 2026-10-05; phases 3 to 8, 2026-10-05.
 
 - The reader is SN's, as it was; only what touched SN's host is new.
 - A reference in a document becomes a link on its own, after a pause in typing; a notebook's
-  handwriting is converted through the lasso's Bible button, as in SN.
+  handwriting is converted through the lasso's Bible button, as in SN. (Built: a reference the
+  caret is in, or just past a `:`, a dash or a `,` after it, waits, so "John 3:" half typed is
+  never linked as `John 3`.)
 - The parser lives in a shared module, not behind a binder.
 - Back references live in Soil's link index, not in a table pushed to the reader.
 - The reader's state lives in Soil's app store over the seam.

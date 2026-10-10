@@ -100,6 +100,14 @@ class DriveOpsTest {
     }
 
     @Test
+    fun disconnect_forgetsTheCachedFolderIds() {
+        DriveFolders.cache.put(listOf("Backups"), "B")
+        transport.handler = { FakeTransport.ok("") }
+        ops().disconnect()
+        assertNull(DriveFolders.cache.get(listOf("Backups")))
+    }
+
+    @Test
     fun disconnect_forgetsEvenWhenTheRevokeCouldNotBeMade() {
         store.put(DriveSql.Keys.REFRESH_TOKEN, "REFRESH")
         transport.handler = { throw DriveFailures.network() }

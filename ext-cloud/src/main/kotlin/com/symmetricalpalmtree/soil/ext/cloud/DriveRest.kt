@@ -24,8 +24,9 @@ object DriveRest {
     const val UPLOAD: String = "https://www.googleapis.com/upload/drive/v3/files"
     const val ABOUT: String = "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)"
 
-    /** Everything a [com.symmetricalpalmtree.soil.ext.CloudEntry] is made of. */
-    const val ENTRY_FIELDS: String = "id,name,mimeType,size,modifiedTime"
+    /** Everything a [com.symmetricalpalmtree.soil.ext.CloudEntry] is made of, and `trashed`: an id
+     *  in the trash still answers 200, so a cached folder trashed on the web is told only by it. */
+    const val ENTRY_FIELDS: String = "id,name,mimeType,size,modifiedTime,trashed"
 
     /** Drive's own maximum page — one round trip for any folder the host itself wrote. */
     const val LIST_PAGE_SIZE: Int = 1_000

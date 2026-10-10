@@ -20,6 +20,7 @@ import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
 import com.symmetricalpalmtree.soil.paper.templates.TemplatePick
 import com.symmetricalpalmtree.soil.templates.TemplateBrowser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,13 +68,22 @@ class NewNotebookActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.btnCreate.setOnClickListener { create() }
         lifecycleScope.launch {
-            val (name, defaultPick) = withContext(Dispatchers.IO) {
-                val store = LibraryStore()
-                val scheme = store.resolve(folderId) { it.scheme }
-                val prefill = SchemePrefill.expand(scheme, System.currentTimeMillis()) { store.items(folderId).map { it.name } }
-                val template = store.resolve(folderId) { it.template }?.let { TemplatePick.decode(it) }
-                (prefill ?: SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())) to template
-            }
+            // The folder's say is a prefill, not a need: a read that fails falls back to the
+            // date and time on Blank paper, as a folder with no say does.
+            val (name, defaultPick) = try {
+                withContext(Dispatchers.IO) {
+                    val store = LibraryStore()
+                    val scheme = store.resolve(folderId) { it.scheme }
+                    val prefill = SchemePrefill.expand(scheme, System.currentTimeMillis()) { store.items(folderId).map { it.name } }
+                    val template = store.resolve(folderId) { it.template }?.let { TemplatePick.decode(it) }
+                    prefill to template
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "the folder's say could not be read: ${e.javaClass.simpleName}")
+                null to null
+            }.let { (prefill, template) -> (prefill ?: SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())) to template }
             if (savedInstanceState == null) {
                 binding.nameField.setText(name)
                 binding.nameField.selectAll()
@@ -116,7 +126,7 @@ class NewNotebookActivity : AppCompatActivity() {
                     return@launch
                 }
                 ItemSessions.changed()
-                when (ItemApps.open(this@NewNotebookActivity, id, kind, chosen.encode())) {
+                when (ItemApps.openItem(this@NewNotebookActivity, id, kind, chosen.encode())) {
                     ItemApps.Opened.YES -> finish()
                     else -> Dialogs.problem(this@NewNotebookActivity, getString(R.string.item_open_failed_title), getString(R.string.item_open_failed_body, name))
                 }
