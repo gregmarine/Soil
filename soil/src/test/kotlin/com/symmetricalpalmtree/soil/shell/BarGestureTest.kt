@@ -47,4 +47,38 @@ class BarGestureTest {
         assertFalse(BarGesture.isSideMenuLeak(1_500))
         assertFalse(BarGesture.isSideMenuLeak(60_000))
     }
+
+    @Test
+    fun `a down and its up pair as they were made`() {
+        val bar = BarGesture.RightBar()
+        assertTrue(bar.down(1_000))
+        assertEquals(400L, bar.up(1_400))
+    }
+
+    @Test
+    fun `an up arriving before its own down never pairs with the contact before it`() {
+        // Two brushes of a palm: 1000..1050 and 1500..1510. The second's up crosses the seam first.
+        val bar = BarGesture.RightBar()
+        assertTrue(bar.down(1_000))
+        assertEquals(50L, bar.up(1_050))
+        assertEquals(null, bar.up(1_510))   // no open down: not "held 510 ms", a swipe down
+        assertFalse(bar.down(1_500))        // stale: its up was already heard
+        assertTrue(bar.down(2_000))
+        assertEquals(300L, bar.up(2_300))
+    }
+
+    @Test
+    fun `an up older than the open down is not its up`() {
+        // 1000..1100, then 1500..; the first up arrives after the second down.
+        val bar = BarGesture.RightBar()
+        assertTrue(bar.down(1_000))
+        assertTrue(bar.down(1_500))
+        assertEquals(null, bar.up(1_100))
+        assertEquals(200L, bar.up(1_700))
+    }
+
+    @Test
+    fun `an up with no down at all is ignored`() {
+        assertEquals(null, BarGesture.RightBar().up(5_000))
+    }
 }

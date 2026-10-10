@@ -76,7 +76,9 @@ rejection keeps those touches out. So the filter follows the paper (`PaperFront`
 | A Sprout app's paper | Off | Its window hands each key to its app, which sends it over the seam (`barKey`) |
 
 The reading is the same from either source. Keys carry the system's own time, so a held bar
-measures the same. The firmware's lock is unchanged: it was shown innocent by the same test.
+measures the same. Over the seam a down and its up can arrive in either order, so an up is paired
+only with a down still open and not later than it, and a down older than the last up is dropped
+(`BarGesture.RightBar`): two brushes of a palm never read as one swipe. The firmware's lock is unchanged: it was shown innocent by the same test.
 What a third-party app does with the pen under the filter is its own affair.
 
 ## The menu
