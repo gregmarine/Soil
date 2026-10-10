@@ -9,7 +9,7 @@
 
     <!-- The side menu. -->
     <dimen name="menu_width">280dp</dimen>
-    <dimen name="menu_row_height">60dp</dimen>
+    <dimen name="menu_cell_height">104dp</dimen>
     <dimen name="menu_icon_size">36dp</dimen>
 
     <!-- The library's rows. Rows = floor(height / row height). -->

@@ -60,6 +60,15 @@ object ItemApps {
     /** One Sprout app: its name, its icon, and the screen its own icon opens. */
     class SproutApp(val label: String, val packageName: String, val icon: Drawable?, val launch: Intent?)
 
+    /** The side menu's order: Note, Document, Sketch, Calendar, Bible (Greg, 2026-10-10); any
+     *  other Sprout app after them, by name. Told by the package's own segment, so a dev build
+     *  ranks with its release. */
+    private val MENU_ORDER = listOf("notesprout", "docsprout", "sketchsprout", "calsprout", "biblesprout")
+    private fun menuRank(packageName: String): Int {
+        val i = MENU_ORDER.indexOfFirst { packageName.split('.').contains(it) }
+        return if (i < 0) MENU_ORDER.size else i
+    }
+
     /**
      * Every trusted app that opens some kind of item, the Bible or the calendar, one entry per
      * app, by name.
@@ -86,7 +95,7 @@ object ItemApps {
                         launch = pm.getLaunchIntentForPackage(pkg),
                     )
                 }
-                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, SproutApp::label))
+                .sortedWith(compareBy<SproutApp> { menuRank(it.packageName) }.thenBy(String.CASE_INSENSITIVE_ORDER, SproutApp::label))
         } catch (e: Exception) {
             Log.w(TAG, "the Sprout apps could not be read: ${e.javaClass.simpleName}")
             emptyList()

@@ -19,7 +19,7 @@ import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.bootstrap.Screen
 import com.symmetricalpalmtree.soil.bootstrap.Screens
 import com.symmetricalpalmtree.soil.databinding.OverlayMenuBinding
-import com.symmetricalpalmtree.soil.databinding.RowMenuBinding
+import com.symmetricalpalmtree.soil.databinding.CellMenuBinding
 import com.symmetricalpalmtree.soil.library.ItemApps
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.seam.SeamClients
@@ -81,25 +81,35 @@ class MenuOverlay(private val service: Context) {
     private fun add(apps: List<ItemApps.SproutApp>) {
         val b = OverlayMenuBinding.inflate(LayoutInflater.from(themed))
         b.scrim.setOnClickListener { hide() }
-        // Every row is in place before the window is added: nothing is built after the first
-        // frame, so nothing can be left undrawn.
-        b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_home), themed.getString(R.string.menu_home)) {
+        // Every cell is in place before the window is added: nothing is built after the first
+        // frame, so nothing can be left undrawn. Two cells to a row: Home and the Scratch Pad,
+        // then the apps in their order; Settings is the corner's icon (Greg, 2026-10-10).
+        val cells = mutableListOf<View>()
+        cells += cell(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_home), themed.getString(R.string.menu_home)) {
             Screens.open(service, Screen.HOME)
-        })
-        b.ownRows.addView(row(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_scribble), themed.getString(R.string.scratch_title)) {
+        }
+        cells += cell(b.ownRows, icon(com.symmetricalpalmtree.soil.paper.R.drawable.ic_scribble), themed.getString(R.string.scratch_title)) {
             // The pad is a paper screen of Soil's: the app in front releases the pipeline first.
             afterHandoff { Screens.open(service, Screen.PAD) }
-        })
-        b.ownRows.addView(row(b.ownRows, icon(R.drawable.ic_settings), themed.getString(R.string.settings_title)) {
-            runCatching { service.startActivity(Intent(service, com.symmetricalpalmtree.soil.settings.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                .onFailure { Log.w(TAG, "Settings could not be started: ${it.javaClass.simpleName}") }
-        })
+        }
         for (app in apps) {
             val launch = app.launch ?: continue
-            b.ownRows.addView(row(b.ownRows, app.icon, app.label) {
+            cells += cell(b.ownRows, app.icon, app.label) {
                 runCatching { service.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     .onFailure { Log.w(TAG, "an app could not be started: ${it.javaClass.simpleName}") }
-            })
+            }
+        }
+        for (pair in cells.chunked(2)) {
+            val line = LinearLayout(themed).apply { orientation = LinearLayout.HORIZONTAL }
+            for (c in pair) line.addView(c, LinearLayout.LayoutParams(0, c.layoutParams.height, 1f))
+            // A lone last cell keeps its half: the other half is empty.
+            if (pair.size == 1) line.addView(View(themed), LinearLayout.LayoutParams(0, 1, 1f))
+            b.ownRows.addView(line, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        b.btnSettings.setOnClickListener {
+            hide()
+            runCatching { service.startActivity(Intent(service, com.symmetricalpalmtree.soil.settings.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Log.w(TAG, "Settings could not be started: ${it.javaClass.simpleName}") }
         }
 
         val params = WindowManager.LayoutParams(
@@ -132,16 +142,16 @@ class MenuOverlay(private val service: Context) {
         Slog.d(TAG) { "menu hidden" }
     }
 
-    /** One row: an icon, a name, and what a tap does once the menu has closed. */
-    private fun row(parent: LinearLayout, icon: Drawable?, label: String, onTap: () -> Unit): View {
-        val r = RowMenuBinding.inflate(LayoutInflater.from(themed), parent, false)
+    /** One cell: an icon over a name, and what a tap does once the menu has closed. */
+    private fun cell(parent: LinearLayout, icon: Drawable?, label: String, onTap: () -> Unit): View {
+        val r = CellMenuBinding.inflate(LayoutInflater.from(themed), parent, false)
         r.icon.setImageDrawable(icon)
         r.icon.scaleType = ImageView.ScaleType.FIT_CENTER
         r.label.text = label
         r.root.contentDescription = label
         r.root.setOnClickListener {
             hide()
-            runCatching { onTap() }.onFailure { Log.w(TAG, "a menu row failed: ${it.javaClass.simpleName}") }
+            runCatching { onTap() }.onFailure { Log.w(TAG, "a menu cell failed: ${it.javaClass.simpleName}") }
         }
         return r.root
     }

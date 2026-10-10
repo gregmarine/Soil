@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The side menu: a panel on the right edge over whatever is in front. The rest of the screen
      is a scrim that closes the menu on a tap; it is clear, so the app underneath stays readable.
-     There is no title and no close button: the room goes to rows. The rows are built in code. -->
+     There is no title and no close button: the room goes to the grid, two cells to a row, built
+     in code; Settings is an icon alone in the bottom corner (Greg, 2026-10-10). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -22,11 +23,27 @@
         android:clickable="true"
         android:paddingStart="2dp">
 
-        <!-- What Soil itself offers: Home and the Scratch Pad. -->
+        <!-- The grid: Home and the Scratch Pad, then the Sprout apps. -->
         <LinearLayout
             android:id="@+id/ownRows"
             android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingTop="8dp" />
+
+        <!-- Settings, in the bottom corner. -->
+        <FrameLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:padding="8dp">
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnSettings"
+                style="@style/Widget.Soil.ToolbarButton"
+                android:layout_gravity="end"
+                android:src="@drawable/ic_settings"
+                android:contentDescription="@string/settings_title" />
+        </FrameLayout>
     </LinearLayout>
 </FrameLayout>
