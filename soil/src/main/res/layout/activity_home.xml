@@ -191,7 +191,9 @@
         </FrameLayout>
     </FrameLayout>
 
-    <!-- The drawer's bottom bar: its pager. The library's bottom bar is the browser's own. -->
+    <!-- The drawer's bottom bar: its pager. The library's bottom bar is the browser's own, and its
+         buttons are btnPrev and btnNext there: these two carry their own names, because view
+         binding finds an id anywhere under the root, the included browser first (2026-10-10). -->
     <LinearLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
@@ -211,7 +213,7 @@
             android:gravity="center">
 
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btnPrev"
+                android:id="@+id/btnDrawerPrev"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:src="@drawable/ic_page_prev"
                 android:contentDescription="@string/cd_page_previous" />
@@ -226,7 +228,7 @@
                 android:textColor="@color/inkBlack" />
 
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btnNext"
+                android:id="@+id/btnDrawerNext"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:src="@drawable/ic_page_next"
                 android:contentDescription="@string/cd_page_next" />
