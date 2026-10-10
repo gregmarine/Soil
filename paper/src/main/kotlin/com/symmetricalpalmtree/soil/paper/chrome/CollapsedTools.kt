@@ -62,16 +62,15 @@ object CollapsedTools {
         tool == Tool.PEN && armedKind == buttonKind
 
     /**
-     * A small overflow is not an overflow (the user's calls on the sticky editor and the pad,
-     * 2026-09-11): a `…` that opens a row of one or two buttons is two taps for one, so up to
-     * [INLINE_MAX] entries sit on the mini toolbar itself and there is no `…` — the sticky editor's
-     * Back, the pad's Back · Send. Three or more (the notebook's and the calendar's doors) go
-     * behind it: the mini toolbar stays six buttons at most, which is what fits beside the corner
-     * button on the Nomad's width.
+     * How many of the mini toolbar's [total] buttons its first **column** takes when the band
+     * under the corner button holds [capacity] of them (2026-10-10): all of them when they fit,
+     * else the capacity, and never fewer than one — a column with nothing in it is no toolbar,
+     * and a band too short for one button is a geometry no device has. What is left over goes
+     * to the second column beside it ([CollapsedChrome]), shown with the first on the same tap:
+     * the corner button reveals the whole toolbar, not a door to the rest of it.
      */
-    fun overflowInline(count: Int): Boolean = count in 1..INLINE_MAX
-
-    const val INLINE_MAX = 2
+    fun firstColumn(total: Int, capacity: Int): Int =
+        if (total <= capacity) total else maxOf(1, capacity).coerceAtMost(total)
 
     /** The one mini-toolbar button that reads as armed under [tool]; none under [Tool.NONE]. Any
      *  real tool answers itself, not only [ORDER]'s: a screen's own list (the sketch face's

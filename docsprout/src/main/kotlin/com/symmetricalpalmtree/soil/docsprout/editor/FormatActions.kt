@@ -44,11 +44,52 @@ internal class FormatActions(
             FormatTool.PROOFREAD -> onProofread()
             FormatTool.PASTE_INK -> onPasteInk()
             FormatTool.BIBLE_PASSAGE -> onBiblePassage()
+            FormatTool.HEADING -> Unit // The bar's own menu ([HeadingMenu]) picks a level and calls [block].
             else -> if (rendered()) rich(tool) else source(tool)
         }
     }
 
-    /** A block by kind, from a chord: paragraph and H4–H6 have no place on the bar. */
+    /**
+     * What the caret or the selection is on (2026-10-10), for the bar to wear: the block and a
+     * heading's level, and which inline styles a press would take **off**. Read from whichever
+     * surface is in use, never cached — the bar asks at every caret move and after every tool.
+     */
+    fun state(): FormatState {
+        if (rendered()) {
+            val view = binding.rich
+            val attr = RichOps.blockAt(view)
+            return FormatState(
+                block = when (attr?.kind) {
+                    RichKind.HEADING -> MarkdownFormatter.Block.HEADING
+                    RichKind.QUOTE -> MarkdownFormatter.Block.QUOTE
+                    RichKind.BULLET -> MarkdownFormatter.Block.BULLET
+                    RichKind.ORDERED -> MarkdownFormatter.Block.ORDERED
+                    RichKind.TASK -> MarkdownFormatter.Block.TASK
+                    else -> MarkdownFormatter.Block.PARAGRAPH
+                },
+                level = if (attr?.kind == RichKind.HEADING) attr.level else 0,
+                bold = RichOps.inlineOn(view, RichStyle.BOLD),
+                italic = RichOps.inlineOn(view, RichStyle.ITALIC),
+                strikethrough = RichOps.inlineOn(view, RichStyle.STRIKE),
+                code = RichOps.inlineOn(view, RichStyle.CODE),
+            )
+        }
+        val text = binding.editor.text ?: return FormatState()
+        val buf = EditableBuffer(text)
+        val a = binding.editor.selectionStart.coerceIn(0, text.length)
+        val b = binding.editor.selectionEnd.coerceIn(0, text.length)
+        val (block, level) = MarkdownFormatter.blockAt(buf, minOf(a, b))
+        return FormatState(
+            block = block,
+            level = level,
+            bold = MarkdownFormatter.inlineOn(buf, a, b, "**"),
+            italic = MarkdownFormatter.inlineOn(buf, a, b, "*"),
+            strikethrough = MarkdownFormatter.inlineOn(buf, a, b, "~~"),
+            code = MarkdownFormatter.inlineOn(buf, a, b, "`"),
+        )
+    }
+
+    /** A block by kind, from a chord or the heading sheet: paragraph has no place on the bar. */
     fun block(kind: MarkdownFormatter.Block, level: Int = 1) {
         if (!rendered()) return sourceBlock(kind, level)
         when (kind) {
@@ -76,9 +117,6 @@ internal class FormatActions(
         when (tool) {
             FormatTool.UNDO -> view.undo()
             FormatTool.REDO -> view.redo()
-            FormatTool.H1 -> RichOps.setBlock(view, RichKind.HEADING, 1)
-            FormatTool.H2 -> RichOps.setBlock(view, RichKind.HEADING, 2)
-            FormatTool.H3 -> RichOps.setBlock(view, RichKind.HEADING, 3)
             FormatTool.BOLD -> RichOps.toggleInline(view, RichStyle.BOLD)
             FormatTool.ITALIC -> RichOps.toggleInline(view, RichStyle.ITALIC)
             FormatTool.STRIKETHROUGH -> RichOps.toggleInline(view, RichStyle.STRIKE)
@@ -93,7 +131,7 @@ internal class FormatActions(
             // An image is not drawn: it is the characters that spell it, here as in the file.
             FormatTool.IMAGE -> RichOps.insertText(view, IMAGE_SKELETON, 2, 2 + IMAGE_DESCRIPTION.length)
             FormatTool.RULE -> RichOps.insertRule(view)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE, FormatTool.HEADING -> Unit
         }
     }
 
@@ -103,9 +141,6 @@ internal class FormatActions(
         when (tool) {
             FormatTool.UNDO -> undo()
             FormatTool.REDO -> redo()
-            FormatTool.H1 -> sourceBlock(MarkdownFormatter.Block.HEADING, 1)
-            FormatTool.H2 -> sourceBlock(MarkdownFormatter.Block.HEADING, 2)
-            FormatTool.H3 -> sourceBlock(MarkdownFormatter.Block.HEADING, 3)
             FormatTool.BOLD -> inline("**")
             FormatTool.ITALIC -> inline("*")
             FormatTool.STRIKETHROUGH -> inline("~~")
@@ -119,7 +154,7 @@ internal class FormatActions(
             FormatTool.LINK -> apply(MarkdownFormatter::insertLink)
             FormatTool.IMAGE -> apply(MarkdownFormatter::insertImage)
             FormatTool.RULE -> apply(MarkdownFormatter::insertRule)
-            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE -> Unit
+            FormatTool.SEARCH, FormatTool.WORD_COUNT, FormatTool.REFLOW, FormatTool.PROOFREAD, FormatTool.PASTE_INK, FormatTool.BIBLE_PASSAGE, FormatTool.HEADING -> Unit
         }
     }
 

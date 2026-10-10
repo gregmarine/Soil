@@ -17,10 +17,14 @@ import com.symmetricalpalmtree.soil.paper.R
 /**
  * The collapsed chrome (arc 36) — what a paper screen shows while its bars are hidden: one
  * floating **corner button** at the top-right wearing the armed tool's glyph, and, hung under it
- * on a tap, a **mini toolbar** (the screen's [tools], [CollapsedTools.ORDER] by default, the armed one bordered, then
- * the screen's [commands], then `…`) with an **overflow row** under the `…` holding Back and the
- * screen's doors and actions — unless the overflow would hold only one or two buttons, which then
- * sit on the mini toolbar itself with no `…` (the sticky editor's Back, the pad's Back · Send).
+ * on a tap, a **mini toolbar** as a **column** (2026-10-10): [leading] — Back — at the top, then
+ * the screen's [tools], [CollapsedTools.ORDER] by default, the armed one bordered, then the
+ * screen's [commands], then its [overflow] — the screen's doors and actions — top to bottom. The column holds as
+ * many buttons as the band under the corner button has room for ([AnchoredBar.columnCapacity],
+ * [CollapsedTools.firstColumn]); what is left goes to a **second column** beside it, to its left
+ * and level with its top, shown on the same tap. There is no `…`: the corner button reveals the
+ * whole toolbar. On the Nomad every screen's buttons fit one column, so the second is a rule, not
+ * a sight.
  *
  * One copy for the four screens, here in `:sn-screen`, for the reason [EraserBar] and
  * [ChromeToggle] live here: a second copy would be the `RattaNotebookView` sibling-copy trap one
@@ -38,14 +42,15 @@ import com.symmetricalpalmtree.soil.paper.R
  * [CollapsedTools.iconFor], swapped only on a change (frame silence). The button itself is
  * `GONE` while the bars show — [ChromeToggle]'s `whileHidden` list flips it with the bars.
  *
- * **Entries mirror bar buttons** ([Entry.mirrors]). At every open of its row an entry copies its
+ * **Entries mirror bar buttons** ([Entry.mirrors]). At every open an entry copies its
  * bar button's visibility (a door absent from the bar is absent here), its selected look (the
  * calendar's view latches) and, only when it actually differs, its glyph (the calendar's
  * Send-or-Export, decided once at that bar's construction). A tap on a mirrored entry with no
  * [Entry.onTap] closes the rows and performs the bar button's own click — one handler, never a
  * copy of it. An entry with [Entry.onTap] is handed its own button as an anchor and owns
- * dismissal: the notebook's Insert hangs its sub-bar under the mini toolbar's button and leaves the
- * row up beneath it.
+ * dismissal: the notebook's Insert hangs its sub-bar beside the column, level with the button
+ * ([AnchoredBar.show]'s column rule), and leaves the columns up. The second column is taken down
+ * first when the anchor is in the first ([hideOverflow]): the sub-bar goes where it would stand.
  *
  * **The pen may be two kinds** since arc 44 / T3 ([PenKinds]) — the sketch face's graphite pencil
  * and its gel pen, which are both [Tool.PEN] to the engine and so cannot be two entries of [tools].
@@ -80,8 +85,8 @@ class CollapsedChrome(
     root: ViewGroup,
     /** The corner button — declared in the screen's layout at `top|end`, `GONE` until collapsed. */
     private val knob: ImageButton,
-    miniBar: LinearLayout,
-    overflowBar: LinearLayout,
+    private val miniBar: LinearLayout,
+    private val overflowBar: LinearLayout,
     private val paper: PaperView,
     /** The free band's bottom edge in root coordinates ([ChromeBand]); null before layout. */
     bandBottom: () -> Int?,
@@ -90,7 +95,9 @@ class CollapsedChrome(
     private val canOpen: () -> Boolean,
     /** Buttons after the tools on the mini toolbar (the notebook's Insert). */
     commands: List<Entry> = emptyList(),
-    /** The overflow row's entries, in order; empty = no `…` button at all. */
+    /** Buttons **before** the tools — Back, at the top of the column (Greg, 2026-10-10). */
+    leading: List<Entry> = emptyList(),
+    /** The entries after the commands, in order — Back and the screen's doors and actions. */
     overflow: List<Entry> = emptyList(),
     /** Fires before a row opens — the screen takes down its other floating popups. */
     private val onOpen: () -> Unit = {},
@@ -225,10 +232,14 @@ class CollapsedChrome(
      *  [toolButtons] because they are keyed by nothing: each is the same [Tool.PEN] the primary
      *  button arms. */
     private val extraPenButtons = ArrayList<AppCompatImageButton>()
-    /** Mirrored entries per row, so an open refreshes only the row it is showing. */
-    private val miniMirrored = ArrayList<Pair<AppCompatImageButton, Entry>>()
-    private val moreMirrored = ArrayList<Pair<AppCompatImageButton, Entry>>()
-    private var btnMore: AppCompatImageButton? = null
+    /** Every mirrored entry — both columns open on one tap, so one open refreshes them all. */
+    private val mirrored = ArrayList<Pair<AppCompatImageButton, Entry>>()
+    /** Every button in column order, tools first; cut between the two columns at every open. */
+    private val buttons = ArrayList<AppCompatImageButton>()
+    /** How many of [buttons] the first column held at the last open; the cut is redone only when
+     *  it changes (frame silence — a re-add of the same views is a layout for nothing). */
+    private var lastCut = -1
+    private val buttonSize = root.resources.getDimensionPixelSize(R.dimen.toolbar_button_size)
 
     private var knobIcon = 0
     /** The painted glyphs' tokens, last swapped in — null while the button wears a plain resource
@@ -245,6 +256,10 @@ class CollapsedChrome(
         knob.contentDescription = ctx.getString(R.string.collapsed_tools)
         TooltipCompat.setTooltipText(knob, knob.contentDescription)
         knob.setOnClickListener { if (isShowing) dismiss() else open() }
+        // Columns (2026-10-10): the layouts say so too, but this is where the order of the
+        // buttons is decided, so it is where the direction is decided.
+        miniBar.orientation = LinearLayout.VERTICAL
+        overflowBar.orientation = LinearLayout.VERTICAL
 
         // The hints are this module's: the four screens say the same four words.
         val hints = mapOf(
@@ -254,6 +269,7 @@ class CollapsedChrome(
             Tool.LASSO_ERASER to ctx.getString(R.string.eraser_lasso),
             Tool.LASSO to ctx.getString(R.string.tool_lasso),
         )
+        leading.forEach { add(it) }
         tools.forEach { tool ->
             val kinds = penKinds.takeIf { tool == Tool.PEN }
             // The button is its own click's anchor (the `add` helper's pattern): a re-pick of the
@@ -270,6 +286,7 @@ class CollapsedChrome(
                     else -> pick(tool)
                 }
             }
+            buttons += button
             toolButtons[tool] = button
             // Immediately after the primary one — the sketch face's row reads Pencil · Pen ·
             // Marker · Eraser · Smudge.
@@ -280,35 +297,48 @@ class CollapsedChrome(
                     // screen's shade panel under this button.
                     lateinit var extra: AppCompatImageButton
                     extra = mini.addButton(kind.iconRes, kind.hint) { pickPen(i, anchor = extra) }
+                    buttons += extra
                     extraPenButtons += extra
                     extraPenTokens += null
                 }
             }
         }
-        commands.forEach { add(mini, miniMirrored, it) }
-        // A small overflow is not an overflow ([CollapsedTools.overflowInline]): the sticky
-        // editor's Back and the pad's Back · Send sit on the mini toolbar itself, no `…`.
-        if (CollapsedTools.overflowInline(overflow.size)) {
-            overflow.forEach { add(mini, miniMirrored, it) }
-        } else if (overflow.isNotEmpty()) {
-            btnMore = mini.addButton(R.drawable.ic_dots, ctx.getString(R.string.collapsed_more)) { toggleMore() }
-            overflow.forEach { add(more, moreMirrored, it) }
-        }
+        commands.forEach { add(it) }
+        // Everything in one column until an open says how much fits ([open] cuts it).
+        overflow.forEach { add(it) }
         sync()
     }
 
-    private fun add(bar: AnchoredBar, mirrored: MutableList<Pair<AppCompatImageButton, Entry>>, entry: Entry) {
+    private fun add(entry: Entry) {
         lateinit var button: AppCompatImageButton
-        button = bar.addButton(entry.iconRes, entry.hint) {
+        button = mini.addButton(entry.iconRes, entry.hint) {
             val onTap = entry.onTap
             if (onTap != null) {
+                // The sub-bar hangs beside the column the anchor is in; a second column there
+                // would be under it. From the second column itself there is nothing to the left.
+                if (button.parent === miniBar) hideOverflow()
                 onTap(button)
             } else {
                 dismiss()
                 entry.mirrors?.performClick()
             }
         }
+        buttons += button
         if (entry.mirrors != null) mirrored += button to entry
+    }
+
+    /**
+     * Deal the buttons between the two columns for this open: the first takes what fits under
+     * the corner button, the second the rest. Only the views move — every listener, hint and
+     * glyph rides with its button, so nothing can drift between the columns.
+     */
+    private fun cut(capacity: Int) {
+        val first = CollapsedTools.firstColumn(buttons.size, capacity)
+        if (first == lastCut) return
+        lastCut = first
+        miniBar.removeAllViews()
+        overflowBar.removeAllViews()
+        buttons.forEachIndexed { i, b -> (if (i < first) miniBar else overflowBar).addView(b) }
     }
 
     /**
@@ -334,26 +364,18 @@ class CollapsedChrome(
 
     private fun open() {
         if (!canOpen()) return
+        // Null before layout, when `show` would show nothing either.
+        val capacity = mini.columnCapacity(buttonSize) ?: return
         onOpen()
         paper.releaseRender()
-        refresh(miniMirrored)
+        cut(capacity)
+        refresh(mirrored)
         sync()
         if (mini.show()) {
-            Slog.d(TAG) { "mini toolbar open (armed ${paper.tool})" }
+            val second = overflowBar.childCount > 0 && more.showBeside(mini)
+            Slog.d(TAG) { "mini toolbar open (armed ${paper.tool}; ${miniBar.childCount} in the column${if (second) ", ${overflowBar.childCount} beside" else ""})" }
             onChanged()
         }
-    }
-
-    private fun toggleMore() {
-        val button = btnMore ?: return
-        if (more.isShowing) {
-            hideOverflow()
-            return
-        }
-        onOpen()
-        paper.releaseRender()
-        refresh(moreMirrored)
-        if (more.show(anchor = button)) onChanged()
     }
 
     /**
@@ -510,8 +532,8 @@ class CollapsedChrome(
         }
     }
 
-    /** The overflow row alone down — the notebook's Insert takes it down before hanging its own
-     *  bar under the mini toolbar, where the two would otherwise share one edge. Idempotent. */
+    /** The second column alone down — before a sub-bar is hung beside the first, where the two
+     *  would otherwise share one edge. Idempotent. */
     fun hideOverflow() {
         if (!more.isShowing) return
         onClose()
@@ -519,7 +541,7 @@ class CollapsedChrome(
         onChanged()
     }
 
-    /** Both rows down. Idempotent — every dismiss path calls it without checking. */
+    /** Both columns down. Idempotent — every dismiss path calls it without checking. */
     fun dismiss() {
         if (!mini.isShowing && !more.isShowing) return
         onClose()

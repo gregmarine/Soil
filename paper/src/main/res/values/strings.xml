@@ -13,7 +13,6 @@
     <string name="collapsed_tools">Tools</string>
     <!-- The palette's size row: one cell per size on the armed tool's ladder. -->
     <string name="cd_size">Size %1$s</string>
-    <string name="collapsed_more">More</string>
     <string name="tool_pen">Pen</string>
     <string name="tool_smudge">Smudge</string>
     <string name="tool_lasso">Lasso</string>

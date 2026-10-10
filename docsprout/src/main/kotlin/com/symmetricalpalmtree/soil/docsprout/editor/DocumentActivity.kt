@@ -9,7 +9,6 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.KeyEvent
-import android.view.MotionEvent
 import android.view.View
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp
 import com.symmetricalpalmtree.soil.docsprout.DocsproutApp.Companion.appScope
 import com.symmetricalpalmtree.soil.docsprout.R
+import com.symmetricalpalmtree.soil.markdown.MarkdownFormatter
 import com.symmetricalpalmtree.soil.docsprout.data.BibleUnlinked
 import com.symmetricalpalmtree.soil.docsprout.data.DocsproutPrefs
 import com.symmetricalpalmtree.soil.docsprout.data.DocumentLimits
@@ -68,7 +68,7 @@ import kotlinx.coroutines.withContext
  * for it instead.
  *
  * What is done *to* the words lives beside this screen, one collaborator a concern: the format
- * bar and its overflow, the chords, find and replace, the tidying tools, the text size, the
+ * bar and its rows, the chords, find and replace, the tidying tools, the text size, the
  * rename. Each edits through the field's own `Editable`, so the field's own undo takes it back.
  *
  * The document's text is never logged: lengths only.
@@ -105,7 +105,14 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var tools: EditorTools
     private lateinit var format: FormatActions
     private lateinit var shortcuts: EditorShortcuts
-    private lateinit var overflow: FormatBarOverflow
+    private lateinit var rows: FormatBarRows
+    private var barButtons: Map<FormatTool, View> = emptyMap()
+
+    /** The bar wears what the caret is on (2026-10-10); nothing to wear before the document opens. */
+    private fun wearState() {
+        if (!opened || !::format.isInitialized) return
+        FormatBar.wear(barButtons, format.state())
+    }
     private lateinit var findBar: FindReplaceBar
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
@@ -260,7 +267,7 @@ class DocumentActivity : AppCompatActivity() {
         bibleLinks.checkDocument()
     }
 
-    /** The bar, its overflow, the chords, find, the tools, the text size and the rename. */
+    /** The bar, its rows, the chords, find, the tools, the text size and the rename. */
     private fun buildChrome() {
         tools = EditorTools(this, binding, ::surface, ::rendered, onEdited = ::save)
         findBar = FindReplaceBar(this, binding, ::surface, ::rendered, keepCaretVisible = { tools.keepCaretVisible() }, onReplacedAll = ::save)
@@ -293,15 +300,21 @@ class DocumentActivity : AppCompatActivity() {
                 }
             },
         )
-        val controls = FormatBar.build(
+        val headingMenu = HeadingMenu(this) { level -> if (opened) { format.block(MarkdownFormatter.Block.HEADING, level); wearState() } }
+        barButtons = FormatBar.build(
             binding.formatBar,
-            onTool = { if (opened) format.run(it) },
-            onToolUsed = { overflow.close() },
-            onOverflow = { overflow.toggle() },
+            onTool = { if (opened) { format.run(it); wearState() } },
+            onHeading = { anchor -> if (opened) headingMenu.toggle(anchor, format.state().level) },
         )
-        overflow = FormatBarOverflow(binding.formatBar, binding.overflowPanel, controls.dividerOverflow, controls.btnOverflow)
-        overflow.watchWidth()
-        shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode, closeOverflow = { overflow.close() })
+        // The bar wears what the caret is on, at every move of it on either surface — chained
+        // after whoever else watches the caret (the reference pass), never in its place.
+        for (surface in listOf(binding.editor, binding.rich)) {
+            val was = surface.onCaretMoved
+            surface.onCaretMoved = { was?.invoke(); wearState() }
+        }
+        rows = FormatBarRows(binding.formatBar, binding.formatBarRows)
+        rows.watchWidth()
+        shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode)
         binding.btnMode.setOnClickListener { toggleMode() }
         binding.btnExport.setOnClickListener { export() }
         TooltipCompat.setTooltipText(binding.btnExport, binding.btnExport.contentDescription)
@@ -321,12 +334,6 @@ class DocumentActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (opened && shortcuts.handle(event)) return true
         return super.dispatchKeyEvent(event)
-    }
-
-    /** A tap anywhere that is not the bar or its panel puts the overflow away, and still lands. */
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        overflow.dismissIfOutside(event)
-        return super.dispatchTouchEvent(event)
     }
 
     /**
@@ -554,6 +561,7 @@ class DocumentActivity : AppCompatActivity() {
         binding.rich.requestFocus()
         binding.rich.post { tools.keepCaretVisible() }
         opened = true
+        wearState()
         itemId?.let { links.arrived(it) }
         proofread.checkDocument()
         bibleLinks.checkDocument()

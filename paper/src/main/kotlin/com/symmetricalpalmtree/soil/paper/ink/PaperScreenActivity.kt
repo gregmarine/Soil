@@ -431,7 +431,9 @@ abstract class PaperScreenActivity : AppCompatActivity() {
             paper = paper,
             bandBottom = { chromeBand()?.last },
             canOpen = { opened && !closing },
-            overflow = collapsedOverflow(),
+            // Back at the top of the column (Greg, 2026-10-10), wherever a screen listed it.
+            leading = listOfNotNull(backEntry()),
+            overflow = collapsedOverflow().filter { it.mirrors !== backButtonView },
             // The eraser's own sub-bar is the one other thing that could be up: it belongs to the
             // bar's eraser button, which is not on the glass while the rows are.
             onOpen = { hideFloatingBars() },

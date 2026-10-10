@@ -21,7 +21,6 @@ internal class EditorShortcuts(
     private val format: FormatActions,
     private val rendered: () -> Boolean,
     private val toggleMode: () -> Unit,
-    private val closeOverflow: () -> Unit,
 ) {
 
     /** Answer one key event, or leave it to the system. */
@@ -29,17 +28,17 @@ internal class EditorShortcuts(
         if (event.action != KeyEvent.ACTION_DOWN || !event.isCtrlPressed) return false
         val shift = event.isShiftPressed
         when (event.keyCode) {
-            KeyEvent.KEYCODE_P -> if (!shift) { closeOverflow(); toggleMode(); return true }
+            KeyEvent.KEYCODE_P -> if (!shift) { toggleMode(); return true }
             KeyEvent.KEYCODE_Z -> if (rendered()) { if (shift) format.redo() else format.undo(); return true }
             KeyEvent.KEYCODE_Y -> if (rendered() && !shift) { format.redo(); return true }
             // Paragraph and H4–H6 are chord-only: the bar stops at H3, the grammar does not.
-            KeyEvent.KEYCODE_0 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.PARAGRAPH); return true }
-            KeyEvent.KEYCODE_4 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.HEADING, 4); return true }
-            KeyEvent.KEYCODE_5 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.HEADING, 5); return true }
-            KeyEvent.KEYCODE_6 -> if (!shift) { closeOverflow(); format.block(MarkdownFormatter.Block.HEADING, 6); return true }
-            KeyEvent.KEYCODE_1 -> if (!shift) return tool(FormatTool.H1)
-            KeyEvent.KEYCODE_2 -> if (!shift) return tool(FormatTool.H2)
-            KeyEvent.KEYCODE_3 -> if (!shift) return tool(FormatTool.H3)
+            KeyEvent.KEYCODE_0 -> if (!shift) { format.block(MarkdownFormatter.Block.PARAGRAPH); return true }
+            KeyEvent.KEYCODE_4 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 4); return true }
+            KeyEvent.KEYCODE_5 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 5); return true }
+            KeyEvent.KEYCODE_6 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 6); return true }
+            KeyEvent.KEYCODE_1 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 1); return true }
+            KeyEvent.KEYCODE_2 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 2); return true }
+            KeyEvent.KEYCODE_3 -> if (!shift) { format.block(MarkdownFormatter.Block.HEADING, 3); return true }
             KeyEvent.KEYCODE_B -> if (!shift) return tool(FormatTool.BOLD)
             KeyEvent.KEYCODE_I -> if (!shift) return tool(FormatTool.ITALIC)
             KeyEvent.KEYCODE_X -> if (shift) return tool(FormatTool.STRIKETHROUGH)
@@ -57,7 +56,6 @@ internal class EditorShortcuts(
 
     /** Run a tool from a chord and claim the key. */
     private fun tool(tool: FormatTool): Boolean {
-        closeOverflow()
         format.run(tool)
         return true
     }

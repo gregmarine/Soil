@@ -94,8 +94,8 @@
         android:layout_height="1dp"
         android:background="@color/inkBlack" />
 
-    <!-- The format bar's buttons are NOT declared here: the overflow moves the real views between
-         the bar and the panel. Both are in flow: the panel pushes the text down rather than
+    <!-- The format bar's buttons are NOT declared here: the rows' cut moves the real views between
+         the bar and the rows under it. Both are in flow: the rows push the text down rather than
          floating over it, because an overlay ghosts on e-ink. -->
     <LinearLayout
         android:id="@+id/formatBar"
@@ -108,14 +108,16 @@
         android:paddingEnd="8dp"
         android:paddingBottom="6dp" />
 
-    <!-- Where the bar's tail lands when it does not fit. Bordered, in flow, collapsed until
-         asked for. -->
+    <!-- Where the bar's tail wraps when it does not fit: further rows of the same bar, always
+         shown, GONE only while everything fits on the first. -->
     <LinearLayout
-        android:id="@+id/overflowPanel"
+        android:id="@+id/formatBarRows"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/shape_bordered"
         android:orientation="vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="6dp"
         android:visibility="gone" />
     <!-- Find and replace, hidden until Ctrl+F or the bar's search tool asks for it. Two rows:
          `[find][n of m][‹][›][✕]` over `[replace][Replace][All]`.

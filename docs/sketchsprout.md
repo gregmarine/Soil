@@ -232,3 +232,13 @@ wobble inside its width — a stub out of the join's disc is a notch — hence g
 `MarkerTrim`. A size added at the front of a ladder shifts every stored index one step; add at
 the end, or accept it once as the 0.1 mm pen did. A third page raster is +10.5 MB on the Nomad
 and +19.7 MB on the Manta, only once a marker lands.
+
+## The toolbar round (2026-10-10)
+
+While the chrome is hidden, the corner button's mini toolbar is a **column** under it: Back at
+the top, then the tools, the commands and the doors (`CollapsedChrome` in `:paper`). It holds
+as many buttons as the band under the corner button has room for; the rest go to a second
+column beside it, shown on the same tap, and there is no `…`. On the Nomad everything fits one
+column. A sub-bar hung off a column button hangs beside the column, level with the button, and
+stands as a column too (`AnchoredBar.show`'s column rule), on the sketchbook as on every paper screen.
+
