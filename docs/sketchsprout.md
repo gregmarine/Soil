@@ -52,7 +52,8 @@ close takes every soft-deleted row but a template.
 ## The screen
 
 `PaperScreenActivity`'s skeleton — the chrome band, the collapsed corner chrome, the exclusion
-rects, the EPD hand-off — over g-paper in **RASTER** mode: the engine holds the three rasters
+rects, the EPD hand-off, the bars' hidden state shared through Soil with every paper screen
+(`seam.md`; `SketchPrefs` keeps it only as the fallback) — over g-paper in **RASTER** mode: the engine holds the three rasters
 and composites the pen into them; the screen owns no stroke document. The paper is a g-paper
 **sheet**, never a template: on the Supernote's direct path the template is not read on a raster
 page, so the paper, the reference image and the grid are composed into one sheet bitmap

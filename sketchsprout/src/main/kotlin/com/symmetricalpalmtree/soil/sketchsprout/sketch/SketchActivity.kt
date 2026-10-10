@@ -347,6 +347,9 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
     override val initialChromeHidden: Boolean get() = prefs.chromeHidden
 
     override fun onChromeChanged(hidden: Boolean) { prefs.chromeHidden = hidden }
+    // The flag is Soil's, shared by every paper screen; the local one above is the fallback.
+    override suspend fun readSharedChromeHidden(): Boolean? = (application as SketchsproutApp).sharedChromeHidden()
+    override fun writeSharedChromeHidden(hidden: Boolean) = (application as SketchsproutApp).putSharedChromeHidden(hidden)
 
     // ── Create ───────────────────────────────────────────────────────────────
 
