@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Calsprout's mark: a calendar page (Tabler "calendar"), in the Tabler icons' vocabulary: an ink-black outline, round caps, nothing filled.
-     Adaptive-icon 108dp viewport; the whole of it sits inside the 66dp circle every mask keeps. -->
+<!-- Calendar's mark: a month (Tabler "calendar-month"), in the Tabler icons' vocabulary: an ink-black outline, round caps,
+     nothing filled. Adaptive-icon 108dp viewport: Tabler's 24-unit grid × 2.6, centred at 54, the stroke held at 4, so the
+     whole of it sits inside the 66dp circle every mask keeps (Greg, 2026-10-10). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="0" android:translateY="-3">
-        <!-- The page: a rounded frame, the two binding pins, the rule under the header. -->
-        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 44a4 4 0 0 1 4 -4h36a4 4 0 0 1 4 4v30a4 4 0 0 1 -4 4h-36a4 4 0 0 1 -4 -4z" />
-        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M42 36v8" />
-        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M66 36v8" />
-        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M32 54h44" />
+    <group android:translateX="22.8" android:translateY="22.8" android:scaleX="2.6" android:scaleY="2.6">
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M16 3v4" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M8 3v4" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M4 11h16" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M8 14v4" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M12 14v4" />
+        <path android:fillColor="@android:color/transparent" android:strokeColor="#000000" android:strokeWidth="1.55" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M16 14v4" />
     </group>
 </vector>
