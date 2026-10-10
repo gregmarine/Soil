@@ -50,6 +50,27 @@ internal object RichOps {
         view.edited(words = false)
     }
 
+    /**
+     * Whether the bar's button for [style] reads as on (2026-10-10): over a selection, when every
+     * piece of it carries the style — the state a press would take off; at a caret, what is typed
+     * next would carry it (the pending state the last press left, else the run the caret is in).
+     */
+    fun inlineOn(view: RichEditText, style: RichStyle): Boolean {
+        val s = view.text ?: return false
+        var a = view.selectionStart.coerceAtLeast(0)
+        var b = view.selectionEnd.coerceAtLeast(0)
+        if (a > b) a = b.also { b = a }
+        if (a == b) return view.pendingFor(style, a) ?: styledAt(s, a, style)
+        val pieces = pieces(view, s, a, b)
+        return pieces.isNotEmpty() && pieces.all { (from, to) -> covered(s, from, to, style) }
+    }
+
+    /** The first block the selection touches, or null in an empty document. */
+    fun blockAt(view: RichEditText): RichAttr? {
+        val s = view.text ?: return null
+        return touched(view, s).firstOrNull()?.attr
+    }
+
     /** The address of the link at the caret or over the selection, or null. */
     fun linkAt(view: RichEditText): String? = linkSpanAt(view)?.url
 

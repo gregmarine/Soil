@@ -49,6 +49,46 @@ internal class FormatActions(
         }
     }
 
+    /**
+     * What the caret or the selection is on (2026-10-10), for the bar to wear: the block and a
+     * heading's level, and which inline styles a press would take **off**. Read from whichever
+     * surface is in use, never cached — the bar asks at every caret move and after every tool.
+     */
+    fun state(): FormatState {
+        if (rendered()) {
+            val view = binding.rich
+            val attr = RichOps.blockAt(view)
+            return FormatState(
+                block = when (attr?.kind) {
+                    RichKind.HEADING -> MarkdownFormatter.Block.HEADING
+                    RichKind.QUOTE -> MarkdownFormatter.Block.QUOTE
+                    RichKind.BULLET -> MarkdownFormatter.Block.BULLET
+                    RichKind.ORDERED -> MarkdownFormatter.Block.ORDERED
+                    RichKind.TASK -> MarkdownFormatter.Block.TASK
+                    else -> MarkdownFormatter.Block.PARAGRAPH
+                },
+                level = if (attr?.kind == RichKind.HEADING) attr.level else 0,
+                bold = RichOps.inlineOn(view, RichStyle.BOLD),
+                italic = RichOps.inlineOn(view, RichStyle.ITALIC),
+                strikethrough = RichOps.inlineOn(view, RichStyle.STRIKE),
+                code = RichOps.inlineOn(view, RichStyle.CODE),
+            )
+        }
+        val text = binding.editor.text ?: return FormatState()
+        val buf = EditableBuffer(text)
+        val a = binding.editor.selectionStart.coerceIn(0, text.length)
+        val b = binding.editor.selectionEnd.coerceIn(0, text.length)
+        val (block, level) = MarkdownFormatter.blockAt(buf, minOf(a, b))
+        return FormatState(
+            block = block,
+            level = level,
+            bold = MarkdownFormatter.inlineOn(buf, a, b, "**"),
+            italic = MarkdownFormatter.inlineOn(buf, a, b, "*"),
+            strikethrough = MarkdownFormatter.inlineOn(buf, a, b, "~~"),
+            code = MarkdownFormatter.inlineOn(buf, a, b, "`"),
+        )
+    }
+
     /** A block by kind, from a chord or the heading sheet: paragraph has no place on the bar. */
     fun block(kind: MarkdownFormatter.Block, level: Int = 1) {
         if (!rendered()) return sourceBlock(kind, level)

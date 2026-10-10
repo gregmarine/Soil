@@ -1,6 +1,7 @@
 package com.symmetricalpalmtree.soil.markdown
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -593,5 +594,29 @@ class MarkdownFormatterTest {
         // After the code, a new list keeps the start it was given, as the editor shows it.
         val text = "Prose.\n\n1. a\n\nMore.\n\n    code\n\n5. b"
         assertEquals(text, renumbered(text))
+    }
+
+    // ── What the caret is on (the bar's state, 2026-10-10) ──────
+
+    @Test
+    fun `inlineOn reads a wrapped selection, markers outside or swallowed, and nothing else`() {
+        val b = Buf("say **bold** now")
+        assertTrue(MarkdownFormatter.inlineOn(b, 6, 10, "**"))      // markers just outside
+        assertTrue(MarkdownFormatter.inlineOn(b, 4, 12, "**"))      // markers inside the selection
+        assertTrue(MarkdownFormatter.inlineOn(b, 8, 8, "**"))       // caret inside the word
+        assertFalse(MarkdownFormatter.inlineOn(b, 0, 3, "**"))
+        assertFalse(MarkdownFormatter.inlineOn(b, 6, 10, "*"))      // a single star is not bold
+        assertFalse(MarkdownFormatter.inlineOn(Buf("**"), 0, 2, "**"))  // one marker is not a pair
+    }
+
+    @Test
+    fun `blockAt names the line's marker and a heading's level`() {
+        val b = Buf("## Two\n- item\nplain\n> q\n1. one\n- [ ] todo")
+        assertEquals(MarkdownFormatter.Block.HEADING to 2, MarkdownFormatter.blockAt(b, 4))
+        assertEquals(MarkdownFormatter.Block.BULLET to 0, MarkdownFormatter.blockAt(b, 9))
+        assertEquals(MarkdownFormatter.Block.PARAGRAPH to 0, MarkdownFormatter.blockAt(b, 15))
+        assertEquals(MarkdownFormatter.Block.QUOTE to 0, MarkdownFormatter.blockAt(b, 21))
+        assertEquals(MarkdownFormatter.Block.ORDERED to 0, MarkdownFormatter.blockAt(b, 26))
+        assertEquals(MarkdownFormatter.Block.TASK to 0, MarkdownFormatter.blockAt(b, b.length))
     }
 }

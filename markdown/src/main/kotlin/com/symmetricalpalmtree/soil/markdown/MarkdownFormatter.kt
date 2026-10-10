@@ -79,6 +79,38 @@ object MarkdownFormatter {
         return Selection(s + n, t + n)
     }
 
+    /**
+     * Whether the selection (or the word under the caret) is wrapped in [marker] — exactly the two
+     * shapes [toggleInline] would strip, read without writing: the bar's bold reads as on where a
+     * press would take the bold off (2026-10-10).
+     */
+    fun inlineOn(buf: TextBuffer, selStart: Int, selEnd: Int, marker: String): Boolean {
+        var s = minOf(selStart, selEnd)
+        var t = maxOf(selStart, selEnd)
+        if (s == t) {
+            val word = wordAt(buf, s)
+            s = word.first
+            t = word.second
+        }
+        val n = marker.length
+        val c = marker[0]
+        // Exactly the marker, not a longer run of its character: `**bold**` is bold, not italic,
+        // and a read that said both would light two buttons for one style.
+        if (s - n >= 0 && t + n <= buf.length &&
+            buf.substring(s - n, s) == marker && buf.substring(t, t + n) == marker &&
+            (s - n == 0 || buf[s - n - 1] != c) && (t + n == buf.length || buf[t + n] != c)
+        ) return true
+        return t - s >= 2 * n && buf.substring(s, s + n) == marker && buf.substring(t - n, t) == marker &&
+            (t - s == 2 * n || (buf[s + n] != c && buf[t - n - 1] != c))
+    }
+
+    /** The block the line holding [pos] carries, and a heading's level (0 for the rest). */
+    fun blockAt(buf: TextBuffer, pos: Int): Pair<Block, Int> {
+        val start = lineStart(buf, pos)
+        val parts = parseLine(buf.substring(start, lineEnd(buf, pos)))
+        return parts.block to parts.level
+    }
+
     // ── Line markers ──────────────────────────────────────────────────────────
 
     /**

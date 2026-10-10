@@ -22,10 +22,13 @@ import com.symmetricalpalmtree.soil.paper.R as PaperR
 internal class HeadingMenu(private val context: Context, private val onPick: (level: Int) -> Unit) {
 
     private val popup: PopupWindow by lazy { build() }
+    private val buttons = ArrayList<View>()
 
-    fun toggle(anchor: View) {
-        if (popup.isShowing) popup.dismiss()
-        else popup.showAsDropDown(anchor, 0, (GAP_DP * context.resources.displayMetrics.density).toInt())
+    /** Open under [anchor] with the caret's [level] bordered (0: none), or close. */
+    fun toggle(anchor: View, level: Int) {
+        if (popup.isShowing) { popup.dismiss(); return }
+        buttons.forEachIndexed { i, b -> b.isSelected = i + 1 == level }
+        popup.showAsDropDown(anchor, 0, (GAP_DP * context.resources.displayMetrics.density).toInt())
     }
 
     fun dismiss() {
@@ -39,7 +42,9 @@ internal class HeadingMenu(private val context: Context, private val onPick: (le
             setPadding(pad, pad, pad, pad)
             background = ContextCompat.getDrawable(context, PaperR.drawable.shape_dialog_bordered)
             LEVELS.forEachIndexed { i, (icon, hint) ->
-                addView(FormatBar.iconButton(context, icon, context.getString(hint)) { dismiss(); onPick(i + 1) })
+                val button = FormatBar.iconButton(context, icon, context.getString(hint)) { dismiss(); onPick(i + 1) }
+                buttons += button
+                addView(button)
             }
         }
         return PopupWindow(column, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {

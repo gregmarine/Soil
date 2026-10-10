@@ -67,13 +67,15 @@ object FormatBar {
         onTool: (FormatTool) -> Unit,
         /** The Heading button's menu, hung under the button itself — handed the button. */
         onHeading: (anchor: View) -> Unit,
-    ) {
+    ): Map<FormatTool, View> {
         val context = bar.context
+        val buttons = LinkedHashMap<FormatTool, View>()
         fun tool(t: FormatTool) {
             lateinit var button: View
             button = iconButton(context, t.icon, context.getString(t.hint)) {
                 if (t == FormatTool.HEADING) onHeading(button) else onTool(t)
             }
+            buttons[t] = button
             bar.addView(button)
         }
         fun divider() = bar.addView(groupDivider(context))
@@ -96,6 +98,12 @@ object FormatBar {
         // Last: a check runs on its own, and this is for the occasional full pass and the on/off
         // switch.
         tool(FormatTool.PROOFREAD)
+        return buttons
+    }
+
+    /** Wear [state]: each state button bordered exactly when its state holds (2026-10-10). */
+    fun wear(buttons: Map<FormatTool, View>, state: FormatState) {
+        buttons.forEach { (tool, button) -> button.isSelected = state.selected(tool) }
     }
 
     /**

@@ -106,6 +106,13 @@ class DocumentActivity : AppCompatActivity() {
     private lateinit var format: FormatActions
     private lateinit var shortcuts: EditorShortcuts
     private lateinit var rows: FormatBarRows
+    private var barButtons: Map<FormatTool, View> = emptyMap()
+
+    /** The bar wears what the caret is on (2026-10-10); nothing to wear before the document opens. */
+    private fun wearState() {
+        if (!opened || !::format.isInitialized) return
+        FormatBar.wear(barButtons, format.state())
+    }
     private lateinit var findBar: FindReplaceBar
     private lateinit var textSize: TextSizeControl
     private lateinit var proofread: ProofreadController
@@ -293,12 +300,18 @@ class DocumentActivity : AppCompatActivity() {
                 }
             },
         )
-        val headingMenu = HeadingMenu(this) { level -> if (opened) format.block(MarkdownFormatter.Block.HEADING, level) }
-        FormatBar.build(
+        val headingMenu = HeadingMenu(this) { level -> if (opened) { format.block(MarkdownFormatter.Block.HEADING, level); wearState() } }
+        barButtons = FormatBar.build(
             binding.formatBar,
-            onTool = { if (opened) format.run(it) },
-            onHeading = { anchor -> if (opened) headingMenu.toggle(anchor) },
+            onTool = { if (opened) { format.run(it); wearState() } },
+            onHeading = { anchor -> if (opened) headingMenu.toggle(anchor, format.state().level) },
         )
+        // The bar wears what the caret is on, at every move of it on either surface — chained
+        // after whoever else watches the caret (the reference pass), never in its place.
+        for (surface in listOf(binding.editor, binding.rich)) {
+            val was = surface.onCaretMoved
+            surface.onCaretMoved = { was?.invoke(); wearState() }
+        }
         rows = FormatBarRows(binding.formatBar, binding.formatBarRows)
         rows.watchWidth()
         shortcuts = EditorShortcuts(format, ::rendered, ::toggleMode)
@@ -548,6 +561,7 @@ class DocumentActivity : AppCompatActivity() {
         binding.rich.requestFocus()
         binding.rich.post { tools.keepCaretVisible() }
         opened = true
+        wearState()
         itemId?.let { links.arrived(it) }
         proofread.checkDocument()
         bibleLinks.checkDocument()
