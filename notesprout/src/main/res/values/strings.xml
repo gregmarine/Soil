@@ -3,7 +3,7 @@
     <string name="app_name">Note</string>
     <string name="selftest_name">Note self-test</string>
 
-    <string name="cd_close">Close</string>
+    <string name="cd_close">Back</string>
     <string name="cd_tool_pen">Pen</string>
     <string name="cd_tool_eraser">Eraser</string>
     <string name="cd_tool_lasso">Lasso</string>

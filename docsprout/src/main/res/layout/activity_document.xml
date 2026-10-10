@@ -40,14 +40,14 @@
                 android:id="@+id/btnBack"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:contentDescription="@string/cd_close"
-                android:src="@drawable/ic_x" />
+                android:src="@drawable/ic_arrow_left" />
 
             <!-- Back to the document a link was followed from. Absent when no link was. -->
             <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btnTrailBack"
                 style="@style/Widget.Soil.ToolbarButton"
                 android:contentDescription="@string/cd_trail_back"
-                android:src="@drawable/ic_arrow_left"
+                android:src="@drawable/ic_arrow_bar_to_left"
                 android:visibility="gone" />
         </LinearLayout>
 

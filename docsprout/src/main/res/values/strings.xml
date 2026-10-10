@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Document</string>
 
-    <string name="cd_close">Close</string>
+    <string name="cd_close">Back</string>
     <string name="cd_text_size">Text size</string>
     <string name="cd_export">Export</string>
     <string name="export_failed_title">Export</string>
