@@ -77,7 +77,8 @@ return, so a notebook in the background holds no file. Frame silence while the p
 
 ## Device-local
 
-`NotebookPrefs`: the notebook last open, the pen's shade, whether the chrome was hidden.
+`NotebookPrefs`: the notebook last open, the pen's shade, whether the chrome was hidden — that
+last only the fallback: the flag is shared through Soil, one for every paper screen (`seam.md`).
 `SnapToggle`'s `snap` file: whether a drag snaps to guides.
 `LinkTrail`: the hops of a link story, ids only. Never a name, never backed up.
 

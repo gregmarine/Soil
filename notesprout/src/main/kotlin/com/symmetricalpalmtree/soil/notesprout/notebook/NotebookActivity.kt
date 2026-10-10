@@ -210,6 +210,9 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
 
     override val initialChromeHidden: Boolean get() = prefs.chromeHidden
     override fun onChromeChanged(hidden: Boolean) { prefs.chromeHidden = hidden }
+    // The flag is Soil's, shared by every paper screen; the local one above is the fallback.
+    override suspend fun readSharedChromeHidden(): Boolean? = (application as NotesproutApp).sharedChromeHidden()
+    override fun writeSharedChromeHidden(hidden: Boolean) = (application as NotesproutApp).putSharedChromeHidden(hidden)
     override fun record(action: InkAction) = undo.record(NotebookAction.Ink(action))
     override fun syncTool(tool: Tool) = toolbar.sync(tool)
     override fun armTool(tool: Tool) = toolbar.arm(tool)

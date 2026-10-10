@@ -98,6 +98,9 @@ class StickyEditorActivity : InkScreenActivity<InkAction>(), NotesproutApp.Front
     override val storeFailedBodyRes: Int get() = R.string.store_failed_body
     override val initialChromeHidden: Boolean get() = prefs.chromeHidden
     override fun onChromeChanged(hidden: Boolean) { prefs.chromeHidden = hidden }
+    // The flag is Soil's, shared by every paper screen; the local one above is the fallback.
+    override suspend fun readSharedChromeHidden(): Boolean? = (application as NotesproutApp).sharedChromeHidden()
+    override fun writeSharedChromeHidden(hidden: Boolean) = (application as NotesproutApp).putSharedChromeHidden(hidden)
     override fun record(action: InkAction) = undo.record(action)
     override fun syncTool(tool: Tool) = tools.sync(tool)
     override fun armTool(tool: Tool) = tools.arm(tool)

@@ -24,6 +24,8 @@ class NotebookPrefs(context: Context) {
         get() = InkTones.levelOrElse(runCatching { prefs.getInt(KEY_LEVEL, InkTones.BLACK) }.getOrDefault(InkTones.BLACK))
         set(value) { prefs.edit().putInt(KEY_LEVEL, InkTones.levelOrElse(value)).apply() }
 
+    /** Whether the bars were hidden: the fallback only, for when Soil cannot answer. The flag is
+     *  Soil's, one for every paper screen (`SharedChrome`). */
     var chromeHidden: Boolean
         get() = prefs.getBoolean(KEY_CHROME_HIDDEN, false)
         set(value) { prefs.edit().putBoolean(KEY_CHROME_HIDDEN, value).apply() }
