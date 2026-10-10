@@ -6,7 +6,7 @@
         <activity
             android:name=".dev.KeepFileCheckActivity"
             android:exported="true"
-            android:label="Soil dev: keep-file check" />
+            android:label="Sproutscape dev: keep-file check" />
     </application>
 
 </manifest>

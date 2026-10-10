@@ -94,19 +94,6 @@
                     android:src="@drawable/ic_grid" />
             </LinearLayout>
 
-            <!-- The sketchbook's name, centred in the band the two button groups leave free; the
-                 screen sets its margins from the groups' widths after layout. -->
-            <TextView
-                android:id="@+id/title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:ellipsize="end"
-                android:gravity="center"
-                android:singleLine="true"
-                android:textColor="@color/inkBlack"
-                android:textSize="16sp" />
-
             <LinearLayout
                 android:id="@+id/doorGroup"
                 android:layout_width="wrap_content"
@@ -144,7 +131,22 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
 
+            <!-- The sketchbook's name, at the start; the pager keeps the screen's centre. The screen
+                 sets the name's end margin from the pager's width after layout, so the two never meet. -->
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:ellipsize="end"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
             <LinearLayout
+                android:id="@+id/pagerGroup"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="center"

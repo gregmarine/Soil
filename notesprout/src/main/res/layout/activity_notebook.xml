@@ -28,27 +28,14 @@
         android:background="@color/paperWhite"
         android:orientation="vertical">
 
-        <!-- A FrameLayout, not a row: the title is centred on the SCREEN, so it stays put
-             whatever flanks it. -->
+        <!-- A FrameLayout, not a row: each button group keeps its own edge. The notebook's name
+             is on the bottom bar (Greg, 2026-10-10). -->
         <FrameLayout
             android:id="@+id/topBarRow"
             android:layout_width="match_parent"
             android:layout_height="@dimen/toolbar_bar_thickness"
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
-
-            <TextView
-                android:id="@+id/title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:ellipsize="end"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:singleLine="true"
-                android:text="@string/app_name"
-                android:textColor="@color/inkBlack"
-                android:textSize="16sp" />
 
             <!-- Back, then the tools: the whole of what you do *on* this page lives on one edge. -->
             <LinearLayout
@@ -144,7 +131,7 @@
             android:layout_height="1dp"
             android:background="@color/inkBlack" />
 
-        <!-- Pages only, centred on the SCREEN. -->
+        <!-- The name at the start; the pages centred on the SCREEN. -->
         <FrameLayout
             android:id="@+id/bottomBarRow"
             android:layout_width="match_parent"
@@ -152,7 +139,22 @@
             android:paddingStart="4dp"
             android:paddingEnd="4dp">
 
+            <!-- The notebook's name, at the start; the pager keeps the screen's centre. The screen
+                 sets the name's end margin from the pager's width after layout, so the two never meet. -->
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:ellipsize="end"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:textColor="@color/inkBlack"
+                android:textSize="16sp" />
+
             <LinearLayout
+                android:id="@+id/pagerGroup"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
                 android:layout_gravity="center"

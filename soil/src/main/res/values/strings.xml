@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Soil</string>
+    <string name="app_name">Sproutscape</string>
 
     <string name="cd_back">Back</string>
     <string name="cd_page_previous">Previous page</string>
@@ -13,7 +13,7 @@
     <string name="library_save_key">Your library is encrypted. Save your recovery key before you write anything.</string>
     <string name="library_locked">Your library is locked.</string>
     <string name="library_rotating">A passphrase change was interrupted. It has to be finished before anything is written.</string>
-    <string name="library_foreign">There is a file where the library should be that Soil did not make. It has not been opened or changed.</string>
+    <string name="library_foreign">There is a file where the library should be that Sproutscape did not make. It has not been opened or changed.</string>
     <string name="library_damaged">The library file cannot be read. It has not been changed.</string>
     <string name="library_unavailable">The library could not be opened. Nothing has been changed.</string>
     <string name="action_recovery_key">Recovery key</string>
@@ -21,7 +21,7 @@
     <string name="action_try_again">Try again</string>
     <string name="library_still_unavailable_title">The library is still closed</string>
 
-    <string name="cd_view_library">Library</string>
+    <string name="cd_view_library">Garden</string>
     <string name="cd_view_apps">Apps</string>
     <string name="cd_hidden_apps">Hidden apps</string>
     <string name="apps_empty">Every app is hidden. The hidden apps are behind the button at the top.</string>
@@ -58,7 +58,7 @@
 
     <!-- A screen that needs the key, asked for while the key cannot be used. -->
     <string name="gate_preparing_title">Still preparing</string>
-    <string name="gate_preparing_body">Soil is still preparing your library. Try again in a moment.</string>
+    <string name="gate_preparing_body">Sproutscape is still preparing your library. Try again in a moment.</string>
     <string name="gate_rotating_title">Passphrase change not finished</string>
     <string name="gate_rotating_body">A passphrase change was interrupted. It has to be finished first, from the Encryption screen.</string>
     <string name="gate_blocked_title">Library not available</string>
@@ -66,17 +66,17 @@
 
     <!-- Recovery key -->
     <string name="recovery_title">Save your recovery key</string>
-    <string name="recovery_body">Everything you write in Soil is encrypted. This recovery key is the one secret that unlocks it on a new device or after a reinstall. It is the only copy: write it down or save it in a password manager. It cannot be recovered for you.</string>
+    <string name="recovery_body">Everything you write in Sproutscape is encrypted. This recovery key is the one secret that unlocks it on a new device or after a reinstall. It is the only copy: write it down or save it in a password manager. It cannot be recovered for you.</string>
     <string name="recovery_copy">Copy</string>
     <string name="recovery_saved">I\'ve saved it</string>
     <string name="recovery_continue">Continue</string>
     <string name="recovery_copied">Recovery key copied</string>
     <string name="recovery_tick_title">Recovery key not saved</string>
     <string name="recovery_tick_first">Tick “I\'ve saved it” to continue.</string>
-    <string name="recovery_clip_label">Soil recovery key</string>
+    <string name="recovery_clip_label">Sproutscape recovery key</string>
 
     <!-- Unlock -->
-    <string name="unlock_title">Unlock Soil</string>
+    <string name="unlock_title">Unlock Sproutscape</string>
     <string name="unlock_body">Enter your recovery key, or the passphrase you chose, to open your library on this device.</string>
     <string name="unlock_hint">Recovery key or passphrase</string>
     <string name="unlock_button">Unlock</string>
@@ -101,7 +101,7 @@
     <string name="delete_selection_action">Delete selection</string>
     <!-- A problem dialog: a tap that did nothing is never a toast on e-ink. -->
     <string name="scratch_store_failed_title">Scratch Pad unavailable</string>
-    <string name="scratch_store_failed_body">Soil could not open the Scratch Pad\'s storage. Nothing was lost. Try again.</string>
+    <string name="scratch_store_failed_body">Sproutscape could not open the Scratch Pad\'s storage. Nothing was lost. Try again.</string>
     <string name="cd_scratch_pad">Scratch Pad</string>
 
     <!-- Encryption -->
@@ -140,7 +140,7 @@
     <string name="encryption_rule_mismatch">The two entries do not match.</string>
     <string name="encryption_rule_same">That is the current passphrase.</string>
     <string name="encryption_change_title">Change passphrase</string>
-    <string name="encryption_change_body">Everything in the library, the Scratch Pad and the library index will be re-keyed. Keep Soil open. This can take a while.</string>
+    <string name="encryption_change_body">Everything in the library, the Scratch Pad and the library index will be re-keyed. Keep Sproutscape open. This can take a while.</string>
     <string name="encryption_change_minted">The new recovery key will be shown when this finishes.</string>
     <string name="encryption_change_confirm">Change</string>
     <string name="encryption_progress_title">Changing passphrase</string>
@@ -148,7 +148,7 @@
     <string name="encryption_progress_item">Library item</string>
     <string name="encryption_progress_stores">App data</string>
     <string name="encryption_progress_index">Library index</string>
-    <string name="encryption_progress_keep_open">Keep Soil open. This can take a while.</string>
+    <string name="encryption_progress_keep_open">Keep Sproutscape open. This can take a while.</string>
     <string name="encryption_progress_stopping">Stopping after this file…</string>
     <string name="encryption_done_title">Passphrase changed</string>
     <string name="encryption_done_zero">The Scratch Pad and the library index were re-keyed.</string>
@@ -175,8 +175,8 @@
 
     <!-- The shell -->
     <string name="menu_home">Home</string>
-    <string name="bar_service_label">Soil side menu</string>
-    <string name="bar_service_description">Lets Soil open its side menu from the side bars in every app. It watches the side bars only and reads nothing that any app shows.</string>
+    <string name="bar_service_label">Sproutscape side menu</string>
+    <string name="bar_service_description">Lets Sproutscape open its side menu from the side bars in every app. It watches the side bars only and reads nothing that any app shows.</string>
     <string name="shell_off">The side menu is off.</string>
 
     <!-- The paper library -->
@@ -272,10 +272,10 @@
     <string name="template_save_confirm">Next</string>
     <string name="template_saved">Template saved</string>
     <string name="template_save_lost_title">Nothing to save</string>
-    <string name="template_save_lost_body">The page\'s picture did not reach Soil. Long-press the page and choose Save as template again.</string>
+    <string name="template_save_lost_body">The page\'s picture did not reach Sproutscape. Long-press the page and choose Save as template again.</string>
 
     <!-- The library -->
-    <string name="library_root">Library</string>
+    <string name="library_root">Garden</string>
     <string name="library_pinned_empty">No pinned items. Hold an item to pin it.</string>
     <string name="library_recents_empty">Nothing opened yet.</string>
     <string name="library_search_empty">Nothing matches that.</string>
@@ -298,7 +298,7 @@
     <string name="delete_folder_open_body">\"%1$s\" holds an item that is open in its app. Close it first.</string>
     <!-- A store call that threw: a problem dialog, never a crash and never a silent tap. -->
     <string name="library_change_failed_title">Couldn\'t make that change</string>
-    <string name="library_change_failed_body">Soil could not finish that change. Try again.</string>
+    <string name="library_change_failed_body">Sproutscape could not finish that change. Try again.</string>
     <string name="library_read_failed_title">Couldn\'t read the list</string>
     <string name="library_read_failed_body">The list could not be read again. What was shown is still shown. Try again.</string>
     <string name="move_collision_item_folder">A folder named \"%1$s\" already exists there.</string>
@@ -340,11 +340,11 @@
     <string name="new_sketchbook_failed_title">Couldn\'t make the sketchbook</string>
     <string name="new_notebook_failed_body">Nothing has been changed.</string>
     <string name="follow_failed_title">Can\'t follow this link</string>
-    <string name="follow_locked_body">The library is not open. Open it in Soil, then follow the link again.</string>
+    <string name="follow_locked_body">The library is not open. Open it in Sproutscape, then follow the link again.</string>
     <string name="follow_gone_body">What this link points to is no longer in the library.</string>
-    <string name="follow_no_bible_body">Biblesprout is not installed.</string>
+    <string name="follow_no_bible_body">Bible is not installed.</string>
     <string name="follow_bible_failed_body">The Bible could not be opened.</string>
-    <string name="follow_no_calendar_body">Calsprout is not installed.</string>
+    <string name="follow_no_calendar_body">Calendar is not installed.</string>
     <string name="follow_calendar_failed_body">The calendar could not be opened.</string>
     <string name="pick_page_title">Link to</string>
     <string name="pick_page_whole">The whole notebook</string>
@@ -430,7 +430,7 @@
     <string name="settings_recognizer_value">%1$s · %2$s</string>
     <string name="settings_recognizer_none">None</string>
     <string name="settings_recognizer_none_installed">No recogniser is installed</string>
-    <string name="settings_recognizer_none_installed_body">Install Soil · Handwriting to recognise ink. It appears here once it is installed.</string>
+    <string name="settings_recognizer_none_installed_body">Install Sproutscape · Handwriting to recognise ink. It appears here once it is installed.</string>
     <string name="settings_templates">Templates</string>
     <string name="settings_templates_detail">The paper library: browse, import and export</string>
 
@@ -555,8 +555,8 @@
     <string name="import_generic_body">The file could not be imported.</string>
     <string name="import_delivery_body">The import extension could not read the file.</string>
     <string name="import_short_body">The file arrived short. Nothing was imported.</string>
-    <string name="import_not_an_item_body">That file is not a Soil item.</string>
-    <string name="import_newer_body">That file was written by a newer Soil. Update Soil to import it.</string>
+    <string name="import_not_an_item_body">That file is not a Sproutscape item.</string>
+    <string name="import_newer_body">That file was written by a newer Sproutscape. Update Sproutscape to import it.</string>
     <string name="import_locked_body">The library is locked.</string>
     <string name="import_keying_body">The file could not be keyed to this device.</string>
     <string name="import_unreadable_body">The file could not be read.</string>
@@ -596,8 +596,8 @@
     <string name="cloud_disconnect_failed_title">Couldn\'t disconnect</string>
     <string name="cloud_disconnect_failed_body">The cloud extension did not answer, so the account is still connected. Nothing has been changed. Try again.</string>
     <string name="cloud_connect_offer_title">Connect to %1$s?</string>
-    <string name="cloud_connect_offer_body">Sign in to %1$s so Soil can put files there. Nothing is uploaded until you choose where to save.</string>
-    <string name="import_cloud_connect_offer_body">Sign in to %1$s so Soil can read the files it put there. Nothing is downloaded until you choose a file.</string>
+    <string name="cloud_connect_offer_body">Sign in to %1$s so Sproutscape can put files there. Nothing is uploaded until you choose where to save.</string>
+    <string name="import_cloud_connect_offer_body">Sign in to %1$s so Sproutscape can read the files it put there. Nothing is downloaded until you choose a file.</string>
     <string name="cloud_replace_title">Replace %1$s?</string>
     <string name="cloud_replace_body">A file of that name is already in this folder. Exporting will replace what it holds.</string>
     <string name="cloud_replace_confirm">Replace</string>
@@ -682,7 +682,7 @@
     <string name="backup_index_copied">The library index was backed up.</string>
     <string name="backup_index_failed">The library index was not backed up.</string>
     <string name="backup_folder_failed_title">Couldn\'t use that folder</string>
-    <string name="backup_folder_failed_body">Soil could not keep lasting access to that folder. Choose it again. The backup folder has not been changed.</string>
+    <string name="backup_folder_failed_body">Sproutscape could not keep lasting access to that folder. Choose it again. The backup folder has not been changed.</string>
     <string name="backup_no_picker_title">No folder picker</string>
     <string name="backup_no_picker_body">This device has no app for choosing a folder, so a backup folder cannot be chosen here.</string>
     <string name="cloud_caption">Cloud</string>
@@ -727,7 +727,7 @@
     <string name="restore_progress_checking_stores">Checking app data %1$d of %2$d…</string>
     <string name="restore_progress_unlocking">Unlocking…</string>
     <string name="restore_progress_installing">Installing…</string>
-    <string name="restore_progress_keep_open">Keep Soil open. This can take a while.</string>
+    <string name="restore_progress_keep_open">Keep Sproutscape open. This can take a while.</string>
     <string name="restore_key_title">Unlock the backup</string>
     <string name="restore_key_body">Enter the passphrase or recovery key of the library this backup came from.</string>
     <string name="restore_key_hint">Passphrase or recovery key</string>
@@ -743,9 +743,9 @@
     <string name="restore_restart">Continue</string>
     <string name="restore_failed_title">Restore failed</string>
     <string name="restore_failed_body">Nothing was changed. Your library is as it was.</string>
-    <string name="restore_failed_unrepaired_body">The backup was not installed, and putting your library back did not finish. Your library stays closed until it does. Soil tries again each time it opens the library, and Try again on Home tries now.</string>
+    <string name="restore_failed_unrepaired_body">The backup was not installed, and putting your library back did not finish. Your library stays closed until it does. Sproutscape tries again each time it opens the library, and Try again on Home tries now.</string>
     <string name="restore_interrupted_title">Restore didn\'t finish</string>
-    <string name="restore_interrupted_body">The backup is installed, but a last step failed (%1$s). If Soil asks, unlock it with the passphrase or recovery key of the library this backup came from.</string>
+    <string name="restore_interrupted_body">The backup is installed, but a last step failed (%1$s). If Sproutscape asks, unlock it with the passphrase or recovery key of the library this backup came from.</string>
     <string name="restore_problem_rotation_title">Finish the key change first</string>
     <string name="restore_problem_rotation_body">A passphrase change is part-way through. Open Settings, Encryption, and finish it with Resume, then restore. Nothing has been changed.</string>
     <string name="restore_problem_held_title">An item is open</string>
@@ -753,7 +753,7 @@
     <string name="restore_problem_space_title">Not enough space</string>
     <string name="restore_problem_space_body">This backup needs about %1$s more free space on this device. Nothing has been changed.</string>
     <string name="restore_problem_unreachable_title">Folder unavailable</string>
-    <string name="restore_problem_unreachable_body">That folder is no longer there, or Soil has lost access to it. Choose it again. Nothing has been changed.</string>
+    <string name="restore_problem_unreachable_body">That folder is no longer there, or Sproutscape has lost access to it. Choose it again. Nothing has been changed.</string>
     <string name="restore_problem_listing_title">Couldn\'t read that folder</string>
     <string name="restore_problem_listing_body">That folder could not be read. Nothing has been changed. Try again, or choose another folder.</string>
     <string name="restore_problem_not_backup_title">No backup here</string>

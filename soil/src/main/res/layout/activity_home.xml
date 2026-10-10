@@ -23,7 +23,7 @@
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btnLibrary"
             style="@style/Widget.Soil.ToolbarButton"
-            android:src="@drawable/ic_books"
+            android:src="@drawable/ic_soil"
             android:contentDescription="@string/cd_view_library" />
 
         <androidx.appcompat.widget.AppCompatImageButton

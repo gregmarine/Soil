@@ -29,9 +29,9 @@ class LibraryListingTest {
 
     @Test
     fun `the recents shelf keeps the opened order and skips what was never opened`() {
-        val cards = LibraryListing.recentCards(listOf(item("a", "a", opened = 5), item("b", "b"), item("c", "c", opened = 9)), emptySet()) { "Library" }
+        val cards = LibraryListing.recentCards(listOf(item("a", "a", opened = 5), item("b", "b"), item("c", "c", opened = 9)), emptySet()) { "Garden" }
         assertEquals(listOf("c", "a"), cards.map { it.id })
-        assertEquals("Library", (cards[0] as LibraryCard.ItemCard).subtitle)
+        assertEquals("Garden", (cards[0] as LibraryCard.ItemCard).subtitle)
     }
 
     @Test

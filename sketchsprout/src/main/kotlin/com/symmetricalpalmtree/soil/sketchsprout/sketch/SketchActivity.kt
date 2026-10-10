@@ -10,7 +10,6 @@ import android.os.Binder
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -39,6 +38,7 @@ import com.symmetricalpalmtree.soil.sketchsprout.clip.SketchPageClip
 import com.symmetricalpalmtree.soil.sketchsprout.ingest.InkIngest
 import com.symmetricalpalmtree.soil.paper.chrome.CollapsedChrome
 import com.symmetricalpalmtree.soil.paper.chrome.PageGestures
+import com.symmetricalpalmtree.soil.paper.chrome.TitleBand
 import com.symmetricalpalmtree.soil.paper.chrome.PageMath
 import com.symmetricalpalmtree.soil.paper.chrome.BacklinksModel
 import com.symmetricalpalmtree.soil.paper.chrome.BacklinksPanel
@@ -485,7 +485,7 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
             listener = gestureListener,
         )
         binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            binding.root.post { centreTitleInTheFreeBand(); pushExclusions() }
+            binding.root.post { TitleBand.keepClearOfPager(binding.bottomBarRow, binding.title, binding.pagerGroup); pushExclusions() }
         }
         initChrome(savedInstanceState)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -1885,22 +1885,6 @@ class SketchActivity : PaperScreenActivity(), SketchsproutApp.FrontPaper {
                 }
             }
         }
-    }
-
-    /** The title sits centred in the band the two button groups leave free, not on the screen —
-     *  with three buttons on the start side the screen's centre lies under the title's start. The
-     *  groups' laid-out widths become the title's margins. */
-    private fun centreTitleInTheFreeBand() {
-        val title = binding.title
-        val lp = title.layoutParams as FrameLayout.LayoutParams
-        val start = binding.toolGroup.width
-        val end = binding.doorGroup.width
-        if (lp.marginStart == start && lp.marginEnd == end && lp.width == ViewGroup.LayoutParams.MATCH_PARENT) return
-        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-        lp.gravity = Gravity.CENTER_VERTICAL
-        lp.marginStart = start
-        lp.marginEnd = end
-        title.layoutParams = lp
     }
 
     private companion object {

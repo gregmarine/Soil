@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sketchsprout's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
+<!-- Sketch's own strings. `ok`, `cancel` and the collapsed chrome's come from :paper and are
      not repeated here. -->
 <resources>
-    <string name="app_name">Sketchsprout</string>
+    <string name="app_name">Sketch</string>
 
     <string name="sketch_opening">Opening…</string>
 
@@ -72,7 +72,7 @@
     <string name="backlinks_notebook_page">Notebook page</string>
     <string name="backlinks_whole_item">The whole sketchbook</string>
     <string name="link_follow_failed_title">Can\'t open</string>
-    <string name="link_follow_failed_body">Soil could not open where the link was made.</string>
+    <string name="link_follow_failed_body">Sproutscape could not open where the link was made.</string>
     <string name="export_page_action">Export page…</string>
     <string name="export_sketchbook_action">Export sketchbook…</string>
     <string name="template_gone_title">Couldn\'t use that template</string>
@@ -89,10 +89,10 @@
 
     <!-- Opening: never a path, never a name. -->
     <string name="open_failed_title">Can\'t open sketchbook</string>
-    <string name="open_no_soil">Soil could not be reached. Sketchsprout keeps its sketchbooks in Soil.</string>
-    <string name="open_locked">The library is not open. Open it in Soil, then open the sketchbook again.</string>
+    <string name="open_no_soil">Sproutscape could not be reached. Sketch keeps its sketchbooks in Sproutscape.</string>
+    <string name="open_locked">The library is not open. Open it in Sproutscape, then open the sketchbook again.</string>
     <string name="open_missing">This sketchbook is no longer in the library.</string>
-    <string name="open_newer">This sketchbook was written by a later Sketchsprout. It has not been changed.</string>
+    <string name="open_newer">This sketchbook was written by a later version of Sketch. It has not been changed.</string>
     <string name="open_failed">The sketchbook could not be opened. It has not been changed.</string>
     <string name="open_page_unreadable">A page\'s drawing could not be read, so the sketchbook was not opened. It has not been changed.</string>
 
