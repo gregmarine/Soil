@@ -10,8 +10,8 @@ import com.symmetricalpalmtree.soil.docsprout.R
 import com.symmetricalpalmtree.soil.paper.R as PaperR
 
 /**
- * The Heading button's menu (Greg, 2026-10-10): a bordered row of the six levels, H1 to H6, hung
- * under the button it came out of — the notebook's Insert bar's shape, not a sheet in the middle
+ * The Heading button's menu (Greg, 2026-10-10): a bordered column of the six levels, H1 to H6,
+ * hung under the button it came out of — the notebook's Insert bar's shape, not a sheet in the middle
  * of the screen.
  *
  * A [PopupWindow] rather than a view in the activity's layout because the document's root is a
@@ -34,17 +34,17 @@ internal class HeadingMenu(private val context: Context, private val onPick: (le
 
     private fun build(): PopupWindow {
         val pad = (4f * context.resources.displayMetrics.density).toInt()
-        val row = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val column = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             background = ContextCompat.getDrawable(context, PaperR.drawable.shape_dialog_bordered)
             LEVELS.forEachIndexed { i, (icon, hint) ->
                 addView(FormatBar.iconButton(context, icon, context.getString(hint)) { dismiss(); onPick(i + 1) })
             }
         }
-        return PopupWindow(row, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {
+        return PopupWindow(column, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, false).apply {
             isOutsideTouchable = true
-            // A background is what lets an outside touch dismiss; the row paints its own border.
+            // A background is what lets an outside touch dismiss; the column paints its own border.
             setBackgroundDrawable(ContextCompat.getDrawable(context, android.R.color.transparent))
             elevation = 0f
         }
