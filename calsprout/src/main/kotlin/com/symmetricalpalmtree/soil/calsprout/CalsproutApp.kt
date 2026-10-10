@@ -141,6 +141,18 @@ class CalsproutApp : Application() {
         appScope.launch(seamSerial) { runCatching { soil.seam().barKey(keyCode, action, eventTime, repeatCount) } }
     }
 
+    /**
+     * The chrome's hidden state, Soil's one flag for every paper screen (`SharedChrome`), or null
+     * when Soil cannot say. On the serial seam dispatcher, behind any flip this process sent.
+     */
+    suspend fun sharedChromeHidden(): Boolean? =
+        withContext(seamSerial) { runCatching { soil.seam().chromeHidden() }.getOrNull() }
+
+    /** The person flipped the chrome on a paper screen of this app: Soil's flag follows. */
+    fun putSharedChromeHidden(hidden: Boolean) {
+        appScope.launch(seamSerial) { runCatching { soil.seam().setChromeHidden(hidden) } }
+    }
+
     companion object {
         private const val TAG = "CalsproutApp"
 

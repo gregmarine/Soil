@@ -66,7 +66,8 @@ The top bar: Back, Pen, Eraser, Lasso, then Month · Week · Day (the one showin
 Events. The bottom bar: the pager (‹ title ›, the title opening the shared day picker), and at
 its far end **Notes**, present only while something links into the period showing. A finger
 double-tap on a Month or Week cell opens that day; in the Notes band, or anywhere on a Day page,
-it hides and shows the bars. A finger long-press raises the page sheet: Copy page, Paste page
+it hides and shows the bars; the flag is shared through Soil, one for every paper screen
+(`seam.md`), `CalsproutPrefs` keeping it only as the fallback. A finger long-press raises the page sheet: Copy page, Paste page
 (while the clipboard holds a page), Export…. The pen is fixed, the pad's: one black pen, the
 point and lasso erasers, the lasso. Navigation is `CalendarNavigation`'s anchor rule, SN's.
 

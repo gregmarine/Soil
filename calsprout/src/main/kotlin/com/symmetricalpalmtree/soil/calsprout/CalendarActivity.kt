@@ -195,6 +195,9 @@ class CalendarActivity : InkScreenActivity<InkAction>(), CalsproutApp.FrontPaper
     override val initialChromeHidden: Boolean get() = prefs.chromeHidden
 
     override fun onChromeChanged(hidden: Boolean) { prefs.chromeHidden = hidden }
+    // The flag is Soil's, shared by every paper screen; the local one above is the fallback.
+    override suspend fun readSharedChromeHidden(): Boolean? = (application as CalsproutApp).sharedChromeHidden()
+    override fun writeSharedChromeHidden(hidden: Boolean) = (application as CalsproutApp).putSharedChromeHidden(hidden)
 
     /** The calendar has no page-level action, so its stack is `:paper`'s four kinds unwrapped. */
     override fun record(action: InkAction) = undo.record(action)
