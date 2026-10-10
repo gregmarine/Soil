@@ -92,4 +92,44 @@ class ReferenceLinkerTest {
             assertTrue(text, (0..text.length).mapNotNull { ReferenceLinker.hitAt(text, it, it) }.none { it.words.contains('\n') })
         }
     }
+
+    @Test
+    fun `a verse range is linked whole`() {
+        val cases = mapOf(
+            "John 3:14-17" to "JHN:3:14-3:17",
+            "John 3:16" to "JHN:3:16-3:16",
+            "John 3:14–17" to "JHN:3:14-3:17",
+            "1 John 3:14-17" to "1JN:3:14-3:17",
+            "Psalm 119:1-8, 12" to "PSA:119:1-119:8,PSA:119:12-119:12",
+        )
+        for ((words, wire) in cases) {
+            for (text in listOf("$words\n", "see $words today\n", "$words\n2 more\n")) {
+                val p = plan(text, caret = text.length)
+                assertEquals(text, listOf(words), p.hits.map { it.words })
+                assertEquals(text, listOf(wire), p.hits.map { it.wire })
+            }
+        }
+        assertEquals(listOf("Genesis 1:1", "Exodus 3:14"), plan("Genesis 1:1; Exodus 3:14\n").hits.map { it.words })
+    }
+
+    @Test
+    fun `a reference still being typed waits for its verses`() {
+        // Each prefix of "John 3:14-17" as typed, the caret at its end: nothing shorter is linked.
+        val full = "John 3:14-17"
+        for (n in 1..full.length) {
+            val text = full.substring(0, n)
+            val p = plan(text, caret = n)
+            assertTrue("typed '$text'", p.hits.isEmpty())
+        }
+        // The same with a pause after the colon, the dash or a comma, with spaces around them.
+        for (text in listOf("John 3:", "John 3:14-", "John 3:14 -", "John 3:14 - ", "Psalm 119:1-8,", "Psalm 119:1-8, ")) {
+            val p = plan(text, caret = text.length)
+            assertTrue("typed '$text'", p.hits.isEmpty())
+            assertTrue("typed '$text'", p.heldByCaret)
+        }
+        // Moved on past it: linked.
+        assertEquals(listOf("John 3:14-17"), plan("John 3:14-17 and", caret = 16).hits.map { it.words })
+        assertEquals(listOf("John 3"), plan("John 3: and", caret = 11).hits.map { it.words })
+        assertEquals(listOf("John 3:16"), plan("John 3:16. Then", caret = 15).hits.map { it.words })
+    }
 }

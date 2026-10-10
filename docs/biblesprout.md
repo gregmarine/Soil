@@ -77,7 +77,9 @@ Phase 2 (the reader), 2026-10-05; phases 3 to 8, 2026-10-05.
 
 - The reader is SN's, as it was; only what touched SN's host is new.
 - A reference in a document becomes a link on its own, after a pause in typing; a notebook's
-  handwriting is converted through the lasso's Bible button, as in SN.
+  handwriting is converted through the lasso's Bible button, as in SN. (Built: a reference the
+  caret is in, or just past a `:`, a dash or a `,` after it, waits, so "John 3:" half typed is
+  never linked as `John 3`.)
 - The parser lives in a shared module, not behind a binder.
 - Back references live in Soil's link index, not in a table pushed to the reader.
 - The reader's state lives in Soil's app store over the seam.

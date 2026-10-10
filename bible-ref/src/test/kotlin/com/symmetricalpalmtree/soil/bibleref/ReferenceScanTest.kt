@@ -111,4 +111,19 @@ class ReferenceScanTest {
         assertNull(ReferenceParser.parse("Genesis\n2"))
         assertEquals("GEN:2:0-2:999", ReferenceCodec.encode(listOf(ReferenceParser.parse("Genesis 2")!!)))
     }
+
+    @Test
+    fun `a verse range is one hit, whole`() {
+        assertEquals(listOf("John 3:14-17"), words("John 3:14-17"))
+        assertEquals(listOf("JHN:3:14-3:17"), wires("John 3:14-17"))
+        assertEquals(listOf("John 3:16"), words("John 3:16"))
+        assertEquals(listOf("John 3:14–17"), words("John 3:14–17"))
+        assertEquals(listOf("1 John 3:14-17"), words("1 John 3:14-17"))
+        assertEquals(listOf("1JN:3:14-3:17"), wires("1 John 3:14-17"))
+        assertEquals(listOf("Psalm 119:1-8, 12"), words("Psalm 119:1-8, 12"))
+        assertEquals(listOf("Genesis 1:1", "Exodus 3:14"), words("Genesis 1:1; Exodus 3:14"))
+        assertEquals(listOf("John 3:14-17"), words("read John 3:14-17 today"))
+        assertEquals(listOf("John 3:14-17"), words("John 3:14-17\n2 more"))
+        assertEquals(listOf("John 3:14-17"), words("John 3:14-17\r\n2 more"))
+    }
 }
