@@ -128,10 +128,15 @@ class ScratchPadActivity : InkScreenActivity<ScratchAction>() {
     override val storeFailedTitleRes: Int get() = R.string.scratch_store_failed_title
     override val storeFailedBodyRes: Int get() = R.string.scratch_store_failed_body
 
-    /** The pad opens as it was left. */
+    /** The pad opens as every paper screen was left: the one shared flag is Soil's own (`PadPrefs`). */
     override val initialChromeHidden: Boolean get() = PadPrefs.chromeHidden
 
     override fun onChromeChanged(hidden: Boolean) = PadPrefs.setChromeHidden(this, hidden)
+
+    /** Inside Soil: the shared flag is read here, off the main thread, not over the seam. A Sprout
+     *  app may have flipped it while the pad was away. */
+    override suspend fun readSharedChromeHidden(): Boolean? =
+        withContext(Dispatchers.IO) { runCatching { PadPrefs.readChromeHidden(this@ScratchPadActivity) }.getOrNull() }
 
     /** The pad's stack is one sealed type over both an ink edit and a page-list one. */
     override fun record(action: InkAction) = undo.record(ScratchAction.Ink(action))

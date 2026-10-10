@@ -6,6 +6,7 @@ import android.os.Binder
 import android.os.IBinder
 import com.symmetricalpalmtree.soil.bootstrap.KeyGate
 import com.symmetricalpalmtree.soil.bootstrap.Library
+import com.symmetricalpalmtree.soil.pad.PadPrefs
 import com.symmetricalpalmtree.soil.data.index.IndexStore
 import com.symmetricalpalmtree.soil.data.index.Item
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
@@ -296,6 +297,18 @@ class SoilSeamService : Service() {
         override fun barKey(keyCode: Int, action: Int, eventTime: Long, repeatCount: Int) {
             SeamCallerCheck.enforce(this@SoilSeamService)
             SoilBarService.barKey(keyCode, action, eventTime, repeatCount)
+        }
+
+        /** The chrome's hidden state, one flag for every paper screen (`PadPrefs`). A preference,
+         *  not the library's: answered while the library is locked. */
+        override fun chromeHidden(): Boolean {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            return PadPrefs.readChromeHidden(this@SoilSeamService)
+        }
+
+        override fun setChromeHidden(hidden: Boolean) {
+            SeamCallerCheck.enforce(this@SoilSeamService)
+            PadPrefs.setChromeHidden(this@SoilSeamService, hidden)
         }
 
         /** The geometry of an `InkWire` document as the recogniser takes it, under the caps. */
