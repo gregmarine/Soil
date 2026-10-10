@@ -89,16 +89,27 @@ class AnchoredBar(
         // nothing — so that show is a loud no-op rather than a misplaced bar.
         if (PaperToolbar.rectOf(anchor) == null) return false
 
-        // Measure before placing: the anchor centres on the bar's real width, and a bar that has
-        // never been visible has none (the SelectionToolbar lesson).
-        bar.visibility = View.VISIBLE
-        bar.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val gap = (GAP_DP * density).toInt()
         // A button in a **column** (the collapsed chrome's mini toolbar, 2026-10-10) has no free
         // side below it — the next button is there — so a bar hung off it goes beside the column,
         // level with the button. Every other anchor is in a row or stands alone, and below is the
         // free side it always was.
         val column = (anchor.parent as? LinearLayout)?.takeIf { it.orientation == LinearLayout.VERTICAL }
+        // A bar hung beside a column is a column too (Greg, 2026-10-10): its buttons stand in a
+        // line parallel to the one they came from. Turned before the measure, so the placement
+        // sees the column's size, and turned back the next time it hangs under a row. A bar that
+        // is vertical by its own layout (the shade panels, rows of swatches) is never touched.
+        if (column != null && bar.orientation == LinearLayout.HORIZONTAL) {
+            bar.orientation = LinearLayout.VERTICAL
+            turned = true
+        } else if (column == null && turned) {
+            bar.orientation = LinearLayout.HORIZONTAL
+            turned = false
+        }
+        // Measure before placing: the anchor centres on the bar's real width, and a bar that has
+        // never been visible has none (the SelectionToolbar lesson).
+        bar.visibility = View.VISIBLE
+        bar.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val gap = (GAP_DP * density).toInt()
         val p = if (column != null) {
             val columnLoc = IntArray(2).also { column.getLocationInWindow(it) }
             SelectionAnchor.placeBeside(
@@ -152,6 +163,9 @@ class AnchoredBar(
 
     /** Where the last [show] put the bar, in root coordinates; null while hidden. */
     private var placed: SelectionAnchor.Placement? = null
+
+    /** Whether [show] turned a row of buttons into a column for a column anchor. */
+    private var turned = false
 
     private fun place(p: SelectionAnchor.Placement) {
         val lp = (bar.layoutParams as? FrameLayout.LayoutParams)

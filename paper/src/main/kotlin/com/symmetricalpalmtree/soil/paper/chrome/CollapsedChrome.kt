@@ -17,9 +17,9 @@ import com.symmetricalpalmtree.soil.paper.R
 /**
  * The collapsed chrome (arc 36) — what a paper screen shows while its bars are hidden: one
  * floating **corner button** at the top-right wearing the armed tool's glyph, and, hung under it
- * on a tap, a **mini toolbar** as a **column** (2026-10-10): the screen's [tools],
- * [CollapsedTools.ORDER] by default, the armed one bordered, then the screen's [commands], then
- * its [overflow] — Back and the screen's doors and actions — top to bottom. The column holds as
+ * on a tap, a **mini toolbar** as a **column** (2026-10-10): [leading] — Back — at the top, then
+ * the screen's [tools], [CollapsedTools.ORDER] by default, the armed one bordered, then the
+ * screen's [commands], then its [overflow] — the screen's doors and actions — top to bottom. The column holds as
  * many buttons as the band under the corner button has room for ([AnchoredBar.columnCapacity],
  * [CollapsedTools.firstColumn]); what is left goes to a **second column** beside it, to its left
  * and level with its top, shown on the same tap. There is no `…`: the corner button reveals the
@@ -95,6 +95,8 @@ class CollapsedChrome(
     private val canOpen: () -> Boolean,
     /** Buttons after the tools on the mini toolbar (the notebook's Insert). */
     commands: List<Entry> = emptyList(),
+    /** Buttons **before** the tools — Back, at the top of the column (Greg, 2026-10-10). */
+    leading: List<Entry> = emptyList(),
     /** The entries after the commands, in order — Back and the screen's doors and actions. */
     overflow: List<Entry> = emptyList(),
     /** Fires before a row opens — the screen takes down its other floating popups. */
@@ -267,6 +269,7 @@ class CollapsedChrome(
             Tool.LASSO_ERASER to ctx.getString(R.string.eraser_lasso),
             Tool.LASSO to ctx.getString(R.string.tool_lasso),
         )
+        leading.forEach { add(it) }
         tools.forEach { tool ->
             val kinds = penKinds.takeIf { tool == Tool.PEN }
             // The button is its own click's anchor (the `add` helper's pattern): a re-pick of the
