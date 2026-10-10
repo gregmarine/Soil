@@ -569,3 +569,17 @@ The Sketchsprout effort, on the branch `sketchsprout`, eleven phases, each walke
 
 Decisions taken along the way are in each document; what was set aside is in `BACKLOG.md`.
 
+The code review, on the branch `code-review` (2026-10-08 and 2026-10-09), over Soil and g-paper
+(0.1.70, Phase 53). Thirteen reviews by area, then fixes by module in three rounds, the third
+after a fresh regression read of the whole diff; then what Greg's walk on the Nomad and the
+Manta turned up:
+
+| Round | What | Document |
+|---|---|---|
+| 1 | About 95 findings fixed: restore recovery, the rotation's gate and scope, unreadable rasters refused, the calendar's page by (period, half), the exit dialog on every ink screen, the link pass keeping redo, references on one line, reserved names as strings, Drive's trash, protected PDF exports in memory, covers and store opens off Main | each part's document |
+| 2 | g-paper 0.1.70's contracts in every ink host (a lost lift committed before the swap), the pad and CloudStoreLease re-lending, no fresh index over a standing aside, the shared-memory regions closed | `seam.md`, `scratchpad.md`, `backup.md` |
+| 3 | The regressions the second read found: the Ratta pin, the calendar's resume compare, an object replay's rows before its ink, a damaged layer exported blank, no fence whose words hold its character, the notebook's parser as it was, export awaiting its save, undo and redo around a link, the rule character off the clipboard, no restore under an open pad, Try again on Home | `docsprout.md`, `backup.md` |
+| W | From the walk: a verse range links whole, the bar's down and up paired (the menu no longer opens on its own), Snap to guides from SN, one hidden-bars flag shared through Soil | `biblesprout.md`, `shell.md`, `notesprout.md`, `seam.md` |
+
+Decisions taken along the way are marked proposed in each document; what was set aside is in `BACKLOG.md`.
+
