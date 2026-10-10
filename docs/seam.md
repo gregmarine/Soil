@@ -32,6 +32,14 @@ connection, the row codec, the row store).
 | `attachClient(client)` / `detachClient(client)` | The app's paper screen is in front; Soil may ask it `penActive`, `releasePanel` (the side menu is about to draw over it) and `releaseForHandoff` (the Scratch Pad is about to open over it). One client at a time; a dead client is detached by its binder's death |
 | `penActive()` / `releasePanel()` / `releaseForHandoff()` | The same questions, asked of Soil's own paper by an app |
 | `barKey(keyCode, action, eventTime, repeatCount)` | A side-bar key the app's window received. Soil's key filter is off while paper is in front, so this is how a swipe reaches the menu there (`shell.md`) |
+| `chromeHidden()` / `setChromeHidden(hidden)` | Whether the paper screens' bars are hidden: one flag, Soil's (`PadPrefs`), for the notebook, the sticky editor, the Scratch Pad, the sketchbook and the calendar, as SN's one host flag was. Answered while the library is locked, as `hello()` and `barKey` are |
+
+The chrome's flag, in `:paper`'s `PaperScreenActivity` and `SharedChrome`: a screen opens in its
+app's local copy (or its own state from before a rebuild), asks Soil on IO as it comes to the
+front and follows the answer when it differs, pen-idle; an answer read before the person's own
+flip is dropped. A flip of the person's goes to Soil on the app's serial seam dispatcher and to
+the local copy, which is the fallback for when Soil cannot answer. The pad, inside Soil, reads
+and writes the preference itself.
 
 ### Items
 

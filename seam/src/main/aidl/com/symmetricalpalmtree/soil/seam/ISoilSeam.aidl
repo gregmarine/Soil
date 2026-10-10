@@ -23,7 +23,8 @@ import com.symmetricalpalmtree.soil.seam.SeamSchema;
  *
  * An app never touches a file and never sees a key. It asks for rows and hands rows back.
  *
- * Every call but hello() is refused with IllegalStateException while the library is not open.
+ * Every call but hello(), barKey() and the chrome's flag is refused with IllegalStateException
+ * while the library is not open.
  * Soil never prompts on an app's behalf: the person opens the library in Soil.
  */
 interface ISoilSeam {
@@ -221,4 +222,18 @@ interface ISoilSeam {
      * would not; nothing is left behind either way.
      */
     SeamItem makeItemFromFile(String besideItemId, String name, String fileExtension, in SeamBytes file);
+
+    // ── The chrome's hidden state, one flag for every paper screen ──────
+
+    /**
+     * Whether the paper screens' bars are hidden: one flag, Soil's, shared by every paper screen
+     * of every app (the notebook, the sticky editor, the Scratch Pad, the sketchbook, the
+     * calendar), as Notesprout SN's one host flag was. A screen reads it as it comes to the front
+     * and adopts it. A preference, not the library's: answered while the library is locked.
+     */
+    boolean chromeHidden();
+
+    /** The person flipped the bars on a paper screen: every other screen follows when it is next
+     *  in front. Answered while the library is locked, as [chromeHidden] is. */
+    void setChromeHidden(boolean hidden);
 }
