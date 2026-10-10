@@ -191,6 +191,14 @@ object Seam {
     const val EXTRA_PAGE_ID = "com.symmetricalpalmtree.soil.extra.PAGE_ID"
 
     /**
+     * With [EXTRA_ITEM_ID] on an open: true when the open is a link followed through
+     * [ACTION_FOLLOW], so the app knows it stands on something's far side. A one-finger swipe up
+     * there leaves back to where the link was followed from, as Back does (the notebook's walk-back
+     * gesture, in every app that can). Absent on every other open (Greg, 2026-10-10).
+     */
+    const val EXTRA_VIA_LINK = "com.symmetricalpalmtree.soil.extra.VIA_LINK"
+
+    /**
      * The action of Soil's tag screen, started for a result by an app for one of its items:
      * [EXTRA_ITEM_ID], [EXTRA_PAGE_ID] for a page of it (absent for the item itself), and
      * [EXTRA_TAG_MODE]. A prefill for the field is parked with `stageText` and named by
