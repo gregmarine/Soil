@@ -112,7 +112,7 @@ characters back.
 ### The tools
 
 The format bar, every tool on the glass, wrapped onto further rows when the width needs it
-(2026-10-10; before that the tail sat behind a `…`): undo, redo, Heading (one button; a menu hung under it picks H1 to H6, 2026-10-10), bold, italic, strikethrough, code, quote,
+(the toolbar round, below): undo, redo, Heading, bold, italic, strikethrough, code, quote,
 bullet, numbered, task, outdent, indent, link, image (the Markdown for one, as text), rule, paste handwriting,
 find and replace, word count, reflow, proofread. Five text sizes, remembered. The cursor is
 remembered per document. A tap on the title renames. The Ctrl shortcuts are SN's
@@ -226,3 +226,27 @@ find bar's close. The trail button (back to the document a link was followed fro
 Tabler's `arrow-bar-to-left`, since the plain arrow is now the leave and `arrow-back-up` is
 Undo (proposed). The document's name stays on the top bar: it has no bottom bar to move to. The
 app is **Document** to the person; the package and the module keep their names.
+
+## The toolbar round (2026-10-10)
+
+The format bar shows every tool: what does not fit on the first row wraps onto rows below it,
+in flow and always shown (`FormatBarRows`; before this the tail sat behind a `…` in a panel
+that opened on a tap). A row never begins or ends with a group rule. On the Nomad that is three
+rows.
+
+H1 to H3 left the bar for one **Heading** button. Its menu is a bordered column of H1 to H6
+hung under the button (`HeadingMenu`, a non-focusable `PopupWindow`, since the document's root
+is a column in flow with nothing to float a bar in): the editor keeps its caret and selection,
+the keyboard stays, and a pick or a tap outside takes it down, the outside tap still landing.
+The chords Ctrl+1 to Ctrl+6 are unchanged. The column lies over the bar's lower rows while it
+is open (proposed; it could open beside the button or push the rows down).
+
+The bar **wears what the caret is on** (`FormatState`, `FormatActions.state`): Heading, quote,
+bullet, numbered, task, bold, italic, strikethrough and code are bordered when their state
+holds, and the Heading menu opens with the caret's level bordered. Read, never cached, at every
+caret move on either surface, after every tool and at open. The rendered editor answers from
+its spans and the pending styles the last press left; the source answers from the line's
+marker (`MarkdownFormatter.blockAt`) and the markers wrapping the selection or the word
+(`MarkdownFormatter.inlineOn`, exact to the marker, so `**bold**` is bold and not italic). Over
+a selection a style lights only when the whole of it carries the style, which is the state a
+press would take off. Actions (undo, link, search and the rest) never light.

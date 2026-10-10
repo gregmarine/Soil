@@ -93,3 +93,13 @@ pager's width after each layout); the sticky editor keeps its title on top, sinc
 bottom bar. The leave button is the arrow, labelled Back, on the notebook and the sticky editor,
 as on every other screen; the X is gone. The app is **Note** to the person (`app_name` and the
 sentences that named it); the package and the module keep their names.
+
+## The toolbar round (2026-10-10)
+
+While the chrome is hidden, the corner button's mini toolbar is a **column** under it: Back at
+the top, then the tools, the commands and the doors (`CollapsedChrome` in `:paper`). It holds
+as many buttons as the band under the corner button has room for; the rest go to a second
+column beside it, shown on the same tap, and there is no `…`. On the Nomad everything fits one
+column. A sub-bar hung off a column button hangs beside the column, level with the button, and
+stands as a column too (`AnchoredBar.show`'s column rule), on the notebook and the sticky editor as on every paper screen.
+

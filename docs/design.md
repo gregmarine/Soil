@@ -600,3 +600,14 @@ their names.
 
 Decisions taken along the way are marked proposed in each document.
 
+The toolbar round, on the branch `toolbar-layout` (2026-10-10), each step walked on the Nomad:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | The collapsed chrome's mini toolbar as a **column** under the corner button on every paper screen: Back at the top, then the tools, the commands and the doors; as many as the band holds, the rest in a second column beside it on the same tap, no `…`. A sub-bar hung off a column button (Insert, Tags, the shade panels, the sketch's guides) hangs beside the column, level with its button, and stands as a column too | `notesprout.md`, `sketchsprout.md` |
+| 2 | The document's format bar wrapped onto rows that are always shown, every tool on the glass; the overflow panel and its `…` gone | `docsprout.md` |
+| 3 | One Heading button on the format bar in place of H1 to H3; its menu a column hung under the button, H1 to H6, down on a pick or an outside tap | `docsprout.md` |
+| 4 | The format bar wears what the caret is on: Heading, quote, the lists, bold, italic, strikethrough and code bordered when their state holds, on either surface; the Heading menu opens with the caret's level bordered | `docsprout.md` |
+
+Decisions taken along the way are marked proposed in each document.
+
