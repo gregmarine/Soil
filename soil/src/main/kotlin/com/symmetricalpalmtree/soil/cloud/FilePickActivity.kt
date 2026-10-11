@@ -41,6 +41,7 @@ class FilePickActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityFilePickBinding
     private lateinit var cloud: CloudFilePick
+    private lateinit var local: com.symmetricalpalmtree.soil.files.LocalFilePick
     private lateinit var mimes: Array<String>
     private var busy = false
 
@@ -57,6 +58,7 @@ class FilePickActivity : AppCompatActivity() {
         setContentView(binding.root)
         TopGuard.applyInsetPadding(binding.root)
         cloud = CloudFilePick(this)
+        local = com.symmetricalpalmtree.soil.files.LocalFilePick(this)
         mimes = FilePickRules.mimeTypes(intent.getStringArrayExtra(Seam.EXTRA_MIME_TYPES))
         binding.title.setText(if (FilePickRules.imagesOnly(mimes)) R.string.file_pick_image_title else R.string.file_pick_title)
         binding.btnBack.setOnClickListener { finish() }
@@ -66,6 +68,7 @@ class FilePickActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         if (::cloud.isInitialized) cloud.close()
+        if (::local.isInitialized) local.close()
         super.onDestroy()
     }
 
@@ -79,12 +82,23 @@ class FilePickActivity : AppCompatActivity() {
                 cloud.discover()
                 if (isFinishing || isDestroyed) return@launch
                 when (cloud.askSource(R.string.file_pick_source_title)) {
-                    ImportSource.Source.LOCAL -> handed = launchPicker()
+                    ImportSource.Source.LOCAL -> { handed = true; pickLocally() }
                     ImportSource.Source.CLOUD -> { handed = true; cloud.pickFile(onPicked = { ref, entry -> downloadThenAnswer(ref, entry) }, onGaveUp = { finish() }) }
                     null -> finish()
                 }
             } finally {
                 if (!handed) busy = false
+            }
+        }
+    }
+
+    /** Soil's browser over this device, narrowed to the asked types; the Android picker when the access is off. */
+    private fun pickLocally() {
+        local.pickFile(mimes) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.File -> copyThenAnswer(Uri.fromFile(answer.file), answer.file.name)
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> if (!launchPicker()) finish()
+                else -> finish()
             }
         }
     }
@@ -104,10 +118,10 @@ class FilePickActivity : AppCompatActivity() {
     }
 
     /** The device's pick, streamed into the cache under the cap; its display name is the answer's. */
-    private fun copyThenAnswer(uri: Uri) {
+    private fun copyThenAnswer(uri: Uri, knownName: String? = null) {
         lifecycleScope.launch {
             ImportOverlay.show(this@FilePickActivity, R.string.file_pick_copying)
-            val name = withContext(Dispatchers.IO) { displayName(uri) }
+            val name = knownName ?: withContext(Dispatchers.IO) { displayName(uri) }
             val file = File(folder(), LANDED)
             val outcome = withContext(Dispatchers.IO) { copy(uri, file) }
             ImportOverlay.hide(this@FilePickActivity)

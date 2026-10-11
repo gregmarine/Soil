@@ -95,6 +95,8 @@ class ImportFlow(
     // The cloud source: the connect door, the provider as last found and what it said, the
     // browser while it is up, and whether a sign-in was opened from here.
     private val cloud = CloudConnectEntry(activity) { wasConnected -> onConnectResult(wasConnected) }
+    /** This device through Soil's own browser, the Android picker behind it (Greg, 2026-10-10). */
+    private val local = com.symmetricalpalmtree.soil.files.LocalFilePick(activity)
     private var cloudRef: Extension? = null
     private var cloudStatus: CloudStatus? = null
     private var browser: CloudBrowserDialog? = null
@@ -132,6 +134,7 @@ class ImportFlow(
     fun close() {
         browser?.dismiss()
         browser = null
+        local.close()
         cloud.close()
     }
 
@@ -147,17 +150,30 @@ class ImportFlow(
                 loadCloud()
                 if (activity.isFinishing || activity.isDestroyed) return@launch
                 val cloudInstalled = cloudRef != null
-                if (!ImportSource.asksSource(cloudInstalled)) { handed = launchDocumentPicker(cands); return@launch }
+                if (!ImportSource.asksSource(cloudInstalled)) { handed = pickLocally(cands); return@launch }
                 val answer = ImportDialogs.pickFromList(activity, R.string.import_source_title, listOf(activity.getString(R.string.import_source_device), cloudName()))
                 val source = answer?.let { ImportSource.sourceAt(it, cloudInstalled) } ?: return@launch
                 handed = when (source) {
-                    ImportSource.Source.LOCAL -> launchDocumentPicker(cands)
+                    ImportSource.Source.LOCAL -> pickLocally(cands)
                     ImportSource.Source.CLOUD -> onCloudSourceChosen()
                 }
             } finally {
                 if (!handed) isBusy = false
             }
         }
+    }
+
+    /** Soil's browser over this device, every file shown (which importer reads it is decided by its name); the Android picker when the access is off. True when something is up and owns the latch. */
+    private fun pickLocally(cands: List<Candidate>): Boolean {
+        local.pickFile(null) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.File -> runImport(Origin.Document(Uri.fromFile(answer.file)))
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> isBusy = false
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> if (!launchDocumentPicker(cands)) isBusy = false
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.GaveUp -> isBusy = false
+            }
+        }
+        return true
     }
 
     /** True when the picker is up and owns the latch. */
@@ -230,8 +246,7 @@ class ImportFlow(
         browser?.dismiss()
         val dialog = CloudBrowserDialog(
             activity = activity,
-            ref = ref,
-            providerName = cloudName(),
+            source = com.symmetricalpalmtree.soil.cloud.CloudSource(activity, ref, cloudName()),
             mode = CloudBrowserDialog.Mode.PICK_FILE,
             basePath = emptyList(),
             onPicked = { pick ->

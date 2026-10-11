@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
+import java.io.File
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -61,6 +62,8 @@ class BackupActivity : AppCompatActivity() {
     private var cloudBusy = false
     private var deviceFolder: String? = null
     private var cloudEnabled = false
+    /** The folder through Soil's own browser, the Android picker behind it (Greg, 2026-10-10). */
+    private val local by lazy { com.symmetricalpalmtree.soil.files.LocalFilePick(this) }
 
     private val folderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) { Slog.d(TAG) { "folder picker cancelled" }; return@registerForActivityResult }
@@ -92,6 +95,7 @@ class BackupActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        local.close()
         cloud?.close()
         cloud = null
         super.onDestroy()
@@ -102,7 +106,7 @@ class BackupActivity : AppCompatActivity() {
     private suspend fun render() {
         val config = withContext(Dispatchers.IO) { BackupStore().read() }
         if (isFinishing || isDestroyed) return
-        binding.folderPath.text = config.treeUri?.let { folderLabel(it) } ?: getString(R.string.backup_no_folder)
+        binding.folderPath.text = config.localDir?.let { localFolderLabel(File(it)) } ?: config.treeUri?.let { folderLabel(it) } ?: getString(R.string.backup_no_folder)
         val at = config.lastRunAt
         binding.status.text = if (at == null) getString(R.string.backup_status_never)
         else getString(R.string.backup_status_last, DateFormat.getDateTimeInstance().format(Date(at)), config.lastCopied ?: 0, config.lastSkipped ?: 0)
@@ -114,15 +118,53 @@ class BackupActivity : AppCompatActivity() {
         return id.substringAfter(':').ifEmpty { id }
     }
 
+    private fun localFolderLabel(dir: File): String {
+        val path = com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), dir) ?: return dir.name
+        return com.symmetricalpalmtree.soil.files.LocalFiles.label(com.symmetricalpalmtree.soil.files.LocalStorage.label(this), path, getString(R.string.cloud_browser_crumb_separator))
+    }
+
     // ── The folder ──────
 
+    /** Soil's browser in folder mode, opened on the folder as it stands; the Android picker when the access is off. */
     private fun onChooseTap() {
+        if (running.get()) return
+        lifecycleScope.launch {
+            val current = withContext(Dispatchers.IO) { BackupStore().read().localDir }?.let { com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), File(it)) } ?: emptyList()
+            if (isFinishing || isDestroyed) return@launch
+            local.pickFolder(current) { answer ->
+                when (answer) {
+                    is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> lifecycleScope.launch { adoptLocalFolder(answer.dir) }
+                    com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> launchSystemFolderPicker()
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun launchSystemFolderPicker() {
         try {
             folderLauncher.launch(null)
         } catch (e: Exception) {
             Log.w(TAG, "no folder picker: ${e.javaClass.simpleName}")
             Dialogs.problem(this, R.string.backup_no_picker_title, R.string.backup_no_picker_body)
         }
+    }
+
+    /** A folder by path: a SAF grant standing is released; a different folder resets the stamp map. */
+    private suspend fun adoptLocalFolder(dir: File) {
+        val stored = dir.absolutePath
+        withContext(Dispatchers.IO) {
+            val store = BackupStore()
+            val config = store.read()
+            val changed = config.localDir != stored || config.treeUri != null
+            config.treeUri?.let { previous ->
+                runCatching { contentResolver.releasePersistableUriPermission(Uri.parse(previous), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            }
+            store.write(config.copy(treeUri = null, localDir = stored, stamps = if (changed) emptyMap() else config.stamps))
+            Slog.d(TAG) { "backup folder set by path (destination changed: $changed)" }
+        }
+        if (isFinishing || isDestroyed) return
+        render()
     }
 
     /** Take the lasting grant, release the previous folder's, store it. A different folder resets the stamp map. */
@@ -137,11 +179,11 @@ class BackupActivity : AppCompatActivity() {
         withContext(Dispatchers.IO) {
             val store = BackupStore()
             val config = store.read()
-            val changed = config.treeUri != stored
+            val changed = config.treeUri != stored || config.localDir != null
             if (changed) config.treeUri?.let { previous ->
                 runCatching { contentResolver.releasePersistableUriPermission(Uri.parse(previous), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
             }
-            store.write(config.copy(treeUri = stored, stamps = if (changed) emptyMap() else config.stamps))
+            store.write(config.copy(treeUri = stored, localDir = null, stamps = if (changed) emptyMap() else config.stamps))
             Slog.d(TAG) { "backup folder set (destination changed: $changed)" }
         }
         render()
@@ -155,7 +197,7 @@ class BackupActivity : AppCompatActivity() {
             val config = withContext(Dispatchers.IO) { BackupStore().read() }
             val ref = cloud?.discover()
             if (isFinishing || isDestroyed) { running.set(false); return@launch }
-            val legs = CloudBackupRules.legs(config.treeUri != null, config.cloudEnabled, ref != null, config.cloudDeviceFolder != null)
+            val legs = CloudBackupRules.legs(config.treeUri != null || config.localDir != null, config.cloudEnabled, ref != null, config.cloudDeviceFolder != null)
             if (legs.none) {
                 running.set(false)
                 if (!isFinishing && !isDestroyed) noDestination(ref)

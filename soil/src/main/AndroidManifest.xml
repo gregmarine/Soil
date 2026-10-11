@@ -59,6 +59,11 @@
          Soil is what starts that screen. -->
     <uses-permission android:name="${applicationId}.permission.SEAM" />
 
+    <!-- The device's files by path, so Soil's own browser can stand where the Android picker was
+         (Greg, 2026-10-10). A special permission: the person switches it on once in the system
+         Settings; Soil asks whether it is on at every use and keeps the Android picker otherwise. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
     <application
         android:name=".SoilApp"
         android:allowBackup="false"

@@ -13,7 +13,7 @@ extension has no storage of its own and keeps what it wins in a store Soil lends
 | `CloudStoreLease` | `:soil` | An `IExtStore` over one of Soil's app stores (`ext_<package>` in the garden), minted for one lending, bound to the extension's uid, dead once revoked |
 | `CloudClient` | `:soil` | One bind, one call, one unbind per operation; the store leased on IO before the bind; budgets from `CloudTimeouts` |
 | `CloudConnectClient` / `CloudConnectEntry` | `:soil` | The connect showing: a held bind with `beginConnect`/`endConnect` around the extension's sign-in screen |
-| `CloudBrowserDialog` | `:soil` | Soil's own folder and file list over the provider's tree, paginated; picks a folder (export) or a file (import) |
+| `CloudBrowserDialog` | `:soil` | Soil's own folder and file list over a `BrowserSource`, the provider's tree (`CloudSource`) or, since 2026-10-10, this device's files (`LocalSource`, `files.md`), paginated; picks a folder (export) or a file (import) |
 | `ExportDestination`, `ImportSource`, `CloudImportRules` | `:soil` | The pure rules: when the Destination row shows, what a tap on the cloud radio does, when the import tap asks, how a download is corroborated |
 | `:ext-cloud` | extension | Google Drive: the OAuth sign-in in a WebView (PKCE, `drive.file` scope), the REST v3 calls, the token in the lent store. The only module with INTERNET |
 

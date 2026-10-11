@@ -227,16 +227,6 @@ on it needs.
 
 ---
 
-## Soil's own picker for local files
-
-**Raised by Greg 2026-10-04, at Docsprout's phase 8 walk.**
-
-Import, the export destination and the backup folder use the Supernote's system picker, which
-has no back button and can leave a person stranded in it. Google Drive already has a picker of
-Soil's own (`CloudBrowserDialog`); local files and folders should get the same.
-
----
-
 ## Copy and paste in place of Send to the Scratch Pad
 
 **Raised by Greg 2026-10-04, at Docsprout's phase 10 walk.**

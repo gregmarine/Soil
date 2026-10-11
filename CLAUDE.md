@@ -72,7 +72,10 @@ the Drive folder on the screen, remembered per kind, with the browser behind a t
 **The cleanup round is in progress on the branch `cleanup`** (2026-10-10), towards the first
 version: a title bar's action as a filled button; the cloud offered wherever the device's
 picker is (the template library's import and export, a Sprout app's file through
-`ACTION_PICK_FILE`). `docs/design.md` §16 lists the steps as they land.
+`ACTION_PICK_FILE`); the wait overlay with Cancel on Links, Backup and Restore; every session
+parked before a backup or a restore; Soil's own browser over this device's files in place of
+the Android picker, behind All files access (`docs/files.md`). `docs/design.md` §16 lists the
+steps as they land.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
@@ -102,7 +105,7 @@ when he is happy with it, not before.
 - Never change what Greg has set on the device to test something: his hidden apps, his pad's
   pages. Cancel out of prompts, or say what could not be checked.
 - The Supernote's file picker does not answer injected taps on its rows. Push the file and have
-  Greg pick it.
+  Greg pick it. Soil's own browser (All files access on, `docs/files.md`) does answer them.
 - Docsprout's rendered editor is tested by its on-device self-test (`docs/building.md`).
 - A view added inside a layout pass is not drawn. Build rows before the window shows, or post
   them. A view dump lists hidden views too: confirm what is visible with a screenshot.
@@ -120,7 +123,7 @@ when he is happy with it, not before.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
   `docs/notesprout.md`, `docs/sketchsprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/calsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,
-  `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md` — each part as built.
+  `docs/extensions.md`, `docs/export.md`, `docs/cloud.md`, `docs/backup.md`, `docs/files.md` — each part as built.
 
 - `docs/design.md` — every decision so far, the device measurements, and the open questions.
 - `docs/references.md` — where the shell and seam probes, the Notesprout SN documents, and the

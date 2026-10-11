@@ -15,8 +15,10 @@ import kotlinx.serialization.json.Json
 @Serializable
 data class BackupConfig(
     val version: Int = VERSION,
-    /** The persisted SAF tree, or null while no folder has been chosen. */
+    /** The persisted SAF tree, or null while no folder has been chosen (or the folder is [localDir]). */
     val treeUri: String? = null,
+    /** A folder of the shared storage by path, chosen through Soil's own browser (2026-10-10); exactly one of this and [treeUri] stands. */
+    val localDir: String? = null,
     val lastRunAt: Long? = null,
     val lastCopied: Int? = null,
     val lastSkipped: Int? = null,

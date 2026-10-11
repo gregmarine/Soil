@@ -140,8 +140,7 @@ class CloudFilePick(private val activity: AppCompatActivity) {
         browser?.dismiss()
         val dialog = CloudBrowserDialog(
             activity = activity,
-            ref = provider,
-            providerName = providerName(),
+            source = CloudSource(activity, provider, providerName()),
             mode = mode,
             basePath = basePath,
             startPath = startPath,

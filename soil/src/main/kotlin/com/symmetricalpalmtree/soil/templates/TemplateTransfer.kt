@@ -18,6 +18,7 @@ import com.symmetricalpalmtree.soil.cloud.CloudFilePick
 import com.symmetricalpalmtree.soil.data.index.TemplateRow
 import com.symmetricalpalmtree.soil.data.index.TemplateStore
 import com.symmetricalpalmtree.soil.export.ExportDestination
+import com.symmetricalpalmtree.soil.files.LocalFiles
 import com.symmetricalpalmtree.soil.ext.CloudEntry
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.importing.ImportSource
@@ -61,6 +62,7 @@ class TemplateTransfer(
     private var pendingExportId: String? = null
     private var landingFolder: String = ""
     private val cloud = CloudFilePick(activity)
+    private val local = com.symmetricalpalmtree.soil.files.LocalFilePick(activity)
     private val prefs = SettingsPrefs(activity)
     private var busy = false
 
@@ -93,7 +95,7 @@ class TemplateTransfer(
     }
 
     /** From the host's `onDestroy`: the cloud browser and a sign-in's bind must not outlive the screen. */
-    fun close() = cloud.close()
+    fun close() { local.close(); cloud.close() }
 
     /** The landing folder is read at the tap: the picker is up from here, so nowhere else can be walked to. */
     fun startImport() {
@@ -105,12 +107,23 @@ class TemplateTransfer(
                 cloud.discover()
                 if (activity.isFinishing || activity.isDestroyed) return@launch
                 when (cloud.askSource(R.string.import_source_title)) {
-                    ImportSource.Source.LOCAL -> launchImportPicker()
+                    ImportSource.Source.LOCAL -> { handed = true; pickImportLocally() }
                     ImportSource.Source.CLOUD -> { handed = true; cloud.pickFile(onPicked = { ref, entry -> downloadThenIngest(ref, entry) }, onGaveUp = { busy = false }) }
                     null -> Unit
                 }
             } finally {
                 if (!handed) busy = false
+            }
+        }
+    }
+
+    /** Soil's browser over this device's images; the Android picker when the access is off. */
+    private fun pickImportLocally() {
+        local.pickFile(TemplateImport.MIME_TYPES) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.File -> { busy = false; landingFolder = currentFolder(); ingest(Uri.fromFile(answer.file), answer.file.name) }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> { busy = false; launchImportPicker() }
+                else -> busy = false
             }
         }
     }
@@ -291,7 +304,7 @@ class TemplateTransfer(
                 cloud.discover()
                 if (activity.isFinishing || activity.isDestroyed) return@launch
                 when (cloud.askSource(R.string.template_export_target_title)) {
-                    ImportSource.Source.LOCAL -> launchExportCreator(row)
+                    ImportSource.Source.LOCAL -> { handed = true; pickExportLocally(row) }
                     ImportSource.Source.CLOUD -> {
                         handed = true
                         val start = ExportDestination.decodeFolder(prefs.lastCloudFolder(CLOUD_KIND))
@@ -301,6 +314,40 @@ class TemplateTransfer(
                 }
             } finally {
                 if (!handed) busy = false
+            }
+        }
+    }
+
+    /** Soil's browser in folder mode, opened on the folder templates last went to; a name already there asks *Replace?*. The Android creator when the access is off. */
+    private fun pickExportLocally(row: TemplateRow) {
+        local.pickFolder(LocalFiles.decodePath(prefs.lastLocalFolder(CLOUD_KIND))) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> {
+                    LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), answer.dir)?.let { prefs.setLastLocalFolder(CLOUD_KIND, LocalFiles.encodePath(it)) }
+                    val target = File(answer.dir, "${row.name}.png")
+                    if (!target.exists()) { writeLocal(row.id, target); return@pickFolder }
+                    if (activity.isFinishing || activity.isDestroyed) { busy = false; return@pickFolder }
+                    var replacing = false
+                    Dialogs.style(
+                        AlertDialog.Builder(activity).setTitle(activity.getString(R.string.cloud_replace_title, target.name)).setMessage(R.string.cloud_replace_body)
+                            .setPositiveButton(R.string.cloud_replace_confirm) { _, _ -> replacing = true; writeLocal(row.id, target) }
+                            .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+                    ).also { it.setOnDismissListener { if (!replacing) busy = false } }.show()
+                }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> { busy = false; launchExportCreator(row) }
+                else -> busy = false
+            }
+        }
+    }
+
+    private fun writeLocal(id: String, target: File) {
+        activity.lifecycleScope.launch {
+            try {
+                val ok = withContext(Dispatchers.IO) { runCatching { target.parentFile?.mkdirs(); target.delete(); target.createNewFile() }.isSuccess && renderAndWrite(id, Uri.fromFile(target)) }
+                if (ok) Toast.makeText(activity, R.string.template_exported, Toast.LENGTH_SHORT).show()
+                else { withContext(Dispatchers.IO) { runCatching { target.delete() } }; Dialogs.problem(activity, R.string.template_export_failed_title, R.string.template_export_failed_body) }
+            } finally {
+                busy = false
             }
         }
     }

@@ -56,6 +56,8 @@ class RestoreActivity : AppCompatActivity() {
     /** Set by the overlay's Cancel; the engine asks it before every file and every store, never inside the commit. */
     @Volatile private var stopAsked = false
     private val running = AtomicBoolean(false)
+    /** The folder through Soil's own browser, the Android picker behind it (Greg, 2026-10-10). */
+    private val local by lazy { com.symmetricalpalmtree.soil.files.LocalFilePick(this) }
 
     private val folderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) { Slog.d(TAG) { "folder picker cancelled" }; return@registerForActivityResult }
@@ -92,6 +94,7 @@ class RestoreActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        local.close()
         ImportOverlay.hide(this)
         super.onDestroy()
     }
@@ -100,8 +103,23 @@ class RestoreActivity : AppCompatActivity() {
 
     // ── Sources ──────
 
+    /** Soil's browser in folder mode over this device; the Android picker when the access is off. */
     private fun onPickFolderTap() {
         if (running.get()) return
+        local.pickFolder(emptyList()) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> lifecycleScope.launch {
+                    val path = com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), answer.dir)
+                    val label = if (path == null) answer.dir.name else com.symmetricalpalmtree.soil.files.LocalFiles.label(com.symmetricalpalmtree.soil.files.LocalStorage.label(this@RestoreActivity), path, getString(R.string.cloud_browser_crumb_separator))
+                    adopt(SafRestoreSource(com.symmetricalpalmtree.soil.backup.FileBackupReader(answer.dir)), R.string.restore_reading, label, showCaption = true)
+                }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> launchSystemFolderPicker()
+                else -> Unit
+            }
+        }
+    }
+
+    private fun launchSystemFolderPicker() {
         try {
             folderLauncher.launch(null)
         } catch (e: Exception) {

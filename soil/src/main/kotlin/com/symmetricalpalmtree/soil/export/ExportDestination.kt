@@ -25,6 +25,9 @@ object ExportDestination {
 
     fun rowVisible(providerInstalled: Boolean): Boolean = providerInstalled
 
+    /** The local Folder row (Greg, 2026-10-10): shown while this device is the choice and Soil browses it itself. */
+    fun localFolderRowVisible(choice: Choice, browsesLocally: Boolean): Boolean = choice == Choice.LOCAL && browsesLocally
+
     fun settled(choice: Choice, rowVisible: Boolean): Choice = if (rowVisible) choice else Choice.LOCAL
 
     fun onCloudTap(status: CloudStatus?): Tap = when {

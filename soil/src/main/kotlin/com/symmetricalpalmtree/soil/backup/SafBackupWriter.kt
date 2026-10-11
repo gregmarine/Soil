@@ -13,12 +13,10 @@ import java.io.File
  * a crash stranded and is renamed back, never swept. Nothing here throws: every failure logs and
  * answers false or null. Content URIs are never logged; file names are ids and safe.
  */
-class SafBackupWriter(private val resolver: ContentResolver, private val treeUri: Uri) {
-
-    data class Entry(val uri: Uri, val name: String, val size: Long, val isDir: Boolean)
+class SafBackupWriter(private val resolver: ContentResolver, private val treeUri: Uri) : BackupWriter {
 
     /** The tree's root as a document URI, or null when the grant no longer resolves. */
-    fun root(): Uri? = try {
+    override fun root(): Uri? = try {
         val rootUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
         resolver.query(rootUri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { if (it.moveToFirst()) rootUri else null }
     } catch (e: Exception) {
@@ -27,16 +25,16 @@ class SafBackupWriter(private val resolver: ContentResolver, private val treeUri
     }
 
     /** The children of [dirUri], or null when the listing itself failed; never "empty" for a failure. */
-    fun list(dirUri: Uri): List<Entry>? = try {
+    override fun list(dirUri: Uri): List<BackupWriter.Entry>? = try {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getDocumentId(dirUri))
-        val out = ArrayList<Entry>()
+        val out = ArrayList<BackupWriter.Entry>()
         resolver.query(
             childrenUri,
             arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_MIME_TYPE),
             null, null, null,
         )?.use { c ->
             while (c.moveToNext()) {
-                out.add(Entry(
+                out.add(BackupWriter.Entry(
                     uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, c.getString(0)),
                     name = c.getString(1) ?: continue,
                     size = if (c.isNull(2)) -1L else c.getLong(2),
@@ -50,10 +48,8 @@ class SafBackupWriter(private val resolver: ContentResolver, private val treeUri
         null
     }
 
-    fun find(dirUri: Uri, name: String): Entry? = list(dirUri)?.firstOrNull { it.name == name }
-
     /** Find or create the [name] subdirectory of [dirUri]. */
-    fun ensureDir(dirUri: Uri, name: String): Uri? {
+    override fun ensureDir(dirUri: Uri, name: String): Uri? {
         find(dirUri, name)?.let { return if (it.isDir) it.uri else null }
         return try {
             DocumentsContract.createDocument(resolver, dirUri, DocumentsContract.Document.MIME_TYPE_DIR, name)
@@ -63,7 +59,7 @@ class SafBackupWriter(private val resolver: ContentResolver, private val treeUri
         }
     }
 
-    fun delete(uri: Uri): Boolean = try {
+    override fun delete(uri: Uri): Boolean = try {
         DocumentsContract.deleteDocument(resolver, uri)
     } catch (e: Exception) {
         Log.w(TAG, "delete failed", e)
@@ -71,7 +67,7 @@ class SafBackupWriter(private val resolver: ContentResolver, private val treeUri
     }
 
     /** Write [source] into [dirUri] as [name], atomically. False leaves the previous copy in place. */
-    fun writeAtomic(dirUri: Uri, name: String, source: File): Boolean {
+    override fun writeAtomic(dirUri: Uri, name: String, source: File): Boolean {
         val partName = name + BackupPredicates.PART_SUFFIX
         val oldName = name + BackupPredicates.OLD_SUFFIX
         try {
@@ -83,7 +79,7 @@ class SafBackupWriter(private val resolver: ContentResolver, private val treeUri
                 if (existing == null) {
                     // A crash inside a previous swap: the `.old` is the only good copy.
                     val recovered = rename(staleOld.uri, name) ?: return false
-                    existing = Entry(recovered, name, staleOld.size, isDir = false)
+                    existing = BackupWriter.Entry(recovered, name, staleOld.size, isDir = false)
                 } else {
                     delete(staleOld.uri)
                 }

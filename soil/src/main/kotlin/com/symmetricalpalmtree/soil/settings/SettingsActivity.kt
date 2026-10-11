@@ -70,6 +70,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.symmetricalpalmtree.soil.files.LocalStorage.settleAfterGrant(this)
         // Read again at every showing: an extension can be installed or removed meanwhile.
         lifecycleScope.launch {
             installed = withContext(Dispatchers.IO) { Recognizers.installed(this@SettingsActivity) }
@@ -91,9 +92,24 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, TemplatesActivity::class.java))
         })
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_cloud), cloudDetail()) { onCloudTap() })
+        binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_files), getString(if (com.symmetricalpalmtree.soil.files.LocalStorage.hasAccess()) R.string.settings_files_on else R.string.settings_files_off)) { onFilesTap() })
         // Through the gate: while the key is unsaved or the library locked, this leads to the screen that opens it.
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_encryption), getString(R.string.settings_encryption_detail)) { Screens.open(this, Screen.ENCRYPTION) })
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_links), getString(R.string.settings_links_detail)) { rebuildLinks() })
+    }
+
+    // ── Files on this device ──────
+
+    /** The one door to Android's All files access toggle, with why; tapping it forgets a *Use Android's picker* answer. */
+    private fun onFilesTap() {
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(R.string.settings_files).setMessage(R.string.settings_files_body)
+                .setPositiveButton(R.string.files_offer_settings) { _, _ ->
+                    SettingsPrefs(this).localPickerDeclined = false
+                    if (!com.symmetricalpalmtree.soil.files.LocalStorage.openSettings(this)) Dialogs.problem(this, R.string.files_settings_failed_title, R.string.files_settings_failed_body)
+                }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).show()
     }
 
     // ── Cloud ──────

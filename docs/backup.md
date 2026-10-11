@@ -11,7 +11,7 @@ the library's bottom bar; Restore is a row on the Backup screen.
 | `BackupEngine`, `CloudBackupLeg` | `backup/` | One run, two legs; headless IO that never throws |
 | `BackupPredicates`, `CloudBackupRules` | `backup/` | The pure rules: needs-backup, the work list, the file names, which legs, what ends a leg, what the report says |
 | `BackupConfig`, `BackupStore` | `backup/` | What backup remembers, as one JSON value under the `backup` key of the index's `meta` table |
-| `SafBackupWriter`, `SafBackupReader` | `backup/` | The local folder, written atomically over `DocumentsContract` and read back the same way |
+| `BackupWriter` / `BackupReader`: `SafBackupWriter`, `SafBackupReader`, `FileBackupWriter`, `FileBackupReader` | `backup/` | The local folder, written atomically and read back: over `DocumentsContract` for a SAF tree, by `File` for a folder chosen through Soil's own browser (`files.md`, 2026-10-10); one protocol behind one interface |
 | `SelfContainedSnapshot` | `backup/` | A cache copy with its WAL folded in, for the cloud, which has no atomic swap |
 | `RestoreActivity` | `restore/` | The screen: the source, the backups found, the confirmation, the key prompt, the endings |
 | `RestoreEngine` | `restore/` | Preflight, stage, validate, prove the key, prune orphans, commit; and the launch-time recovery |

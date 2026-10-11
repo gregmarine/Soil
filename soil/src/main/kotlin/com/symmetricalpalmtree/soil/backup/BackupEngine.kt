@@ -116,7 +116,7 @@ object BackupEngine {
 
         val cloudRef = if (state.config.cloudEnabled) CloudProviders.installed(app) else null
         val legs = CloudBackupRules.legs(
-            hasFolder = state.config.treeUri != null,
+            hasFolder = state.config.treeUri != null || state.config.localDir != null,
             cloudEnabled = state.config.cloudEnabled,
             hasProvider = cloudRef != null,
             hasDeviceFolder = state.config.cloudDeviceFolder != null,
@@ -160,8 +160,9 @@ object BackupEngine {
     }
 
     private fun runLocalLeg(app: Context, state: RunState, work: BackupPredicates.WorkList, stores: List<StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, stop: () -> Boolean, tick: () -> Unit): Result {
-        val treeUri = state.config.treeUri ?: return Result(problem = Problem.FOLDER_GONE)
-        val writer = SafBackupWriter(app.contentResolver, Uri.parse(treeUri))
+        val writer: BackupWriter = state.config.localDir?.let { FileBackupWriter(File(it)) }
+            ?: state.config.treeUri?.let { SafBackupWriter(app.contentResolver, Uri.parse(it)) }
+            ?: return Result(problem = Problem.FOLDER_GONE)
         val root = writer.root() ?: return Result(problem = Problem.FOLDER_GONE)
         val dest = if (BuildConfig.DEBUG) writer.ensureDir(root, BackupPredicates.DEV_SUBDIR) ?: return Result(problem = Problem.FOLDER_GONE) else root
 
@@ -243,7 +244,7 @@ object BackupEngine {
      * The destination's `<name>-wal` goes first, verifiably: a main file written beside a stale WAL
      * would have that WAL replayed into it. Then the item file, then a still-live WAL alongside.
      */
-    private fun copyItem(writer: SafBackupWriter, dest: Uri, itemId: String, source: File): Boolean {
+    private fun copyItem(writer: BackupWriter, dest: Uri, itemId: String, source: File): Boolean {
         val name = BackupPredicates.itemName(itemId)
         val walName = name + BackupPredicates.WAL_SUFFIX
         if (!dropDestWal(writer, dest, walName)) return false
@@ -253,18 +254,18 @@ object BackupEngine {
     }
 
     /** Delete [walName] (and a writer's `.old` of it) from [dest]; false when the listing or a delete failed. */
-    private fun dropDestWal(writer: SafBackupWriter, dest: Uri, walName: String): Boolean {
+    private fun dropDestWal(writer: BackupWriter, dest: Uri, walName: String): Boolean {
         val entries = writer.list(dest) ?: return false
         val oldName = walName + BackupPredicates.OLD_SUFFIX
         return entries.filter { !it.isDir && (it.name == walName || it.name == oldName) }.all { writer.delete(it.uri) }
     }
 
-    private fun copyIndex(context: Context, writer: SafBackupWriter, dest: Uri): Boolean {
+    private fun copyIndex(context: Context, writer: BackupWriter, dest: Uri): Boolean {
         if (SoilIndex.isReady()) SoilDb.checkpoint(SoilIndex.db())
         return copyDatabase(context, writer, dest, SoilFiles.indexFile(context), BackupPredicates.INDEX_NAME)
     }
 
-    private fun copyStore(context: Context, writer: SafBackupWriter, dest: Uri, store: StoreFile): Boolean {
+    private fun copyStore(context: Context, writer: BackupWriter, dest: Uri, store: StoreFile): Boolean {
         AppStores.checkpointIfOpen(store.name)
         return copyDatabase(context, writer, dest, store.file, store.file.name)
     }
@@ -274,7 +275,7 @@ object BackupEngine {
      * snapshot, stream that; a non-empty post-checkpoint WAL is snapshotted and written alongside.
      * Only a failed snapshot streams the live file.
      */
-    private fun copyDatabase(context: Context, writer: SafBackupWriter, dest: Uri, live: File, destName: String): Boolean {
+    private fun copyDatabase(context: Context, writer: BackupWriter, dest: Uri, live: File, destName: String): Boolean {
         val liveWal = File(live.path + BackupPredicates.WAL_SUFFIX)
         val dir = File(context.cacheDir, DIR)
         var snapshot: File? = null

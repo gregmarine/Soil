@@ -2,6 +2,7 @@ package com.symmetricalpalmtree.soil.restore
 
 import android.content.ContentResolver
 import android.net.Uri
+import com.symmetricalpalmtree.soil.backup.BackupReader
 import com.symmetricalpalmtree.soil.backup.SafBackupReader
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +10,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** The local source: a picked tree, one level deep (the tree itself, and each subfolder holding an index, which is what finds a debug build's `dev/`). */
-class SafRestoreSource(private val reader: SafBackupReader) : RestoreSource {
+class SafRestoreSource(private val reader: BackupReader) : RestoreSource {
 
     constructor(resolver: ContentResolver, treeUri: Uri) : this(SafBackupReader(resolver, treeUri))
 
@@ -46,10 +47,10 @@ class SafRestoreSource(private val reader: SafBackupReader) : RestoreSource {
         FetchResult.Staged(manifest)
     }
 
-    private fun backupOf(entries: List<SafBackupReader.Entry>, name: String, dirUri: Uri): RestoreBackup? =
+    private fun backupOf(entries: List<BackupReader.Entry>, name: String, dirUri: Uri): RestoreBackup? =
         RestoreRows.rowFor(name, entries.map(::listed), RestoreLeg.LOCAL, dirUri.toString())
 
-    private fun listed(entry: SafBackupReader.Entry): Listed = Listed(entry.name, entry.size, entry.isDir, entry.lastModified)
+    private fun listed(entry: BackupReader.Entry): Listed = Listed(entry.name, entry.size, entry.isDir, entry.lastModified)
 
     private companion object {
         const val TAG = "SafRestoreSource"

@@ -686,6 +686,24 @@
     <string name="file_pick_too_large_body">That file is larger than %1$s, so it cannot be brought in. Nothing has been changed.</string>
     <string name="file_pick_copying">Reading the file…</string>
 
+    <!-- The device's files through Soil's own browser (Greg, 2026-10-10). -->
+    <string name="files_device">This device</string>
+    <string name="files_offer_title">Browse files with Sproutscape?</string>
+    <string name="files_offer_body">Sproutscape can show this device\'s folders and files on its own screen, with Cancel, instead of Android\'s picker. Android needs All files access switched on for Sproutscape first. Open Settings, switch it on, and come back.</string>
+    <string name="files_offer_settings">Open Settings</string>
+    <string name="files_offer_android">Use Android\'s picker</string>
+    <string name="files_settings_failed_title">Couldn\'t open Settings</string>
+    <string name="files_settings_failed_body">The All files access screen could not be opened on this device. Android\'s picker is used instead.</string>
+    <string name="files_browser_failed_title">Couldn\'t read that folder</string>
+    <string name="files_browser_failed_body">That folder could not be read. Nothing has been changed.</string>
+    <string name="files_restart_title">All files access is on</string>
+    <string name="files_restart_body">Sproutscape restarts to take it. The side menu comes back on its own.</string>
+    <string name="files_restart_now">Restart now</string>
+    <string name="settings_files">Files on this device</string>
+    <string name="settings_files_on">Sproutscape\'s own browser; All files access is on</string>
+    <string name="settings_files_off">Android\'s picker; tap to switch All files access on</string>
+    <string name="settings_files_body">With All files access on, Sproutscape shows this device\'s folders and files on its own screen, with Cancel, wherever a file or a folder is chosen. Switch it on or off on the Android screen that opens.</string>
+
     <!-- Backup and restore. "Items" are notebooks and whatever other kinds the apps add. -->
     <string name="cd_backup">Backup</string>
     <string name="action_exclude_backup">Exclude from backup</string>
