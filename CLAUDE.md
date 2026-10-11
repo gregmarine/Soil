@@ -77,6 +77,14 @@ Soil's own browser over this device's files in place of the Android picker, behi
 access (`docs/files.md`); the seedling as Sproutscape's icon, the apps' marks on the Garden's
 cards and the New glyphs. `docs/design.md` §16 lists the steps.
 
+**The release is done and merged** (2026-10-11): Soil 1.0.0, every module in lockstep, the seam
+frozen at 1, tag `soil-1.0.0`; the Drive root `Sproutscape`; `tools/sn2soil`, the converter
+from a Notesprout SN library to a Soil backup set; and device day on the Manta, where the SN
+library was converted and restored into the release build, the debug set removed and the shell
+turned on. The Manta runs Sproutscape 1.0.0 with the migrated library; Notesprout SN stays
+installed beside it until Greg removes it. `docs/release-plan.md` is the record;
+`docs/design.md` §16 lists the steps.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.
@@ -120,6 +128,8 @@ when he is happy with it, not before.
 
 - `docs/first-build.md` — the first build's plan as granted, and its decisions. A record; never
   resume from it.
+- `docs/release-plan.md` — the 1.0.0 release and the move from Notesprout SN, as planned and as
+  it went. A record; `tools/sn2soil/README.md` is how the converter runs.
 - `docs/building.md` — building, installing, the shell on and off.
 - `docs/encryption.md`, `docs/shell.md`, `docs/scratchpad.md`, `docs/seam.md`, `docs/items.md`,
   `docs/notesprout.md`, `docs/sketchsprout.md`, `docs/docsprout.md`, `docs/biblesprout.md`, `docs/calsprout.md`, `docs/links.md`, `docs/templates.md`, `docs/clipboard.md`, `docs/tags.md`,

@@ -16,8 +16,8 @@ android {
         applicationId = "com.symmetricalpalmtree.soil.ext.cloud"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.0.0"
 
         // The Google OAuth client, the desktop-app type, read from the shell at build time: the
         // same two variables Notesprout reads (decision 2026-10-03: the existing client). Compiled
@@ -33,14 +33,14 @@ android {
             versionNameSuffix = "-dev"
             buildConfigField("String", "SOIL_PACKAGE", "\"$soilPackage.dev\"")
             // A separate root, so a dev build never mingles test files under the real tree.
-            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Soil Dev\"")
+            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Sproutscape Dev\"")
         }
         release {
             isMinifyEnabled = false
             // Soil trusts exactly one signing key: this Mac's debug keystore.
             signingConfig = signingConfigs.getByName("debug")
             buildConfigField("String", "SOIL_PACKAGE", "\"$soilPackage\"")
-            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Soil\"")
+            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Sproutscape\"")
         }
     }
 
