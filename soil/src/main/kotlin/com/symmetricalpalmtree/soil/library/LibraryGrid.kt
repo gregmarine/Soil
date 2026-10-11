@@ -127,7 +127,8 @@ class LibraryGrid(
     private fun kindGlyph(kind: String): Int = when (kind) {
         // The Note app's own mark, the cover with three tabs (Greg, 2026-10-10).
         IndexSchema.KIND_NOTEBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_notebook_mark
-        IndexSchema.KIND_SKETCHBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching
+        // The Sketch app's own mark, the pencil (Greg, 2026-10-10); the sketching scribble is the Scratch Pad's.
+        IndexSchema.KIND_SKETCHBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_pencil
         else -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text
     }
 
