@@ -8,14 +8,23 @@ import android.widget.TextView
 import androidx.annotation.StringRes
 import com.symmetricalpalmtree.soil.R
 
-/** A full-screen click-eater over the home screen while an import runs, naming its stage. */
+/**
+ * A full-screen click-eater over a screen while something long runs, naming its stage. Work
+ * that can be stopped between its steps offers Cancel under the line ([onCancel], cleanup,
+ * 2026-10-10): one tap, said once, the work told and left to stop at its next step; the overlay
+ * stays up until it has.
+ */
 object ImportOverlay {
 
     private const val TAG_KEY = "soil.importOverlay"
 
-    fun show(activity: Activity, @StringRes textRes: Int) {
+    fun show(activity: Activity, @StringRes textRes: Int, onCancel: (() -> Unit)? = null) {
         val overlay = obtain(activity) ?: return
         overlay.findViewById<TextView>(R.id.importStage)?.setText(textRes)
+        overlay.findViewById<View>(R.id.importCancel)?.apply {
+            visibility = if (onCancel == null) View.GONE else View.VISIBLE
+            setOnClickListener(if (onCancel == null) null else View.OnClickListener { visibility = View.GONE; onCancel() })
+        }
         overlay.visibility = View.VISIBLE
         overlay.bringToFront()
         overlay.invalidate()

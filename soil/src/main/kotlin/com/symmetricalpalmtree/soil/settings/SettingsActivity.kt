@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.index.LinkRebuild
+import com.symmetricalpalmtree.soil.importing.ImportOverlay
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AlertDialog
@@ -163,21 +164,35 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** The link index rebuilt from every file: the way back when a write was missed. One at a
-     *  time: a second tap while one runs says so. */
+    /**
+     * The link index rebuilt from every file: the way back when a write was missed. The wait
+     * overlay is up for its whole run with how far it is and Cancel (cleanup, 2026-10-10): a tap
+     * stops the walk at its next item, the items walked fresh and the rest as they were, and the
+     * answer says so. One at a time: a second tap while one runs says so, the backstop.
+     */
     private fun rebuildLinks() {
         if (!SoilIndex.isReady()) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_locked); return }
         if (linksBusy) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_busy); return }
         linksBusy = true
+        var stop = false
+        ImportOverlay.show(this, R.string.settings_links_running) { stop = true; ImportOverlay.stage(this, R.string.settings_links_stopping) }
         lifecycleScope.launch {
             val outcome = try {
-                withContext(Dispatchers.IO) { runCatching { LinkRebuild.rebuild(applicationContext) }.getOrNull() }
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        LinkRebuild.rebuild(applicationContext, stop = { stop }) { done, total ->
+                            runOnUiThread { if (!stop) ImportOverlay.stage(this@SettingsActivity, getString(R.string.settings_links_progress, done, total)) }
+                        }
+                    }.getOrNull()
+                }
             } finally {
                 linksBusy = false
+                ImportOverlay.hide(this@SettingsActivity)
             }
             if (isFinishing || isDestroyed) return@launch
             val body = when {
                 outcome == null -> getString(R.string.settings_links_failed)
+                outcome.stopped -> getString(R.string.settings_links_stopped, outcome.items, outcome.total)
                 outcome.skipped == 0 -> getString(R.string.settings_links_done, outcome.items)
                 else -> getString(R.string.settings_links_done_skipped, outcome.items, outcome.skipped)
             }

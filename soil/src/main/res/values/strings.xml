@@ -576,6 +576,10 @@
     <string name="settings_links_busy">The link index is being rebuilt. The answer comes when it is done.</string>
     <string name="settings_links_done">Rebuilt from %1$d items.</string>
     <string name="settings_links_done_skipped">Rebuilt from %1$d items; %2$d could not be read.</string>
+    <string name="settings_links_running">Rebuilding the link index…</string>
+    <string name="settings_links_progress">Rebuilding the link index… %1$d of %2$d</string>
+    <string name="settings_links_stopping">Stopping after this item…</string>
+    <string name="settings_links_stopped">Stopped. %1$d of %2$d items were rebuilt; the rest are as they were.</string>
     <string name="settings_cloud_none">No cloud extension is installed</string>
     <string name="settings_cloud_none_body">Install the cloud extension to connect an account.</string>
     <string name="cloud_status_line">%1$s: %2$s</string>
