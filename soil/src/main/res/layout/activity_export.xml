@@ -32,9 +32,10 @@
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnExport"
-            style="@style/Widget.Soil.TextButton"
+            style="@style/Widget.Soil.ElevatedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
             android:layout_gravity="end|center_vertical"
             android:text="@string/export_action" />
     </FrameLayout>
