@@ -64,6 +64,11 @@ list at one depth as two lists (a blank line between in the Markdown, the full g
 screen), and Enter in an empty paragraph swallowed so what is seen is what is saved.
 `docs/design.md` §16 lists the steps.
 
+**The export round is done and merged** (2026-10-10): the export screen
+in two columns with File type first and Destination last, the last destination remembered, and
+the Drive folder on the screen, remembered per kind, with the browser behind a tap on it.
+`docs/design.md` §16 lists the steps.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.

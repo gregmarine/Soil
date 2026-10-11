@@ -1,5 +1,6 @@
 package com.symmetricalpalmtree.soil.cloud
 
+import com.symmetricalpalmtree.soil.ext.CloudEntry
 import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.export.ExportDestination
 import org.junit.Assert.assertEquals
@@ -85,4 +86,50 @@ class ExportDestinationTest {
         assertEquals("NSE · Google Drive", ExportDestination.providerName(null, "NSE · Google Drive"))
     }
 
+
+    // ── Remembered (2026-10-10) ──────
+
+    @Test
+    fun `the screen opens on the remembered cloud only while the account is connected`() {
+        assertEquals(ExportDestination.Choice.CLOUD, ExportDestination.opening(rememberedCloud = true, status(connected = true, configured = true)))
+        assertEquals(ExportDestination.Choice.LOCAL, ExportDestination.opening(rememberedCloud = true, status(connected = false, configured = true)))
+        assertEquals(ExportDestination.Choice.LOCAL, ExportDestination.opening(rememberedCloud = true, status(connected = false, configured = false)))
+        assertEquals(ExportDestination.Choice.LOCAL, ExportDestination.opening(rememberedCloud = true, null))
+        assertEquals(ExportDestination.Choice.LOCAL, ExportDestination.opening(rememberedCloud = false, status(connected = true, configured = true)))
+    }
+
+    @Test
+    fun `a folder path survives the round trip through its stored form`() {
+        val path = listOf("Exports", "Notes", "2026")
+        assertEquals(path, ExportDestination.decodeFolder(ExportDestination.encodeFolder(path)))
+        assertEquals("Exports/Notes/2026", ExportDestination.encodeFolder(path))
+    }
+
+    @Test
+    fun `nothing remembered, or nothing usable, is the Exports folder`() {
+        assertEquals(listOf("Exports"), ExportDestination.decodeFolder(null))
+        assertEquals(listOf("Exports"), ExportDestination.decodeFolder(""))
+        assertEquals(listOf("Exports"), ExportDestination.decodeFolder("Backups/Nomad"))
+        assertEquals(listOf("Exports"), ExportDestination.decodeFolder("Exports//Notes"))
+        assertEquals(listOf("Exports"), ExportDestination.decodeFolder((1..9).joinToString("/") { if (it == 1) "Exports" else "d$it" }))
+        assertEquals(listOf("Exports", "Notes"), ExportDestination.decodeFolder("Exports/Notes"))
+    }
+
+    @Test
+    fun `the row shows the whole path`() {
+        assertEquals("Exports › Notes › 2026", ExportDestination.folderLabel(listOf("Exports", "Notes", "2026"), " › "))
+        assertEquals("Exports", ExportDestination.folderLabel(listOf("Exports"), " › "))
+    }
+
+    @Test
+    fun `Exports itself is never checked, a deeper folder is judged on its parent's listing`() {
+        assertFalse(ExportDestination.folderNeedsCheck(listOf("Exports")))
+        assertTrue(ExportDestination.folderNeedsCheck(listOf("Exports", "Notes")))
+        val parent = listOf(CloudEntry("f1", "Notes", true, 0L, 0L), CloudEntry("x1", "Notes.pdf", false, 10L, 0L))
+        assertTrue(ExportDestination.folderStillThere(listOf("Exports", "Notes"), parent))
+        assertFalse(ExportDestination.folderStillThere(listOf("Exports", "Sketches"), parent))
+        // A file of the name is not the folder.
+        assertFalse(ExportDestination.folderStillThere(listOf("Exports", "Notes.pdf"), parent))
+        assertFalse(ExportDestination.folderStillThere(listOf("Exports", "Notes"), emptyList()))
+    }
 }

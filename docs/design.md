@@ -620,3 +620,13 @@ The document editor round, on the branch `document-editor` (2026-10-10), walked 
 
 Decisions taken along the way are marked proposed in each document.
 
+The export round, on the branch `export` (2026-10-10), walked on the Nomad:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | The export screen in two columns, half and half: scope and **File type** on the left, the format's options with the passphrase block on the right, **Destination** full width under both | `export.md` |
+| 2 | The last destination remembered, the cloud opened on only while the account is connected (the memory kept) | `cloud.md` |
+| 3 | The Drive folder on the screen: a Folder row under the cloud radio showing the whole path, remembered per kind of item, `Exports` until picked; a tap opens the browser there and *Save here* only sets the row; Export lists the parent (a gone folder is said so, the browser in its place) and the folder (*Replace?*) and uploads | `cloud.md` |
+
+Decisions taken along the way are marked proposed in each document.
+

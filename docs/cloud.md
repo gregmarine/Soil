@@ -67,14 +67,27 @@ provider by the name it gives for itself. The row is GONE without a provider, ne
 and a standing cloud answer falls back to local whenever the row leaves the screen. A tap on
 the cloud radio with no account connected offers Connect; a build without credentials says so.
 
+**Remembered** (2026-10-10). The last destination exported to opens the next screen, the cloud
+only while the account is connected; the memory itself is kept, so a reconnected account finds
+it again (`ExportDestination.opening`). Under the cloud radio a **Folder** row shows the whole
+path the export goes to, `Exports › Doc › 2026`: the folder last exported to for this kind of
+item (notebook, document, sketchbook, calendar; `SettingsPrefs.lastCloudFolder(kind)`), or
+`Exports` itself until one is picked. A tap opens the browser on that folder, `Exports/` its
+floor; *Save here* only sets the row and the kind's memory. Export then goes to the folder as
+it stands: its parent is listed to see that it is still there (`Exports` itself is made on the
+way by every upload, so it is never checked), and a folder since deleted on the web is said so
+("That folder is gone"), with the browser opened over `Exports/` in its place; that pick is
+remembered and the export goes on from it. A stored path that is not under `Exports/` falls
+back to the default.
+
 On the cloud leg the exporter writes into a file in Soil's cache, verified as on the local leg,
-and that file is uploaded. An upload replaces by name, so a folder already holding the name
-gets a *Replace?* question first, the stand-in for the picker's overwrite confirmation. The
-provider's reported size is corroboration: a disagreement says "check the file" and deletes
-nothing. A failure before the upload says "Nothing was uploaded"; a provider that did not answer
-is told as "may or may not have arrived". Per-page exports confirm the folder once ("files with
-the same names will be replaced"), then upload one file per page; a failure stops and says how
-many went.
+and that file is uploaded. An upload replaces by name, so the folder is listed and one already
+holding the name gets a *Replace?* question first, the stand-in for the picker's overwrite
+confirmation. The provider's reported size is corroboration: a disagreement says "check the
+file" and deletes nothing. A failure before the upload says "Nothing was uploaded"; a provider
+that did not answer is told as "may or may not have arrived". Per-page exports confirm the
+folder once ("files with the same names will be replaced"), then upload one file per page; a
+failure stops and says how many went.
 
 ## Import from the cloud
 
@@ -104,6 +117,6 @@ truncated by the provider: a restore refuses that backup folder, and the backup 
 ## Not in this phase
 
 - A second provider. The point is generic; the extension is Google Drive.
-- Remembering a chosen cloud folder across exports (that was the presets' folder row; presets
-  are in `BACKLOG.md`).
+- Remembering a local folder across exports: the system picker has no row to show one on, and
+  Soil's own local picker is in `BACKLOG.md`. (The cloud folder is remembered since 2026-10-10.)
 - Swipe between the browser's pages; the pager buttons flip them.

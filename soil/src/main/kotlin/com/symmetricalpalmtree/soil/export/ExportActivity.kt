@@ -69,11 +69,14 @@ import java.io.File
  * formats alone, and the kind's renderer draws under the key as it would under an item id. On
  * the way out there is nothing to reopen.
  *
- * With a cloud provider installed the screen has a Destination row ([ExportDestination]). On the
- * cloud leg the exporter writes into a file in Soil's cache, verified as on the local leg, and
- * that file is uploaded under `Exports/` through the browser's pick, replace-by-name after a
- * *Replace?* that stands in for the picker's overwrite confirmation. Nothing in the cloud is ever
- * deleted by a failure; every failure before the upload says so.
+ * With a cloud provider installed the screen has a Destination row ([ExportDestination]), the
+ * last answer remembered, and under the cloud radio the folder the export goes to: the one last
+ * used for this kind of item, `Exports` until one is picked, the browser behind a tap on it. On
+ * the cloud leg the exporter writes into a file in Soil's cache, verified as on the local leg,
+ * and that file is uploaded to that folder, replace-by-name after a *Replace?* that stands in
+ * for the picker's overwrite confirmation; a remembered folder since gone from the cloud is said
+ * so and the browser opened in its place. Nothing in the cloud is ever deleted by a failure;
+ * every failure before the upload says so.
  */
 class ExportActivity : AppCompatActivity() {
 
@@ -83,6 +86,9 @@ class ExportActivity : AppCompatActivity() {
 
     private lateinit var itemId: String
     private var item: Item? = null
+
+    /** The kind of what is exported: the item's, or the render-only request's. The cloud folder is remembered per kind. */
+    private var kind: String = ""
 
     /** Render-only: no item, the kind's renderer under a key. Null for an ordinary export. */
     private var renderOnly: ExportRenderMode.Request? = null
@@ -120,6 +126,10 @@ class ExportActivity : AppCompatActivity() {
     // what it said of itself (read again at each discovery; a stale "connected" would aim an
     // export at a cloud since disconnected), and the browser while it is up.
     private var destinationChoice = ExportDestination.Choice.LOCAL
+    /** The remembered answer has been read into [destinationChoice] once; a restored state counts as read. */
+    private var destinationSeeded = false
+    /** The cloud folder this export goes to: the kind's remembered one, or `Exports`. */
+    private var cloudFolder: List<String> = ExportDestination.DEFAULT_FOLDER
     private var cloud: CloudConnectEntry? = null
     private var cloudRef: Extension? = null
     private var cloudStatus: CloudStatus? = null
@@ -175,6 +185,7 @@ class ExportActivity : AppCompatActivity() {
             chosenPackage = state.getString(KEY_PACKAGE)
             if (state.getBoolean(KEY_SCOPE_WHOLE)) scope = ExportScope.Whole
             if (state.getBoolean(KEY_DESTINATION)) destinationChoice = ExportDestination.Choice.CLOUD
+            destinationSeeded = true
             state.getBundle(KEY_VALUES)?.let { b -> b.keySet().forEach { k -> b.getString(k)?.let { values[k] = it } } }
         }
         discover()
@@ -231,6 +242,12 @@ class ExportActivity : AppCompatActivity() {
             candidates = kept
             Slog.d(TAG) { "${kept.size} usable exporter(s)" }
             if (kept.isEmpty()) { problemAndClose(R.string.export_none_title, R.string.export_none_body); return@launch }
+            // The first discovery opens on the remembered destination: the cloud only while the
+            // account is connected, the memory kept either way.
+            if (!destinationSeeded) {
+                destinationSeeded = true
+                destinationChoice = ExportDestination.opening(prefs.lastDestinationCloud, cloudStatus)
+            }
             if (selectCloudOnDiscovery) {
                 selectCloudOnDiscovery = false
                 if (cloudStatus?.connected == true) destinationChoice = ExportDestination.Choice.CLOUD
@@ -267,6 +284,10 @@ class ExportActivity : AppCompatActivity() {
             item = found
             binding.itemName.text = found.name
             kind = found.kind
+        }
+        if (this.kind != kind) {
+            this.kind = kind
+            cloudFolder = ExportDestination.decodeFolder(prefs.lastCloudFolder(kind))
         }
         if (renderer == null) {
             renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, kind) }
@@ -346,6 +367,7 @@ class ExportActivity : AppCompatActivity() {
         }
         renderDestination()
         binding.chooser.removeAllViews()
+        binding.chooser.addView(panel.caption(getString(R.string.export_file_type_caption)))
         if (candidates.size == 1) {
             binding.chooser.addView(panel.value(c.info.formatLabel))
         } else {
@@ -455,7 +477,7 @@ class ExportActivity : AppCompatActivity() {
             if (protect && typed.length > ExportContract.MAX_EXPORT_SECRET_CHARS) { Dialogs.problem(this, R.string.export_password_long_title, R.string.export_password_long_body); return }
             if (protect) typedExportSecret = typed else typedPassphrase = typed
         }
-        if (destinationChoice == ExportDestination.Choice.CLOUD) { openCloudBrowser(c); return }
+        if (destinationChoice == ExportDestination.Choice.CLOUD) { checkFolderThenExport(c); return }
         if (perPage(c)) {
             busy = true
             try {
@@ -503,6 +525,19 @@ class ExportActivity : AppCompatActivity() {
         val local = destinationChoice == ExportDestination.Choice.LOCAL
         binding.destination.addView(panel.choice(getString(R.string.export_destination_local), local) { if (!local) { destinationChoice = ExportDestination.Choice.LOCAL; render() } })
         binding.destination.addView(panel.choice(cloudName(), !local) { if (local) onCloudDestinationTap() })
+        if (local) return
+        // The folder the export goes to, the whole path; a tap opens the browser there, and the
+        // pick only sets the row (and the kind's memory).
+        binding.destination.addView(panel.caption(getString(R.string.export_cloud_folder_caption)))
+        binding.destination.addView(panel.door(R.drawable.ic_folder, folderLabel()) { if (!busy) openCloudBrowser { _, _ -> render() } })
+    }
+
+    private fun folderLabel(): String = ExportDestination.folderLabel(cloudFolder, getString(R.string.cloud_browser_crumb_separator))
+
+    /** A folder picked anywhere becomes this export's and the kind's memory. */
+    private fun rememberFolder(path: List<String>) {
+        cloudFolder = path
+        if (kind.isNotEmpty()) prefs.setLastCloudFolder(kind, ExportDestination.encodeFolder(path))
     }
 
     private fun onCloudDestinationTap() {
@@ -542,8 +577,12 @@ class ExportActivity : AppCompatActivity() {
 
     private fun cloudName(): String = ExportDestination.providerName(cloudStatus, cloudRef?.label.orEmpty())
 
-    /** The cloud's stand-in for the pickers: the browser over `Exports/`, answering a folder. */
-    private fun openCloudBrowser(c: Candidate) {
+    /**
+     * The browser over `Exports/`, opened on the folder as it stands, answering a folder: the
+     * pick is remembered for the kind, then [onFolder] runs with it and its listing. Not
+     * connected closes into the Connect offer; Cancel leaves the row as it was.
+     */
+    private fun openCloudBrowser(onFolder: (List<String>, List<CloudEntry>) -> Unit) {
         val ref = cloudRef
         if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
         busy = true
@@ -553,11 +592,12 @@ class ExportActivity : AppCompatActivity() {
             ref = ref,
             providerName = cloudName(),
             mode = CloudBrowserDialog.Mode.PICK_FOLDER,
-            basePath = listOf(ExportDestination.EXPORTS_FOLDER),
+            basePath = ExportDestination.DEFAULT_FOLDER,
+            startPath = cloudFolder,
             onPicked = { pick ->
                 browser = null
                 when (pick) {
-                    is CloudBrowserDialog.Pick.Folder -> if (perPage(c)) confirmFolderThenExport(pick.path) else confirmThenUpload(c, pick.path, pick.listing)
+                    is CloudBrowserDialog.Pick.Folder -> { busy = false; rememberFolder(pick.path); onFolder(pick.path, pick.listing) }
                     is CloudBrowserDialog.Pick.File -> cancelledAtThePicker()
                 }
             },
@@ -573,6 +613,69 @@ class ExportActivity : AppCompatActivity() {
         )
         browser = dialog
         dialog.show()
+    }
+
+    /**
+     * Export to the folder as it stands: its parent is listed to see that it is still there
+     * (`Exports` itself is made on the way, so it is never checked), then the folder itself for
+     * the *Replace?* question. A folder since gone is said so, and the browser opened over
+     * `Exports/` in its place; that pick is remembered and the export goes on from it.
+     */
+    private fun checkFolderThenExport(c: Candidate) {
+        val ref = cloudRef
+        if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
+        busy = true
+        showProgress(R.string.export_checking_folder)
+        val path = cloudFolder
+        lifecycleScope.launch {
+            val provider = cloudName()
+            suspend fun listOrNull(target: List<String>): List<CloudEntry>? = try {
+                CloudClient.list(this@ExportActivity, ref, target.toTypedArray())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: CloudNotConnected) {
+                hideProgress()
+                cancelledAtThePicker()
+                if (!isFinishing && !isDestroyed) { loadCloud(); render(); offerConnect() }
+                null
+            } catch (e: CloudNetworkFailed) {
+                cancelledAtThePicker()
+                failCloud(R.string.export_failed_title, getString(R.string.export_cloud_network_body, provider))
+                null
+            } catch (e: Exception) {
+                Slog.d(TAG) { "listing failed: ${e.javaClass.simpleName}" }
+                cancelledAtThePicker()
+                failCloud(R.string.cloud_browser_failed_title, getString(R.string.cloud_browser_failed_body))
+                null
+            }
+            if (ExportDestination.folderNeedsCheck(path)) {
+                val parent = listOrNull(path.dropLast(1)) ?: return@launch
+                if (!ExportDestination.folderStillThere(path, parent)) {
+                    Slog.d(TAG) { "the remembered folder is gone (depth ${path.size})" }
+                    hideProgress()
+                    if (isFinishing || isDestroyed) { cancelledAtThePicker(); return@launch }
+                    var choosing = false
+                    Dialogs.style(
+                        AlertDialog.Builder(this@ExportActivity).setTitle(R.string.export_cloud_folder_gone_title)
+                            .setMessage(getString(R.string.export_cloud_folder_gone_body, folderLabel(), provider))
+                            .setPositiveButton(R.string.export_cloud_folder_choose) { _, _ ->
+                                choosing = true
+                                cloudFolder = ExportDestination.DEFAULT_FOLDER
+                                openCloudBrowser { picked, listing -> render(); proceedToCloud(c, picked, listing) }
+                            }
+                            .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+                    ).also { it.setOnDismissListener { if (!choosing) cancelledAtThePicker() } }.show()
+                    return@launch
+                }
+            }
+            val listing = listOrNull(path) ?: return@launch
+            hideProgress()
+            proceedToCloud(c, path, listing)
+        }
+    }
+
+    private fun proceedToCloud(c: Candidate, path: List<String>, listing: List<CloudEntry>) {
+        if (perPage(c)) confirmFolderThenExport(path) else confirmThenUpload(c, path, listing)
     }
 
     /** An upload replaces by name, so a folder already holding the name gets the *Replace?* question first. */
@@ -606,6 +709,7 @@ class ExportActivity : AppCompatActivity() {
         if (ref == null) { failCloud(R.string.export_failed_title, getString(R.string.export_cloud_gone_body)); return }
         if (!uploadOne(ref, cloud.path, cloud.name, cloud.mime, file, prefix = "")) return
         prefs.lastExporter = c.extension.packageName
+        prefs.lastDestinationCloud = true
         if (asksPageSize(c)) prefs.lastPageSize = pageSize
         hideProgress()
         if (isFinishing || isDestroyed) return
@@ -758,6 +862,7 @@ class ExportActivity : AppCompatActivity() {
                 Slog.d(TAG) { "exported ${result.bytesWritten} bytes" }
                 if (cloudDestination != null) { uploadAndConfirm(c, cloudDestination, checkNotNull(cacheOut)); return@launch }
                 prefs.lastExporter = c.extension.packageName
+                prefs.lastDestinationCloud = false
                 if (asksPageSize(c)) prefs.lastPageSize = pageSize
                 hideProgress()
                 if (isFinishing || isDestroyed) return@launch
@@ -945,6 +1050,7 @@ class ExportActivity : AppCompatActivity() {
             exporter.close()
         }
         prefs.lastExporter = c.extension.packageName
+        prefs.lastDestinationCloud = cloud != null
         if (asksPageSize(c)) prefs.lastPageSize = pageSize
         hideProgress()
         if (isFinishing || isDestroyed) return
