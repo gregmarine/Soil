@@ -95,6 +95,27 @@ Order matters. Each numbered step is mine unless marked **Greg**.
 14. After the day: the converter, its tests and the documents committed and pushed on the
     branch; merged when Greg is happy; the tag; `CLAUDE.md` status; memory.
 
+## Where part A stands (2026-10-11)
+
+- `tools/sn2soil` is written and tested: 18 tests including an encrypted round trip through the
+  sqlcipher CLI, plus og2sn's own output fed through as a second, SN-written fixture.
+- **A real-shape dry run is done.** Drive sync holds two SN sets on the Mac: the Manta's SN backup
+  of 2026-09-10 under *Notesprout SN/Backups/Manta* (141 files, closed, never opened) and the
+  Nomad's SN dev library under *Notesprout SN Dev/Backups/waltest4*, whose walk passphrase the
+  session notes hold. The dev set converted whole: 44 notebooks, 10 documents, 6 354 strokes,
+  34 covers, the calendar with 4 events, 4 Scratch Pad pages, ten seconds; two NOTEBOOK-scoped
+  test files refused by name, one missing file named, nothing else to explain. The index and
+  three files were decrypted and checked row for row, then scrubbed.
+- **One rule not in the seven decisions, for Greg:** a text document that also carries ink on its
+  pages gets a notebook beside it (the dev library had one, *Blog 20251008*). Nothing is lost
+  either way; say if the ink should be dropped instead.
+- **Proposed rehearsal, Greg's call:** restore the converted dev set into the Nomad's Soil debug
+  build before device day. It is the one check that Soil itself opens what the converter writes,
+  and it costs the Nomad's current dev library, since Restore is replace-all. The Nomad is not
+  plugged in now.
+- Device day's step 3 can also start from the Drive copy of an SN backup rather than a pull,
+  if the device is awkward; a pull with SN closed is still the fresher source.
+
 ## Risks and how each is held
 
 - **New code against the only copy of real data.** The converter only ever reads SN's files, and

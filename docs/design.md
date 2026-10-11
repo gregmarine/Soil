@@ -369,7 +369,14 @@ original Notesprout to Notesprout SN was done, and nothing was lost.
 Because a converter absorbs the differences, Soil's file layout does not have to stay
 compatible with the current one.
 
-*Open:* whether the converter leaves links between the files it splits apart.
+**Built as `tools/sn2soil`** (the release branch, 2026-10-11; `tools/sn2soil/README.md`), on the
+pattern of og2sn: Python and the sqlcipher CLI, an SN library in, a Soil backup folder out, Soil's
+Restore installs it. The part an SN notebook's kind names keeps the SN id, so links and tags still
+resolve; each other part that is not empty becomes an item beside it, same folder and name, a
+fresh id (Greg: a Document beside a notebook, a notebook beside a sketchbook). No link is left
+between the files a notebook is split into; the open question above closed that way. Dry-run
+against the Nomad's SN dev library the same day: 44 notebooks, 10 documents, 6 354 strokes, ten
+seconds, nothing unexplained in the report.
 
 ---
 
