@@ -33,14 +33,14 @@ android {
             versionNameSuffix = "-dev"
             buildConfigField("String", "SOIL_PACKAGE", "\"$soilPackage.dev\"")
             // A separate root, so a dev build never mingles test files under the real tree.
-            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Soil Dev\"")
+            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Sproutscape Dev\"")
         }
         release {
             isMinifyEnabled = false
             // Soil trusts exactly one signing key: this Mac's debug keystore.
             signingConfig = signingConfigs.getByName("debug")
             buildConfigField("String", "SOIL_PACKAGE", "\"$soilPackage\"")
-            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Soil\"")
+            buildConfigField("String", "ROOT_FOLDER_NAME", "\"Sproutscape\"")
         }
     }
 

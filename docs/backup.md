@@ -26,7 +26,7 @@ seam such as Biblesprout's and Calsprout's, anything else in the garden), and `s
 index, last. File names are ids, so a copy replaces in place; display names travel inside each
 file. Every copy is a ciphertext byte copy under the global key, never decrypted. A debug build
 writes into a `dev/` subfolder of the chosen folder, since debug and release coexist on the
-Nomad; the cloud needs no such split, its root is already "Soil Dev".
+Nomad; the cloud needs no such split, its root is already "Sproutscape Dev".
 
 Two destinations, run by one tap: the chosen folder on the device, and the cloud under
 `Backups/<this device's folder>/` through the extension of phase 12. The cloud leg exists when

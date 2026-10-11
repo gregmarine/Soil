@@ -47,7 +47,7 @@ up in this build" instead of opening a sign-in that cannot work.
 
 ## The tree
 
-The root folder is `Soil` on a release build and `Soil Dev` on a debug one, so a dev build never
+The root folder is `Sproutscape` on a release build and `Sproutscape Dev` on a debug one (Greg, 2026-10-11; `Soil` and `Soil Dev` before), so a dev build never
 mingles its test files under the real tree. Exports go under `Exports/`; the export browser
 opens there and Up stops there. Backups go under `Backups/<this device's folder>/`
 (`docs/backup.md`). The import browser
