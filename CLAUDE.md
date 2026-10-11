@@ -69,13 +69,13 @@ in two columns with File type first and Destination last, the last destination r
 the Drive folder on the screen, remembered per kind, with the browser behind a tap on it.
 `docs/design.md` §16 lists the steps.
 
-**The cleanup round is in progress on the branch `cleanup`** (2026-10-10), towards the first
-version: a title bar's action as a filled button; the cloud offered wherever the device's
-picker is (the template library's import and export, a Sprout app's file through
-`ACTION_PICK_FILE`); the wait overlay with Cancel on Links, Backup and Restore; every session
-parked before a backup or a restore; Soil's own browser over this device's files in place of
-the Android picker, behind All files access (`docs/files.md`). `docs/design.md` §16 lists the
-steps as they land.
+**The cleanup round is done and merged** (2026-10-10), towards the first version: a title
+bar's action as a filled button; the cloud offered wherever the device's picker is (the template
+library's import and export, a Sprout app's file through `ACTION_PICK_FILE`); the wait overlay
+with Cancel on Links, Backup and Restore; every session parked before a backup or a restore;
+Soil's own browser over this device's files in place of the Android picker, behind All files
+access (`docs/files.md`); the seedling as Sproutscape's icon, the apps' marks on the Garden's
+cards and the New glyphs. `docs/design.md` §16 lists the steps.
 
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
