@@ -18,7 +18,7 @@ class RichWriteTest {
     @Test
     fun `blocks are written in the canonical hand`() {
         assertEquals(
-            "# Title\n\nwords\n\n- a\n  - b\n- [ ] c\n- [x] d\n1. e\n2. f\n\n> quote\n\n---\n\nend\n",
+            "# Title\n\nwords\n\n- a\n  - b\n- [ ] c\n- [x] d\n\n1. e\n2. f\n\n> quote\n\n---\n\nend\n",
             write(
                 RichBlock(RichAttr.heading(1), "Title"),
                 p("words"),
@@ -71,6 +71,19 @@ class RichWriteTest {
         assertEquals("""12\. x""" + "\n", write(p("12. x")))
         assertEquals("""\---""" + "\n", write(p("---")))
         assertEquals("""\| a |""" + "\n", write(p("| a |")))
+    }
+
+    @Test
+    fun `an ordered list and a bullet list are a blank line apart, and read back as two lists`() {
+        val doc = RichDoc(listOf(
+            RichBlock(RichAttr(RichKind.ORDERED, number = 1), "one"),
+            RichBlock(RichAttr(RichKind.ORDERED, number = 2), "two"),
+            RichBlock(RichAttr(RichKind.BULLET), "a"),
+            RichBlock(RichAttr(RichKind.BULLET), "b"),
+        ))
+        val written = RichWrite.write(doc).text
+        assertEquals("1. one\n2. two\n\n- a\n- b\n", written)
+        assertEquals(doc.normalized(), RichParse.parse(written).doc)
     }
 
     @Test

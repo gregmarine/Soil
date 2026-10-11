@@ -31,12 +31,13 @@ object RichWrite {
         val keptIndex = normal.indices.filter { !normal[it].isBlank }
         val kept = settleRaw(keptIndex.map { normal[it] })
         val numbers = RichRules.numbering(kept.map { it.attr })
+        val tight = RichRules.tight(kept.map { it.attr })
 
         val out = StringBuilder()
         val offsets = IntArray(doc.blocks.size)
         var next = 0
         for ((k, block) in kept.withIndex()) {
-            if (k > 0) out.append(if (RichRules.tight(kept[k - 1].attr, block.attr)) "\n" else "\n\n")
+            if (k > 0) out.append(if (tight[k]) "\n" else "\n\n")
             while (next <= keptIndex[k]) offsets[next++] = out.length
             out.append(line(block, numbers[k]))
         }

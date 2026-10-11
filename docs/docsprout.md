@@ -82,7 +82,12 @@ In `:markdown`, package `rich`, pure Kotlin and tested on the JVM: `RichDoc` is 
 its words and style runs (`RichSpan`). `RichParse` reads Markdown, `RichWrite` writes it, and
 the two round-trip (`parse(write(doc)) == doc`, held over awkward text and 400 generated
 documents). `RichRules` is the editing rules, `RichTyping` type-to-format, `RichPlain` the
-plain words.
+plain words. Which blocks sit tight is one rule, `RichRules.tight`, shared by the writer, the
+plain text and the rendered editor's spacing: an item under an item of the same list, and a
+raw line under a raw line. A bullet or task at the same depth as the numbered item before it
+is a new list (as the numbering counts it), written a blank line apart and shown with the full
+gap; so is a numbered item under a bullet. A nested list of the other kind stays with its
+list, and so does an item that comes back out to a depth whose kind it keeps (2026-10-10).
 
 ### The rendered editor
 

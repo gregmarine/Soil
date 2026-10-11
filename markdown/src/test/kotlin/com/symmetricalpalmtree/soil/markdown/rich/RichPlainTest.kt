@@ -14,7 +14,7 @@ class RichPlainTest {
 
     @Test
     fun `lists keep plain markers, their numbers and their indent`() {
-        assertEquals("- a\n  - b\n[ ] c\n[x] d\n3. e\n4. f\n", plain("- a\n  - b\n- [ ] c\n- [x] d\n3. e\n9. f\n"))
+        assertEquals("- a\n  - b\n[ ] c\n[x] d\n\n3. e\n4. f\n", plain("- a\n  - b\n- [ ] c\n- [x] d\n3. e\n9. f\n"))
     }
 
     @Test

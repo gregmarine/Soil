@@ -13,9 +13,10 @@ object RichPlain {
     fun write(doc: RichDoc): String {
         val kept = doc.blocks.map { it.normalized() }.filter { !it.isBlank }
         val numbers = RichRules.numbering(kept.map { it.attr })
+        val tight = RichRules.tight(kept.map { it.attr })
         val out = StringBuilder()
         for ((k, block) in kept.withIndex()) {
-            if (k > 0) out.append(if (RichRules.tight(kept[k - 1].attr, block.attr)) "\n" else "\n\n")
+            if (k > 0) out.append(if (tight[k]) "\n" else "\n\n")
             val a = block.attr
             val indent = "  ".repeat(a.depth)
             out.append(

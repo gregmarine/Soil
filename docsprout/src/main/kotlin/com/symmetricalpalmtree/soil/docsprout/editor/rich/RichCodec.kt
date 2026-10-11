@@ -144,12 +144,13 @@ object RichCodec {
     fun layoutPass(text: Spanned) {
         val blocks = blocks(text)
         if (blocks.isEmpty()) return
-        val numbers = RichRules.numbering(blocks.map { it.attr })
-        var previous: BlockSpan? = null
+        val attrs = blocks.map { it.attr }
+        val numbers = RichRules.numbering(attrs)
+        val tight = RichRules.tight(attrs)
         for ((i, block) in blocks.withIndex()) {
             val gap = when {
-                previous == null -> 0
-                RichRules.tight(previous.attr, block.attr) -> block.metrics.tightGap
+                i == 0 -> 0
+                tight[i] -> block.metrics.tightGap
                 else -> block.metrics.gap
             }
             // An ordered item claims the number it shows, so what is written is what is seen.
@@ -159,7 +160,6 @@ object RichCodec {
                 block.gapTop = gap
                 (text as? Editable)?.let { refresh(it, block) }
             }
-            previous = block
         }
     }
 
