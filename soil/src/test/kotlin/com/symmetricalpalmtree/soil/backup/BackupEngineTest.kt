@@ -33,4 +33,13 @@ class BackupEngineTest {
     fun aStoreCopyIsALandedWrite() {
         assertTrue(BackupEngine.Result(upToDate = 5, storesCopied = 1).succeeded)
     }
+
+    /** Cleanup, 2026-10-10: a stop on either leg is the run cancelled, and the report says so before anything else. */
+    @Test
+    fun aStoppedLegIsACancelledRun() {
+        assertFalse(BackupEngine.Outcome(local = BackupEngine.Result(copied = 2)).cancelled)
+        assertTrue(BackupEngine.Outcome(local = BackupEngine.Result(copied = 2, stopped = true)).cancelled)
+        assertTrue(BackupEngine.Outcome(local = BackupEngine.Result(copied = 2, indexCopied = true), cloud = BackupEngine.Result(stopped = true)).cancelled)
+        assertFalse(BackupEngine.Outcome().cancelled)
+    }
 }

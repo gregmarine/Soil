@@ -59,6 +59,14 @@ taken under either could not be told apart.
 5. The last-run figures move only when at least one write landed; the stamp map is pruned of
    items that no longer exist.
 
+**Back up now** runs under the wait overlay for its whole run, the count on it and Cancel
+(cleanup, 2026-10-10). The engine asks the flag before every unit, an item, a store or the index,
+on either leg, and a yes ends the run there: every write is atomic and every stamp is written per
+success, so nothing is undone, the files landed are whole and stamped, the rest are copied next
+time, and the snapshot caches are cleared as on every exit. A stopped run skips the leg after it,
+moves no last-run figures (proposed: the status line speaks of a whole run), and is reported as
+*Backup stopped* with what landed.
+
 On the cloud leg every uploaded file is self-contained: a stale `<name>-wal` found in the folder
 is deleted before the stamp, the one remote delete. The leg stops where it stands on a
 not-connected, a network failure or a no-answer, keeping every stamp earned. A reported size that

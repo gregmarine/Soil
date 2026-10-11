@@ -25,6 +25,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityBackupBinding
 import com.symmetricalpalmtree.soil.export.ExportPanel
 import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.ext.Extension
+import com.symmetricalpalmtree.soil.importing.ImportOverlay
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -50,7 +51,8 @@ class BackupActivity : AppCompatActivity() {
     private lateinit var binding: ActivityBackupBinding
     private lateinit var panel: ExportPanel
     private val running = AtomicBoolean(false)
-    private var progress: AlertDialog? = null
+    /** Set by the overlay's Cancel; the engine asks it before every unit. */
+    @Volatile private var stopAsked = false
 
     private var cloud: CloudConnectEntry? = null
     private var cloudRef: Extension? = null
@@ -90,8 +92,6 @@ class BackupActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        progress?.let { runCatching { it.dismiss() } }
-        progress = null
         cloud?.close()
         cloud = null
         super.onDestroy()
@@ -163,7 +163,7 @@ class BackupActivity : AppCompatActivity() {
             }
             showProgress()
             val outcome = try {
-                BackupEngine.run(applicationContext) { p -> runOnUiThread { updateProgress(p) } }
+                BackupEngine.run(applicationContext, stop = { stopAsked }) { p -> runOnUiThread { updateProgress(p) } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -179,19 +179,21 @@ class BackupActivity : AppCompatActivity() {
         }
     }
 
+    /** The wait overlay for the whole run, the count on it, and Cancel: a tap stops the run at its next file (cleanup, 2026-10-10). */
     private fun showProgress() {
         if (isFinishing || isDestroyed) return
-        progress = Dialogs.style(AlertDialog.Builder(this).setMessage(getString(R.string.backup_progress, 0, 0)).setCancelable(false).create()).also { it.show() }
+        stopAsked = false
+        ImportOverlay.show(this, R.string.backup_progress_start) { stopAsked = true; ImportOverlay.stage(this, R.string.backup_stopping) }
     }
 
     private fun updateProgress(p: BackupEngine.Progress) {
-        if (isFinishing || isDestroyed) return
-        progress?.setMessage(if (p.leg == BackupEngine.Leg.CLOUD) getString(R.string.backup_progress_cloud, providerName(), p.done, p.total) else getString(R.string.backup_progress, p.done, p.total))
+        if (isFinishing || isDestroyed || stopAsked) return
+        ImportOverlay.stage(this, if (p.leg == BackupEngine.Leg.CLOUD) getString(R.string.backup_progress_cloud, providerName(), p.done, p.total) else getString(R.string.backup_progress, p.done, p.total))
     }
 
-    private fun hideProgress() { progress?.let { runCatching { it.dismiss() } }; progress = null }
+    private fun hideProgress() { ImportOverlay.hide(this) }
 
-    /** One dialog, one block per leg that ran. */
+    /** One dialog, one block per leg that ran. A stopped run says so, with what landed before the stop. */
     private fun report(outcome: BackupEngine.Outcome) {
         if (isFinishing || isDestroyed) return
         when (outcome.problem) {
@@ -204,8 +206,11 @@ class BackupActivity : AppCompatActivity() {
             outcome.local?.let { append(localBlock(it)) }
             outcome.cloud?.let { if (isNotEmpty()) append("\n\n"); append(cloudBlock(it)) }
         }
-        if (CloudBackupRules.clean(outcome)) Dialogs.confirm(this, R.string.backup_done_title, body) { finish() }
-        else Dialogs.problem(this, R.string.backup_problem_title, body + "\n\n" + getString(R.string.backup_problem_tail))
+        when {
+            outcome.cancelled -> Dialogs.problem(this, R.string.backup_stopped_title, body + "\n\n" + getString(R.string.backup_stopped_tail))
+            CloudBackupRules.clean(outcome) -> Dialogs.confirm(this, R.string.backup_done_title, body) { finish() }
+            else -> Dialogs.problem(this, R.string.backup_problem_title, body + "\n\n" + getString(R.string.backup_problem_tail))
+        }
     }
 
     private fun noDestination(ref: Extension?) {
@@ -225,7 +230,8 @@ class BackupActivity : AppCompatActivity() {
     }
 
     private fun legBlock(r: BackupEngine.Result, countsRes: Int, countsFailedRes: Int, vararg prefixArgs: Any): String {
-        val clean = CloudBackupRules.legClean(r)
+        // A stopped leg's counts read as they stand: "0 failed" would be true and beside the point.
+        val clean = CloudBackupRules.legClean(r) || (r.stopped && r.failed == 0)
         val skipped = r.upToDate + r.excluded + r.held + r.missing
         return buildString {
             append(if (clean) getString(countsRes, *prefixArgs, r.copied, skipped) else getString(countsFailedRes, *prefixArgs, r.copied, skipped, r.failed))

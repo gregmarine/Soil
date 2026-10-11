@@ -699,6 +699,10 @@
     <string name="backup_status_last">Last backup: %1$s. %2$d copied, %3$d skipped.</string>
     <string name="backup_progress">Backing up… %1$d/%2$d</string>
     <string name="backup_progress_cloud">Uploading to %1$s… %2$d/%3$d</string>
+    <string name="backup_progress_start">Backing up…</string>
+    <string name="backup_stopping">Stopping after this file…</string>
+    <string name="backup_stopped_title">Backup stopped</string>
+    <string name="backup_stopped_tail">What was copied before the stop is kept. The rest is copied next time.</string>
     <string name="backup_no_destination_title">Nowhere to back up</string>
     <string name="backup_no_destination_body">Nothing has been backed up. Choose a folder to back up to, or turn on “Back up to %1$s”.</string>
     <string name="backup_no_folder_title">No backup folder</string>

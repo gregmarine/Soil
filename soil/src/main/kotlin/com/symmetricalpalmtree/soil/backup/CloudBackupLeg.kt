@@ -29,7 +29,8 @@ import java.io.File
  * provider's root. Every uploaded file is self-contained ([SelfContainedSnapshot]); one listing
  * at the start, kept current, serves the stale-sidecar check, the arc's one remote delete; stamps
  * are the cloud's own, written per success; the leg stops where it stands on a not-connected, a
- * network failure or a no-answer, keeping what it earned. Nothing here logs a name or an account.
+ * network failure or a no-answer, or on the person's Cancel asked before every unit, keeping
+ * what it earned. Nothing here logs a name or an account.
  */
 internal object CloudBackupLeg {
 
@@ -42,13 +43,14 @@ internal object CloudBackupLeg {
         class Stopped(val problem: BackupEngine.Problem) : Sent()
     }
 
-    suspend fun run(app: Context, ref: Extension, state: RunState, work: BackupPredicates.WorkList, stores: List<BackupEngine.StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, tick: () -> Unit): BackupEngine.Result = try {
-        runLeg(app, ref, state, work, stores, aliveIds, compacted, tick)
+    suspend fun run(app: Context, ref: Extension, state: RunState, work: BackupPredicates.WorkList, stores: List<BackupEngine.StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, stop: () -> Boolean, tick: () -> Unit): BackupEngine.Result = try {
+        runLeg(app, ref, state, work, stores, aliveIds, compacted, stop, tick)
     } finally {
         SelfContainedSnapshot.clean(app)
     }
 
-    private suspend fun runLeg(app: Context, ref: Extension, state: RunState, work: BackupPredicates.WorkList, stores: List<BackupEngine.StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, tick: () -> Unit): BackupEngine.Result {
+    private suspend fun runLeg(app: Context, ref: Extension, state: RunState, work: BackupPredicates.WorkList, stores: List<BackupEngine.StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, stop: () -> Boolean, tick: () -> Unit): BackupEngine.Result {
+        if (stop()) return BackupEngine.Result(upToDate = work.upToDate, excluded = work.excluded, stopped = true)
         val folder = state.config.cloudDeviceFolder ?: return BackupEngine.Result(problem = BackupEngine.Problem.CLOUD_GONE)
         val path = arrayOf(BackupPredicates.CLOUD_BACKUPS_FOLDER, folder)
 
@@ -75,8 +77,10 @@ internal object CloudBackupLeg {
         var held = 0
         var missing = 0
         var failed = 0
+        var stopped = false
+        fun stopHere(): Boolean { if (!stopped && stop()) { stopped = true; Slog.d(TAG) { "cloud leg stopped by the person" } }; return stopped }
         for (candidate in work.toCopy) {
-            if (stop != null) break
+            if (stop != null || stopHere()) break
             val source = SoilFiles.itemFile(app, candidate.id)
             when {
                 !source.exists() || source.length() == 0L -> missing++
@@ -96,7 +100,7 @@ internal object CloudBackupLeg {
         var storesCopied = 0
         var storesFailed = 0
         for (store in stores) {
-            if (stop != null) break
+            if (stop != null || stopHere()) break
             if (store.file.length() == 0L) { Slog.d(TAG) { "a store is empty; nothing to upload" }; tick(); continue }
             AppStores.checkpointIfOpen(store.name)
             when (val sent = send(app, ref, path, store.file, store.file.name, store.fileId, listing)) {
@@ -108,7 +112,7 @@ internal object CloudBackupLeg {
         }
 
         var indexCopied = false
-        if (stop == null) {
+        if (stop == null && !stopHere()) {
             if (SoilIndex.isReady()) SoilDb.checkpoint(SoilIndex.db())
             when (val sent = send(app, ref, path, SoilFiles.indexFile(app), BackupPredicates.INDEX_NAME, KeyMaterial.INDEX_FILE_ID, listing)) {
                 is Sent.Ok -> indexCopied = true
@@ -118,13 +122,13 @@ internal object CloudBackupLeg {
             tick()
         }
 
-        val result = BackupEngine.Result(problem = stop, copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied)
-        if (result.succeeded) {
+        val result = BackupEngine.Result(problem = stop, copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied, stopped = stopped)
+        if (result.succeeded && !stopped) {
             state.update {
                 it.copy(cloudLastRunAt = System.currentTimeMillis(), cloudLastCopied = result.copied, cloudLastSkipped = result.upToDate + result.excluded + result.held + result.missing, cloudStamps = BackupPredicates.pruneStamps(it.cloudStamps, aliveIds))
             }
         }
-        Slog.d(TAG) { "cloud: $copied copied, ${result.upToDate} up to date, ${result.excluded} excluded, $held held, $missing missing, $failed failed, stores $storesCopied/$storesFailed, index=$indexCopied, stopped=${stop != null}" }
+        Slog.d(TAG) { "cloud: $copied copied, ${result.upToDate} up to date, ${result.excluded} excluded, $held held, $missing missing, $failed failed, stores $storesCopied/$storesFailed, index=$indexCopied, stoppedBy=${if (stopped) "person" else if (stop != null) "failure" else "nothing"}" }
         return result
     }
 

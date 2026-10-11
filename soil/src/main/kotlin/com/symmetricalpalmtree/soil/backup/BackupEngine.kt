@@ -37,6 +37,13 @@ import java.io.File
  * stamps; the index last, checkpointed, snapshotted and probed before it streams. Nothing here
  * bumps an item's `updatedAt`. Headless IO that never throws: every failure is a count or a
  * [Problem].
+ *
+ * **Stoppable** (cleanup, 2026-10-10): [run]'s `stop` is asked before every unit, an item, a
+ * store or the index, on either leg, and a yes ends the run there. Every write is atomic and
+ * every stamp is written per success, so a stop leaves nothing to undo: the files landed are
+ * whole and stamped, the rest are copied next run, and the snapshot caches are cleared as they
+ * are on every exit. The last-run figures do not move on a stopped run (proposed): the status
+ * line speaks of a whole one.
  */
 object BackupEngine {
 
@@ -71,21 +78,26 @@ object BackupEngine {
         val storesCopied: Int = 0,
         val storesFailed: Int = 0,
         val indexCopied: Boolean = false,
+        /** The leg was stopped by the person before it was through; what landed is kept and stamped. */
+        val stopped: Boolean = false,
     ) {
         /** At least one destination write landed. */
         val succeeded: Boolean get() = copied > 0 || storesCopied > 0 || indexCopied
     }
 
     /** One result per leg; a leg that did not run is null, never a zero result. */
-    data class Outcome(val local: Result? = null, val cloud: Result? = null, val problem: Problem? = null)
+    data class Outcome(val local: Result? = null, val cloud: Result? = null, val problem: Problem? = null) {
+        /** The person stopped the run; a leg after the stopped one did not run at all. */
+        val cancelled: Boolean get() = local?.stopped == true || cloud?.stopped == true
+    }
 
     enum class Leg { LOCAL, CLOUD }
 
     data class Progress(val done: Int, val total: Int, val leg: Leg = Leg.LOCAL)
 
-    suspend fun run(context: Context, onProgress: (Progress) -> Unit = {}): Outcome = withContext(Dispatchers.IO) {
+    suspend fun run(context: Context, stop: () -> Boolean = { false }, onProgress: (Progress) -> Unit = {}): Outcome = withContext(Dispatchers.IO) {
         try {
-            runInner(context.applicationContext, onProgress)
+            runInner(context.applicationContext, stop, onProgress)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -94,7 +106,7 @@ object BackupEngine {
         }
     }
 
-    private suspend fun runInner(app: Context, onProgress: (Progress) -> Unit): Outcome {
+    private suspend fun runInner(app: Context, stop: () -> Boolean, onProgress: (Progress) -> Unit): Outcome {
         if (!SoilIndex.isReady() || KeySession.get() == null) return Outcome(problem = Problem.NO_KEY)
         if (GlobalRotation.hasMarker(app)) return Outcome(problem = Problem.ROTATION_PENDING)
         val store = BackupStore()
@@ -126,13 +138,13 @@ object BackupEngine {
         onProgress(Progress(0, total, leg))
 
         val compacted = HashSet<String>()
-        val local = localWork?.let { runLocalLeg(app, state, it, stores, aliveIds, compacted, tick) }
-        val cloud = if (cloudWork != null && cloudRef != null) {
+        val local = localWork?.let { runLocalLeg(app, state, it, stores, aliveIds, compacted, stop, tick) }
+        val cloud = if (cloudWork != null && cloudRef != null && local?.stopped != true) {
             leg = Leg.CLOUD
-            CloudBackupLeg.run(app, cloudRef, state, cloudWork, stores, aliveIds, compacted, tick)
+            CloudBackupLeg.run(app, cloudRef, state, cloudWork, stores, aliveIds, compacted, stop, tick)
         } else null
 
-        Slog.d(TAG) { "run: local=${local != null} cloud=${cloud != null} of $total units" }
+        Slog.d(TAG) { "run: local=${local != null} cloud=${cloud != null} of $total units${if (local?.stopped == true || cloud?.stopped == true) ", stopped" else ""}" }
         return Outcome(local = local, cloud = cloud)
     }
 
@@ -141,7 +153,7 @@ object BackupEngine {
         val fileId: String get() = RotationPlan.storeId(name)
     }
 
-    private fun runLocalLeg(app: Context, state: RunState, work: BackupPredicates.WorkList, stores: List<StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, tick: () -> Unit): Result {
+    private fun runLocalLeg(app: Context, state: RunState, work: BackupPredicates.WorkList, stores: List<StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, stop: () -> Boolean, tick: () -> Unit): Result {
         val treeUri = state.config.treeUri ?: return Result(problem = Problem.FOLDER_GONE)
         val writer = SafBackupWriter(app.contentResolver, Uri.parse(treeUri))
         val root = writer.root() ?: return Result(problem = Problem.FOLDER_GONE)
@@ -151,7 +163,10 @@ object BackupEngine {
         var held = 0
         var missing = 0
         var failed = 0
+        var stopped = false
+        fun stopHere(): Boolean { if (!stopped && stop()) { stopped = true; Slog.d(TAG) { "local leg stopped by the person" } }; return stopped }
         for (candidate in work.toCopy) {
+            if (stopHere()) break
             val source = SoilFiles.itemFile(app, candidate.id)
             when {
                 !source.exists() || source.length() == 0L -> missing++
@@ -171,6 +186,7 @@ object BackupEngine {
         var storesCopied = 0
         var storesFailed = 0
         for (store in stores) {
+            if (stopHere()) break
             when {
                 store.file.length() == 0L -> Slog.d(TAG) { "a store is empty; nothing to copy" }
                 copyStore(app, writer, dest, store) -> storesCopied++
@@ -179,11 +195,10 @@ object BackupEngine {
             tick()
         }
 
-        val indexCopied = copyIndex(app, writer, dest)
-        tick()
+        val indexCopied = if (stopHere()) false else copyIndex(app, writer, dest).also { tick() }
 
-        val result = Result(copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied)
-        if (result.succeeded) {
+        val result = Result(copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied, stopped = stopped)
+        if (result.succeeded && !stopped) {
             state.update {
                 it.copy(lastRunAt = System.currentTimeMillis(), lastCopied = result.copied, lastSkipped = result.upToDate + result.excluded + result.held + result.missing, stamps = BackupPredicates.pruneStamps(it.stamps, aliveIds))
             }
