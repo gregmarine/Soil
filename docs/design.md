@@ -645,4 +645,5 @@ walked on the Nomad:
 | 8 | Sproutscape's launcher icon is the seedling, the Garden's mark (Tabler "seeding"), in place of the ploughed field (Greg) | |
 | 9 | A notebook card's corner glyph is the Note app's own mark, the bound cover with three tabs (`ic_notebook_mark`), in place of Tabler "notebook", which stays the tag popup's door (Greg) | |
 | 10 | The pencil is Sketch's mark everywhere: the launcher icon (as it was), a sketchbook card's corner glyph and the notebook's Convert to sketchbook actions in place of Tabler "sketching", which stays the Scratch Pad's; New sketchbook stays pencil-plus. The sketching stroke was tried as the mark and as a stroke-plus, and the plus on the left of every New glyph was tried and reverted (Greg) | |
+| 11 | New document is the Document app's mark (Tabler "file-text") with the plus cut into its bottom-right corner, as notebook-plus and folder-plus have it, in place of Tabler "file-plus" (Greg) | |
 

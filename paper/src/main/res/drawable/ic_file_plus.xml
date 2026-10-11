@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tabler "file-plus" icon: a document outline with a plus. New document. -->
+<!-- New document — the Document app's mark (Tabler "file-text": the sheet with its fold and lines
+     of text) with the plus cut into its bottom-right corner the way notebook-plus and folder-plus
+     have it: the outline stops short of the corner, the lowest line is shortened, and the plus sits
+     in the notch at (19,19) on the 16..22 arms (Greg, 2026-10-10; before it, Tabler "file-plus",
+     the plus centred in a plain sheet). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -18,19 +22,40 @@
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+        android:pathData="M12.5 21h-5.5a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v6.5"/>
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="@color/inkBlack"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M12 11v6"/>
+        android:pathData="M9 9h1"/>
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="@color/inkBlack"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M9 14h6"/>
+        android:pathData="M9 13h6"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/inkBlack"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M9 17h3"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/inkBlack"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16 19h6"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@color/inkBlack"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M19 16v6"/>
 </vector>
