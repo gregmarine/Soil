@@ -205,6 +205,20 @@
             </intent-filter>
         </activity>
 
+        <!-- A file from outside the library for a Sprout app: this device's picker or the cloud
+             browser, the bytes landed in Soil's cache and answered as a Uri of the provider below. -->
+        <activity
+            android:name=".cloud.FilePickActivity"
+            android:exported="true"
+            android:permission="${applicationId}.permission.SEAM"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="com.symmetricalpalmtree.soil.action.PICK_FILE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- An item of the library for a Sprout app: the link picker's notebook shelves. -->
         <activity
             android:name=".library.ItemPickerActivity"
@@ -247,6 +261,18 @@
 
         <!-- The shell: the side bars, in every app. Turned on over adb (see README.md); Soil
              works without it. -->
+        <!-- The file-pick screen's answers: a read grant on one file of the cache, nothing else of
+             Soil's, for the app that asked. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name=".shell.SoilBarService"
             android:exported="true"

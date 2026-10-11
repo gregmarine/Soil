@@ -9,8 +9,10 @@ rules and the fuzzy ranking.
 ## The screen
 
 Templates, reached from Settings: folders, sort, rename, move, duplicate, Fit, pin, import of a
-PNG, JPEG or WebP through the system picker under the seam's 16 MiB cap, PNG export at this device's
-page size, and the Pinned, Recents and Search shelves. Cards are true miniatures, rendered off
+PNG, JPEG or WebP through the system picker or, with the cloud extension installed, from the
+provider (*Import from* asked first, `cloud.md`) under the seam's 16 MiB cap, PNG export at this
+device's page size to a picked file or to a folder under the provider's `Exports/` (*Export to*
+asked first), and the Pinned, Recents and Search shelves. Cards are true miniatures, rendered off
 Main and cached. The Default folder is reserved: nothing of the person's lands in it.
 
 Started by a Sprout app for a result (`ACTION_PICK_TEMPLATE`, behind the seam permission), the

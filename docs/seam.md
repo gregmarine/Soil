@@ -83,8 +83,12 @@ links into a range of days (`links.md`).
 
 An app starts Soil's screens for a result with the actions in `Seam`: `ACTION_PICK_TEMPLATE`,
 `ACTION_SAVE_TEMPLATE`, `ACTION_PICK_ITEM`, `ACTION_TAGS`, `ACTION_SCRATCH_PAD`, `ACTION_EXPORT`,
-`ACTION_FOLLOW`. Each is guarded by the seam permission and carries ids only, never a path or a
-key. `ACTION_PICK_ITEM` takes one kind or several in `EXTRA_KIND`, comma-separated; with
+`ACTION_FOLLOW`, `ACTION_PICK_FILE`. Each is guarded by the seam permission and carries ids only,
+never a path or a key. `ACTION_PICK_FILE` (cleanup, 2026-10-10) is where an app's own call to
+the device's picker was: Soil asks *this device or the cloud provider* when one is installed,
+runs the picker or its cloud browser, and answers a content Uri of its own FileProvider with a
+read grant and `EXTRA_FILE_NAME`; `EXTRA_MIME_TYPES` narrows the pick. The file is good until
+the app's next pick (`cloud.md`). `ACTION_PICK_ITEM` takes one kind or several in `EXTRA_KIND`, comma-separated; with
 `EXTRA_PICK_PAGE` it also asks for a page when an item with pages is picked, named by the item's
 own app, and with `EXTRA_PAGE_OF_ITEM` it goes straight to that item's pages; it answers the
 item's name with its id, and the page's id when one was asked. The seam's value cap is 16 MiB

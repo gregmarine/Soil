@@ -69,6 +69,11 @@ in two columns with File type first and Destination last, the last destination r
 the Drive folder on the screen, remembered per kind, with the browser behind a tap on it.
 `docs/design.md` §16 lists the steps.
 
+**The cleanup round is in progress on the branch `cleanup`** (2026-10-10), towards the first
+version: a title bar's action as a filled button; the cloud offered wherever the device's
+picker is (the template library's import and export, a Sprout app's file through
+`ACTION_PICK_FILE`). `docs/design.md` §16 lists the steps as they land.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.

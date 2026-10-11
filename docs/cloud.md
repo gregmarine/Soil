@@ -97,6 +97,28 @@ accepted its name, so a file no importer reads costs no bytes. What the provider
 what landed and what the listing claimed are corroborated by `CloudImportRules.downloadVerdict`;
 the rest is the ordinary import. No account connected is the one failure that offers Connect.
 
+## The cloud wherever the device's picker is (cleanup, 2026-10-10)
+
+Every door that opened the device's file picker offers the provider beside it, in the Import
+button's shape: with the extension installed the tap first asks *this device, or the provider*;
+without it the picker opens as before. One owner, `CloudFilePick`, does the asking, the
+connect offer (the Export screen's rule, `ExportDestination.onCloudTap`), the browser in file
+or folder mode, and the bytes down or up with the import's and the export's corroboration;
+its failures are said as *nothing was downloaded* or *nothing was uploaded*, and no account
+connected offers Connect.
+
+- **The template library's Import** (`templates.md`): the browser over the root in file mode,
+  the pick downloaded into the cache and read as a picked image is, the file's own name the
+  suggested template name.
+- **A template's Export**: *Export to*, then the browser over `Exports/` in folder mode, opened
+  on the folder remembered as the kind `template`; a name already there asks *Replace?*; the
+  page-sized PNG is rendered into the cache and uploaded.
+- **A Sprout app's file** (`seam.md`, `ACTION_PICK_FILE`): Soil's file-pick screen asks, runs
+  the device's picker or the browser, lands the bytes in `cache/pick/` and answers a Uri of its
+  own `FileProvider` (`<applicationId>.files`, that folder alone) with a read grant and the
+  file's name. A device pick is copied rather than forwarded, so the answer is one shape; a
+  file over 64 MiB is refused (proposed). The sketchbook's reference image is the first caller.
+
 ## Settings
 
 Settings has a *Cloud storage* row: the provider's status line (`<provider>: not connected`,

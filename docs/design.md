@@ -630,3 +630,11 @@ The export round, on the branch `export` (2026-10-10), walked on the Nomad:
 
 Decisions taken along the way are marked proposed in each document.
 
+The cleanup round, on the branch `cleanup` (2026-10-10), towards the first version, each step
+walked on the Nomad:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | A title bar's action as a filled button, black with white text (`Widget.Soil.ElevatedButton`): Export, Back up now, the cloud browser's Save here; Cancel stays a text button | |
+| 2 | The cloud wherever the device's picker is offered: *this device or the provider* asked first, through one owner (`CloudFilePick`); the template library's Import from the provider and a template's Export to a folder under `Exports/`; a Sprout app's file through Soil's file-pick screen (`ACTION_PICK_FILE`, a FileProvider answer), the sketchbook's reference image first | `cloud.md`, `templates.md`, `seam.md`, `sketchsprout.md` |
+

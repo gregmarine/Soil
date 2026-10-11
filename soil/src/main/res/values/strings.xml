@@ -654,6 +654,34 @@
     <string name="import_cloud_network_body">%1$s could not be reached, so nothing was downloaded. Nothing was imported. Try again.</string>
     <string name="import_cloud_unanswered_body">%1$s didn\'t answer, so nothing was imported. Try again.</string>
 
+    <!-- The cloud as a second place for files, wherever the device's picker is offered (cleanup, 2026-10-10). -->
+    <string name="cloud_pick_connect_offer_body">Sign in to %1$s so Sproutscape can read the files there. Nothing is downloaded until you choose a file.</string>
+    <string name="cloud_pick_failed_title">Couldn\'t download</string>
+    <string name="cloud_pick_gone_body">The cloud extension is no longer available on this device. Nothing was downloaded.</string>
+    <string name="cloud_pick_not_connected_body">No account is connected to %1$s, so nothing was downloaded. Connect an account and try again.</string>
+    <string name="cloud_pick_network_body">%1$s could not be reached, so nothing was downloaded. Try again.</string>
+    <string name="cloud_pick_unanswered_body">%1$s didn\'t answer, so nothing was downloaded. Try again.</string>
+    <string name="cloud_pick_write_body">The file could not be saved on this device. Nothing has been changed.</string>
+    <string name="cloud_pick_short_body">The file did not arrive whole from %1$s. Nothing has been changed. Try again.</string>
+    <string name="cloud_put_failed_title">Couldn\'t upload</string>
+    <string name="cloud_put_gone_body">The cloud extension is no longer available on this device. Nothing was uploaded.</string>
+    <string name="cloud_put_not_connected_body">No account is connected to %1$s, so nothing was uploaded. Connect an account and try again.</string>
+    <string name="cloud_put_network_body">%1$s could not be reached, so nothing was uploaded. Try again.</string>
+    <string name="cloud_put_unanswered_body">%1$s didn\'t answer, so the file may or may not have arrived. Check there before trying again.</string>
+    <string name="cloud_put_read_body">The file could not be prepared on this device. Nothing was uploaded.</string>
+    <string name="cloud_put_unconfirmed_body">%1$s reports a different size for the file it received. Check it there.</string>
+    <string name="template_export_target_title">Export to</string>
+    <string name="template_export_cloud_done">Template uploaded to %1$s</string>
+    <string name="file_pick_title">Choose a file</string>
+    <string name="file_pick_image_title">Choose an image</string>
+    <string name="file_pick_source_title">Choose from</string>
+    <string name="file_pick_body">Where is the file?</string>
+    <string name="cd_file_pick_back">Back</string>
+    <string name="file_pick_failed_title">Couldn\'t read that file</string>
+    <string name="file_pick_failed_body">The file could not be read from where it is. Nothing has been changed.</string>
+    <string name="file_pick_too_large_body">That file is larger than %1$s, so it cannot be brought in. Nothing has been changed.</string>
+    <string name="file_pick_copying">Reading the file…</string>
+
     <!-- Backup and restore. "Items" are notebooks and whatever other kinds the apps add. -->
     <string name="cd_backup">Backup</string>
     <string name="action_exclude_backup">Exclude from backup</string>
