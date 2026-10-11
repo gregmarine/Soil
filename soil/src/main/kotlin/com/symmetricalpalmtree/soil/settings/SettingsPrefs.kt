@@ -36,6 +36,16 @@ class SettingsPrefs(context: Context) {
 
     fun setLastCloudFolder(kind: String, encoded: String) { prefs.edit().putString(KEY_LAST_CLOUD_FOLDER + kind, encoded).apply() }
 
+    /** The folder on this device a kind of export last went to, as `LocalFiles.encodePath` writes it. */
+    fun lastLocalFolder(kind: String): String? = prefs.getString(KEY_LAST_LOCAL_FOLDER + kind, null)
+
+    fun setLastLocalFolder(kind: String, encoded: String) { prefs.edit().putString(KEY_LAST_LOCAL_FOLDER + kind, encoded).apply() }
+
+    /** The person chose Android's picker over switching All files access on; asked no more until the Settings row is tapped. */
+    var localPickerDeclined: Boolean
+        get() = prefs.getBoolean(KEY_LOCAL_PICKER_DECLINED, false)
+        set(value) { prefs.edit().putBoolean(KEY_LOCAL_PICKER_DECLINED, value).apply() }
+
     private companion object {
         const val FILE = "soil_settings"
         const val KEY_LAST_PAGE_SIZE = "lastPageSize"
@@ -44,5 +54,7 @@ class SettingsPrefs(context: Context) {
         const val KEY_LAST_EXPORTER = "lastExporter"
         const val KEY_LAST_DESTINATION_CLOUD = "lastDestinationCloud"
         const val KEY_LAST_CLOUD_FOLDER = "lastCloudFolder:"
+        const val KEY_LAST_LOCAL_FOLDER = "lastLocalFolder:"
+        const val KEY_LOCAL_PICKER_DECLINED = "localPickerDeclined"
     }
 }

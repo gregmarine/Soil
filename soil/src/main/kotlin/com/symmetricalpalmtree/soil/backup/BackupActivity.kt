@@ -25,6 +25,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityBackupBinding
 import com.symmetricalpalmtree.soil.export.ExportPanel
 import com.symmetricalpalmtree.soil.ext.CloudStatus
 import com.symmetricalpalmtree.soil.ext.Extension
+import com.symmetricalpalmtree.soil.importing.ImportOverlay
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
 import com.symmetricalpalmtree.soil.paper.core.TopGuard
@@ -35,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
+import java.io.File
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -50,7 +52,8 @@ class BackupActivity : AppCompatActivity() {
     private lateinit var binding: ActivityBackupBinding
     private lateinit var panel: ExportPanel
     private val running = AtomicBoolean(false)
-    private var progress: AlertDialog? = null
+    /** Set by the overlay's Cancel; the engine asks it before every unit. */
+    @Volatile private var stopAsked = false
 
     private var cloud: CloudConnectEntry? = null
     private var cloudRef: Extension? = null
@@ -59,6 +62,8 @@ class BackupActivity : AppCompatActivity() {
     private var cloudBusy = false
     private var deviceFolder: String? = null
     private var cloudEnabled = false
+    /** The folder through Soil's own browser, the Android picker behind it (Greg, 2026-10-10). */
+    private val local by lazy { com.symmetricalpalmtree.soil.files.LocalFilePick(this) }
 
     private val folderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) { Slog.d(TAG) { "folder picker cancelled" }; return@registerForActivityResult }
@@ -90,8 +95,7 @@ class BackupActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        progress?.let { runCatching { it.dismiss() } }
-        progress = null
+        local.close()
         cloud?.close()
         cloud = null
         super.onDestroy()
@@ -102,7 +106,7 @@ class BackupActivity : AppCompatActivity() {
     private suspend fun render() {
         val config = withContext(Dispatchers.IO) { BackupStore().read() }
         if (isFinishing || isDestroyed) return
-        binding.folderPath.text = config.treeUri?.let { folderLabel(it) } ?: getString(R.string.backup_no_folder)
+        binding.folderPath.text = config.localDir?.let { localFolderLabel(File(it)) } ?: config.treeUri?.let { folderLabel(it) } ?: getString(R.string.backup_no_folder)
         val at = config.lastRunAt
         binding.status.text = if (at == null) getString(R.string.backup_status_never)
         else getString(R.string.backup_status_last, DateFormat.getDateTimeInstance().format(Date(at)), config.lastCopied ?: 0, config.lastSkipped ?: 0)
@@ -114,15 +118,53 @@ class BackupActivity : AppCompatActivity() {
         return id.substringAfter(':').ifEmpty { id }
     }
 
+    private fun localFolderLabel(dir: File): String {
+        val path = com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), dir) ?: return dir.name
+        return com.symmetricalpalmtree.soil.files.LocalFiles.label(com.symmetricalpalmtree.soil.files.LocalStorage.label(this), path, getString(R.string.cloud_browser_crumb_separator))
+    }
+
     // ── The folder ──────
 
+    /** Soil's browser in folder mode, opened on the folder as it stands; the Android picker when the access is off. */
     private fun onChooseTap() {
+        if (running.get()) return
+        lifecycleScope.launch {
+            val current = withContext(Dispatchers.IO) { BackupStore().read().localDir }?.let { com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), File(it)) } ?: emptyList()
+            if (isFinishing || isDestroyed) return@launch
+            local.pickFolder(current) { answer ->
+                when (answer) {
+                    is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> lifecycleScope.launch { adoptLocalFolder(answer.dir) }
+                    com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> launchSystemFolderPicker()
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun launchSystemFolderPicker() {
         try {
             folderLauncher.launch(null)
         } catch (e: Exception) {
             Log.w(TAG, "no folder picker: ${e.javaClass.simpleName}")
             Dialogs.problem(this, R.string.backup_no_picker_title, R.string.backup_no_picker_body)
         }
+    }
+
+    /** A folder by path: a SAF grant standing is released; a different folder resets the stamp map. */
+    private suspend fun adoptLocalFolder(dir: File) {
+        val stored = dir.absolutePath
+        withContext(Dispatchers.IO) {
+            val store = BackupStore()
+            val config = store.read()
+            val changed = config.localDir != stored || config.treeUri != null
+            config.treeUri?.let { previous ->
+                runCatching { contentResolver.releasePersistableUriPermission(Uri.parse(previous), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+            }
+            store.write(config.copy(treeUri = null, localDir = stored, stamps = if (changed) emptyMap() else config.stamps))
+            Slog.d(TAG) { "backup folder set by path (destination changed: $changed)" }
+        }
+        if (isFinishing || isDestroyed) return
+        render()
     }
 
     /** Take the lasting grant, release the previous folder's, store it. A different folder resets the stamp map. */
@@ -137,11 +179,11 @@ class BackupActivity : AppCompatActivity() {
         withContext(Dispatchers.IO) {
             val store = BackupStore()
             val config = store.read()
-            val changed = config.treeUri != stored
+            val changed = config.treeUri != stored || config.localDir != null
             if (changed) config.treeUri?.let { previous ->
                 runCatching { contentResolver.releasePersistableUriPermission(Uri.parse(previous), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
             }
-            store.write(config.copy(treeUri = stored, stamps = if (changed) emptyMap() else config.stamps))
+            store.write(config.copy(treeUri = stored, localDir = null, stamps = if (changed) emptyMap() else config.stamps))
             Slog.d(TAG) { "backup folder set (destination changed: $changed)" }
         }
         render()
@@ -155,7 +197,7 @@ class BackupActivity : AppCompatActivity() {
             val config = withContext(Dispatchers.IO) { BackupStore().read() }
             val ref = cloud?.discover()
             if (isFinishing || isDestroyed) { running.set(false); return@launch }
-            val legs = CloudBackupRules.legs(config.treeUri != null, config.cloudEnabled, ref != null, config.cloudDeviceFolder != null)
+            val legs = CloudBackupRules.legs(config.treeUri != null || config.localDir != null, config.cloudEnabled, ref != null, config.cloudDeviceFolder != null)
             if (legs.none) {
                 running.set(false)
                 if (!isFinishing && !isDestroyed) noDestination(ref)
@@ -163,7 +205,7 @@ class BackupActivity : AppCompatActivity() {
             }
             showProgress()
             val outcome = try {
-                BackupEngine.run(applicationContext) { p -> runOnUiThread { updateProgress(p) } }
+                BackupEngine.run(applicationContext, stop = { stopAsked }) { p -> runOnUiThread { updateProgress(p) } }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -179,19 +221,21 @@ class BackupActivity : AppCompatActivity() {
         }
     }
 
+    /** The wait overlay for the whole run, the count on it, and Cancel: a tap stops the run at its next file (cleanup, 2026-10-10). */
     private fun showProgress() {
         if (isFinishing || isDestroyed) return
-        progress = Dialogs.style(AlertDialog.Builder(this).setMessage(getString(R.string.backup_progress, 0, 0)).setCancelable(false).create()).also { it.show() }
+        stopAsked = false
+        ImportOverlay.show(this, R.string.backup_progress_start) { stopAsked = true; ImportOverlay.stage(this, R.string.backup_stopping) }
     }
 
     private fun updateProgress(p: BackupEngine.Progress) {
-        if (isFinishing || isDestroyed) return
-        progress?.setMessage(if (p.leg == BackupEngine.Leg.CLOUD) getString(R.string.backup_progress_cloud, providerName(), p.done, p.total) else getString(R.string.backup_progress, p.done, p.total))
+        if (isFinishing || isDestroyed || stopAsked) return
+        ImportOverlay.stage(this, if (p.leg == BackupEngine.Leg.CLOUD) getString(R.string.backup_progress_cloud, providerName(), p.done, p.total) else getString(R.string.backup_progress, p.done, p.total))
     }
 
-    private fun hideProgress() { progress?.let { runCatching { it.dismiss() } }; progress = null }
+    private fun hideProgress() { ImportOverlay.hide(this) }
 
-    /** One dialog, one block per leg that ran. */
+    /** One dialog, one block per leg that ran. A stopped run says so, with what landed before the stop. */
     private fun report(outcome: BackupEngine.Outcome) {
         if (isFinishing || isDestroyed) return
         when (outcome.problem) {
@@ -204,8 +248,11 @@ class BackupActivity : AppCompatActivity() {
             outcome.local?.let { append(localBlock(it)) }
             outcome.cloud?.let { if (isNotEmpty()) append("\n\n"); append(cloudBlock(it)) }
         }
-        if (CloudBackupRules.clean(outcome)) Dialogs.confirm(this, R.string.backup_done_title, body) { finish() }
-        else Dialogs.problem(this, R.string.backup_problem_title, body + "\n\n" + getString(R.string.backup_problem_tail))
+        when {
+            outcome.cancelled -> Dialogs.problem(this, R.string.backup_stopped_title, body + "\n\n" + getString(R.string.backup_stopped_tail))
+            CloudBackupRules.clean(outcome) -> Dialogs.confirm(this, R.string.backup_done_title, body) { finish() }
+            else -> Dialogs.problem(this, R.string.backup_problem_title, body + "\n\n" + getString(R.string.backup_problem_tail))
+        }
     }
 
     private fun noDestination(ref: Extension?) {
@@ -225,7 +272,8 @@ class BackupActivity : AppCompatActivity() {
     }
 
     private fun legBlock(r: BackupEngine.Result, countsRes: Int, countsFailedRes: Int, vararg prefixArgs: Any): String {
-        val clean = CloudBackupRules.legClean(r)
+        // A stopped leg's counts read as they stand: "0 failed" would be true and beside the point.
+        val clean = CloudBackupRules.legClean(r) || (r.stopped && r.failed == 0)
         val skipped = r.upToDate + r.excluded + r.held + r.missing
         return buildString {
             append(if (clean) getString(countsRes, *prefixArgs, r.copied, skipped) else getString(countsFailedRes, *prefixArgs, r.copied, skipped, r.failed))

@@ -1,7 +1,6 @@
 package com.symmetricalpalmtree.soil.sketchsprout.sketch
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -19,6 +18,8 @@ import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.gpaper.core.PaperView
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
+import com.symmetricalpalmtree.soil.seam.Seam
+import com.symmetricalpalmtree.soil.sketchsprout.BuildConfig
 import com.symmetricalpalmtree.soil.sketchsprout.R
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchPage
 import com.symmetricalpalmtree.soil.sketchsprout.data.SketchbookStore
@@ -220,16 +221,15 @@ class SketchGuides(
     private fun pickImage() {
         if (!usable()) return
         val id = pageId ?: return
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType("image/*")
-            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png", "image/jpeg", "image/webp"))
+        // Soil's file-pick screen, not the device's picker: it offers the cloud too (2026-10-10).
+        val intent = Intent(Seam.ACTION_PICK_FILE).setPackage(BuildConfig.SOIL_PACKAGE)
+            .putExtra(Seam.EXTRA_MIME_TYPES, arrayOf("image/png", "image/jpeg", "image/webp"))
         try {
             pickingFor = id
             picker.launch(intent)
-        } catch (e: ActivityNotFoundException) {
+        } catch (e: Exception) {
             pickingFor = null
-            Log.w(TAG, "no document picker")
+            Log.w(TAG, "no file-pick screen: ${e.javaClass.simpleName}")
             Dialogs.problem(activity, R.string.guides_no_picker_title, R.string.guides_no_picker_body)
         }
     }

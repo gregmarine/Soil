@@ -576,6 +576,10 @@
     <string name="settings_links_busy">The link index is being rebuilt. The answer comes when it is done.</string>
     <string name="settings_links_done">Rebuilt from %1$d items.</string>
     <string name="settings_links_done_skipped">Rebuilt from %1$d items; %2$d could not be read.</string>
+    <string name="settings_links_running">Rebuilding the link index…</string>
+    <string name="settings_links_progress">Rebuilding the link index… %1$d of %2$d</string>
+    <string name="settings_links_stopping">Stopping after this item…</string>
+    <string name="settings_links_stopped">Stopped. %1$d of %2$d items were rebuilt; the rest are as they were.</string>
     <string name="settings_cloud_none">No cloud extension is installed</string>
     <string name="settings_cloud_none_body">Install the cloud extension to connect an account.</string>
     <string name="cloud_status_line">%1$s: %2$s</string>
@@ -654,6 +658,52 @@
     <string name="import_cloud_network_body">%1$s could not be reached, so nothing was downloaded. Nothing was imported. Try again.</string>
     <string name="import_cloud_unanswered_body">%1$s didn\'t answer, so nothing was imported. Try again.</string>
 
+    <!-- The cloud as a second place for files, wherever the device's picker is offered (cleanup, 2026-10-10). -->
+    <string name="cloud_pick_connect_offer_body">Sign in to %1$s so Sproutscape can read the files there. Nothing is downloaded until you choose a file.</string>
+    <string name="cloud_pick_failed_title">Couldn\'t download</string>
+    <string name="cloud_pick_gone_body">The cloud extension is no longer available on this device. Nothing was downloaded.</string>
+    <string name="cloud_pick_not_connected_body">No account is connected to %1$s, so nothing was downloaded. Connect an account and try again.</string>
+    <string name="cloud_pick_network_body">%1$s could not be reached, so nothing was downloaded. Try again.</string>
+    <string name="cloud_pick_unanswered_body">%1$s didn\'t answer, so nothing was downloaded. Try again.</string>
+    <string name="cloud_pick_write_body">The file could not be saved on this device. Nothing has been changed.</string>
+    <string name="cloud_pick_short_body">The file did not arrive whole from %1$s. Nothing has been changed. Try again.</string>
+    <string name="cloud_put_failed_title">Couldn\'t upload</string>
+    <string name="cloud_put_gone_body">The cloud extension is no longer available on this device. Nothing was uploaded.</string>
+    <string name="cloud_put_not_connected_body">No account is connected to %1$s, so nothing was uploaded. Connect an account and try again.</string>
+    <string name="cloud_put_network_body">%1$s could not be reached, so nothing was uploaded. Try again.</string>
+    <string name="cloud_put_unanswered_body">%1$s didn\'t answer, so the file may or may not have arrived. Check there before trying again.</string>
+    <string name="cloud_put_read_body">The file could not be prepared on this device. Nothing was uploaded.</string>
+    <string name="cloud_put_unconfirmed_body">%1$s reports a different size for the file it received. Check it there.</string>
+    <string name="template_export_target_title">Export to</string>
+    <string name="template_export_cloud_done">Template uploaded to %1$s</string>
+    <string name="file_pick_title">Choose a file</string>
+    <string name="file_pick_image_title">Choose an image</string>
+    <string name="file_pick_source_title">Choose from</string>
+    <string name="file_pick_body">Where is the file?</string>
+    <string name="cd_file_pick_back">Back</string>
+    <string name="file_pick_failed_title">Couldn\'t read that file</string>
+    <string name="file_pick_failed_body">The file could not be read from where it is. Nothing has been changed.</string>
+    <string name="file_pick_too_large_body">That file is larger than %1$s, so it cannot be brought in. Nothing has been changed.</string>
+    <string name="file_pick_copying">Reading the file…</string>
+
+    <!-- The device's files through Soil's own browser (Greg, 2026-10-10). -->
+    <string name="files_device">This device</string>
+    <string name="files_offer_title">Browse files with Sproutscape?</string>
+    <string name="files_offer_body">Sproutscape can show this device\'s folders and files on its own screen, with Cancel, instead of Android\'s picker. Android needs All files access switched on for Sproutscape first. Open Settings, switch it on, and come back.</string>
+    <string name="files_offer_settings">Open Settings</string>
+    <string name="files_offer_android">Use Android\'s picker</string>
+    <string name="files_settings_failed_title">Couldn\'t open Settings</string>
+    <string name="files_settings_failed_body">The All files access screen could not be opened on this device. Android\'s picker is used instead.</string>
+    <string name="files_browser_failed_title">Couldn\'t read that folder</string>
+    <string name="files_browser_failed_body">That folder could not be read. Nothing has been changed.</string>
+    <string name="files_restart_title">All files access is on</string>
+    <string name="files_restart_body">Sproutscape restarts to take it. The side menu comes back on its own.</string>
+    <string name="files_restart_now">Restart now</string>
+    <string name="settings_files">Files on this device</string>
+    <string name="settings_files_on">Sproutscape\'s own browser; All files access is on</string>
+    <string name="settings_files_off">Android\'s picker; tap to switch All files access on</string>
+    <string name="settings_files_body">With All files access on, Sproutscape shows this device\'s folders and files on its own screen, with Cancel, wherever a file or a folder is chosen. Switch it on or off on the Android screen that opens.</string>
+
     <!-- Backup and restore. "Items" are notebooks and whatever other kinds the apps add. -->
     <string name="cd_backup">Backup</string>
     <string name="action_exclude_backup">Exclude from backup</string>
@@ -667,6 +717,10 @@
     <string name="backup_status_last">Last backup: %1$s. %2$d copied, %3$d skipped.</string>
     <string name="backup_progress">Backing up… %1$d/%2$d</string>
     <string name="backup_progress_cloud">Uploading to %1$s… %2$d/%3$d</string>
+    <string name="backup_progress_start">Backing up…</string>
+    <string name="backup_stopping">Stopping after this file…</string>
+    <string name="backup_stopped_title">Backup stopped</string>
+    <string name="backup_stopped_tail">What was copied before the stop is kept. The rest is copied next time.</string>
     <string name="backup_no_destination_title">Nowhere to back up</string>
     <string name="backup_no_destination_body">Nothing has been backed up. Choose a folder to back up to, or turn on “Back up to %1$s”.</string>
     <string name="backup_no_folder_title">No backup folder</string>
@@ -734,6 +788,9 @@
     <string name="restore_progress_unlocking">Unlocking…</string>
     <string name="restore_progress_installing">Installing…</string>
     <string name="restore_progress_keep_open">Keep Sproutscape open. This can take a while.</string>
+    <string name="restore_stopping">Stopping after this file…</string>
+    <string name="restore_cancelled_title">Restore cancelled</string>
+    <string name="restore_cancelled_body">Nothing has been changed. Your garden is as it was.</string>
     <string name="restore_key_title">Unlock the backup</string>
     <string name="restore_key_body">Enter the passphrase or recovery key of the garden this backup came from.</string>
     <string name="restore_key_hint">Passphrase or recovery key</string>

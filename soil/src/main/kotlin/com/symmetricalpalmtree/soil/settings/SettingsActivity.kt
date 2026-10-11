@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.index.LinkRebuild
+import com.symmetricalpalmtree.soil.importing.ImportOverlay
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.appcompat.app.AlertDialog
@@ -69,6 +70,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.symmetricalpalmtree.soil.files.LocalStorage.settleAfterGrant(this)
         // Read again at every showing: an extension can be installed or removed meanwhile.
         lifecycleScope.launch {
             installed = withContext(Dispatchers.IO) { Recognizers.installed(this@SettingsActivity) }
@@ -90,9 +92,24 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(Intent(this, TemplatesActivity::class.java))
         })
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_cloud), cloudDetail()) { onCloudTap() })
+        binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_files), getString(if (com.symmetricalpalmtree.soil.files.LocalStorage.hasAccess()) R.string.settings_files_on else R.string.settings_files_off)) { onFilesTap() })
         // Through the gate: while the key is unsaved or the library locked, this leads to the screen that opens it.
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_encryption), getString(R.string.settings_encryption_detail)) { Screens.open(this, Screen.ENCRYPTION) })
         binding.rows.addView(TagRowView.buildTarget(this, getString(R.string.settings_links), getString(R.string.settings_links_detail)) { rebuildLinks() })
+    }
+
+    // ── Files on this device ──────
+
+    /** The one door to Android's All files access toggle, with why; tapping it forgets a *Use Android's picker* answer. */
+    private fun onFilesTap() {
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(R.string.settings_files).setMessage(R.string.settings_files_body)
+                .setPositiveButton(R.string.files_offer_settings) { _, _ ->
+                    SettingsPrefs(this).localPickerDeclined = false
+                    if (!com.symmetricalpalmtree.soil.files.LocalStorage.openSettings(this)) Dialogs.problem(this, R.string.files_settings_failed_title, R.string.files_settings_failed_body)
+                }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).show()
     }
 
     // ── Cloud ──────
@@ -163,21 +180,35 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /** The link index rebuilt from every file: the way back when a write was missed. One at a
-     *  time: a second tap while one runs says so. */
+    /**
+     * The link index rebuilt from every file: the way back when a write was missed. The wait
+     * overlay is up for its whole run with how far it is and Cancel (cleanup, 2026-10-10): a tap
+     * stops the walk at its next item, the items walked fresh and the rest as they were, and the
+     * answer says so. One at a time: a second tap while one runs says so, the backstop.
+     */
     private fun rebuildLinks() {
         if (!SoilIndex.isReady()) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_locked); return }
         if (linksBusy) { Dialogs.problem(this, R.string.settings_links, R.string.settings_links_busy); return }
         linksBusy = true
+        var stop = false
+        ImportOverlay.show(this, R.string.settings_links_running) { stop = true; ImportOverlay.stage(this, R.string.settings_links_stopping) }
         lifecycleScope.launch {
             val outcome = try {
-                withContext(Dispatchers.IO) { runCatching { LinkRebuild.rebuild(applicationContext) }.getOrNull() }
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        LinkRebuild.rebuild(applicationContext, stop = { stop }) { done, total ->
+                            runOnUiThread { if (!stop) ImportOverlay.stage(this@SettingsActivity, getString(R.string.settings_links_progress, done, total)) }
+                        }
+                    }.getOrNull()
+                }
             } finally {
                 linksBusy = false
+                ImportOverlay.hide(this@SettingsActivity)
             }
             if (isFinishing || isDestroyed) return@launch
             val body = when {
                 outcome == null -> getString(R.string.settings_links_failed)
+                outcome.stopped -> getString(R.string.settings_links_stopped, outcome.items, outcome.total)
                 outcome.skipped == 0 -> getString(R.string.settings_links_done, outcome.items)
                 else -> getString(R.string.settings_links_done_skipped, outcome.items, outcome.skipped)
             }

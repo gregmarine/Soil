@@ -107,7 +107,8 @@ never opened blank, which the next mark would save over it. The session closes o
 write in the air has landed.
 
 **Guides** (SN's, per page, never in the file's picture): a grid of lines or dots with SN's cell
-counts, and a reference image from the system picker, fit to the page at 10, 25, 50 or 75 %,
+counts, and a reference image through Soil's file-pick screen (`ACTION_PICK_FILE`: this device
+or the cloud, since 2026-10-10), fit to the page at 10, 25, 50 or 75 %,
 each shown or hidden from the Guides bar. They live in their own rows and never reach the export
 or the cover. A page whose guide rows could not be read shows none, and its picks are not written.
 

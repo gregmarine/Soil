@@ -61,6 +61,11 @@ class TemplatesActivity : AppCompatActivity() {
         if (::browser.isInitialized) browser.saveState(outState)
     }
 
+    override fun onDestroy() {
+        if (::browser.isInitialized) browser.close()
+        super.onDestroy()
+    }
+
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         if (::browser.isInitialized && browser.onBackPressed()) return

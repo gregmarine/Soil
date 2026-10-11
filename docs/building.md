@@ -145,5 +145,14 @@ It opens no document and writes nothing to the library. `--ez pdf true` also wri
 probes into the app's cache. Run it with Soil's Home or Docsprout in front, and press Back
 after.
 
-The Supernote's file picker does not answer taps injected over adb on its rows, so an import is
-walked by hand: push the file, and have it picked on the device.
+The Supernote's file picker does not answer taps injected over adb on its rows, so an import
+through it is walked by hand: push the file, and have it picked on the device. Since 2026-10-10
+Soil's own browser stands in for it once All files access is on (`docs/files.md`), and that
+one does answer injected taps. On a fresh install the access is off: switch it on through the
+offer at the first pick or the Settings row **Files on this device**, and let Soil restart
+itself when it says so. For a walk, the toggle can be set from the shell, after which the
+process must be restarted (a reinstall does it):
+
+```bash
+adb -s SN078D10012852 shell appops set com.symmetricalpalmtree.soil.dev MANAGE_EXTERNAL_STORAGE allow
+```

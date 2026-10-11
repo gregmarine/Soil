@@ -130,6 +130,9 @@ class ExportActivity : AppCompatActivity() {
     private var destinationSeeded = false
     /** The cloud folder this export goes to: the kind's remembered one, or `Exports`. */
     private var cloudFolder: List<String> = ExportDestination.DEFAULT_FOLDER
+    /** This device through Soil's own browser (Greg, 2026-10-10): the folder exports of this kind last went to, under the shared storage's root. */
+    private val local by lazy { com.symmetricalpalmtree.soil.files.LocalFilePick(this) }
+    private var localFolder: List<String> = emptyList()
     private var cloud: CloudConnectEntry? = null
     private var cloudRef: Extension? = null
     private var cloudStatus: CloudStatus? = null
@@ -200,6 +203,7 @@ class ExportActivity : AppCompatActivity() {
         hideProgress()
         browser?.dismiss()
         browser = null
+        local.close()
         cloud?.close()
         cloud = null
         super.onDestroy()
@@ -288,6 +292,7 @@ class ExportActivity : AppCompatActivity() {
         if (this.kind != kind) {
             this.kind = kind
             cloudFolder = ExportDestination.decodeFolder(prefs.lastCloudFolder(kind))
+            localFolder = com.symmetricalpalmtree.soil.files.LocalFiles.decodePath(prefs.lastLocalFolder(kind))
         }
         if (renderer == null) {
             renderer = withContext(Dispatchers.IO) { AppRenderers.find(this@ExportActivity, kind) }
@@ -478,6 +483,7 @@ class ExportActivity : AppCompatActivity() {
             if (protect) typedExportSecret = typed else typedPassphrase = typed
         }
         if (destinationChoice == ExportDestination.Choice.CLOUD) { checkFolderThenExport(c); return }
+        if (local.browses()) { exportLocally(c); return }
         if (perPage(c)) {
             busy = true
             try {
@@ -506,6 +512,8 @@ class ExportActivity : AppCompatActivity() {
     private sealed class Destination {
         class Saf(val uri: Uri) : Destination()
         class SafTree(val tree: Uri) : Destination()
+        /** One file per page into a folder of this device, by path. */
+        class LocalFolder(val dir: File) : Destination()
         /** One file, named, into a folder of the provider's tree. */
         class Cloud(val path: List<String>, val name: String, val mime: String) : Destination()
         /** One file per page into a folder of the provider's tree. */
@@ -514,22 +522,76 @@ class ExportActivity : AppCompatActivity() {
 
     // ── The destination ──────
 
-    /** The row exists only while a provider is installed: GONE otherwise, never disabled. */
+    /**
+     * The choice row exists only while a provider is installed: GONE otherwise, never disabled.
+     * Under the choice, the folder the export goes to: the cloud's under the cloud radio, and this
+     * device's under the local one while Soil browses the device itself (Greg, 2026-10-10), the
+     * whole path, a tap opening the browser there, the pick only setting the row (and the kind's memory).
+     */
     private fun renderDestination() {
         binding.destination.removeAllViews()
-        val visible = ExportDestination.rowVisible(cloudRef != null)
-        destinationChoice = ExportDestination.settled(destinationChoice, visible)
-        binding.destination.visibility = if (visible) View.VISIBLE else View.GONE
-        if (!visible) return
-        binding.destination.addView(panel.caption(getString(R.string.export_destination_caption)))
-        val local = destinationChoice == ExportDestination.Choice.LOCAL
-        binding.destination.addView(panel.choice(getString(R.string.export_destination_local), local) { if (!local) { destinationChoice = ExportDestination.Choice.LOCAL; render() } })
-        binding.destination.addView(panel.choice(cloudName(), !local) { if (local) onCloudDestinationTap() })
-        if (local) return
-        // The folder the export goes to, the whole path; a tap opens the browser there, and the
-        // pick only sets the row (and the kind's memory).
+        val choiceVisible = ExportDestination.rowVisible(cloudRef != null)
+        destinationChoice = ExportDestination.settled(destinationChoice, choiceVisible)
+        val localRow = ExportDestination.localFolderRowVisible(destinationChoice, local.browses())
+        binding.destination.visibility = if (choiceVisible || localRow) View.VISIBLE else View.GONE
+        if (!choiceVisible && !localRow) return
+        val isLocal = destinationChoice == ExportDestination.Choice.LOCAL
+        if (choiceVisible) {
+            binding.destination.addView(panel.caption(getString(R.string.export_destination_caption)))
+            binding.destination.addView(panel.choice(getString(R.string.export_destination_local), isLocal) { if (!isLocal) { destinationChoice = ExportDestination.Choice.LOCAL; render() } })
+            binding.destination.addView(panel.choice(cloudName(), !isLocal) { if (isLocal) onCloudDestinationTap() })
+        }
+        if (localRow) {
+            binding.destination.addView(panel.caption(getString(R.string.export_cloud_folder_caption)))
+            binding.destination.addView(panel.door(R.drawable.ic_folder, localFolderLabel()) { if (!busy) pickLocalFolder { render() } })
+            return
+        }
+        if (isLocal) return
         binding.destination.addView(panel.caption(getString(R.string.export_cloud_folder_caption)))
         binding.destination.addView(panel.door(R.drawable.ic_folder, folderLabel()) { if (!busy) openCloudBrowser { _, _ -> render() } })
+    }
+
+    private fun localFolderLabel(): String = com.symmetricalpalmtree.soil.files.LocalFiles.label(com.symmetricalpalmtree.soil.files.LocalStorage.label(this), localFolder, getString(R.string.cloud_browser_crumb_separator))
+
+    /** The browser over this device in folder mode, opened on the kind's folder; the pick is the kind's memory. */
+    private fun pickLocalFolder(onFolder: (File) -> Unit) {
+        busy = true
+        local.pickFolder(localFolder) { answer ->
+            busy = false
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> {
+                    com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), answer.dir)?.let { path ->
+                        localFolder = path
+                        if (kind.isNotEmpty()) prefs.setLastLocalFolder(kind, com.symmetricalpalmtree.soil.files.LocalFiles.encodePath(path))
+                    }
+                    onFolder(answer.dir)
+                }
+                else -> render()
+            }
+        }
+    }
+
+    /**
+     * The local export through Soil's browser: the kind's folder as it stands (made on the way),
+     * one file per page straight into it, or one file named, *Replace?* first when the name is there.
+     */
+    private fun exportLocally(c: Candidate) {
+        val dir = runCatching { com.symmetricalpalmtree.soil.cloud.LocalSource(com.symmetricalpalmtree.soil.files.LocalStorage.root(), "").resolve(localFolder) }.getOrNull()
+        if (dir == null || !(dir.isDirectory || dir.mkdirs())) { Dialogs.problem(this, R.string.files_browser_failed_title, R.string.files_browser_failed_body); return }
+        if (perPage(c)) { runExport(Destination.LocalFolder(dir)); return }
+        val target = File(dir, ExportNaming.fileName(stem(), ExportOptions.fileExtension(c.info, values)))
+        fun go() {
+            val made = runCatching { target.delete(); target.createNewFile() }.getOrDefault(false)
+            if (!made) { Dialogs.problem(this, R.string.export_failed_title, getString(R.string.export_destination_body)); return }
+            runExport(Destination.Saf(Uri.fromFile(target)))
+        }
+        if (!target.exists()) { go(); return }
+        var replacing = false
+        Dialogs.style(
+            AlertDialog.Builder(this).setTitle(getString(R.string.cloud_replace_title, target.name)).setMessage(R.string.cloud_replace_body)
+                .setPositiveButton(R.string.cloud_replace_confirm) { _, _ -> replacing = true; go() }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).also { it.setOnDismissListener { if (!replacing) cancelledAtThePicker() } }.show()
     }
 
     private fun folderLabel(): String = ExportDestination.folderLabel(cloudFolder, getString(R.string.cloud_browser_crumb_separator))
@@ -589,8 +651,7 @@ class ExportActivity : AppCompatActivity() {
         browser?.dismiss()
         val dialog = CloudBrowserDialog(
             activity = this,
-            ref = ref,
-            providerName = cloudName(),
+            source = com.symmetricalpalmtree.soil.cloud.CloudSource(this, ref, cloudName()),
             mode = CloudBrowserDialog.Mode.PICK_FOLDER,
             basePath = ExportDestination.DEFAULT_FOLDER,
             startPath = cloudFolder,
@@ -800,7 +861,7 @@ class ExportActivity : AppCompatActivity() {
                 val armedAtTap = values[ExportContract.OPTION_PROTECT] == "1"
                 if ((wantsSecret || armedAtTap) && (typedExportSecret == null || !wantsSecret)) { failed(R.string.export_failed_title, getString(R.string.export_password_lost_body)); return@launch }
                 val specValues = ExportOptions.specValues(c.info, values)
-                val perPage = destination is Destination.SafTree || destination is Destination.CloudFolder
+                val perPage = destination is Destination.SafTree || destination is Destination.CloudFolder || destination is Destination.LocalFolder
                 val scaled = if (c.appFormat == null && asksPageSize(c)) ExportPageSize.specValues(pageSize) else emptyMap()
                 val spec = if (perPage) null else try {
                     ExportSpec(values = specValues + scaled, itemName = ExportNaming.specNameOf(stem()), exportSecret = if (wantsSecret) typedExportSecret else null)
@@ -976,6 +1037,7 @@ class ExportActivity : AppCompatActivity() {
     private suspend fun exportPerPage(c: Candidate, destination: Destination, bundle: File, pageNames: List<ExportNaming.PageName>, specValues: Map<String, String>, secret: String?) {
         val cloud = destination as? Destination.CloudFolder
         val tree = destination as? Destination.SafTree
+        val localDir = (destination as? Destination.LocalFolder)?.dir
         val dir = File(cacheDir, ExportArtifact.DIR)
         val parts = withContext(Dispatchers.IO) {
             runCatching { BundleSplit.split(bundle, dir) }.onFailure { Log.w(TAG, "the bundle would not split: ${it.javaClass.simpleName}") }.getOrNull()
@@ -1016,10 +1078,17 @@ class ExportActivity : AppCompatActivity() {
                 val source = withContext(Dispatchers.IO) { runCatching { ParcelFileDescriptor.open(part, ParcelFileDescriptor.MODE_READ_ONLY) }.getOrNull() }
                 if (source == null) { stopPerPage(null, written, total, getString(R.string.export_prepare_failed_body), destination); return }
                 val cacheOut = if (cloud != null) File(dir, "out-$index.$extension") else null
-                val document = if (treeRoot != null) withContext(Dispatchers.IO) {
-                    runCatching { DocumentsContract.createDocument(contentResolver, treeRoot, mime, name) }
-                        .onFailure { Log.w(TAG, "could not create the destination document: ${it.javaClass.simpleName}") }.getOrNull()
-                } else null
+                val document = when {
+                    localDir != null -> withContext(Dispatchers.IO) {
+                        val f = File(localDir, name)
+                        runCatching { f.delete(); f.createNewFile() }.onFailure { Log.w(TAG, "could not create the destination file: ${it.javaClass.simpleName}") }.getOrDefault(false).let { if (it) Uri.fromFile(f) else null }
+                    }
+                    treeRoot != null -> withContext(Dispatchers.IO) {
+                        runCatching { DocumentsContract.createDocument(contentResolver, treeRoot, mime, name) }
+                            .onFailure { Log.w(TAG, "could not create the destination document: ${it.javaClass.simpleName}") }.getOrNull()
+                    }
+                    else -> null
+                }
                 val sink = withContext(Dispatchers.IO) { if (cacheOut != null) openCacheSink(cacheOut) else document?.let { openDestination(it) } }
                 if (sink == null) { withContext(Dispatchers.IO) { runCatching { source.close() } }; stopPerPage(document, written, total, getString(R.string.export_destination_body), destination); return }
                 val result = try {
@@ -1101,7 +1170,8 @@ class ExportActivity : AppCompatActivity() {
     private suspend fun fail(uri: Uri, @StringRes titleRes: Int, message: String, mayDelete: Boolean) {
         hideProgress()
         val removed = if (mayDelete) withContext(Dispatchers.IO) {
-            runCatching { DocumentsContract.deleteDocument(contentResolver, uri) }.onFailure { Log.w(TAG, "could not remove the partial export: ${it.javaClass.simpleName}") }.getOrDefault(false)
+            if (uri.scheme == "file") runCatching { File(checkNotNull(uri.path)).delete() }.getOrDefault(false)
+            else runCatching { DocumentsContract.deleteDocument(contentResolver, uri) }.onFailure { Log.w(TAG, "could not remove the partial export: ${it.javaClass.simpleName}") }.getOrDefault(false)
         } else false
         if (isFinishing || isDestroyed) return
         val note = getString(when { removed -> R.string.export_removed_note; mayDelete -> R.string.export_remains_note; else -> R.string.export_untouched_note })

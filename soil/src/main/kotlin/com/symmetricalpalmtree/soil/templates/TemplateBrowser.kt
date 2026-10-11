@@ -119,6 +119,8 @@ class TemplateBrowser(
 
     fun saveState(outState: Bundle) = transfer.saveState(outState)
     fun restoreState(saved: Bundle?) = transfer.restoreState(saved)
+    /** From the host's `onDestroy`. */
+    fun close() = transfer.close()
 
     /** Back peels one layer: out of a shelf, up a folder. False when there is nothing to peel. */
     fun onBackPressed(): Boolean {

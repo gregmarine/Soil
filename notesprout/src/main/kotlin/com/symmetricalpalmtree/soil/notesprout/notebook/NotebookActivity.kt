@@ -1484,8 +1484,8 @@ class NotebookActivity : InkScreenActivity<NotebookAction>(), NotesproutApp.Fron
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_export, getString(R.string.export_notebook_action)) { exportVia(null) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_page_action)) { convertToDocument(wholeNotebook = false) }
                 .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text, getString(R.string.convert_notebook_action)) { convertToDocument(wholeNotebook = true) }
-                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching, getString(R.string.convert_sketch_page_action)) { convertToSketchbook(wholeNotebook = false) }
-                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching, getString(R.string.convert_sketch_notebook_action)) { convertToSketchbook(wholeNotebook = true) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pencil, getString(R.string.convert_sketch_page_action)) { convertToSketchbook(wholeNotebook = false) }
+                .addAction(com.symmetricalpalmtree.soil.paper.R.drawable.ic_pencil, getString(R.string.convert_sketch_notebook_action)) { convertToSketchbook(wholeNotebook = true) }
             sheet.show()
         }
     }

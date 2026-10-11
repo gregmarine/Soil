@@ -19,7 +19,6 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
 import com.symmetricalpalmtree.soil.ext.CloudEntry
-import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.GridMath
 import com.symmetricalpalmtree.soil.paper.core.Immersive
@@ -30,9 +29,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
- * **The cloud browser**: Soil draws the provider's folders and files itself. The extension is
- * asked one thing, `list`, and answers rows; every decision about them is made here. Full screen,
- * the top bar Up · crumb · Cancel · *Save here*, rows paginated below, the pager at the foot.
+ * **The browser**: Soil draws a tree's folders and files itself, the cloud provider's or, since
+ * 2026-10-10, this device's ([BrowserSource]). The source is asked one thing, `list`, and
+ * answers rows; every decision about them is made here. Full screen, the top bar Up · crumb ·
+ * Cancel · *Save here*, rows paginated below, the pager at the foot.
  *
  * Two modes, one difference: under [Mode.PICK_FOLDER] a file row is drawn and inert and the
  * answer is *Save here*; under [Mode.PICK_FILE] a file row is the answer, the action and the
@@ -42,17 +42,18 @@ import kotlinx.coroutines.launch
  */
 class CloudBrowserDialog(
     private val activity: AppCompatActivity,
-    private val ref: Extension,
-    private val providerName: String,
+    private val source: BrowserSource,
     private val mode: Mode,
     /** The floor Up will not climb above, and where the browser opens unless [startPath] says otherwise. */
     private val basePath: List<String>,
     /** The folder the browser opens on: a remembered one under [basePath]. A gone folder lists as empty, so there is no opening failure. */
     private val startPath: List<String> = basePath,
     private val onPicked: (Pick) -> Unit,
-    private val onNotConnected: () -> Unit,
+    private val onNotConnected: () -> Unit = {},
     private val onCancelled: () -> Unit,
 ) {
+
+    private val providerName: String get() = source.label
 
     enum class Mode { PICK_FOLDER, PICK_FILE }
 
@@ -153,7 +154,7 @@ class CloudBrowserDialog(
         showMessage(R.string.cloud_browser_loading)
         activity.lifecycleScope.launch {
             val listed = try {
-                CloudClient.list(activity, ref, target.toTypedArray())
+                source.list(target)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -182,7 +183,7 @@ class CloudBrowserDialog(
         when (e) {
             is CloudNotConnected -> { answer { onNotConnected() }; dismiss() }
             is CloudNetworkFailed -> problem(activity.getString(R.string.cloud_browser_network_title, providerName), activity.getString(R.string.cloud_browser_network_body, providerName))
-            else -> problem(activity.getString(R.string.cloud_browser_failed_title), activity.getString(R.string.cloud_browser_failed_body))
+            else -> problem(activity.getString(source.failedTitleRes), activity.getString(source.failedBodyRes))
         }
         if (dialog.isShowing && !answered) render()
     }
@@ -221,7 +222,7 @@ class CloudBrowserDialog(
         val target = path + name
         activity.lifecycleScope.launch {
             try {
-                CloudClient.ensureFolder(activity, ref, target.toTypedArray())
+                source.ensureFolder(target)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -27,6 +27,7 @@ import com.symmetricalpalmtree.soil.databinding.ActivityRestoreBinding
 import com.symmetricalpalmtree.soil.ext.Extension
 import com.symmetricalpalmtree.soil.home.HomeActivity
 import com.symmetricalpalmtree.soil.importing.ImportDialogs
+import com.symmetricalpalmtree.soil.importing.ImportOverlay
 import com.symmetricalpalmtree.soil.pad.ScratchPadActivity
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -40,8 +41,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * **Restore**: the one screen that puts a whole library back. Two states in one layout: the
  * sources (a folder on this device, and the cloud, GONE without a provider), and the backups the
- * chosen source holds, one row each. The grant on a picked tree is never persisted. The run is one
- * non-cancelable progress dialog through the engine's doors, and every ending is a dialog. After
+ * chosen source holds, one row each. The grant on a picked tree is never persisted. The run is the
+ * wait overlay through the engine's doors, with Cancel up to the point of no return (the copy and
+ * the checks; cleanup, 2026-10-10) and without it from Installing on, and every ending is a
+ * dialog. A cancel discards the staging and the garden is untouched. After
  * a commit or a rollback the index is reopened here and Soil returns to Home. The proven
  * passphrase is one local value between the proof and the commit, never a field or a log line.
  */
@@ -50,8 +53,11 @@ class RestoreActivity : AppCompatActivity() {
     private lateinit var binding: ActivityRestoreBinding
     private var source: RestoreSource? = null
     private var cloudRef: Extension? = null
-    private var progress: AlertDialog? = null
+    /** Set by the overlay's Cancel; the engine asks it before every file and every store, never inside the commit. */
+    @Volatile private var stopAsked = false
     private val running = AtomicBoolean(false)
+    /** The folder through Soil's own browser, the Android picker behind it (Greg, 2026-10-10). */
+    private val local by lazy { com.symmetricalpalmtree.soil.files.LocalFilePick(this) }
 
     private val folderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) { Slog.d(TAG) { "folder picker cancelled" }; return@registerForActivityResult }
@@ -88,8 +94,8 @@ class RestoreActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        progress?.let { runCatching { it.dismiss() } }
-        progress = null
+        local.close()
+        ImportOverlay.hide(this)
         super.onDestroy()
     }
 
@@ -97,8 +103,23 @@ class RestoreActivity : AppCompatActivity() {
 
     // ── Sources ──────
 
+    /** Soil's browser in folder mode over this device; the Android picker when the access is off. */
     private fun onPickFolderTap() {
         if (running.get()) return
+        local.pickFolder(emptyList()) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> lifecycleScope.launch {
+                    val path = com.symmetricalpalmtree.soil.files.LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), answer.dir)
+                    val label = if (path == null) answer.dir.name else com.symmetricalpalmtree.soil.files.LocalFiles.label(com.symmetricalpalmtree.soil.files.LocalStorage.label(this@RestoreActivity), path, getString(R.string.cloud_browser_crumb_separator))
+                    adopt(SafRestoreSource(com.symmetricalpalmtree.soil.backup.FileBackupReader(answer.dir)), R.string.restore_reading, label, showCaption = true)
+                }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> launchSystemFolderPicker()
+                else -> Unit
+            }
+        }
+    }
+
+    private fun launchSystemFolderPicker() {
         try {
             folderLauncher.launch(null)
         } catch (e: Exception) {
@@ -126,7 +147,7 @@ class RestoreActivity : AppCompatActivity() {
     private suspend fun adoptFolder(uri: Uri) = adopt(SafRestoreSource(contentResolver, uri), R.string.restore_reading, folderLabel(uri), showCaption = true)
 
     private suspend fun adopt(picked: RestoreSource, progressRes: Int, label: String, showCaption: Boolean) {
-        showProgress(getString(progressRes))
+        showProgress(getString(progressRes), keepOpen = false)
         val result = picked.listBackups()
         hideProgress()
         if (isFinishing || isDestroyed) return
@@ -199,6 +220,7 @@ class RestoreActivity : AppCompatActivity() {
         val src = source ?: return
         if (!running.compareAndSet(false, true)) return
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        stopAsked = false
         lifecycleScope.launch {
             try {
                 restoreFlow(src, backup)
@@ -211,11 +233,11 @@ class RestoreActivity : AppCompatActivity() {
     }
 
     private suspend fun restoreFlow(src: RestoreSource, backup: RestoreBackup) {
-        showProgress(getString(R.string.restore_progress_checking), getString(R.string.restore_progress_title))
+        showProgress(getString(R.string.restore_progress_checking), cancellable = true)
         RestoreEngine.preflight(this, backup)?.let { hideProgress(); problemDialog(it); return }
 
         val copyLine = if (src is CloudRestoreSource) R.string.restore_progress_downloading else R.string.restore_progress_copying
-        val manifest = when (val staged = RestoreEngine.stage(this, src, backup) { done, total -> runOnUiThread { setProgress(getString(copyLine, done, total)) } }) {
+        val manifest = when (val staged = RestoreEngine.stage(this, src, backup, stop = { stopAsked }) { done, total -> runOnUiThread { setProgress(getString(copyLine, done, total)) } }) {
             is RestoreEngine.StageResult.Failed -> { hideProgress(); problemDialog(staged.problem); return }
             is RestoreEngine.StageResult.Staged -> staged.manifest
         }
@@ -229,19 +251,20 @@ class RestoreActivity : AppCompatActivity() {
             if (isFinishing || isDestroyed) { discardStaging(); return }
             val typed = askKey()
             if (typed == null) { discardStaging(); Slog.d(TAG) { "key prompt abandoned; staging discarded" }; return }
-            showProgress(getString(R.string.restore_progress_unlocking), getString(R.string.restore_progress_title))
+            showProgress(getString(R.string.restore_progress_unlocking), cancellable = true)
             typed
         }
 
         setProgress(getString(R.string.restore_progress_checking))
-        val prunedResult = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
+        val prunedResult = when (val r = RestoreEngine.pruneOrphans(this, manifest, proven, stop = { stopAsked }) { done, total -> runOnUiThread { setProgress(getString(R.string.restore_progress_checking_stores, done, total)) } }) {
             is RestoreEngine.PruneResult.Failed -> { discardStaging(); hideProgress(); problemDialog(r.problem); return }
             is RestoreEngine.PruneResult.Pruned -> r
         }
         val pruned = prunedResult.manifest
         RestoreEngine.validate(this, pruned, RestoreEngine.ITEMS)?.let { discardStaging(); hideProgress(); problemDialog(it); return }
 
-        setProgress(getString(R.string.restore_progress_installing))
+        // The point of no return: Cancel goes, and the person's earlier press, if any, was already answered.
+        showProgress(getString(R.string.restore_progress_installing), cancellable = false)
         var outcome = RestoreEngine.commit(this, pruned, proven, prunedResult.leftOut, prunedResult.missing)
         Slog.d(TAG) { "restore outcome: ${outcome::class.simpleName}" }
         if (outcome !is RestoreEngine.Outcome.Refused) {
@@ -310,7 +333,7 @@ class RestoreActivity : AppCompatActivity() {
             val remaining = until - System.currentTimeMillis()
             if (remaining > 0) { Dialogs.problem(this, R.string.restore_key_title, getString(R.string.unlock_locked_out, formatSeconds(remaining))); return null }
             val typed = ImportDialogs.passphrase(this, R.string.restore_key_title, R.string.restore_key_body, errorRes, R.string.restore_key_hint) ?: return null
-            showProgress(getString(R.string.restore_progress_unlocking), getString(R.string.restore_progress_title))
+            showProgress(getString(R.string.restore_progress_unlocking), cancellable = false)
             val proven = RestoreEngine.proveTyped(this, PassphraseRules.normalize(typed))
             hideProgress()
             if (proven != null) return proven
@@ -325,22 +348,20 @@ class RestoreActivity : AppCompatActivity() {
 
     // ── Progress ──────
 
-    private fun showProgress(message: String, title: String? = null) {
+    /** The wait overlay: the line with "keep open" under it, and Cancel while a stop still leaves the garden untouched. The listing's short wait wears neither. */
+    private fun showProgress(message: String, cancellable: Boolean = false, keepOpen: Boolean = true) {
         if (isFinishing || isDestroyed) return
-        hideProgress()
-        progress = Dialogs.style(
-            AlertDialog.Builder(this).apply { if (title != null) setTitle(title) }
-                .setMessage(if (title == null) message else message + "\n\n" + getString(R.string.restore_progress_keep_open))
-                .setCancelable(false).create(),
-        ).also { it.show() }
+        val onCancel: (() -> Unit)? = if (cancellable) ({ stopAsked = true; ImportOverlay.stage(this, getString(R.string.restore_stopping)) }) else null
+        ImportOverlay.show(this, R.string.restore_progress_title, onCancel)
+        ImportOverlay.stage(this, if (keepOpen) message + "\n\n" + getString(R.string.restore_progress_keep_open) else message)
     }
 
     private fun setProgress(message: String) {
-        if (isFinishing || isDestroyed) return
-        progress?.setMessage(message + "\n\n" + getString(R.string.restore_progress_keep_open))
+        if (isFinishing || isDestroyed || stopAsked) return
+        ImportOverlay.stage(this, message + "\n\n" + getString(R.string.restore_progress_keep_open))
     }
 
-    private fun hideProgress() { progress?.let { runCatching { it.dismiss() } }; progress = null }
+    private fun hideProgress() { ImportOverlay.hide(this) }
 
     // ── Every problem, by name ──────
 
@@ -369,6 +390,7 @@ class RestoreActivity : AppCompatActivity() {
             RestoreProblem.CloudNetwork -> cloudProblem(R.string.restore_problem_cloud_network_title, R.string.restore_problem_cloud_network_body)
             RestoreProblem.CloudUnanswered -> cloudProblem(R.string.restore_problem_cloud_unanswered_title, R.string.restore_problem_cloud_unanswered_body)
             RestoreProblem.CloudGone -> cloudProblem(R.string.restore_problem_cloud_gone_title, R.string.restore_problem_cloud_gone_body)
+            RestoreProblem.Cancelled -> Dialogs.problem(this, R.string.restore_cancelled_title, R.string.restore_cancelled_body)
         }
     }
 

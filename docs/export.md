@@ -96,8 +96,11 @@ scope (this page or the whole item, only from a page sheet and only when a pages
 installed), then **File type**, the formats as radios, a plain label with one exporter. On the
 right, the format's options (Page size, the image format and quality, the paper toggle, the
 keying), then the passphrase or password block and the plain-text warning; a format with
-nothing to set leaves the column empty. Under both, full width, the **Destination** (`cloud.md`).
-The last exporter used is remembered, and the last destination.
+nothing to set leaves the column empty. Under both, full width, the **Destination** (`cloud.md`),
+and under the local radio, while Soil browses this device itself, a **Folder** row of its own
+(`files.md`, 2026-10-10): the whole path, remembered per kind, the root until picked, the browser
+behind a tap, Export writing straight into it (*Replace?* when the name is there). The last
+exporter used is remembered, and the last destination.
 
 An app's own formats are listed among the extensions' (named `app:<id>` to Soil), so a document
 offers Markdown, Plain text and PDF with selectable text beside PDF, the image formats and the

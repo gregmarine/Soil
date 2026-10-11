@@ -347,6 +347,14 @@ class RestoreEngineTest {
     @Test
     fun `fetch failure - an unknown total only asks for the headroom`() {
         assertEquals(sourceFail, RestoreEngine.fetchFailureProblem(sourceFail, -1L, 40 * mb, usableBytes = headroom))
+    }
+
+    /** Cleanup, 2026-10-10: a stop is the person's whatever the disk says of the rest; it is never reworded as the disk. */
+    @Test
+    fun aCancelledFetchStaysCancelled() {
+        val mb = 1024L * 1024
+        val cancelled = RestoreEngine.Problem.Source(RestoreProblem.Cancelled)
+        assertEquals(cancelled, RestoreEngine.fetchFailureProblem(cancelled, totalBytes = 100 * mb, stagedBytes = 40 * mb, usableBytes = 10 * mb))
         assertTrue(RestoreEngine.fetchFailureProblem(sourceFail, -1L, 40 * mb, usableBytes = headroom - 1) is Problem.NotEnoughSpace)
     }
 

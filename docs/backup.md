@@ -11,7 +11,7 @@ the library's bottom bar; Restore is a row on the Backup screen.
 | `BackupEngine`, `CloudBackupLeg` | `backup/` | One run, two legs; headless IO that never throws |
 | `BackupPredicates`, `CloudBackupRules` | `backup/` | The pure rules: needs-backup, the work list, the file names, which legs, what ends a leg, what the report says |
 | `BackupConfig`, `BackupStore` | `backup/` | What backup remembers, as one JSON value under the `backup` key of the index's `meta` table |
-| `SafBackupWriter`, `SafBackupReader` | `backup/` | The local folder, written atomically over `DocumentsContract` and read back the same way |
+| `BackupWriter` / `BackupReader`: `SafBackupWriter`, `SafBackupReader`, `FileBackupWriter`, `FileBackupReader` | `backup/` | The local folder, written atomically and read back: over `DocumentsContract` for a SAF tree, by `File` for a folder chosen through Soil's own browser (`files.md`, 2026-10-10); one protocol behind one interface |
 | `SelfContainedSnapshot` | `backup/` | A cache copy with its WAL folded in, for the cloud, which has no atomic swap |
 | `RestoreActivity` | `restore/` | The screen: the source, the backups found, the confirmation, the key prompt, the endings |
 | `RestoreEngine` | `restore/` | Preflight, stage, validate, prove the key, prune orphans, commit; and the launch-time recovery |
@@ -45,7 +45,10 @@ taken under either could not be told apart.
    never stamped or `updatedAt` is newer than the stamp. Equal means backed up. Excluded and
    up-to-date items are counted, not visited. The exclude bit is set from the library sheet and
    never bumps `updatedAt`.
-2. Per item: a file an app holds open is skipped and counted. A live WAL is folded into the file
+2. Every session is parked first, as the passphrase change does (Greg, 2026-10-10): an app
+   behind has parked already in its `onStop`, and one whose park is still in flight gives its
+   file up here; the app resumes as ever on its next start. Per item: a file still held after
+   that is skipped and counted. A live WAL is folded into the file
    through one open under the cached key, so the main file alone is a complete copy; a file that
    will not open is still copied as the bytes it is, its WAL alongside. A stale `<name>-wal` in
    the folder is deleted before the main file is written, and a delete that fails skips the
@@ -58,6 +61,14 @@ taken under either could not be told apart.
    checkpoint travels alongside.
 5. The last-run figures move only when at least one write landed; the stamp map is pruned of
    items that no longer exist.
+
+**Back up now** runs under the wait overlay for its whole run, the count on it and Cancel
+(cleanup, 2026-10-10). The engine asks the flag before every unit, an item, a store or the index,
+on either leg, and a yes ends the run there: every write is atomic and every stamp is written per
+success, so nothing is undone, the files landed are whole and stamped, the rest are copied next
+time, and the snapshot caches are cleared as on every exit. A stopped run skips the leg after it,
+moves no last-run figures (proposed: the status line speaks of a whole run), and is reported as
+*Backup stopped* with what landed.
 
 On the cloud leg every uploaded file is self-contained: a stale `<name>-wal` found in the folder
 is deleted before the stamp, the one remote delete. The leg stops where it stands on a
@@ -82,7 +93,8 @@ truncated and is refused.
 preflight → stage → validate(index) → prove the key → prune orphans → validate(items) → commit
 ```
 
-- **Preflight** refuses while a rotation marker stands, while an app holds an item, or when the
+- **Preflight** parks every session first (Greg, 2026-10-10), then refuses while a rotation
+  marker stands, while an app still holds an item after the park, or when the
   listing's bytes plus 64 MB of headroom will not fit the library volume. Before it, the screen
   refuses while the Scratch Pad is open, as the Encryption screen does.
 - **Stage** fetches every manifest item into `restore_staging/` beside the garden, each through a
@@ -98,6 +110,11 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   (held open or missing when it was taken) is named in the ending, after a line saying it was not
   in this backup; its row is installed with no file. Item files are not verified against the key:
   each has its own salt, so a check is a full key derivation per item.
+- **Cancel** (cleanup, 2026-10-10): the run is the wait overlay, Cancel under its line through
+  the copy and the checks; the fetch asks before each file and the orphan check before each
+  store, a yes ends there as `RestoreProblem.Cancelled`, the staging is discarded and the ending
+  says the garden is as it was. A disk that is also short is not what a stop is reported as. From
+  *Installing* on there is no Cancel: the commit is the point of no return.
 - **Commit**, whole under NonCancellable: the staged set is re-checked for a tear; this device's
   destination (its folder, its tick, its cloud folder) is parked outside the index; the session
   key is cleared so an extension calling into its store meets the locked library; every store and

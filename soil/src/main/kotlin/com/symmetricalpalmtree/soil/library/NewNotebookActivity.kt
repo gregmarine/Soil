@@ -97,6 +97,11 @@ class NewNotebookActivity : AppCompatActivity() {
         if (::browser.isInitialized) browser.saveState(outState)
     }
 
+    override fun onDestroy() {
+        if (::browser.isInitialized) browser.close()
+        super.onDestroy()
+    }
+
     /** The row and the file, then the app. Guarded by a flag, never a disabled button. */
     private fun create() {
         if (creating) return

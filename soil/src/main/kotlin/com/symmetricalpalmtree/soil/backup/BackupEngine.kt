@@ -16,6 +16,7 @@ import com.symmetricalpalmtree.soil.data.FileKey
 import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.index.IndexStore
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -31,12 +32,20 @@ import java.io.File
  * says so. The two legs share only the WAL absorb: whichever reaches a file first pays for it.
  *
  * The local leg's order is the design: the work list over every alive item and the stamp map;
- * per item, a file an app holds open is skipped and counted, the WAL is absorbed through one open,
+ * per item, every session is parked first (an app behind holds no file, and one whose park has
+ * not landed yet is parked now; Greg, 2026-10-10), a file still held is skipped and counted, the WAL is absorbed through one open,
  * the file is copied atomically, a still-live WAL alongside, and the stamp written per success
  * with the `updatedAt` the work list read; every app store after the items, every pass, no
  * stamps; the index last, checkpointed, snapshotted and probed before it streams. Nothing here
  * bumps an item's `updatedAt`. Headless IO that never throws: every failure is a count or a
  * [Problem].
+ *
+ * **Stoppable** (cleanup, 2026-10-10): [run]'s `stop` is asked before every unit, an item, a
+ * store or the index, on either leg, and a yes ends the run there. Every write is atomic and
+ * every stamp is written per success, so a stop leaves nothing to undo: the files landed are
+ * whole and stamped, the rest are copied next run, and the snapshot caches are cleared as they
+ * are on every exit. The last-run figures do not move on a stopped run (proposed): the status
+ * line speaks of a whole one.
  */
 object BackupEngine {
 
@@ -71,21 +80,26 @@ object BackupEngine {
         val storesCopied: Int = 0,
         val storesFailed: Int = 0,
         val indexCopied: Boolean = false,
+        /** The leg was stopped by the person before it was through; what landed is kept and stamped. */
+        val stopped: Boolean = false,
     ) {
         /** At least one destination write landed. */
         val succeeded: Boolean get() = copied > 0 || storesCopied > 0 || indexCopied
     }
 
     /** One result per leg; a leg that did not run is null, never a zero result. */
-    data class Outcome(val local: Result? = null, val cloud: Result? = null, val problem: Problem? = null)
+    data class Outcome(val local: Result? = null, val cloud: Result? = null, val problem: Problem? = null) {
+        /** The person stopped the run; a leg after the stopped one did not run at all. */
+        val cancelled: Boolean get() = local?.stopped == true || cloud?.stopped == true
+    }
 
     enum class Leg { LOCAL, CLOUD }
 
     data class Progress(val done: Int, val total: Int, val leg: Leg = Leg.LOCAL)
 
-    suspend fun run(context: Context, onProgress: (Progress) -> Unit = {}): Outcome = withContext(Dispatchers.IO) {
+    suspend fun run(context: Context, stop: () -> Boolean = { false }, onProgress: (Progress) -> Unit = {}): Outcome = withContext(Dispatchers.IO) {
         try {
-            runInner(context.applicationContext, onProgress)
+            runInner(context.applicationContext, stop, onProgress)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -94,7 +108,7 @@ object BackupEngine {
         }
     }
 
-    private suspend fun runInner(app: Context, onProgress: (Progress) -> Unit): Outcome {
+    private suspend fun runInner(app: Context, stop: () -> Boolean, onProgress: (Progress) -> Unit): Outcome {
         if (!SoilIndex.isReady() || KeySession.get() == null) return Outcome(problem = Problem.NO_KEY)
         if (GlobalRotation.hasMarker(app)) return Outcome(problem = Problem.ROTATION_PENDING)
         val store = BackupStore()
@@ -102,12 +116,16 @@ object BackupEngine {
 
         val cloudRef = if (state.config.cloudEnabled) CloudProviders.installed(app) else null
         val legs = CloudBackupRules.legs(
-            hasFolder = state.config.treeUri != null,
+            hasFolder = state.config.treeUri != null || state.config.localDir != null,
             cloudEnabled = state.config.cloudEnabled,
             hasProvider = cloudRef != null,
             hasDeviceFolder = state.config.cloudDeviceFolder != null,
         )
         if (legs.none) return Outcome(problem = Problem.NO_DESTINATION)
+
+        // Every session parked, as the passphrase change does: an app behind has parked already,
+        // and one whose park is still in flight gives its file up here. The app resumes as ever.
+        ItemSessions.releaseAll(app)
 
         val items = IndexStore().aliveItems()
         val candidates = items.map { BackupPredicates.Candidate(it.id, it.updatedAt, it.flags) }
@@ -126,13 +144,13 @@ object BackupEngine {
         onProgress(Progress(0, total, leg))
 
         val compacted = HashSet<String>()
-        val local = localWork?.let { runLocalLeg(app, state, it, stores, aliveIds, compacted, tick) }
-        val cloud = if (cloudWork != null && cloudRef != null) {
+        val local = localWork?.let { runLocalLeg(app, state, it, stores, aliveIds, compacted, stop, tick) }
+        val cloud = if (cloudWork != null && cloudRef != null && local?.stopped != true) {
             leg = Leg.CLOUD
-            CloudBackupLeg.run(app, cloudRef, state, cloudWork, stores, aliveIds, compacted, tick)
+            CloudBackupLeg.run(app, cloudRef, state, cloudWork, stores, aliveIds, compacted, stop, tick)
         } else null
 
-        Slog.d(TAG) { "run: local=${local != null} cloud=${cloud != null} of $total units" }
+        Slog.d(TAG) { "run: local=${local != null} cloud=${cloud != null} of $total units${if (local?.stopped == true || cloud?.stopped == true) ", stopped" else ""}" }
         return Outcome(local = local, cloud = cloud)
     }
 
@@ -141,9 +159,10 @@ object BackupEngine {
         val fileId: String get() = RotationPlan.storeId(name)
     }
 
-    private fun runLocalLeg(app: Context, state: RunState, work: BackupPredicates.WorkList, stores: List<StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, tick: () -> Unit): Result {
-        val treeUri = state.config.treeUri ?: return Result(problem = Problem.FOLDER_GONE)
-        val writer = SafBackupWriter(app.contentResolver, Uri.parse(treeUri))
+    private fun runLocalLeg(app: Context, state: RunState, work: BackupPredicates.WorkList, stores: List<StoreFile>, aliveIds: Set<String>, compacted: MutableSet<String>, stop: () -> Boolean, tick: () -> Unit): Result {
+        val writer: BackupWriter = state.config.localDir?.let { FileBackupWriter(File(it)) }
+            ?: state.config.treeUri?.let { SafBackupWriter(app.contentResolver, Uri.parse(it)) }
+            ?: return Result(problem = Problem.FOLDER_GONE)
         val root = writer.root() ?: return Result(problem = Problem.FOLDER_GONE)
         val dest = if (BuildConfig.DEBUG) writer.ensureDir(root, BackupPredicates.DEV_SUBDIR) ?: return Result(problem = Problem.FOLDER_GONE) else root
 
@@ -151,7 +170,10 @@ object BackupEngine {
         var held = 0
         var missing = 0
         var failed = 0
+        var stopped = false
+        fun stopHere(): Boolean { if (!stopped && stop()) { stopped = true; Slog.d(TAG) { "local leg stopped by the person" } }; return stopped }
         for (candidate in work.toCopy) {
+            if (stopHere()) break
             val source = SoilFiles.itemFile(app, candidate.id)
             when {
                 !source.exists() || source.length() == 0L -> missing++
@@ -171,6 +193,7 @@ object BackupEngine {
         var storesCopied = 0
         var storesFailed = 0
         for (store in stores) {
+            if (stopHere()) break
             when {
                 store.file.length() == 0L -> Slog.d(TAG) { "a store is empty; nothing to copy" }
                 copyStore(app, writer, dest, store) -> storesCopied++
@@ -179,11 +202,10 @@ object BackupEngine {
             tick()
         }
 
-        val indexCopied = copyIndex(app, writer, dest)
-        tick()
+        val indexCopied = if (stopHere()) false else copyIndex(app, writer, dest).also { tick() }
 
-        val result = Result(copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied)
-        if (result.succeeded) {
+        val result = Result(copied = copied, upToDate = work.upToDate, excluded = work.excluded, held = held, missing = missing, failed = failed, storesCopied = storesCopied, storesFailed = storesFailed, indexCopied = indexCopied, stopped = stopped)
+        if (result.succeeded && !stopped) {
             state.update {
                 it.copy(lastRunAt = System.currentTimeMillis(), lastCopied = result.copied, lastSkipped = result.upToDate + result.excluded + result.held + result.missing, stamps = BackupPredicates.pruneStamps(it.stamps, aliveIds))
             }
@@ -222,7 +244,7 @@ object BackupEngine {
      * The destination's `<name>-wal` goes first, verifiably: a main file written beside a stale WAL
      * would have that WAL replayed into it. Then the item file, then a still-live WAL alongside.
      */
-    private fun copyItem(writer: SafBackupWriter, dest: Uri, itemId: String, source: File): Boolean {
+    private fun copyItem(writer: BackupWriter, dest: Uri, itemId: String, source: File): Boolean {
         val name = BackupPredicates.itemName(itemId)
         val walName = name + BackupPredicates.WAL_SUFFIX
         if (!dropDestWal(writer, dest, walName)) return false
@@ -232,18 +254,18 @@ object BackupEngine {
     }
 
     /** Delete [walName] (and a writer's `.old` of it) from [dest]; false when the listing or a delete failed. */
-    private fun dropDestWal(writer: SafBackupWriter, dest: Uri, walName: String): Boolean {
+    private fun dropDestWal(writer: BackupWriter, dest: Uri, walName: String): Boolean {
         val entries = writer.list(dest) ?: return false
         val oldName = walName + BackupPredicates.OLD_SUFFIX
         return entries.filter { !it.isDir && (it.name == walName || it.name == oldName) }.all { writer.delete(it.uri) }
     }
 
-    private fun copyIndex(context: Context, writer: SafBackupWriter, dest: Uri): Boolean {
+    private fun copyIndex(context: Context, writer: BackupWriter, dest: Uri): Boolean {
         if (SoilIndex.isReady()) SoilDb.checkpoint(SoilIndex.db())
         return copyDatabase(context, writer, dest, SoilFiles.indexFile(context), BackupPredicates.INDEX_NAME)
     }
 
-    private fun copyStore(context: Context, writer: SafBackupWriter, dest: Uri, store: StoreFile): Boolean {
+    private fun copyStore(context: Context, writer: BackupWriter, dest: Uri, store: StoreFile): Boolean {
         AppStores.checkpointIfOpen(store.name)
         return copyDatabase(context, writer, dest, store.file, store.file.name)
     }
@@ -253,7 +275,7 @@ object BackupEngine {
      * snapshot, stream that; a non-empty post-checkpoint WAL is snapshotted and written alongside.
      * Only a failed snapshot streams the live file.
      */
-    private fun copyDatabase(context: Context, writer: SafBackupWriter, dest: Uri, live: File, destName: String): Boolean {
+    private fun copyDatabase(context: Context, writer: BackupWriter, dest: Uri, live: File, destName: String): Boolean {
         val liveWal = File(live.path + BackupPredicates.WAL_SUFFIX)
         val dir = File(context.cacheDir, DIR)
         var snapshot: File? = null

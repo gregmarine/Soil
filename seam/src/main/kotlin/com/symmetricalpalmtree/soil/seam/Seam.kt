@@ -199,6 +199,19 @@ object Seam {
     const val EXTRA_VIA_LINK = "com.symmetricalpalmtree.soil.extra.VIA_LINK"
 
     /**
+     * The action of Soil's file-pick screen, started for a result by an app that needs a file
+     * from outside the library (a sketch page's reference image). Soil asks where the file
+     * comes from, this device or the cloud provider when one is installed, runs the device's
+     * picker or its own cloud browser, lands the bytes in its cache, and answers a content Uri of
+     * its own with a read grant, [EXTRA_FILE_NAME] beside it. [EXTRA_MIME_TYPES] narrows the
+     * pick; without it any file. The Uri is good until the app's next pick. Guarded by the seam
+     * permission (cleanup, 2026-10-10).
+     */
+    const val ACTION_PICK_FILE = "com.symmetricalpalmtree.soil.action.PICK_FILE"
+    const val EXTRA_MIME_TYPES = "com.symmetricalpalmtree.soil.extra.MIME_TYPES"
+    const val EXTRA_FILE_NAME = "com.symmetricalpalmtree.soil.extra.FILE_NAME"
+
+    /**
      * The action of Soil's tag screen, started for a result by an app for one of its items:
      * [EXTRA_ITEM_ID], [EXTRA_PAGE_ID] for a page of it (absent for the item itself), and
      * [EXTRA_TAG_MODE]. A prefill for the field is parked with `stageText` and named by

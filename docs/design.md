@@ -630,3 +630,20 @@ The export round, on the branch `export` (2026-10-10), walked on the Nomad:
 
 Decisions taken along the way are marked proposed in each document.
 
+The cleanup round, on the branch `cleanup` (2026-10-10), towards the first version, each step
+walked on the Nomad:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | A title bar's action as a filled button, black with white text (`Widget.Soil.ElevatedButton`): Export, Back up now, the cloud browser's Save here; Cancel stays a text button | |
+| 2 | The cloud wherever the device's picker is offered: *this device or the provider* asked first, through one owner (`CloudFilePick`); the template library's Import from the provider and a template's Export to a folder under `Exports/`; a Sprout app's file through Soil's file-pick screen (`ACTION_PICK_FILE`, a FileProvider answer), the sketchbook's reference image first | `cloud.md`, `templates.md`, `seam.md`, `sketchsprout.md` |
+| 3 | The Settings row **Links** under the wait overlay for its whole run, with how far it is and Cancel: the rebuild stops at its next item, the items walked fresh and the rest as they were (nothing to clean up, an item's rows being one statement), and says how many. The overlay's Cancel is general, for any work that can stop between its steps; Greg prefers the full-screen overlay to a dialog for such waits | `links.md` |
+| 4 | **Back up now** under the same overlay in place of its dialog, with Cancel: the engine asks before every unit on either leg; nothing to undo (atomic writes, stamps per success), the rest copied next time, the last-run figures unmoved, reported as *Backup stopped* | `backup.md` |
+| 5 | **Restore** under the same overlay in place of its dialog, Cancel through the copy and the checks (the fetch asks before each file, the orphan check before each store; the staging discarded, the garden untouched, *Restore cancelled*), and none from *Installing* on, the commit being the point of no return | `backup.md` |
+| 6 | Backup and Restore park every session first, as the passphrase change does: an app behind holds no file, one whose park is in flight gives its file up, the app resumes as ever; a held item is the exception, not the rule (Greg) | `backup.md` |
+| 7 | Soil's own browser over this device's files in place of the Android picker, behind Android's All files access (offered once at the first pick, a Settings row, Soil restarting itself to take the access): the browser generalised over a source (`BrowserSource`: the cloud, the device), Import, the template library's import and export, the file-pick screen, Export's local Folder row remembered per kind, the backup folder by path (`FileBackupWriter` behind `BackupWriter`) and the restore's folder (`FileBackupReader`); the Android picker kept behind the access (Greg) | `files.md` |
+| 8 | Sproutscape's launcher icon is the seedling, the Garden's mark (Tabler "seeding"), in place of the ploughed field (Greg) | |
+| 9 | A notebook card's corner glyph is the Note app's own mark, the bound cover with three tabs (`ic_notebook_mark`), in place of Tabler "notebook", which stays the tag popup's door (Greg) | |
+| 10 | The pencil is Sketch's mark everywhere: the launcher icon (as it was), a sketchbook card's corner glyph and the notebook's Convert to sketchbook actions in place of Tabler "sketching", which stays the Scratch Pad's; New sketchbook stays pencil-plus. The sketching stroke was tried as the mark and as a stroke-plus, and the plus on the left of every New glyph was tried and reverted (Greg) | |
+| 11 | New document is the Document app's mark (Tabler "file-text") with the plus cut into its bottom-right corner, as notebook-plus and folder-plus have it, in place of Tabler "file-plus" (Greg) | |
+

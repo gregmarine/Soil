@@ -13,8 +13,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.symmetricalpalmtree.soil.R
+import com.symmetricalpalmtree.soil.cloud.CloudBrowserRules
+import com.symmetricalpalmtree.soil.cloud.CloudFilePick
 import com.symmetricalpalmtree.soil.data.index.TemplateRow
 import com.symmetricalpalmtree.soil.data.index.TemplateStore
+import com.symmetricalpalmtree.soil.export.ExportDestination
+import com.symmetricalpalmtree.soil.files.LocalFiles
+import com.symmetricalpalmtree.soil.ext.CloudEntry
+import com.symmetricalpalmtree.soil.ext.Extension
+import com.symmetricalpalmtree.soil.importing.ImportSource
 import com.symmetricalpalmtree.soil.paper.core.ActionSheetDialog
 import com.symmetricalpalmtree.soil.paper.core.Dialogs
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -22,15 +29,23 @@ import com.symmetricalpalmtree.soil.paper.templates.BuiltInTemplates
 import com.symmetricalpalmtree.soil.paper.templates.PagePaper
 import com.symmetricalpalmtree.soil.paper.templates.TemplateFit
 import com.symmetricalpalmtree.soil.paper.templates.TemplateImport
+import com.symmetricalpalmtree.soil.settings.SettingsPrefs
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.appcompat.app.AlertDialog
+import java.io.File
 import java.io.InputStream
 
 /**
  * **Pictures in and pictures out**: the library's two doors to the rest of the device, through the
- * system file picker. Import decodes bounds-first, samples down, resizes to the page's long edge,
+ * system file picker or, with a cloud provider installed, the provider (cleanup, 2026-10-10):
+ * the tap first asks *this device or the provider*, the shape of the Import button's question.
+ * A cloud import downloads the browser's file pick into the cache and goes on as a picked
+ * document does; a cloud export renders into the cache and uploads it to a folder picked under
+ * `Exports/`, remembered as the kind `template`, with *Replace?* asked when the name is already
+ * there. Import decodes bounds-first, samples down, resizes to the page's long edge,
  * re-encodes, and refuses over the cap **before** asking the fit and the name: refusing after
  * would waste the only two decisions the person makes. Export is a PNG at this device's page size,
  * the same render the page gets. The state that outlives a call is the export's row id and the
@@ -46,6 +61,10 @@ class TemplateTransfer(
     private val pageHeightPx: Int
     private var pendingExportId: String? = null
     private var landingFolder: String = ""
+    private val cloud = CloudFilePick(activity)
+    private val local = com.symmetricalpalmtree.soil.files.LocalFilePick(activity)
+    private val prefs = SettingsPrefs(activity)
+    private var busy = false
 
     private val importLauncher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
@@ -75,8 +94,41 @@ class TemplateTransfer(
         landingFolder = saved?.getString(KEY_LANDING_FOLDER).orEmpty()
     }
 
+    /** From the host's `onDestroy`: the cloud browser and a sign-in's bind must not outlive the screen. */
+    fun close() { local.close(); cloud.close() }
+
     /** The landing folder is read at the tap: the picker is up from here, so nowhere else can be walked to. */
     fun startImport() {
+        if (busy) return
+        busy = true
+        activity.lifecycleScope.launch {
+            var handed = false
+            try {
+                cloud.discover()
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                when (cloud.askSource(R.string.import_source_title)) {
+                    ImportSource.Source.LOCAL -> { handed = true; pickImportLocally() }
+                    ImportSource.Source.CLOUD -> { handed = true; cloud.pickFile(onPicked = { ref, entry -> downloadThenIngest(ref, entry) }, onGaveUp = { busy = false }) }
+                    null -> Unit
+                }
+            } finally {
+                if (!handed) busy = false
+            }
+        }
+    }
+
+    /** Soil's browser over this device's images; the Android picker when the access is off. */
+    private fun pickImportLocally() {
+        local.pickFile(TemplateImport.MIME_TYPES) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.File -> { busy = false; landingFolder = currentFolder(); ingest(Uri.fromFile(answer.file), answer.file.name) }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> { busy = false; launchImportPicker() }
+                else -> busy = false
+            }
+        }
+    }
+
+    private fun launchImportPicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType("image/*")
@@ -91,15 +143,33 @@ class TemplateTransfer(
         }
     }
 
+    /** The browser's pick lands in the cache under a fixed name; the file's own name is the suggested template name. */
+    private fun downloadThenIngest(ref: Extension, entry: CloudEntry) {
+        landingFolder = currentFolder()
+        activity.lifecycleScope.launch {
+            try {
+                val file = File(cacheDir(), CLOUD_IN)
+                val failure = cloud.download(ref, entry, file)
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                if (failure != null) { cloud.explain(failure, R.string.cloud_pick_failed_title, put = false); return@launch }
+                ingest(Uri.fromFile(file), entry.name)
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    private fun cacheDir(): File = File(activity.cacheDir, CACHE_DIR).apply { mkdirs() }
+
     private sealed class Loaded {
         class Ok(val bytes: ByteArray, val suggestedName: String) : Loaded()
         class TooBig(val bytes: Int) : Loaded()
         object Failed : Loaded()
     }
 
-    private fun ingest(uri: Uri) {
+    private fun ingest(uri: Uri, nameHint: String? = null) {
         activity.lifecycleScope.launch {
-            when (val loaded = withContext(Dispatchers.IO) { decodeAndEncode(uri) }) {
+            when (val loaded = withContext(Dispatchers.IO) { decodeAndEncode(uri, nameHint) }) {
                 is Loaded.Failed -> Dialogs.problem(activity, R.string.template_import_failed_title, R.string.template_import_failed_body)
                 is Loaded.TooBig -> tooBig(loaded.bytes)
                 is Loaded.Ok -> fitSheet(null) { fit -> askName(loaded, fit) }
@@ -113,7 +183,7 @@ class TemplateTransfer(
     )
 
     /** Two opens of the Uri rather than one slurp: the bounds pass needs a stream and so does the decode. */
-    private fun decodeAndEncode(uri: Uri): Loaded {
+    private fun decodeAndEncode(uri: Uri, nameHint: String?): Loaded {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         try {
             // The stream's absence is the failure, not the decode's return: a bounds pass answers
@@ -141,7 +211,7 @@ class TemplateTransfer(
             Slog.d(TAG) { "import ${bounds.outWidth}x${bounds.outHeight} → ${source.width}x${source.height}, ${bytes.size} bytes" }
             if (bytes.isEmpty()) return Loaded.Failed
             if (TemplateImport.overCap(bytes.size)) return Loaded.TooBig(bytes.size)
-            return Loaded.Ok(bytes, TemplateImport.nameFrom(displayName(uri), activity.getString(R.string.template_import_default_name)))
+            return Loaded.Ok(bytes, TemplateImport.nameFrom(nameHint ?: displayName(uri), activity.getString(R.string.template_import_default_name)))
         } catch (e: OutOfMemoryError) {
             Log.w(TAG, "import resize ran out of memory")
             return Loaded.Failed
@@ -226,6 +296,63 @@ class TemplateTransfer(
     // ── Export ──────
 
     fun export(row: TemplateRow) {
+        if (busy) return
+        busy = true
+        activity.lifecycleScope.launch {
+            var handed = false
+            try {
+                cloud.discover()
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                when (cloud.askSource(R.string.template_export_target_title)) {
+                    ImportSource.Source.LOCAL -> { handed = true; pickExportLocally(row) }
+                    ImportSource.Source.CLOUD -> {
+                        handed = true
+                        val start = ExportDestination.decodeFolder(prefs.lastCloudFolder(CLOUD_KIND))
+                        cloud.pickFolder(ExportDestination.DEFAULT_FOLDER, start, onPicked = { ref, path, listing -> confirmThenUpload(ref, row, path, listing) }, onGaveUp = { busy = false })
+                    }
+                    null -> Unit
+                }
+            } finally {
+                if (!handed) busy = false
+            }
+        }
+    }
+
+    /** Soil's browser in folder mode, opened on the folder templates last went to; a name already there asks *Replace?*. The Android creator when the access is off. */
+    private fun pickExportLocally(row: TemplateRow) {
+        local.pickFolder(LocalFiles.decodePath(prefs.lastLocalFolder(CLOUD_KIND))) { answer ->
+            when (answer) {
+                is com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.Folder -> {
+                    LocalFiles.pathUnder(com.symmetricalpalmtree.soil.files.LocalStorage.root(), answer.dir)?.let { prefs.setLastLocalFolder(CLOUD_KIND, LocalFiles.encodePath(it)) }
+                    val target = File(answer.dir, "${row.name}.png")
+                    if (!target.exists()) { writeLocal(row.id, target); return@pickFolder }
+                    if (activity.isFinishing || activity.isDestroyed) { busy = false; return@pickFolder }
+                    var replacing = false
+                    Dialogs.style(
+                        AlertDialog.Builder(activity).setTitle(activity.getString(R.string.cloud_replace_title, target.name)).setMessage(R.string.cloud_replace_body)
+                            .setPositiveButton(R.string.cloud_replace_confirm) { _, _ -> replacing = true; writeLocal(row.id, target) }
+                            .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+                    ).also { it.setOnDismissListener { if (!replacing) busy = false } }.show()
+                }
+                com.symmetricalpalmtree.soil.files.LocalFilePick.Answer.UseSystemPicker -> { busy = false; launchExportCreator(row) }
+                else -> busy = false
+            }
+        }
+    }
+
+    private fun writeLocal(id: String, target: File) {
+        activity.lifecycleScope.launch {
+            try {
+                val ok = withContext(Dispatchers.IO) { runCatching { target.parentFile?.mkdirs(); target.delete(); target.createNewFile() }.isSuccess && renderAndWrite(id, Uri.fromFile(target)) }
+                if (ok) Toast.makeText(activity, R.string.template_exported, Toast.LENGTH_SHORT).show()
+                else { withContext(Dispatchers.IO) { runCatching { target.delete() } }; Dialogs.problem(activity, R.string.template_export_failed_title, R.string.template_export_failed_body) }
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    private fun launchExportCreator(row: TemplateRow) {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setType("image/png")
@@ -245,6 +372,39 @@ class TemplateTransfer(
             val ok = withContext(Dispatchers.IO) { renderAndWrite(id, uri) }
             if (ok) Toast.makeText(activity, R.string.template_exported, Toast.LENGTH_SHORT).show()
             else Dialogs.problem(activity, R.string.template_export_failed_title, R.string.template_export_failed_body)
+        }
+    }
+
+    /** The folder picked is the kind's memory; a name already there gets *Replace?* first, as every upload does. */
+    private fun confirmThenUpload(ref: Extension, row: TemplateRow, path: List<String>, listing: List<CloudEntry>) {
+        prefs.setLastCloudFolder(CLOUD_KIND, ExportDestination.encodeFolder(path))
+        val name = "${row.name}.png"
+        if (CloudBrowserRules.fileNamed(listing, name) == null) { upload(ref, row, path, name); return }
+        if (activity.isFinishing || activity.isDestroyed) { busy = false; return }
+        var replacing = false
+        Dialogs.style(
+            AlertDialog.Builder(activity).setTitle(activity.getString(R.string.cloud_replace_title, name)).setMessage(R.string.cloud_replace_body)
+                .setPositiveButton(R.string.cloud_replace_confirm) { _, _ -> replacing = true; upload(ref, row, path, name) }
+                .setNegativeButton(com.symmetricalpalmtree.soil.paper.R.string.cancel, null).create(),
+        ).also { it.setOnDismissListener { if (!replacing) busy = false } }.show()
+    }
+
+    /** The same render the device export gets, into the cache, then up. */
+    private fun upload(ref: Extension, row: TemplateRow, path: List<String>, name: String) {
+        activity.lifecycleScope.launch {
+            try {
+                val file = File(cacheDir(), CLOUD_OUT)
+                val ok = withContext(Dispatchers.IO) { renderAndWrite(row.id, Uri.fromFile(file)) }
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                if (!ok) { Dialogs.problem(activity, R.string.template_export_failed_title, R.string.template_export_failed_body); return@launch }
+                val failure = cloud.upload(ref, path, name, "image/png", file)
+                runCatching { file.delete() }
+                if (activity.isFinishing || activity.isDestroyed) return@launch
+                if (failure != null) cloud.explain(failure, R.string.cloud_put_failed_title, put = true)
+                else Toast.makeText(activity, activity.getString(R.string.template_export_cloud_done, cloud.providerName()), Toast.LENGTH_SHORT).show()
+            } finally {
+                busy = false
+            }
         }
     }
 
@@ -270,5 +430,10 @@ class TemplateTransfer(
         const val TAG = "TemplateTransfer"
         const val KEY_PENDING_EXPORT = "templateTransfer.pendingExport"
         const val KEY_LANDING_FOLDER = "templateTransfer.landingFolder"
+        const val CACHE_DIR = "templates"
+        const val CLOUD_IN = "in.img"
+        const val CLOUD_OUT = "out.png"
+        /** The kind the export browser's folder is remembered as, beside the items' kinds. */
+        const val CLOUD_KIND = "template"
     }
 }

@@ -104,7 +104,10 @@ column, `calDate`, the day as `yyyy-MM-dd` (`PUT_CAL`; added to a file on open a
 at step 11, indexed); a row is sound with no item, nothing of the Bible and a day `CalAddress`
 reads. `calBacklinks(from, to)` answers by range, for the calendar's Notes door
 (`calsprout.md`). `LinkRebuild` re-reads every alive item's mirror, through its open
-session or from its file, after a restore and from the Settings row **Links**.
+session or from its file, after a restore and from the Settings row **Links**. From Settings it
+runs under the wait overlay with how far it is and Cancel (cleanup, 2026-10-10): a tap stops the
+walk at its next item, and since an item's rows are replaced in one statement a stop leaves the
+items walked fresh and the rest as they were, nothing to clean up; the answer says how many.
 
 Walked on the Nomad, phase 5, 2026-10-01; documents on both ends, Docsprout's phase 9,
 2026-10-04; the Bible on both ends, Biblesprout's phases 3 to 8, 2026-10-05; a day on both
