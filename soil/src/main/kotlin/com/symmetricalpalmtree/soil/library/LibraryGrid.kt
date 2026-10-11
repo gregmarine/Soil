@@ -125,7 +125,8 @@ class LibraryGrid(
 
     /** How a kind is told at a glance: one Tabler glyph in the card's corner. */
     private fun kindGlyph(kind: String): Int = when (kind) {
-        IndexSchema.KIND_NOTEBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_notebook
+        // The Note app's own mark, the cover with three tabs (Greg, 2026-10-10).
+        IndexSchema.KIND_NOTEBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_notebook_mark
         IndexSchema.KIND_SKETCHBOOK -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_sketching
         else -> com.symmetricalpalmtree.soil.paper.R.drawable.ic_file_text
     }
