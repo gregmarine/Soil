@@ -82,6 +82,9 @@ object RestoreEngine {
     suspend fun preflight(context: Context, backup: RestoreBackup): Problem? = withContext(Dispatchers.IO) {
         try {
             val app = context.applicationContext
+            // Every session parked first (Greg, 2026-10-10): an app behind holds no file, so a hold
+            // that survives the park is the refusal, not the ordinary case.
+            ItemSessions.releaseAll(app)
             when {
                 GlobalRotation.hasMarker(app) -> Problem.RotationPending
                 ItemSessions.openItems().isNotEmpty() -> Problem.ItemHeld
@@ -312,6 +315,7 @@ object RestoreEngine {
             if (torn) { RestoreStaging.discard(root); return Outcome.Refused(Problem.InvalidFile(item.name)) }
         }
         if (GlobalRotation.hasMarker(app)) { RestoreStaging.discard(root); return Outcome.Refused(Problem.RotationPending) }
+        ItemSessions.releaseAll(app)
         if (ItemSessions.openItems().isNotEmpty()) { RestoreStaging.discard(root); return Outcome.Refused(Problem.ItemHeld) }
 
         // Step 1: this device's destination out of the live index, parked device-locally.

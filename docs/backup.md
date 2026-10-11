@@ -45,7 +45,10 @@ taken under either could not be told apart.
    never stamped or `updatedAt` is newer than the stamp. Equal means backed up. Excluded and
    up-to-date items are counted, not visited. The exclude bit is set from the library sheet and
    never bumps `updatedAt`.
-2. Per item: a file an app holds open is skipped and counted. A live WAL is folded into the file
+2. Every session is parked first, as the passphrase change does (Greg, 2026-10-10): an app
+   behind has parked already in its `onStop`, and one whose park is still in flight gives its
+   file up here; the app resumes as ever on its next start. Per item: a file still held after
+   that is skipped and counted. A live WAL is folded into the file
    through one open under the cached key, so the main file alone is a complete copy; a file that
    will not open is still copied as the bytes it is, its WAL alongside. A stale `<name>-wal` in
    the folder is deleted before the main file is written, and a delete that fails skips the
@@ -90,7 +93,8 @@ truncated and is refused.
 preflight → stage → validate(index) → prove the key → prune orphans → validate(items) → commit
 ```
 
-- **Preflight** refuses while a rotation marker stands, while an app holds an item, or when the
+- **Preflight** parks every session first (Greg, 2026-10-10), then refuses while a rotation
+  marker stands, while an app still holds an item after the park, or when the
   listing's bytes plus 64 MB of headroom will not fit the library volume. Before it, the screen
   refuses while the Scratch Pad is open, as the Encryption screen does.
 - **Stage** fetches every manifest item into `restore_staging/` beside the garden, each through a

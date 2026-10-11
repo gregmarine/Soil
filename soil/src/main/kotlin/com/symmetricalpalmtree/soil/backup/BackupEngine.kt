@@ -16,6 +16,7 @@ import com.symmetricalpalmtree.soil.data.FileKey
 import com.symmetricalpalmtree.soil.data.SoilDb
 import com.symmetricalpalmtree.soil.data.SoilFiles
 import com.symmetricalpalmtree.soil.data.index.IndexStore
+import com.symmetricalpalmtree.soil.data.item.ItemSessions
 import com.symmetricalpalmtree.soil.data.index.SoilIndex
 import com.symmetricalpalmtree.soil.data.store.AppStores
 import com.symmetricalpalmtree.soil.paper.core.Slog
@@ -31,7 +32,8 @@ import java.io.File
  * says so. The two legs share only the WAL absorb: whichever reaches a file first pays for it.
  *
  * The local leg's order is the design: the work list over every alive item and the stamp map;
- * per item, a file an app holds open is skipped and counted, the WAL is absorbed through one open,
+ * per item, every session is parked first (an app behind holds no file, and one whose park has
+ * not landed yet is parked now; Greg, 2026-10-10), a file still held is skipped and counted, the WAL is absorbed through one open,
  * the file is copied atomically, a still-live WAL alongside, and the stamp written per success
  * with the `updatedAt` the work list read; every app store after the items, every pass, no
  * stamps; the index last, checkpointed, snapshotted and probed before it streams. Nothing here
@@ -120,6 +122,10 @@ object BackupEngine {
             hasDeviceFolder = state.config.cloudDeviceFolder != null,
         )
         if (legs.none) return Outcome(problem = Problem.NO_DESTINATION)
+
+        // Every session parked, as the passphrase change does: an app behind has parked already,
+        // and one whose park is still in flight gives its file up here. The app resumes as ever.
+        ItemSessions.releaseAll(app)
 
         val items = IndexStore().aliveItems()
         val candidates = items.map { BackupPredicates.Candidate(it.id, it.updatedAt, it.flags) }
