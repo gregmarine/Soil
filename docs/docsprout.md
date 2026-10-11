@@ -102,7 +102,9 @@ its own that leaves the redo steps alone. After an undo or a redo the pass reads
 document again, skipping the links an undo took off while the screen is up, so a link undone
 stays undone and a redo that put back words from before a link has them linked again. A rule's place in the text is held by one private-use character
 (U+E000), never drawn and never copied: Copy and Cut leave it off the clipboard. A zero-width
-space a writer put in is kept.
+space a writer put in is kept. Enter in an empty list item or quote ends the list or quote,
+and Enter in an empty paragraph does nothing: Markdown holds no empty paragraph, and a second
+Return under a paragraph is a plain-text habit, so what is seen is what is saved (2026-10-10).
 
 Words a tool puts in (a reference, a passage, handwriting, the image skeleton) are plain: they do
 not take the style the caret stood at the end of, and a link put over them replaces any other

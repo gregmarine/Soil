@@ -288,8 +288,11 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
 
     /**
      * A line break typed at [at]. In an empty list item or quote it ends the list or quote
-     * instead of breaking the line; at the very start of a block it opens a line above and the
-     * block stays what it was; anywhere else the block is broken in two by [reconcile].
+     * instead of breaking the line; in an empty paragraph it does nothing, since Markdown holds
+     * no empty paragraph and a second Return under a paragraph is the habit of a plain-text
+     * hand, so what is seen is what will be saved; at the very start of a block it opens a line
+     * above and the block stays what it was; anywhere else the block is broken in two by
+     * [reconcile].
      */
     private fun enter(s: Editable, at: Int) {
         val start = paragraphStart(s, at)
@@ -298,9 +301,9 @@ class RichEditText @JvmOverloads constructor(context: Context, attrs: AttributeS
         val emptyAfter = at + 1 >= s.length || s[at + 1] == '\n'
         if (block != null && emptyBefore && emptyAfter) {
             val ended = RichRules.enterOnEmpty(block.attr)
-            if (ended != null) {
+            if (ended != null || block.attr.kind == RichKind.PARAGRAPH) {
                 s.delete(at, at + 1)
-                block.attr = ended
+                if (ended != null) block.attr = ended
                 reconcile(s, at, at)
                 RichCodec.refresh(s, block)
                 RichCodec.layoutPass(s)

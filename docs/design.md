@@ -611,3 +611,12 @@ The toolbar round, on the branch `toolbar-layout` (2026-10-10), each step walked
 
 Decisions taken along the way are marked proposed in each document.
 
+The document editor round, on the branch `document-editor` (2026-10-10), walked on the Nomad:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | A numbered list and a bulleted list at one depth are two lists: `RichRules.tight` reads the sequence (one list while every item at a depth is of one family, nested lists and the way back out tight), the writer puts a blank line between them, the plain text too, and the rendered editor the full gap | `docsprout.md` |
+| 2 | Enter in an empty paragraph does nothing: Markdown holds no empty paragraph, so a second Return under a paragraph leaves what is seen as what is saved | `docsprout.md` |
+
+Decisions taken along the way are marked proposed in each document.
+

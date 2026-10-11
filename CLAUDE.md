@@ -59,6 +59,11 @@ column with Back on top and a second column beside it when the first is full, su
 as columns; the document's format bar on rows always shown, one Heading button with a column menu
 of H1 to H6, and the bar wearing what the caret is on. `docs/design.md` §16 lists the steps.
 
+**The document editor round is done and merged** (2026-10-10): a numbered list and a bulleted
+list at one depth as two lists (a blank line between in the Markdown, the full gap on the
+screen), and Enter in an empty paragraph swallowed so what is seen is what is saved.
+`docs/design.md` §16 lists the steps.
+
 **Nothing further is granted.** Do not write a plan, open a branch or start anything, from the
 design or from `BACKLOG.md`, until Greg asks for it. When he does: a branch for the work, merged
 when he is happy with it, not before.
