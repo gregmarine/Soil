@@ -26,6 +26,32 @@ class RichRulesTest {
     }
 
     @Test
+    fun `items of one list sit tight, and a list of the other family at the same depth is a new list`() {
+        val task = RichAttr(RichKind.TASK)
+        assertEquals(listOf(false, true, true), RichRules.tight(listOf(bullet, task, bullet)).toList())
+        assertEquals(listOf(false, true, false, true), RichRules.tight(listOf(ordered(1), ordered(2), bullet, bullet)).toList())
+        assertEquals(listOf(false, false), RichRules.tight(listOf(bullet, ordered(1))).toList())
+        assertEquals(listOf(false, false, false), RichRules.tight(listOf(RichAttr.PARAGRAPH, bullet, RichAttr.heading(1))).toList())
+    }
+
+    @Test
+    fun `a nested list of the other family goes on with its list, and coming back out keeps the outer list's family`() {
+        val nested = RichAttr(RichKind.BULLET, depth = 1)
+        // 1. a / - b (nested) / 2. c: all one list.
+        assertEquals(listOf(false, true, true), RichRules.tight(listOf(ordered(1), nested, ordered(2))).toList())
+        // 1. a / - b (nested) / - c: the outer list was ordered, so a bullet at its depth is a new list.
+        assertEquals(listOf(false, true, false), RichRules.tight(listOf(ordered(1), nested, bullet)).toList())
+        // - a / 1. b (nested) / - c (nested): two nested lists.
+        assertEquals(listOf(false, true, false), RichRules.tight(listOf(bullet, ordered(1, depth = 1), nested)).toList())
+    }
+
+    @Test
+    fun `raw lines sit tight under raw lines only`() {
+        val raw = RichAttr(RichKind.RAW)
+        assertEquals(listOf(false, true, false, false), RichRules.tight(listOf(raw, raw, RichAttr.PARAGRAPH, raw)).toList())
+    }
+
+    @Test
     fun `a list goes on after Enter, a heading does not`() {
         assertEquals(RichAttr(RichKind.TASK, depth = 1), RichRules.afterEnter(RichAttr(RichKind.TASK, depth = 1, checked = true)))
         assertEquals(RichAttr.PARAGRAPH, RichRules.afterEnter(RichAttr.heading(2)))

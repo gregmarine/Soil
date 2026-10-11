@@ -82,7 +82,12 @@ In `:markdown`, package `rich`, pure Kotlin and tested on the JVM: `RichDoc` is 
 its words and style runs (`RichSpan`). `RichParse` reads Markdown, `RichWrite` writes it, and
 the two round-trip (`parse(write(doc)) == doc`, held over awkward text and 400 generated
 documents). `RichRules` is the editing rules, `RichTyping` type-to-format, `RichPlain` the
-plain words.
+plain words. Which blocks sit tight is one rule, `RichRules.tight`, shared by the writer, the
+plain text and the rendered editor's spacing: an item under an item of the same list, and a
+raw line under a raw line. A bullet or task at the same depth as the numbered item before it
+is a new list (as the numbering counts it), written a blank line apart and shown with the full
+gap; so is a numbered item under a bullet. A nested list of the other kind stays with its
+list, and so does an item that comes back out to a depth whose kind it keeps (2026-10-10).
 
 ### The rendered editor
 
@@ -97,7 +102,9 @@ its own that leaves the redo steps alone. After an undo or a redo the pass reads
 document again, skipping the links an undo took off while the screen is up, so a link undone
 stays undone and a redo that put back words from before a link has them linked again. A rule's place in the text is held by one private-use character
 (U+E000), never drawn and never copied: Copy and Cut leave it off the clipboard. A zero-width
-space a writer put in is kept.
+space a writer put in is kept. Enter in an empty list item or quote ends the list or quote,
+and Enter in an empty paragraph does nothing: Markdown holds no empty paragraph, and a second
+Return under a paragraph is a plain-text habit, so what is seen is what is saved (2026-10-10).
 
 Words a tool puts in (a reference, a passage, handwriting, the image skeleton) are plain: they do
 not take the style the caret stood at the end of, and a link put over them replaces any other

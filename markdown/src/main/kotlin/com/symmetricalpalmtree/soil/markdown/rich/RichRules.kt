@@ -86,9 +86,34 @@ object RichRules {
         }
     }
 
-    /** Whether [next] sits tight under [previous], with no gap between: two list items, or two raw lines. */
-    fun tight(previous: RichAttr, next: RichAttr): Boolean =
-        (previous.isList && next.isList) || (previous.kind == RichKind.RAW && next.kind == RichKind.RAW)
+    /**
+     * Which blocks sit tight under the one before, with no gap between: an item of the same
+     * list, and a raw line under a raw line. The first block is never tight. Two lists are the
+     * same list while every item at a depth is of one family, ordered or unordered (a bullet and
+     * a task are one family, as they share a marker): an ordered item under a bullet at its depth
+     * is a new list, as [numbering] counts it, and so is a bullet under an ordered item. An item
+     * nested deeper, or back out at a depth whose family it keeps, goes on with its list.
+     */
+    fun tight(attrs: List<RichAttr>): BooleanArray {
+        val out = BooleanArray(attrs.size)
+        // The family of the list at each depth, for the lists open at this point.
+        val families = HashMap<Int, Boolean>()
+        var previous: RichAttr? = null
+        for ((i, a) in attrs.withIndex()) {
+            if (a.isList) {
+                val ordered = a.kind == RichKind.ORDERED
+                families.keys.retainAll { it <= a.depth }
+                val open = families[a.depth]
+                out[i] = previous?.isList == true && (open == null || open == ordered)
+                families[a.depth] = ordered
+            } else {
+                families.clear()
+                out[i] = a.kind == RichKind.RAW && previous?.kind == RichKind.RAW
+            }
+            previous = a
+        }
+        return out
+    }
 
     /**
      * The word around [caret] in [text] as `[start, end)`, or null when the caret touches no
