@@ -116,6 +116,32 @@ Order matters. Each numbered step is mine unless marked **Greg**.
 - Device day's step 3 can also start from the Drive copy of an SN backup rather than a pull,
   if the device is awkward; a pull with SN closed is still the fresher source.
 
+## Device day, as it went (2026-10-11)
+
+1. The Manta reported as `SN100C10023972`; HOME was the Soil debug build, accessibility off.
+2. SN was closed; one SN extension process lingered, harmless. Six notebooks carried a WAL.
+3. Pulled 293 MB (the index, its WAL, 158 Garden files) into `~/sn-migration-2026-10-11/sn-library`.
+4. Greg wrote the passphrase to `~/.sn-pass`; converted in 30 s; the file deleted at once.
+   155 items from 140 notebooks, 233 060 strokes, 224 calendar pages, 60 events, 21 pad pages,
+   the Bible's position; no tags in SN's store; the one warning the ten-word dictionary. Fifteen
+   notebooks split (the Work Dashboard and fourteen Journal and Week notebooks), listed with ids
+   in the set's `report.txt`. **Shapes: 16 rows carried, invisible for now (Greg).**
+5. HOME set back to stock first; twelve `.dev` packages uninstalled (the eleven of the plan and a
+   stray `com.symmetricalpalmtree.biblesprout.dev`).
+6. The eleven release APKs installed.
+7. All files access granted from the shell before the first launch, so no restart was needed.
+8. The set pushed to `/sdcard/Download/soil-migration`.
+9. Greg: ticked the throwaway key, Backup → Restore → the folder → the SN passphrase. It took a
+   while with no count on the overlay: `BACKLOG.md`, *Restore says how far it is*.
+10. Walked over adb: the Garden with the five folders; the Journal folder's 21 pages of covers; a
+    notebook's ink on lined paper; the Sketches folder's covers; a sketchbook's graphite raster;
+    the Work folder with the Dashboard notebook and its Document beside; the Document's words;
+    the calendar on today's PM page with its ink; the Bible at Colossians 1. The log showed only
+    the expected cached-key probe. Handwriting, the side menu and the Scratch Pad are Greg's hand.
+11. The shell on: Sproutscape as HOME, the bar service enabled and not crashed.
+12. Left to Greg: the side menu and the pad, Drive, the first backup, living with it.
+13. SN and its ten extensions are still installed.
+
 ## Risks and how each is held
 
 - **New code against the only copy of real data.** The converter only ever reads SN's files, and

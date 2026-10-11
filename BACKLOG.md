@@ -315,3 +315,16 @@ existed. The two are one job done twice, and Greg asked for the universal shape:
   day shelf moves into Soil's picker; Edit link reopens it on the item and page already chosen.
   The link's style (underline or none) stays Notesprout's, asked after the pick.
 - One chooser for anything that links, in every Sprout app to come.
+
+---
+
+## Restore says how far it is
+
+**Raised by Greg 2026-10-11, on the Manta's first restore (the migrated SN library, 155 items,
+293 MB). Set aside for after the release.**
+
+The run sat under the wait overlay with no count for its whole length, a minute or more on a
+library this size. Backup's overlay already counts its units; Restore's should say what it is on,
+"Copying 40 of 158", then "Checking 12 of 158", then "Installing", with Cancel through the copy
+and the checks as today. The engine asks the cancel flag before every unit already, so a count is
+the same hook with a number on it.
