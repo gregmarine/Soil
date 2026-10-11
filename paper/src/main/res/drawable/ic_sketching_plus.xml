@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- New sketchbook — Tabler "sketching", the Garden's sketchbook glyph, with a plus cut into its
-     corner the way Tabler's own photo-plus does it: the stroke drawn at three quarters so it
-     stops short of the bottom-right, and the plus in the notch at (19,19) on the same 16..22 arms
-     notebook-plus and file-plus use (Greg, 2026-10-10; before it, pencil-plus). -->
+<!-- New sketchbook — Tabler "sketching", the Garden's sketchbook glyph, with a plus in its
+     bottom-left corner: the stroke drawn at three quarters and kept to the top-right, the way
+     Tabler's own photo-plus shrinks its frame, and the plus at (5,19) on 2..8 arms, the mirror of
+     the arms notebook-plus and file-plus use (Greg, 2026-10-10: on the right it looked off; before
+     it, pencil-plus). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- The stroke, scaled to the top-left; its width held at 2 on the glass. -->
-    <group android:scaleX="0.75" android:scaleY="0.75" android:translateX="1" android:translateY="1">
+    <!-- The stroke, scaled towards the top-right; its width held at 2 on the glass. -->
+    <group android:scaleX="0.75" android:scaleY="0.75" android:translateX="5.5" android:translateY="1">
         <path
             android:fillColor="@android:color/transparent"
             android:strokeColor="@color/inkBlack"
@@ -24,12 +25,12 @@
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M16 19h6" />
+        android:pathData="M2 19h6" />
     <path
         android:fillColor="@android:color/transparent"
         android:strokeColor="@color/inkBlack"
         android:strokeWidth="2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M19 16v6" />
+        android:pathData="M5 16v6" />
 </vector>
