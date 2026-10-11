@@ -170,6 +170,51 @@ preset is for, not from the SN screen.
 
 ---
 
+## Markdown extensions in the document editor
+
+**Raised by Greg 2026-10-10, asking what we could add beyond the standard set; the research
+is here so it need not be done twice. Set aside, undecided.**
+
+The parser is Soil's own (`:markdown`), so any syntax is open to us; the question is which
+survives outside the app. Today the editor holds SN's set (headings, bullet, numbered and task
+lists, quotes, rules, bold, italic, strikethrough, inline code, links) and keeps tables, fenced
+code and images as raw lines (above). Markdown has no standard for most of what follows; the
+readers named are the ones that honour each form.
+
+**Alignment** (the example asked for: a centred heading).
+
+- *Attribute lists*: `## Title {.center}`, or `{: .center}` on its own line. Pandoc, Kramdown,
+  Python-Markdown, Obsidian plugins. Stays one line, round-trips, and a reader that ignores it
+  shows the braces as literal text. The proposed choice: `{.center}` and `{.right}` on headings
+  and paragraphs, with a button on the format bar that sets them.
+- *Inline HTML*: `<div align="center">` or `<center>`. The only form most readers honour, but
+  ugly in the Markdown editor and needs a small HTML subset parsed.
+- *Pandoc fenced divs*: `::: {.center}` ... `:::`. Clean for a block, verbose for one heading.
+- *A marker of our own*: `->## Title<-` (Typora) or `:-: Title`. Nothing else reads it.
+
+**Other extensions that fit a writing device.**
+
+- *Footnotes*: `[^1]` and `[^1]: text`. GFM, Pandoc, Obsidian.
+- *Highlight*: `==text==`. Obsidian, Markdown Extra, Bear. On e-ink a grey band or underline.
+- *Underline*: `++text++` (Markdown-it) or `<u>`. No standard.
+- *Superscript and subscript*: `^2^`, `~2~`. Pandoc, Markdown-it. Rarely needed.
+- *Definition lists*: a term line, then `: definition`. Pandoc, Markdown Extra, Kramdown.
+- *Front matter*: a YAML block between `---` lines at the top (title, date, tags). Obsidian,
+  Hugo, Jekyll. Useful if the Garden ever wants a document's tags inside the file.
+- *Heading IDs*: `## Title {#intro}`, the same brace syntax as alignment; gives `[link](#intro)`
+  anchors in the document and in a PDF's table of contents (below).
+- *Wiki links*: `[[Document name]]`. Obsidian. We have our own link scheme; import only.
+- *Callouts*: `> [!NOTE]`. GFM, Obsidian. Builds on the quote already parsed.
+- *Hard page breaks*: `\pagebreak`, a `page-break` div, or `{.pagebreak}`. No standard, but
+  the paginator and the PDF export would make real use of one.
+- *Math* (`$x^2$`) and *emoji shortcodes* (`:smile:`): not a fit, heavy to render or colourless.
+
+**The one principle proposed:** the brace attribute syntax carries alignment, heading IDs, page
+breaks and later a class on any block with one parser rule and one escaping rule, and has the
+widest reading outside the app of the non-HTML choices.
+
+---
+
 ## A table of contents in a PDF
 
 **Raised by Greg 2026-10-04, at Docsprout's phase 7 walk.**
