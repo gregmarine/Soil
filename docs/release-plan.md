@@ -106,13 +106,13 @@ Order matters. Each numbered step is mine unless marked **Greg**.
   34 covers, the calendar with 4 events, 4 Scratch Pad pages, ten seconds; two NOTEBOOK-scoped
   test files refused by name, one missing file named, nothing else to explain. The index and
   three files were decrypted and checked row for row, then scrubbed.
-- **One rule not in the seven decisions, for Greg:** a text document that also carries ink on its
-  pages gets a notebook beside it (the dev library had one, *Blog 20251008*). Nothing is lost
-  either way; say if the ink should be dropped instead.
-- **Proposed rehearsal, Greg's call:** restore the converted dev set into the Nomad's Soil debug
-  build before device day. It is the one check that Soil itself opens what the converter writes,
-  and it costs the Nomad's current dev library, since Restore is replace-all. The Nomad is not
-  plugged in now.
+- A text document that also carries ink on its pages gets a notebook beside it (Greg, 2026-10-11:
+  both, for now). No rehearsal on the Nomad (Greg): SN stays installed, so the Manta's release
+  is the rehearsal.
+- **The Split list** (Greg, 2026-10-11): `report.txt` names every SN notebook that became more
+  than one item, with each item's kind, name and id, for Greg to go through on the device.
+- Part B is done: 1.0.0 / versionCode 2 everywhere, tests green, eleven release APKs built with
+  the Drive client and the `Sproutscape` root baked in (commit 70f50b7).
 - Device day's step 3 can also start from the Drive copy of an SN backup rather than a pull,
   if the device is awkward; a pull with SN closed is still the fresher source.
 

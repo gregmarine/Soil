@@ -228,6 +228,16 @@ class PlainConversion(unittest.TestCase):
         self.assertEqual(q(f, "SELECT ref FROM recent_ref"), [("JHN:3:16-3:16",)])
         self.assertEqual(q(f, "SELECT count(*) FROM sqlite_master WHERE name='note_ref'"), [(0,)])
 
+    def test_split_list(self):
+        sec = self.report.split("Split (")[1].split("SHAPES")[0]
+        self.assertTrue(sec.startswith("2 SN notebook(s)"))
+        self.assertIn("'Meeting':", sec)
+        self.assertIn("'Doodles':", sec)
+        self.assertNotIn("'Essay'", sec)
+        self.assertIn(f"- notebook 'Meeting' ({fixture.NB_HAND})", sec)
+        self.assertIn("- document 'Meeting' (", sec)
+        self.assertIn("[beside]", sec)
+
     def test_left_behind_named(self):
         self.assertIn("user dictionary", self.report)
         self.assertIn("cloud account", self.report)

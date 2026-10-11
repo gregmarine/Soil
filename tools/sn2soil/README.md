@@ -67,7 +67,8 @@ gets one blank page. The index's `link` table is left empty; Soil rebuilds it fr
 
    The output folder holds `soil.db`, one `<id>.soil` per item, `scratchpad.db`, the calendar's
    and the Bible's stores, and `report.txt` (what each notebook became, every count, every
-   warning).
+   warning, and the **Split** list: every SN notebook that became more than one item, with each
+   item's kind, name and id, for Greg to go through on the device afterwards).
 
 3. **Restore in Sproutscape.** Push the folder to the device and pick it from Backup → Restore:
 

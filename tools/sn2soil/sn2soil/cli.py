@@ -124,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── notebooks ──
     items = []
+    split: list[tuple[str, list]] = []   # SN notebooks that became more than one item
     for n in alive:
         label = f"{n.name!r} ({n.id})"
         f = garden / f"{n.id}.soil"
@@ -146,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         for it in outs:
             emit(it.plain_path, f"{it.id}.soil", S.ITEM_USER_VERSION)
             items.append(it)
+        if len(outs) > 1:
+            split.append((n.name, outs))
         kind = "text document" if n.text_document else "sketch notebook" if n.sketch else "notebook"
         made = ", ".join(f"{it.kind}" + ("" if it.primary else " beside") + _summary(it) for it in outs)
         rep.log(f"  ✓ {n.name!r} ({kind}) → {made}")
@@ -205,6 +208,12 @@ def main(argv: list[str] | None = None) -> int:
     rep.log("Counts:")
     for k in sorted(ctx.counts):
         rep.log(f"  {k}: {ctx.counts[k]}")
+    rep.log("")
+    rep.log(f"Split ({len(split)} SN notebook(s) became more than one item; the first named keeps the SN id):")
+    for name, outs in split:
+        rep.log(f"  {name!r}:")
+        for it in sorted(outs, key=lambda it: not it.primary):
+            rep.log(f"    - {it.kind} {it.name!r} ({it.id})" + ("" if it.primary else "  [beside]"))
     if ctx.counts.get("shape rows"):
         rep.log("")
         rep.log(f"SHAPES: {ctx.counts['shape rows']} shape row(s) carried into the notebook files. Notesprout does not draw them "
