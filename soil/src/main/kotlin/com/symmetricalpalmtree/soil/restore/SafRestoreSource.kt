@@ -26,7 +26,7 @@ class SafRestoreSource(private val reader: SafBackupReader) : RestoreSource {
         if (found.isEmpty()) ListResult.Failed(RestoreProblem.NotABackup) else ListResult.Backups(found)
     }
 
-    override suspend fun fetchInto(backup: RestoreBackup, staging: File, onProgress: (done: Int, total: Int) -> Unit): FetchResult = withContext(Dispatchers.IO) {
+    override suspend fun fetchInto(backup: RestoreBackup, staging: File, stop: () -> Boolean, onProgress: (done: Int, total: Int) -> Unit): FetchResult = withContext(Dispatchers.IO) {
         val dir = Uri.parse(backup.handle)
         val entries = reader.list(dir) ?: return@withContext FetchResult.Failed(RestoreProblem.ListingFailed)
         val manifest = RestoreManifest.plan(entries.map(::listed), RestoreLeg.LOCAL) ?: return@withContext FetchResult.Failed(RestoreProblem.NotABackup)
@@ -34,6 +34,7 @@ class SafRestoreSource(private val reader: SafBackupReader) : RestoreSource {
         val total = manifest.items.size
         var done = 0
         for (item in manifest.items) {
+            if (stop()) { Slog.d(TAG) { "fetch stopped by the person after $done file(s)" }; return@withContext FetchResult.Failed(RestoreProblem.Cancelled) }
             val entry = byName[item.sourceName] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
             val target = RestoreStaging.targetFor(staging, item)
             val ok = reader.open(entry.uri)?.use { input -> RestoreStaging.writeStaged(target, item.size) { out -> input.copyTo(out) } } ?: false

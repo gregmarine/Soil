@@ -770,6 +770,9 @@
     <string name="restore_progress_unlocking">Unlocking…</string>
     <string name="restore_progress_installing">Installing…</string>
     <string name="restore_progress_keep_open">Keep Sproutscape open. This can take a while.</string>
+    <string name="restore_stopping">Stopping after this file…</string>
+    <string name="restore_cancelled_title">Restore cancelled</string>
+    <string name="restore_cancelled_body">Nothing has been changed. Your garden is as it was.</string>
     <string name="restore_key_title">Unlock the backup</string>
     <string name="restore_key_body">Enter the passphrase or recovery key of the garden this backup came from.</string>
     <string name="restore_key_hint">Passphrase or recovery key</string>

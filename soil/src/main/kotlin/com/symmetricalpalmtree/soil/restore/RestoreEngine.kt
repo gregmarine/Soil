@@ -102,6 +102,8 @@ object RestoreEngine {
 
     /** After a failed fetch: the disk is named when it is the disk, else the source's problem. */
     fun fetchFailureProblem(sourceProblem: Problem, totalBytes: Long, stagedBytes: Long, usableBytes: Long, headroom: Long = RestoreStaging.HEADROOM_BYTES): Problem {
+        // A stop is the person's, whatever the disk says of the rest.
+        if (sourceProblem is Problem.Source && sourceProblem.problem == RestoreProblem.Cancelled) return sourceProblem
         if (usableBytes < 0L) return sourceProblem
         val remaining = if (totalBytes < 0L) 0L else (totalBytes - stagedBytes).coerceAtLeast(0L)
         return spaceProblem(remaining, usableBytes, headroom) ?: sourceProblem
@@ -111,10 +113,10 @@ object RestoreEngine {
 
     // ── 2. Stage ──────
 
-    suspend fun stage(context: Context, source: RestoreSource, backup: RestoreBackup, onProgress: (done: Int, total: Int) -> Unit): StageResult = withContext(Dispatchers.IO) {
+    suspend fun stage(context: Context, source: RestoreSource, backup: RestoreBackup, stop: () -> Boolean = { false }, onProgress: (done: Int, total: Int) -> Unit): StageResult = withContext(Dispatchers.IO) {
         try {
             val staging = RestoreStaging.reset(context)
-            when (val r = source.fetchInto(backup, staging, onProgress)) {
+            when (val r = source.fetchInto(backup, staging, stop, onProgress)) {
                 is FetchResult.Staged -> StageResult.Staged(r.manifest)
                 is FetchResult.Failed -> {
                     val problem = fetchFailureProblem(Problem.Source(r.problem), backup.totalBytes, RestoreStaging.stagedBytes(staging), RestoreStaging.usableBytes(context))
@@ -200,7 +202,7 @@ object RestoreEngine {
     }
 
     /** Read the staged index's alive item ids under [proven]; drop every staged item file it does not name and every store that is not encrypted SQLite or does not open under the key, read-only. */
-    suspend fun pruneOrphans(context: Context, manifest: RestoreManifest, proven: String, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): PruneResult = withContext(Dispatchers.IO) {
+    suspend fun pruneOrphans(context: Context, manifest: RestoreManifest, proven: String, stop: () -> Boolean = { false }, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): PruneResult = withContext(Dispatchers.IO) {
         try {
             val staging = RestoreStaging.dir(context)
             val (alive, expected) = aliveItemIds(stagedIndex(context), proven)
@@ -210,6 +212,7 @@ object RestoreEngine {
             val stores = manifest.items.filter { it.kind == ItemKind.STORE }
             val deadStores = HashSet<String>()
             stores.forEachIndexed { i, item ->
+                if (stop()) { Slog.d(TAG) { "prune stopped by the person after $i store(s)" }; return@withContext PruneResult.Failed(Problem.Source(RestoreProblem.Cancelled)) }
                 onProgress(i, stores.size)
                 val f = RestoreStaging.targetFor(staging, item)
                 // Read-only: a read-write open's close would checkpoint a staged WAL into the main file.

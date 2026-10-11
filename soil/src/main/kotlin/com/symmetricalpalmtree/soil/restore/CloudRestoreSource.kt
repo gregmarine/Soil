@@ -69,7 +69,7 @@ class CloudRestoreSource(private val app: Context, private val ref: Extension) :
         }
     }
 
-    override suspend fun fetchInto(backup: RestoreBackup, staging: File, onProgress: (done: Int, total: Int) -> Unit): FetchResult = withContext(Dispatchers.IO) {
+    override suspend fun fetchInto(backup: RestoreBackup, staging: File, stop: () -> Boolean, onProgress: (done: Int, total: Int) -> Unit): FetchResult = withContext(Dispatchers.IO) {
         val path = arrayOf(BackupPredicates.CLOUD_BACKUPS_FOLDER, backup.handle)
         val entries = try {
             CloudClient.list(app, ref, path)
@@ -87,6 +87,7 @@ class CloudRestoreSource(private val app: Context, private val ref: Extension) :
         val total = manifest.items.size
         var done = 0
         for (item in manifest.items) {
+            if (stop()) { Slog.d(TAG) { "fetch stopped by the person after $done file(s)" }; return@withContext FetchResult.Failed(RestoreProblem.Cancelled) }
             val entry = byName[item.sourceName] ?: return@withContext FetchResult.Failed(RestoreProblem.FetchFailed(item.name))
             val target = RestoreStaging.targetFor(staging, item)
             var failure: RestoreProblem? = null

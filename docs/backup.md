@@ -106,6 +106,11 @@ preflight → stage → validate(index) → prove the key → prune orphans → 
   (held open or missing when it was taken) is named in the ending, after a line saying it was not
   in this backup; its row is installed with no file. Item files are not verified against the key:
   each has its own salt, so a check is a full key derivation per item.
+- **Cancel** (cleanup, 2026-10-10): the run is the wait overlay, Cancel under its line through
+  the copy and the checks; the fetch asks before each file and the orphan check before each
+  store, a yes ends there as `RestoreProblem.Cancelled`, the staging is discarded and the ending
+  says the garden is as it was. A disk that is also short is not what a stop is reported as. From
+  *Installing* on there is no Cancel: the commit is the point of no return.
 - **Commit**, whole under NonCancellable: the staged set is re-checked for a tear; this device's
   destination (its folder, its tick, its cloud folder) is parked outside the index; the session
   key is cleared so an extension calling into its store meets the locked library; every store and

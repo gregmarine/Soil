@@ -31,6 +31,8 @@ sealed class RestoreProblem {
     object CloudNetwork : RestoreProblem()
     object CloudUnanswered : RestoreProblem()
     object CloudGone : RestoreProblem()
+    /** The person pressed Cancel before the point of no return (cleanup, 2026-10-10); the staging is discarded and the garden untouched. */
+    object Cancelled : RestoreProblem()
 }
 
 sealed class ListResult {
@@ -47,6 +49,6 @@ sealed class FetchResult {
 interface RestoreSource {
     suspend fun listBackups(): ListResult
 
-    /** Stage every manifest item of [backup] under [staging]. Any single file failing fails the whole fetch. */
-    suspend fun fetchInto(backup: RestoreBackup, staging: File, onProgress: (done: Int, total: Int) -> Unit): FetchResult
+    /** Stage every manifest item of [backup] under [staging]. Any single file failing fails the whole fetch; [stop] asked before each file, a yes is [RestoreProblem.Cancelled]. */
+    suspend fun fetchInto(backup: RestoreBackup, staging: File, stop: () -> Boolean = { false }, onProgress: (done: Int, total: Int) -> Unit): FetchResult
 }
