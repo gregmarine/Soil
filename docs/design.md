@@ -352,6 +352,9 @@ The interface between Soil and the apps has one version number.
 - It is frozen at the first release build that is actually put to use.
 - After that it goes up when the interface changes, as it does today.
 
+**Frozen at 1 with Soil 1.0.0** (the release branch, 2026-10-11): the build put on the Manta.
+From here a change to the interface moves `Seam.VERSION`.
+
 ---
 
 ## 11. The existing library

@@ -125,6 +125,37 @@ adb -s SN078D10012852 install -r ext-image/build/outputs/apk/debug/ext-image-deb
 adb -s SN078D10012852 install -r ext-cloud/build/outputs/apk/debug/ext-cloud-debug.apk
 ```
 
+### The release set
+
+The release build is what the Manta runs (Soil 1.0.0, 2026-10-11). The same order, release
+with release, by serial:
+
+```
+adb -s SN100C10023972 install -r soil/build/outputs/apk/release/soil-release.apk
+adb -s SN100C10023972 install -r notesprout/build/outputs/apk/release/notesprout-release.apk
+adb -s SN100C10023972 install -r docsprout/build/outputs/apk/release/docsprout-release.apk
+adb -s SN100C10023972 install -r calsprout/build/outputs/apk/release/calsprout-release.apk
+adb -s SN100C10023972 install -r sketchsprout/build/outputs/apk/release/sketchsprout-release.apk
+adb -s SN100C10023972 install -r biblesprout/build/outputs/apk/release/biblesprout-release.apk
+adb -s SN100C10023972 install -r ext-mlkit/build/outputs/apk/release/ext-mlkit-release.apk
+adb -s SN100C10023972 install -r ext-soilfile/build/outputs/apk/release/ext-soilfile-release.apk
+adb -s SN100C10023972 install -r ext-pdf/build/outputs/apk/release/ext-pdf-release.apk
+adb -s SN100C10023972 install -r ext-image/build/outputs/apk/release/ext-image-release.apk
+adb -s SN100C10023972 install -r ext-cloud/build/outputs/apk/release/ext-cloud-release.apk
+```
+
+The shell's two settings for the release build name `com.symmetricalpalmtree.soil` without `.dev`:
+
+```
+adb -s SN100C10023972 shell pm set-home-activity com.symmetricalpalmtree.soil/com.symmetricalpalmtree.soil.home.HomeActivity
+adb -s SN100C10023972 shell settings put secure enabled_accessibility_services com.symmetricalpalmtree.soil/com.symmetricalpalmtree.soil.shell.SoilBarService
+adb -s SN100C10023972 shell settings put secure accessibility_enabled 1
+```
+
+A release and a debug set coexist on one device (the Nomad carries both); `.dev` talks to `.dev`
+and release to release, never across. The move of a Notesprout SN library onto the release set
+is `tools/sn2soil/README.md`.
+
 `:ext-cloud` compiles the Google OAuth client from `DRIVE_CLIENT_ID` and `DRIVE_CLIENT_SECRET`
 in the shell (`~/.zshenv` on this Mac). Built without them it installs and reports "not set up".
 
