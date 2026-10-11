@@ -657,3 +657,13 @@ walked on the Nomad:
 | 10 | The pencil is Sketch's mark everywhere: the launcher icon (as it was), a sketchbook card's corner glyph and the notebook's Convert to sketchbook actions in place of Tabler "sketching", which stays the Scratch Pad's; New sketchbook stays pencil-plus. The sketching stroke was tried as the mark and as a stroke-plus, and the plus on the left of every New glyph was tried and reverted (Greg) | |
 | 11 | New document is the Document app's mark (Tabler "file-text") with the plus cut into its bottom-right corner, as notebook-plus and folder-plus have it, in place of Tabler "file-plus" (Greg) | |
 
+The release, on the branch `release` (2026-10-11), Soil 1.0.0 on the Manta with the Notesprout SN
+library moved into it; the plan and the day as it went in `release-plan.md`:
+
+| Step | What | Document |
+|---|---|---|
+| 1 | The Drive root folder is `Sproutscape` on a release build and `Sproutscape Dev` on a debug one, in place of `Soil` and `Soil Dev` (Greg) | `cloud.md` |
+| 2 | `tools/sn2soil`, the converter from an SN library to a Soil backup set (§11): the part an SN notebook's kind names keeps the SN id, each other part becomes an item beside it (Greg: a Document beside a notebook, a notebook beside a sketchbook); the stores; every file's link mirror; the report's Split list; 19 tests with an encrypted round trip; dry-run on the Nomad's SN dev library | `tools/sn2soil/README.md` |
+| 3 | Every module 1.0.0, versionCode 2; the seam frozen at 1 (§10); the release install and shell commands | `building.md` |
+| 4 | Device day on the Manta: the SN library pulled with SN closed, converted in 30 s (155 items from 140 notebooks, 233 060 strokes, the calendar, the pad, the Bible's place; 16 shape rows carried invisible, Greg), the debug set gone, the release set in, restored whole, walked, the shell on, Drive connected and the first backup taken by Greg. SN stays installed | `release-plan.md` |
+
