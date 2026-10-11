@@ -91,10 +91,13 @@ bundle's limit is refused as too long, an empty one as empty.
 
 Reached from an item's long-press sheet in the library, and from an app's page sheet with
 `Seam.ACTION_EXPORT`; an app closes its item first so the file is free, and Soil reopens it on
-the way back (`EXTRA_RETURN_TO_APP`). Rows, top to bottom: the scope (this
-page or the whole item, only from a page sheet and only when a pages exporter is installed);
-the format, a plain label with one exporter; the format's options; the passphrase or password
-block; the plain-text warning. The last exporter used is remembered.
+the way back (`EXTRA_RETURN_TO_APP`). Two columns, half and half (2026-10-10). On the left: the
+scope (this page or the whole item, only from a page sheet and only when a pages exporter is
+installed), then **File type**, the formats as radios, a plain label with one exporter. On the
+right, the format's options (Page size, the image format and quality, the paper toggle, the
+keying), then the passphrase or password block and the plain-text warning; a format with
+nothing to set leaves the column empty. Under both, full width, the **Destination** (`cloud.md`).
+The last exporter used is remembered, and the last destination.
 
 An app's own formats are listed among the extensions' (named `app:<id>` to Soil), so a document
 offers Markdown, Plain text and PDF with selectable text beside PDF, the image formats and the
@@ -154,9 +157,12 @@ into the index, and whatever Replace retires is deleted last.
   renderer reads; its paper toggle takes the ring and the marks with the grid (2026-10-06).
 - A sketchbook exports its pages in true greys, the guides never, from Export page… and Export
   sketchbook… on its page sheet, and Soil opens it again on the way back (2026-10-07).
+- The screen in two columns, File type first and Destination last; the destination remembered
+  as the format is; the cloud folder shown on the screen and remembered per kind (2026-10-10).
 
 ## Walked on the Nomad
 
 Notesprout's phase 11, 2026-10-03. A document's export and the import of text files,
 Docsprout's phases 7 and 8, 2026-10-04. The calendar's export, Calsprout's phase 7, 2026-10-06.
-A sketchbook's export, Sketchsprout's phase 6, 2026-10-07.
+A sketchbook's export, Sketchsprout's phase 6, 2026-10-07. The columns, the remembered
+destination and the folder row, the export round, 2026-10-10.

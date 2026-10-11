@@ -26,11 +26,23 @@ class SettingsPrefs(context: Context) {
         get() = prefs.getString(KEY_LAST_PAGE_SIZE, null)
         set(value) { prefs.edit().putString(KEY_LAST_PAGE_SIZE, value).apply() }
 
+    /** Whether the last export went to the cloud; the screen opens on it while the account is connected. */
+    var lastDestinationCloud: Boolean
+        get() = prefs.getBoolean(KEY_LAST_DESTINATION_CLOUD, false)
+        set(value) { prefs.edit().putBoolean(KEY_LAST_DESTINATION_CLOUD, value).apply() }
+
+    /** The cloud folder last exported to for a kind of item, as `ExportDestination.encodeFolder` spells it; null for none yet. */
+    fun lastCloudFolder(kind: String): String? = prefs.getString(KEY_LAST_CLOUD_FOLDER + kind, null)
+
+    fun setLastCloudFolder(kind: String, encoded: String) { prefs.edit().putString(KEY_LAST_CLOUD_FOLDER + kind, encoded).apply() }
+
     private companion object {
         const val FILE = "soil_settings"
         const val KEY_LAST_PAGE_SIZE = "lastPageSize"
         const val KEY_RECOGNIZER = "recognizer"
         const val KEY_LANGUAGE = "recognizerLanguage"
         const val KEY_LAST_EXPORTER = "lastExporter"
+        const val KEY_LAST_DESTINATION_CLOUD = "lastDestinationCloud"
+        const val KEY_LAST_CLOUD_FOLDER = "lastCloudFolder:"
     }
 }

@@ -45,8 +45,10 @@ class CloudBrowserDialog(
     private val ref: Extension,
     private val providerName: String,
     private val mode: Mode,
-    /** The folder the browser opens on, and the floor Up will not climb above. */
+    /** The floor Up will not climb above, and where the browser opens unless [startPath] says otherwise. */
     private val basePath: List<String>,
+    /** The folder the browser opens on: a remembered one under [basePath]. A gone folder lists as empty, so there is no opening failure. */
+    private val startPath: List<String> = basePath,
     private val onPicked: (Pick) -> Unit,
     private val onNotConnected: () -> Unit,
     private val onCancelled: () -> Unit,
@@ -62,7 +64,7 @@ class CloudBrowserDialog(
 
     private val dialog = Dialog(activity, R.style.Theme_Soil)
 
-    private var path: List<String> = basePath
+    private var path: List<String> = if (startPath.size >= basePath.size && startPath.take(basePath.size) == basePath) startPath else basePath
     private var entries: List<CloudEntry> = emptyList()
     private var listPage = 0
     private var itemsPerPage = 1

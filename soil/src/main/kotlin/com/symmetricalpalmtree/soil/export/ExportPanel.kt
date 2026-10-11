@@ -75,5 +75,27 @@ class ExportPanel(private val context: Context) {
         layoutParams = wrapRow()
     }
 
+    /** A door: a value with an icon, the whole row the target, opening a chooser of its own. */
+    fun door(iconRes: Int, text: String, onTap: () -> Unit): View = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(padV, padV, padV, padV)
+        isClickable = true
+        isFocusable = true
+        background = ColorDrawable(Color.TRANSPARENT)
+        setOnClickListener { onTap() }
+        val iconSize = (24 * density).toInt()
+        addView(
+            AppCompatImageView(context).apply {
+                setImageResource(iconRes)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                contentDescription = null
+            },
+            LinearLayout.LayoutParams(iconSize, iconSize).also { it.marginEnd = (12 * density).toInt() },
+        )
+        addView(AppCompatTextView(context).apply { this.text = text; textSize = 16f; setTextColor(ink) }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        layoutParams = wrapRow()
+    }
+
     private fun wrapRow() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
 }

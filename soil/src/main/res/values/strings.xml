@@ -623,6 +623,12 @@
     <!-- Export to the cloud -->
     <string name="export_destination_caption">Destination</string>
     <string name="export_destination_local">This device</string>
+    <string name="export_file_type_caption">File type</string>
+    <string name="export_cloud_folder_caption">Folder</string>
+    <string name="export_checking_folder">Checking the folder…</string>
+    <string name="export_cloud_folder_gone_title">That folder is gone</string>
+    <string name="export_cloud_folder_gone_body">The folder %1$s is no longer in %2$s. Choose where this export should go.</string>
+    <string name="export_cloud_folder_choose">Choose a folder</string>
     <string name="export_uploading">Uploading to %1$s…</string>
     <string name="export_cloud_done_body">The file was uploaded to %1$s.</string>
     <string name="export_cloud_untouched_note">Nothing was uploaded.</string>
